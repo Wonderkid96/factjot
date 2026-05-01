@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(/Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/runway.py)"
-    ]
-  }
-}

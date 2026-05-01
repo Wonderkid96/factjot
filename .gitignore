@@ -26,6 +26,9 @@ venv/
 dist/
 build/
 
+# ── Claude Code local session data ────────────────────────────────
+.claude/
+
 # ── macOS ──────────────────────────────────────────────────────────
 .DS_Store
 .AppleDouble
