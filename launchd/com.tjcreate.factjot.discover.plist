@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.tjcreate.factjot.discover</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Library/Frameworks/Python.framework/Versions/Current/bin/python3</string>
+    <string>/Users/Music/Documents/Insta-bot/scripts/discover_facts.py</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/Music/Documents/Insta-bot</string>
+
+  <!-- Daily at 03:00 local. Pulls fresh facts before any morning publish. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>3</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/Music/Documents/Insta-bot/data/launchd_discover.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/Music/Documents/Insta-bot/data/launchd_discover.err</string>
+</dict>
+</plist>

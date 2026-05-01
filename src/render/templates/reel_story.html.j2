@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  @font-face {
+    font-family: "Instrument Serif";
+    src: url("{{ font_serif_regular }}") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+  }
+  @font-face {
+    font-family: "Instrument Serif";
+    src: url("{{ font_serif_italic }}") format("truetype");
+    font-weight: 400;
+    font-style: italic;
+  }
+  @font-face {
+    font-family: "Space Grotesk";
+    src: url("{{ font_sans_semibold }}") format("truetype");
+    font-weight: 600;
+    font-style: normal;
+  }
+  @font-face {
+    font-family: "JetBrains Mono";
+    src: url("{{ font_mono_bold }}") format("truetype");
+    font-weight: 700;
+    font-style: normal;
+  }
+
+  :root {
+    --paper:     #F4F1E9;
+    --ink:       #0A0A0A;
+    --near-black:#0B0B0C;
+    --off-white: #EDE8DD;
+    --accent:    #E6352A;
+    --lime:      #C8DB45;
+    --lilac:     #C4A9D0;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: {{ width }}px;
+    height: {{ height }}px;
+    overflow: hidden;
+    background: var(--near-black);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .stage {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    {% if frame_url %}
+    background: url("{{ frame_url }}") center / cover no-repeat;
+    {% else %}
+    background: linear-gradient(175deg, #131315 0%, #0C0C0E 50%, #090909 100%);
+    {% endif %}
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Dark overlay — sits above footage frame, below all text and branding */
+  .dark-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(
+      to bottom,
+      rgba(0,0,0,0.72) 0%,
+      rgba(0,0,0,0.35) 30%,
+      rgba(0,0,0,0.35) 60%,
+      rgba(0,0,0,0.80) 100%
+    );
+    pointer-events: none;
+  }
+
+  /* Gradient accent line left edge — above overlay */
+  .accent-line {
+    position: absolute;
+    left: 0;
+    top: 10%;
+    bottom: 10%;
+    width: 3px;
+    z-index: 2;
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      var(--accent) 15%,
+      var(--lime) 55%,
+      var(--lilac) 85%,
+      transparent 100%
+    );
+    opacity: 0.8;
+  }
+
+  /* Top section — header and NEW REEL badge — above overlay */
+  .top {
+    padding: 88px 56px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 48px;
+    position: relative;
+    z-index: 2;
+  }
+
+  /* carousel-style full-width header */
+  .header {
+    display: flex;
+    align-items: center;
+    width: 100%;
+  }
+  .header-wordmark {
+    font-family: "Instrument Serif", Georgia, serif;
+    font-weight: 400;
+    font-size: 28px;
+    letter-spacing: -0.02em;
+    color: var(--off-white);
+    opacity: 0.88;
+    flex: 0 0 auto;
+    white-space: nowrap;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.5);
+  }
+  .header-wordmark .reg  { font-style: normal; }
+  .header-wordmark .ital { font-style: italic; }
+  .header-wordmark .dot  { color: var(--accent); }
+  .header-sep {
+    flex: 1 1 auto;
+    height: 1px;
+    background: var(--off-white);
+    opacity: 0.22;
+    margin: 0 16px;
+  }
+  .header-label {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-weight: 700;
+    font-size: 20px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--off-white);
+    opacity: 0.88;
+    flex: 0 0 auto;
+    white-space: nowrap;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.5);
+  }
+
+  /* NEW REEL badge — accent background pill */
+  .badge {
+    align-self: flex-start;
+    background: var(--accent);
+    color: #fff;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-weight: 700;
+    font-size: 22px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    padding: 12px 28px 14px;
+    border-radius: 9999px;
+    line-height: 1;
+  }
+
+  /* Centre section — the fact title — above overlay */
+  .middle {
+    position: absolute;
+    top: 50%;
+    left: 56px;
+    right: 56px;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 48px;
+    align-items: flex-start;
+    z-index: 2;
+  }
+
+  .fact-title {
+    font-family: "Instrument Serif", Georgia, serif;
+    font-weight: 400;
+    font-size: {{ title_size }}px;
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    color: var(--off-white);
+    text-wrap: balance;
+    text-shadow: 2px 2px 0 rgba(0,0,0,0.5);
+  }
+  .fact-title em { font-style: italic; }
+  .fact-title .accent { color: var(--accent); font-style: italic; }
+
+  .watch-cta {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 26px;
+    letter-spacing: 0.02em;
+    color: var(--off-white);
+    opacity: 0.65;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .watch-arrow {
+    font-size: 32px;
+    opacity: 0.8;
+  }
+
+  /* Bottom — topic tag — above overlay */
+  .bottom {
+    position: absolute;
+    bottom: 100px;
+    left: 56px;
+    right: 56px;
+    display: flex;
+    align-items: center;
+    z-index: 2;
+  }
+  .topic-pill {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 9999px;
+    padding: 10px 24px 12px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-weight: 700;
+    font-size: 20px;
+    letter-spacing: 0.20em;
+    text-transform: uppercase;
+    color: var(--off-white);
+    opacity: 0.72;
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="dark-overlay"></div>
+  <div class="accent-line"></div>
+
+  <div class="top">
+    <div class="header">
+      <span class="header-wordmark">
+        <span class="reg">fact</span><span class="ital">jot</span><span class="dot">.</span>
+      </span>
+      <span class="header-sep"></span>
+      <span class="header-label">New Reel</span>
+    </div>
+    <div class="badge">New Reel</div>
+  </div>
+
+  <div class="middle">
+    <div class="fact-title">{{ title_html | safe }}</div>
+    <div class="watch-cta">
+      <span class="watch-arrow">↑</span>
+      <span>Watch on our profile</span>
+    </div>
+  </div>
+
+  <div class="bottom">
+    <span class="topic-pill">{{ topic }}</span>
+  </div>
+</div>
+</body>
+</html>

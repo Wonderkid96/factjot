@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  @font-face {
+    font-family: "Instrument Serif";
+    src: url("{{ font_serif_regular }}") format("truetype");
+    font-weight: 400; font-style: normal;
+  }
+  @font-face {
+    font-family: "Instrument Serif";
+    src: url("{{ font_serif_italic }}") format("truetype");
+    font-weight: 400; font-style: italic;
+  }
+  @font-face {
+    font-family: "JetBrains Mono";
+    src: url("{{ font_mono_bold }}") format("truetype");
+    font-weight: 700; font-style: normal;
+  }
+
+  :root {
+    --paper: #F4F1E9; --ink: #0A0A0A; --near-black: #0B0B0C;
+    --muted: #9A938A; --off-white: #EDE8DD; --accent: #E6352A;
+    --lime: #C8DB45; --lilac: #C4A9D0; --white: #FFFFFF;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: {{ width }}px; height: {{ height }}px;
+    overflow: hidden; background: var(--near-black); color: var(--white);
+    font-family: "Instrument Serif", Georgia, serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .stage { position: relative; width: {{ width }}px; height: {{ height }}px; overflow: hidden; isolation: isolate; }
+
+  /* Backdrop full-bleed, slightly blurred so it reads as atmosphere not subject */
+  .photo {
+    position: absolute; inset: 0;
+    background: url("{{ backdrop_url }}") center/cover no-repeat;
+    z-index: 0;
+    filter: saturate(0.92) brightness(0.78);
+    transform: scale(1.04);
+  }
+
+  .top-darken {
+    position: absolute; inset: 0 0 auto 0; height: 22%;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.55), rgba(0,0,0,0.0));
+    z-index: 1;
+  }
+  .bottom-darken {
+    position: absolute; inset: 28% 0 0 0;
+    background: linear-gradient(
+      to bottom,
+      rgba(11,11,12,0.0) 0%,
+      rgba(11,11,12,0.55) 40%,
+      rgba(11,11,12,0.92) 78%,
+      rgba(11,11,12,0.98) 100%);
+    z-index: 1;
+  }
+  .vignette {
+    position: absolute; inset: 0; z-index: 2;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0) 65%, rgba(0,0,0,0.28) 100%);
+    pointer-events: none;
+  }
+  .grain {
+    position: absolute; inset: 0; z-index: 5; opacity: 0.06; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='280' height='280'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.7 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    pointer-events: none;
+  }
+
+  .frame {
+    position: absolute; inset: 0; z-index: 10;
+    padding: 56px 72px 80px 72px;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+
+  .top-row {
+    display: flex; align-items: center; gap: 22px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 22px; font-weight: 700; letter-spacing: 0.18em;
+    color: var(--off-white); text-transform: uppercase;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.55);
+  }
+  .wordmark-img { flex: 0 0 auto; height: 38px; width: auto; opacity: 0.95;
+    filter: drop-shadow(1px 1px 0 rgba(0,0,0,0.45)); }
+  .wordmark { opacity: 0.92; flex: 0 0 auto; }
+  .top-divider { flex: 1 1 auto; height: 1px; background: var(--off-white); opacity: 0.38; }
+  .index { opacity: 0.78; flex: 0 0 auto; }
+
+  .body-row {
+    display: flex; gap: 36px; align-items: flex-end;
+    margin-top: auto;
+  }
+
+  .poster-card {
+    flex: 0 0 auto;
+    width: 360px; height: 540px;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow:
+      0 22px 50px rgba(0,0,0,0.55),
+      0 4px 14px rgba(0,0,0,0.45);
+    background: #111 url("{{ poster_url }}") center/cover no-repeat;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .text-col {
+    flex: 1 1 auto;
+    display: flex; flex-direction: column; gap: 20px;
+    min-width: 0;
+  }
+
+  .title {
+    font-family: "Instrument Serif", Georgia, serif;
+    font-style: italic; font-weight: 400;
+    font-size: 78px; line-height: 1.0;
+    letter-spacing: -0.018em;
+    color: var(--white);
+    text-wrap: balance;
+    text-shadow: 2px 2px 0 rgba(0,0,0,0.52);
+  }
+  .title .accent-period { color: var(--accent); font-style: italic; }
+
+  .meta {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 19px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--off-white); opacity: 0.82;
+    line-height: 1.5;
+  }
+  .meta .sep { padding: 0 10px; opacity: 0.5; }
+
+  .cast-line {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 18px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--off-white); opacity: 0.78;
+    line-height: 1.4;
+  }
+  .cast-line .label {
+    color: var(--off-white); opacity: 0.55;
+    margin-right: 10px;
+  }
+  .cast-line .name { color: var(--off-white); opacity: 0.94; }
+  .cast-line .name + .name::before {
+    content: "·"; padding: 0 8px; opacity: 0.5;
+  }
+
+  .scores {
+    display: flex; align-items: stretch; gap: 12px;
+    margin-top: -2px;
+    flex-wrap: wrap;
+  }
+  .score-chip {
+    display: inline-flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 10px 22px 12px 22px;
+    border-radius: 14px;
+    background: rgba(0,0,0,0.55);
+    border: 1px solid rgba(255,255,255,0.18);
+    box-shadow:
+      0 6px 14px rgba(0,0,0,0.35),
+      inset 0 1px 0 rgba(255,255,255,0.06);
+    min-width: 110px;
+  }
+  .score-chip .label {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-weight: 700; font-size: 14px;
+    letter-spacing: 0.32em; text-transform: uppercase;
+    color: var(--off-white); opacity: 0.78;
+    line-height: 1.0;
+    margin-bottom: 6px;
+  }
+  .score-chip .value {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-weight: 700;
+    font-size: 36px; line-height: 1.0;
+    letter-spacing: 0.02em;
+    color: var(--accent);
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.55);
+  }
+
+  .hook {
+    font-family: "Instrument Serif", Georgia, serif;
+    font-size: 36px; line-height: 1.22;
+    color: var(--white); opacity: 0.96;
+    text-wrap: balance;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.5);
+  }
+  .hook em { font-style: italic; color: var(--white); }
+  .hook em.accent { color: var(--accent); }
+
+  .gradient-rule {
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--lime) 50%, var(--lilac) 100%);
+    border-radius: 2px;
+    opacity: 0.9;
+    margin-top: 12px;
+  }
+  .footer-mark {
+    margin-top: 8px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 16px; letter-spacing: 0.32em; text-transform: uppercase;
+    color: var(--off-white); opacity: 0.66;
+  }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="photo"></div>
+    <div class="top-darken"></div>
+    <div class="bottom-darken"></div>
+    <div class="vignette"></div>
+    <div class="grain"></div>
+
+    <div class="frame">
+      <div class="top-row">
+        {% if wordmark_image_url %}
+          <img class="wordmark-img" src="{{ wordmark_image_url }}" alt="factjot" />
+        {% else %}
+          <span class="wordmark">factjot</span>
+        {% endif %}
+        <span class="top-divider"></span>
+        <span class="index">{{ index_label }}</span>
+      </div>
+
+      <div class="body-row">
+        <div class="poster-card"></div>
+        <div class="text-col">
+          <h1 class="title">{{ title }}<span class="accent-period">.</span></h1>
+          <div class="meta">
+            {{ year }}{% if director %}<span class="sep">·</span>{{ director }}{% endif %}{% if runtime %}<span class="sep">·</span>{{ runtime }}{% endif %}{% if genre %}<span class="sep">·</span>{{ genre }}{% endif %}
+          </div>
+          {% if leading_cast %}
+          <div class="cast-line">
+            <span class="label">Starring</span>{% for n in leading_cast %}<span class="name">{{ n }}</span>{% endfor %}
+          </div>
+          {% endif %}
+          {% if imdb_score or rotten_score %}
+          <div class="scores">
+            {% if imdb_score %}<span class="score-chip"><span class="label">IMDB</span><span class="value">{{ imdb_score }}</span></span>{% endif %}
+            {% if rotten_score %}<span class="score-chip"><span class="label">ROTTEN</span><span class="value">{{ rotten_score }}</span></span>{% endif %}
+          </div>
+          {% endif %}
+          <div class="hook">{{ hook_html | safe }}</div>
+          <div class="gradient-rule"></div>
+          <div class="footer-mark">{{ category }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

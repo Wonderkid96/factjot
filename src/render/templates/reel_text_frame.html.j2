@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  /* TJCreate Visual Style Guide — factjot Reel overlay
+     Display:  Instrument Serif (Regular · Italic)
+     Body/UI:  Space Grotesk (Medium 500 · SemiBold 600)
+     Labels:   JetBrains Mono (Bold 700)                    */
+
+  @font-face {
+    font-family: "Instrument Serif";
+    src: url("{{ font_serif_regular }}") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+  }
+  @font-face {
+    font-family: "Instrument Serif";
+    src: url("{{ font_serif_italic }}") format("truetype");
+    font-weight: 400;
+    font-style: italic;
+  }
+  @font-face {
+    font-family: "Space Grotesk";
+    src: url("{{ font_sans_semibold }}") format("truetype");
+    font-weight: 600;
+    font-style: normal;
+  }
+  @font-face {
+    font-family: "Space Grotesk";
+    src: url("{{ font_sans_medium }}") format("truetype");
+    font-weight: 500;
+    font-style: normal;
+  }
+  @font-face {
+    font-family: "JetBrains Mono";
+    src: url("{{ font_mono_bold }}") format("truetype");
+    font-weight: 700;
+    font-style: normal;
+  }
+
+  :root {
+    --paper:     #F4F1E9;
+    --ink:       #0A0A0A;
+    --near-black:#0B0B0C;
+    --off-white: #EDE8DD;
+    --accent:    #E6352A;
+    --lime:      #C8DB45;
+    --white:     #FFFFFF;
+    --muted:     #6B645A;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: {{ width }}px;
+    height: {{ height }}px;
+    background: transparent;
+    color: var(--white);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow: hidden;
+  }
+
+  .stage {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+
+  .legible {
+    text-shadow:
+      0 2px 8px rgba(0,0,0,0.55),
+      0 1px 2px rgba(0,0,0,0.70);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Persistent cinematic shadow overlay                                  */
+  /* ------------------------------------------------------------------ */
+  .shadow-overlay { position: absolute; inset: 0; pointer-events: none; }
+  .shadow-overlay .top-darken {
+    position: absolute; inset: 0 0 auto 0; height: 30%;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.70) 0%, rgba(0,0,0,0) 100%);
+  }
+  .shadow-overlay .bottom-darken {
+    position: absolute; inset: 40% 0 0 0;
+    background: linear-gradient(
+      to bottom,
+      rgba(11,11,12,0.00)  0%,
+      rgba(11,11,12,0.45) 38%,
+      rgba(11,11,12,0.82) 68%,
+      rgba(11,11,12,0.97) 100%
+    );
+  }
+  .shadow-overlay .vignette {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,0.32) 100%);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Topic label · top-left · carousel-style factjot. ─── TOPIC          */
+  /* Matches the header row of carousel slides exactly.                   */
+  /* ------------------------------------------------------------------ */
+  /* Full-width header bar matching carousel slide style exactly:
+     factjot. [────────────────────────────] EARTH            */
+  .label {
+    position: absolute;
+    top: 88px;
+    left: 56px;
+    right: 56px;
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+  .label-wordmark {
+    font-family: "Instrument Serif", Georgia, serif;
+    font-weight: 400;
+    font-size: 28px;
+    letter-spacing: -0.02em;
+    color: var(--off-white);
+    opacity: 0.92;
+    flex: 0 0 auto;
+    white-space: nowrap;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.6);
+  }
+  .label-wordmark .reg  { font-style: normal; }
+  .label-wordmark .ital { font-style: italic; }
+  .label-wordmark .dot  { color: var(--accent); font-style: normal; }
+  .label-sep {
+    flex: 1 1 auto;        /* expands to fill all space between logo and topic */
+    height: 1px;
+    background: var(--off-white);
+    opacity: 0.38;
+    margin: 0 16px;
+  }
+  .label-topic {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-weight: 700;
+    font-size: 22px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--off-white);
+    opacity: 0.92;
+    flex: 0 0 auto;
+    white-space: nowrap;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.6);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Story title card · Instrument Serif · centred · below label         */
+  /* TOP is fixed so it never bleeds into the label area.                */
+  /* ------------------------------------------------------------------ */
+  .hook {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);   /* true X and Y centre */
+    width: 86%;
+    text-align: center;
+    font-family: "Instrument Serif", Georgia, serif;
+    font-weight: 400;
+    font-size: {{ hook_size }}px;
+    line-height: 1.0;
+    letter-spacing: -0.020em;
+    text-wrap: balance;
+  }
+  .hook em { font-style: italic; }
+  .hook em.accent { color: var(--accent); }
+
+  /* ------------------------------------------------------------------ */
+  /* Kinetic subtitles · Space Grotesk SemiBold · top-left anchored      */
+  /* First word always appears at the same position; new words extend     */
+  /* rightward; line-breaks grow downward. No positional reflow.         */
+  /* ------------------------------------------------------------------ */
+  .subtitle {
+    position: absolute;
+    top: 1200px;       /* lower-middle — safe from IG like/comment UI      */
+    left: 72px;
+    right: 72px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 600;
+    font-size: {{ subtitle_size }}px;
+    line-height: 1.20;
+    letter-spacing: -0.010em;
+    text-align: center;
+    color: var(--white);
+  }
+  .subtitle em { font-style: normal; color: var(--accent); }
+
+  /* ------------------------------------------------------------------ */
+  /* CTA — wordmark spec hardwired from make_avatar.py (source of truth) */
+  /* fact=normal  jot=italic  .=accent  colour=off-white  ls=-0.02em    */
+  /* Shadow: hard drop (0 blur) matching carousel slide style.           */
+  /* ------------------------------------------------------------------ */
+  .cta {
+    position: absolute;
+    top: 45%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    width: 90%;
+  }
+  .cta .wordmark {
+    font-family: "Instrument Serif", Georgia, serif;
+    font-weight: 400;
+    font-size: 160px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--off-white);
+    text-shadow: 3px 3px 0 rgba(0,0,0,0.45);   /* hard shadow — no blur */
+  }
+  .cta .wordmark .reg  { font-style: normal; }
+  .cta .wordmark .ital { font-style: italic; }
+  .cta .wordmark .dot  { color: var(--accent); font-style: normal; }
+  .cta .sub {
+    margin-top: 36px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-weight: 700;
+    font-size: 26px;
+    letter-spacing: 0.20em;
+    text-transform: uppercase;
+    color: var(--off-white);
+    opacity: 0.75;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.45);   /* hard shadow — no blur */
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Logo watermark · bottom-right · same spec as wordmark               */
+  /* ------------------------------------------------------------------ */
+  .logo {
+    position: absolute;
+    bottom: 120px;
+    right: 56px;
+    font-family: "Instrument Serif", Georgia, serif;
+    font-weight: 400;
+    font-size: 36px;
+    letter-spacing: -0.02em;   /* match make_avatar.py exactly */
+    color: var(--off-white);
+    opacity: 0.48;
+  }
+  .logo .reg  { font-style: normal; }
+  .logo .ital { font-style: italic; }
+  .logo .dot  { color: var(--accent); font-style: normal; }
+</style>
+</head>
+<body>
+<div class="stage">
+
+{% if style == "overlay" %}
+  <div class="shadow-overlay">
+    <div class="top-darken"></div>
+    <div class="bottom-darken"></div>
+    <div class="vignette"></div>
+  </div>
+
+{% elif style == "label" %}
+  <div class="label">
+    <span class="label-wordmark">
+      <span class="reg">fact</span><span class="ital">jot</span><span class="dot">.</span>
+    </span>
+    <span class="label-sep"></span>
+    <span class="label-topic">{{ text }}</span>
+  </div>
+
+{% elif style == "hook" %}
+  <div class="hook legible">{{ text|safe }}</div>
+
+{% elif style == "subtitle" %}
+  <div class="subtitle legible">{{ text|safe }}</div>
+
+{% elif style == "cta" %}
+  <div class="cta">
+    <div class="wordmark">
+      <span class="reg">@fact</span><span class="ital">jot</span><span class="dot">.</span>
+    </div>
+    <div class="sub">follow for more facts</div>
+  </div>
+
+{% elif style == "logo" %}
+  <div class="logo">
+    <span class="reg">fact</span><span class="ital">jot</span><span class="dot">.</span>
+  </div>
+
+{% endif %}
+
+</div>
+</body>
+</html>

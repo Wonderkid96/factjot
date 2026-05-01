@@ -1,0 +1,31 @@
+# ── Secrets ────────────────────────────────────────────────────────
+.env
+*.key
+*.pem
+
+# ── Operational data (ledgers, caches, queues) ─────────────────────
+data/
+logs/
+insta-brain/data/
+insta-brain/inbox.md
+insta-brain/log.md
+
+# ── Large generated assets ─────────────────────────────────────────
+assets/music/
+assets/video/
+assets/intros/
+assets/avatars/
+
+# ── Python ─────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# ── macOS ──────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble

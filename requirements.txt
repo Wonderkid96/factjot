@@ -1,0 +1,6 @@
+Pillow>=10.4.0
+PyYAML>=6.0.2
+requests>=2.32.3
+python-dotenv>=1.0.1
+tenacity>=9.0.0
+edge-tts>=7.0.0

@@ -1,0 +1,49 @@
+pipeline:
+  min_sources: 2
+  min_source_quality: 0.55
+  min_confidence: 0.65
+  max_slide_words: 14
+  min_font_size: 34
+  weekly_days:
+    - wed
+  weekly_post_hour_utc: 10
+  default_series:
+    - factjot
+  banned_claim_terms:
+    - cure
+    - guaranteed
+    - miracle
+  # Daily schedule
+  # 10:00 UTC — morning carousel
+  # 18:00 UTC — evening carousel
+  # 19:00 UTC — daily Reel (generated fresh each day, posted with story)
+  carousel_slots_utc: [10, 18]
+  reel_slot_utc: 19
+  reel_low_runway_threshold: 14   # trigger discovery if fewer than 14 unused q3 facts
+
+discovery:
+  endpoints:
+    - "https://en.wikipedia.org/api/rest_v1/page/summary/"
+  novelty_lookback_days: 180
+  max_candidates_per_topic: 20
+
+render:
+  width: 1080
+  height: 1350
+  output_dir: "data/renders"
+
+review:
+  queue_path: "data/approval_queue.jsonl"
+
+storage:
+  facts_db_path: "data/facts_db.json"
+  posts_db_path: "data/posts_db.json"
+  metrics_db_path: "data/metrics_db.json"
+
+publish:
+  connector: "instagram_graph_api"
+  optional_fallback_connector: "make_webhook"
+  make_webhook_url: ""
+
+images:
+  min_relevance_score: 0.0

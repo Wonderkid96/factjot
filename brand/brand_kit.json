@@ -1,0 +1,114 @@
+{
+  "name": "factjot",
+  "handle": "@factjot",
+  "voice": {
+    "tone": "curious, precise, dry",
+    "reading_level": "general audience",
+    "headline_style": "mixed case, single sentence, max 14 words, no padding",
+    "cta_style": "short and direct"
+  },
+  "colors": {
+    "paper": "#F4F1E9",
+    "ink": "#0A0A0A",
+    "near_black": "#0B0B0C",
+    "muted": "#9A938A",
+    "off_white": "#EDE8DD",
+    "accent": "#E6352A",
+    "lime": "#C8DB45",
+    "lilac": "#C4A9D0",
+    "shadow": "#000000",
+    "white": "#FFFFFF"
+  },
+  "typography": {
+    "headline_font": "assets/fonts/InstrumentSerif-Regular.ttf",
+    "headline_italic_font": "assets/fonts/InstrumentSerif-Italic.ttf",
+    "label_font": "assets/fonts/JetBrainsMono-Bold.ttf",
+    "label_font_regular": "assets/fonts/JetBrainsMono-Regular.ttf",
+    "headline_size_max": 132,
+    "headline_size_min": 64,
+    "headline_line_height": 0.95,
+    "headline_letter_spacing_em": -0.02,
+    "label_size": 22,
+    "label_letter_spacing_em": 0.14
+  },
+  "layout": {
+    "canvas_width": 1080,
+    "canvas_height": 1350,
+    "side_margin": 72,
+    "top_margin": 56,
+    "bottom_margin": 80,
+    "headline_block_height_pct": 0.5,
+    "darken_gradient_start_pct": 0.18,
+    "darken_gradient_end_alpha": 0.92,
+    "image_grain_opacity": 0.07,
+    "headline_drop_shadow_dx_px": 2,
+    "headline_drop_shadow_dy_px": 2,
+    "headline_drop_shadow_alpha": 0.52,
+    "label_drop_shadow_dx_px": 1,
+    "label_drop_shadow_dy_px": 1,
+    "label_drop_shadow_alpha": 0.55
+  },
+  "highlights": {
+    "italic_token": ["[i]", "[/i]"],
+    "italic_accent_token": ["[h]", "[/h]"],
+    "max_highlights_per_slide": 2,
+    "italic_color": "white",
+    "italic_accent_color": "accent",
+    "rules": [
+      "Always wrap the killer detail (a number, money figure, year, or single payoff word) in [h]...[/h] for italic + accent orange.",
+      "Wrap the central proper-noun or key entity in [i]...[/i] for italic + white.",
+      "Never mark function words. Never colour more than one phrase orange.",
+      "If no clear killer detail exists, leave the slide with only an [i]...[/i] phrase or no highlight at all."
+    ]
+  },
+  "wordmark": {
+    "text": "factjot",
+    "italic_part": "jot",
+    "accent_dot": true,
+    "color": "off_white"
+  },
+  "templates": {
+    "cover": {
+      "show_wordmark_top": true,
+      "show_index": true,
+      "show_category_label": true,
+      "show_accent_dot": true
+    },
+    "body": {
+      "show_wordmark_top": true,
+      "show_index": true,
+      "show_category_label": true,
+      "show_accent_dot": true
+    },
+    "closing": {
+      "show_wordmark_top": true,
+      "show_index": true,
+      "show_category_label": true,
+      "show_cta": true,
+      "show_accent_dot": true
+    }
+  },
+  "visual_guidelines": {
+    "style": "factjot_dark_editorial",
+    "image_position": "full_bleed",
+    "darken_treatment": "vertical_gradient_to_near_black",
+    "panel_color": null,
+    "headline_treatment": "instrument_serif_mixed_case_italic_emphasis_accent_keyword",
+    "pill_color": "near_black",
+    "allowed_templates": ["cover", "body", "closing"],
+    "locked": true,
+    "lock_note": "Visual rules are strict and can only be changed by owner approval."
+  },
+  "content_schema": {
+    "required_fields": [
+      "post_id",
+      "series",
+      "category",
+      "slides",
+      "caption",
+      "hashtags",
+      "sources",
+      "confidence"
+    ]
+  }
+}

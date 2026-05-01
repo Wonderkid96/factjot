@@ -1,0 +1,13 @@
+{
+  "owner": "TJCreate",
+  "locked": true,
+  "can_edit_by_default": false,
+  "unlock_env_var": "BRAND_GUIDELINES_UNLOCK_KEY",
+  "required_value_hint": "set by owner locally",
+  "rules": {
+    "must_use_palette": ["#F4F1E9", "#0A0A0A", "#E6352A", "#C8DB45", "#C4A9D0"],
+    "must_keep_layout_consistent": true,
+    "must_keep_series_badge_position": true,
+    "must_use_same_typography_system": true
+  }
+}

@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  @font-face {
+    font-family: "Instrument Serif";
+    src: url("{{ font_serif_regular }}") format("truetype");
+    font-weight: 400; font-style: normal;
+  }
+  @font-face {
+    font-family: "Instrument Serif";
+    src: url("{{ font_serif_italic }}") format("truetype");
+    font-weight: 400; font-style: italic;
+  }
+  @font-face {
+    font-family: "JetBrains Mono";
+    src: url("{{ font_mono_bold }}") format("truetype");
+    font-weight: 700; font-style: normal;
+  }
+
+  :root {
+    --paper: #F4F1E9; --ink: #0A0A0A; --near-black: #0B0B0C;
+    --muted: #9A938A; --off-white: #EDE8DD; --accent: #E6352A;
+    --lime: #C8DB45; --lilac: #C4A9D0; --white: #FFFFFF;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: {{ width }}px; height: {{ height }}px;
+    overflow: hidden; background: var(--near-black); color: var(--white);
+    font-family: "Instrument Serif", Georgia, serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .stage { position: relative; width: {{ width }}px; height: {{ height }}px; overflow: hidden; isolation: isolate; }
+
+  .photo {
+    position: absolute; inset: 0;
+    background: url("{{ image_url }}") center/cover no-repeat;
+    z-index: 0; filter: blur(10px) saturate(0.7) brightness(0.5);
+    transform: scale(1.08);
+  }
+  .full-darken {
+    position: absolute; inset: 0; z-index: 2;
+    background: linear-gradient(180deg,
+      rgba(11,11,12,0.78) 0%,
+      rgba(11,11,12,0.92) 70%,
+      rgba(11,11,12,0.98) 100%);
+  }
+  .grain {
+    position: absolute; inset: 0; z-index: 5; opacity: 0.06; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='280' height='280'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.7 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    pointer-events: none;
+  }
+
+  .frame {
+    position: absolute; inset: 0; z-index: 10;
+    padding: 56px 72px 80px 72px;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+
+  .top-row {
+    display: flex; align-items: center; gap: 22px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 22px; font-weight: 700; letter-spacing: 0.18em;
+    color: var(--off-white); text-transform: uppercase;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.55);
+  }
+  .wordmark-img { flex: 0 0 auto; height: 38px; width: auto; opacity: 0.95;
+    filter: drop-shadow(1px 1px 0 rgba(0,0,0,0.45)); }
+  .wordmark { opacity: 0.92; flex: 0 0 auto; }
+  .top-divider { flex: 1 1 auto; height: 1px; background: var(--off-white); opacity: 0.38; }
+  .index { opacity: 0.78; flex: 0 0 auto; }
+
+  .body {
+    margin-top: auto;
+    display: flex; flex-direction: column; gap: 30px;
+  }
+
+  .headline {
+    font-family: "Instrument Serif", Georgia, serif;
+    font-style: italic; font-weight: 400;
+    font-size: 92px; line-height: 1.0;
+    letter-spacing: -0.018em;
+    color: var(--white); text-wrap: balance;
+    text-shadow: 2px 2px 0 rgba(0,0,0,0.55);
+  }
+  .headline .accent-period { color: var(--accent); }
+
+  .cta {
+    font-family: "Instrument Serif", Georgia, serif;
+    font-style: italic; font-weight: 400;
+    font-size: 44px; line-height: 1.18;
+    color: var(--off-white); opacity: 0.94;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.5);
+  }
+
+  .recap {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 22px; line-height: 1.6;
+    color: var(--off-white); opacity: 0.86;
+    letter-spacing: 0.04em;
+  }
+  .recap ol { list-style: none; counter-reset: pick; padding: 0; margin: 0; }
+  .recap ol li {
+    counter-increment: pick;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(237,232,221,0.12);
+    display: flex; align-items: baseline; gap: 14px;
+  }
+  .recap ol li:last-child { border-bottom: none; }
+  .recap ol li::before {
+    content: counter(pick, decimal-leading-zero);
+    color: var(--accent); font-weight: 700;
+    flex: 0 0 auto;
+    letter-spacing: 0.18em;
+  }
+  .recap .title-text { color: var(--white); font-style: italic;
+    font-family: "Instrument Serif", Georgia, serif; font-size: 28px; line-height: 1.2; }
+  .recap .year { opacity: 0.7; }
+
+  .gradient-rule {
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--lime) 50%, var(--lilac) 100%);
+    border-radius: 2px;
+    opacity: 0.92;
+    margin-top: 14px;
+  }
+  .footer-row {
+    display: flex; align-items: center; gap: 18px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 20px; font-weight: 700; letter-spacing: 0.32em;
+    color: var(--off-white); text-transform: uppercase;
+    margin-top: 12px;
+  }
+  .pill {
+    background: var(--accent); color: var(--white);
+    padding: 8px 18px 10px 18px; border-radius: 999px;
+    line-height: 1;
+  }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="photo"></div>
+    <div class="full-darken"></div>
+    <div class="grain"></div>
+
+    <div class="frame">
+      <div class="top-row">
+        {% if wordmark_image_url %}
+          <img class="wordmark-img" src="{{ wordmark_image_url }}" alt="factjot" />
+        {% else %}
+          <span class="wordmark">factjot</span>
+        {% endif %}
+        <span class="top-divider"></span>
+        <span class="index">{{ index_label }}</span>
+      </div>
+
+      <div class="body">
+        <h1 class="headline">{{ headline }}<span class="accent-period">.</span></h1>
+        <div class="cta">{{ cta }}</div>
+        <div class="recap">
+          <ol>
+            {% for r in recap_items %}
+              <li><span class="title-text">{{ r.title }}</span> <span class="year">({{ r.year }})</span></li>
+            {% endfor %}
+          </ol>
+        </div>
+        <div class="gradient-rule"></div>
+        <div class="footer-row">
+          <span class="pill">{{ category }}</span>
+          <span style="opacity:0.7">via TMDB</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

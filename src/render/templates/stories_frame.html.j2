@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  @font-face {
+    font-family: "Instrument Serif";
+    src: url("{{ font_serif_regular }}") format("truetype");
+    font-weight: 400; font-style: normal;
+  }
+  @font-face {
+    font-family: "Instrument Serif";
+    src: url("{{ font_serif_italic }}") format("truetype");
+    font-weight: 400; font-style: italic;
+  }
+  @font-face {
+    font-family: "JetBrains Mono";
+    src: url("{{ font_mono_bold }}") format("truetype");
+    font-weight: 700; font-style: normal;
+  }
+
+  :root {
+    --near-black: #0B0B0C;
+    --off-white: #EDE8DD;
+    --accent: #E6352A;
+    --lime: #C8DB45;
+    --lilac: #C4A9D0;
+    --white: #FFFFFF;
+    --muted: #9A938A;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: {{ width }}px;
+    height: {{ height }}px;
+    overflow: hidden;
+    background: var(--near-black);
+    color: var(--white);
+    font-family: "Instrument Serif", Georgia, serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Blurred full-bleed background from the original image */
+  .bg-blur {
+    position: absolute; inset: 0;
+    background: url("{{ image_url }}") center/cover no-repeat;
+    filter: blur(28px) saturate(0.7) brightness(0.45);
+    transform: scale(1.12);
+    z-index: 0;
+  }
+
+  /* Dark overlay to ensure legibility */
+  .bg-overlay {
+    position: absolute; inset: 0;
+    background: rgba(11, 11, 12, 0.62);
+    z-index: 1;
+  }
+
+  .grain {
+    position: absolute; inset: 0; z-index: 5; opacity: 0.06; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='280' height='280'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.7 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    pointer-events: none;
+  }
+
+  /* Main layout.
+     Safe zone on 1080x1920: top y=250, bottom y=1620, sides x=60.
+     Keep balanced vertical padding so the composition reads centrally while
+     still avoiding IG's top bars and bottom reply controls.
+  */
+  .frame {
+    position: absolute; inset: 0; z-index: 10;
+    padding: 280px 60px 280px 60px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 32px;
+  }
+
+  /* Header: wordmark only above the card */
+  .header {
+    width: 880px;            /* exact width of the image card */
+    align-self: center;      /* align to card centre line */
+    display: flex; align-items: flex-start; justify-content: space-between;
+    flex: 0 0 auto;
+  }
+
+  /* factjot. — hard rule: white text, accent red period, always */
+  .wordmark-lockup {
+    display: flex; align-items: baseline; gap: 0;
+  }
+  .wm-img {
+    height: 60px; width: auto;
+    filter: drop-shadow(1px 1px 0 rgba(0,0,0,0.45));
+    opacity: 0.96;
+  }
+  /* Text fallback if no logo image */
+  .wm-text {
+    font-family: "Instrument Serif", Georgia, serif;
+    font-style: italic; font-weight: 400;
+    font-size: 52px; line-height: 1.0; letter-spacing: -0.01em;
+    color: var(--white);
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.45);
+  }
+  .wm-period {
+    font-family: "Instrument Serif", Georgia, serif;
+    font-style: italic; font-weight: 400;
+    font-size: 52px; line-height: 1.0;
+    color: var(--accent);
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.45);
+  }
+
+  .new-post-badge {
+    font-family: "Instrument Serif", Georgia, serif;
+    font-size: 60px;         /* match factjot lockup scale */
+    font-style: italic;
+    font-weight: 400;
+    line-height: 1;
+    letter-spacing: -0.01em;
+    color: var(--off-white);
+    text-transform: uppercase;
+    opacity: 0.9;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.45);
+    margin-top: 2px;
+  }
+
+  /* Card below the logo */
+  .card-wrapper {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    flex: 1 1 auto;
+  }
+  .slide-card {
+    width: 880px;
+    aspect-ratio: 4 / 5;
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow:
+      0 32px 80px rgba(0,0,0,0.65),
+      0 6px 20px rgba(0,0,0,0.45);
+    border: 1px solid rgba(255,255,255,0.10);
+    position: relative;
+  }
+  .slide-card img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+</style>
+</head>
+<body>
+  <div class="bg-blur"></div>
+  <div class="bg-overlay"></div>
+  <div class="grain"></div>
+
+  <div class="frame">
+    <div class="header">
+      <div class="wordmark-lockup">
+        {% if wordmark_image_url %}
+          <img class="wm-img" src="{{ wordmark_image_url }}" alt="factjot." />
+        {% else %}
+          <span class="wm-text">factjot</span><span class="wm-period">.</span>
+        {% endif %}
+      </div>
+      <div class="new-post-badge">NEW POST</div>
+    </div>
+
+    <div class="card-wrapper">
+      <div class="slide-card">
+        <img src="{{ image_url }}" alt="" />
+      </div>
+    </div>
+  </div>
+</body>
+</html>
