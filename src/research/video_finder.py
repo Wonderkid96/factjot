@@ -343,20 +343,27 @@ def _pexels_video_url(query: str, topic: str, skip_urls: set[str] | None = None)
     )
     r.raise_for_status()
     videos = r.json().get("videos", [])
-    candidates: list[tuple[int, str]] = []
+    candidates: list[tuple[int, str, int]] = []
     for vid in videos:
+        vid_id = vid.get("id", 0)
+        # Block by video ID — prevents same video appearing twice at different resolutions
+        if skip_urls and f"pexels:{vid_id}" in skip_urls:
+            continue
         mp4 = _best_pexels_file(vid.get("video_files", []))
         if not mp4:
             continue
         if skip_urls and mp4 in skip_urls:
-            continue  # skip content already used in this batch
+            continue
         slug = vid.get("url", "").replace("-", " ").replace("/", " ")
         score = _relevance_score(query, slug)
-        candidates.append((score, mp4))
+        candidates.append((score, mp4, vid_id))
     if not candidates:
         return None
     candidates.sort(key=lambda x: -x[0])
-    best_score, best_url = candidates[0]
+    best_score, best_url, best_vid_id = candidates[0]
+    # Mark both the file URL and video ID so all quality variants are blocked
+    if skip_urls is not None:
+        skip_urls.add(f"pexels:{best_vid_id}")
     print(f"  [pexels] best match score={best_score} from {len(candidates)} results")
     return best_url
 
@@ -545,17 +552,22 @@ def _coverr_video_url(query: str, topic: str, skip_urls: set[str] | None = None)
         )
         r.raise_for_status()
         hits = r.json().get("hits", [])
-        candidates: list[tuple[int, str]] = []
+        candidates: list[tuple[int, str, str]] = []
         for hit in hits:
+            hit_id = str(hit.get("id", hit.get("slug", "")))
+            if skip_urls and f"coverr:{hit_id}" in skip_urls:
+                continue
             title = hit.get("title", "")
             score = _relevance_score(query, title)
             urls = hit.get("urls", {})
             mp4 = urls.get("mp4_download") or urls.get("preview_mp4") or urls.get("mp4")
             if mp4 and not (skip_urls and mp4 in skip_urls):
-                candidates.append((score, mp4))
+                candidates.append((score, mp4, hit_id))
         if candidates:
             candidates.sort(key=lambda x: -x[0])
-            best_score, best_url = candidates[0]
+            best_score, best_url, best_id = candidates[0]
+            if skip_urls is not None:
+                skip_urls.add(f"coverr:{best_id}")
             print(f"  [coverr] best match score={best_score} from {len(candidates)} results")
             return best_url
     except Exception:
@@ -580,8 +592,11 @@ def _pixabay_video_url(query: str, topic: str, skip_urls: set[str] | None = None
     hits = r.json().get("hits", [])
     if not hits:
         return None
-    candidates: list[tuple[int, str]] = []
+    candidates: list[tuple[int, str, int]] = []
     for hit in hits:
+        hit_id = hit.get("id", 0)
+        if skip_urls and f"pixabay:{hit_id}" in skip_urls:
+            continue
         tags = hit.get("tags", "")
         score = _relevance_score(query, tags)
         videos = hit.get("videos", {})
@@ -589,13 +604,15 @@ def _pixabay_video_url(query: str, topic: str, skip_urls: set[str] | None = None
             url = videos.get(quality, {}).get("url")
             if url:
                 if skip_urls and url in skip_urls:
-                    break  # skip used content
-                candidates.append((score, url))
+                    break
+                candidates.append((score, url, hit_id))
                 break
     if not candidates:
         return None
     candidates.sort(key=lambda x: -x[0])
-    best_score, best_url = candidates[0]
+    best_score, best_url, best_id = candidates[0]
+    if skip_urls is not None:
+        skip_urls.add(f"pixabay:{best_id}")
     print(f"  [pixabay] best match score={best_score} from {len(candidates)} results")
     return best_url
 
