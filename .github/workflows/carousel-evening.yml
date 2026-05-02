@@ -2,8 +2,12 @@ name: Evening Carousel (18:00 UTC)
 
 on:
   schedule:
-    - cron: "45 17 * * *"   # 17:45 UTC
+    - cron: "45 17 * * *"
   workflow_dispatch:
+
+concurrency:
+  group: factjot-publish
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -17,6 +21,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python 3.11
@@ -56,8 +61,8 @@ jobs:
 
       - name: Post evening carousel
         run: |
-          # Evening topics offset from morning: Mon=space Tue=earth Wed=ocean
-          # Thu=history Fri=biology Sat=technology Sun=history
+          # Evening topics offset from morning so each day gets two different categories.
+          # Mon=space Tue=earth Wed=ocean Thu=history Fri=biology Sat=technology Sun=history
           DAY=$(date +%u)
           case $DAY in
             1) TOPIC=space ;;
@@ -68,10 +73,10 @@ jobs:
             6) TOPIC=technology ;;
             7) TOPIC=history ;;
           esac
-          echo "Today is day $DAY, topic=$TOPIC"
-          /usr/bin/python3 scripts/ship_first_post.py --topic $TOPIC
+          echo "Day $DAY -> topic=$TOPIC"
+          python3 scripts/ship_first_post.py --topic "$TOPIC"
 
-      - name: Commit state back to main
+      - name: Commit and push state
         if: always()
         run: |
           git config user.name  "factjot-bot"
@@ -85,6 +90,7 @@ jobs:
             data/approval_queue.jsonl \
             data/ledgers/approval_queue.jsonl \
             || true
-          git diff --cached --quiet || \
-            git commit -m "state: evening carousel $(date -u +%Y-%m-%d)"
+          git diff --cached --quiet && echo "No state changes to commit." && exit 0
+          git commit -m "state: evening carousel $(date -u +%Y-%m-%dT%H:%M)Z"
+          git pull --rebase --autostash origin main
           git push origin main

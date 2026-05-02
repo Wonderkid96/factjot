@@ -3,10 +3,18 @@ name: Morning Carousel (10:00 UTC)
 on:
   schedule:
     - cron: "45 9 * * *"   # 09:45 UTC — GitHub cron can drift, start early
-  workflow_dispatch:         # allow manual trigger from GitHub UI
+  workflow_dispatch:
+
+# Prevent two publish jobs running at the same time.
+# If a manual trigger fires while the scheduled run is active, it queues
+# rather than running in parallel (which would cause a git push conflict
+# and leave posted.jsonl stale on GitHub).
+concurrency:
+  group: factjot-publish
+  cancel-in-progress: false
 
 permissions:
-  contents: write            # needed to commit state back to main
+  contents: write
 
 jobs:
   post:
@@ -17,6 +25,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0              # full history needed for rebase
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python 3.11
@@ -56,9 +65,9 @@ jobs:
 
       - name: Post morning carousel
         run: |
-          # Pick topic by rotating day-of-week: Mon=history Tue=space Wed=biology
-          # Thu=ocean Fri=earth Sat=history Sun=technology
-          DAY=$(date +%u)   # 1=Mon ... 7=Sun
+          # Topics rotate by weekday so morning and evening cover different categories.
+          # Mon=history Tue=space Wed=biology Thu=ocean Fri=earth Sat=history Sun=technology
+          DAY=$(date +%u)
           case $DAY in
             1) TOPIC=history ;;
             2) TOPIC=space ;;
@@ -68,10 +77,10 @@ jobs:
             6) TOPIC=history ;;
             7) TOPIC=technology ;;
           esac
-          echo "Today is day $DAY, topic=$TOPIC"
-          /usr/bin/python3 scripts/ship_first_post.py --topic $TOPIC
+          echo "Day $DAY -> topic=$TOPIC"
+          python3 scripts/ship_first_post.py --topic "$TOPIC"
 
-      - name: Commit state back to main
+      - name: Commit and push state
         if: always()
         run: |
           git config user.name  "factjot-bot"
@@ -85,6 +94,9 @@ jobs:
             data/approval_queue.jsonl \
             data/ledgers/approval_queue.jsonl \
             || true
-          git diff --cached --quiet || \
-            git commit -m "state: morning carousel $(date -u +%Y-%m-%d)"
+          git diff --cached --quiet && echo "No state changes to commit." && exit 0
+          git commit -m "state: morning carousel $(date -u +%Y-%m-%dT%H:%M)Z"
+          # Pull in any changes that landed after our checkout, then push.
+          # --autostash handles any unstaged local changes from the pip/playwright steps.
+          git pull --rebase --autostash origin main
           git push origin main

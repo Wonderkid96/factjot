@@ -2,8 +2,12 @@ name: Weekly Plan + Token Refresh (Sunday 04:00 UTC)
 
 on:
   schedule:
-    - cron: "0 4 * * 0"     # Sunday 04:00 UTC
+    - cron: "0 4 * * 0"
   workflow_dispatch:
+
+concurrency:
+  group: factjot-publish
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -17,6 +21,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python 3.11
@@ -56,15 +61,18 @@ jobs:
           ENVEOF
 
       - name: Refresh Meta access token
-        run: /usr/bin/python3 scripts/refresh_token.py || echo "Token refresh failed — check token manually"
+        run: python3 scripts/refresh_token.py || echo "WARNING: token refresh failed — check manually before it expires"
 
       - name: Discover new facts
-        run: /usr/bin/python3 scripts/discover_facts.py || echo "Discovery failed — continuing"
+        run: python3 scripts/discover_facts.py || echo "Discovery failed — continuing with existing bank"
 
-      - name: Run reel runway check and alert
-        run: /usr/bin/python3 scripts/plan_week.py --days 7 --start-tomorrow
+      - name: Reel runway check
+        run: python3 scripts/plan_week.py --days 7 --start-tomorrow
 
-      - name: Commit state back to main
+      - name: Validate reel fact bank
+        run: python3 scripts/validate_reel_facts.py
+
+      - name: Commit and push state
         if: always()
         run: |
           git config user.name  "factjot-bot"
@@ -80,6 +88,7 @@ jobs:
             data/ledgers/approval_queue.jsonl \
             data/ledgers/discovered_facts.jsonl \
             || true
-          git diff --cached --quiet || \
-            git commit -m "state: weekly plan $(date -u +%Y-%m-%d)"
+          git diff --cached --quiet && echo "No state changes to commit." && exit 0
+          git commit -m "state: weekly plan $(date -u +%Y-%m-%dT%H:%M)Z"
+          git pull --rebase --autostash origin main
           git push origin main
