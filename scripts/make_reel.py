@@ -82,9 +82,30 @@ def _append_outro(script: str) -> str:
 # ------------------------------------------------------------------ #
 
 def _upload_video(mp4_path: Path) -> str:
-    from src.publish.image_host import TmpfilesHost
+    """Upload the final MP4 and return a public URL Instagram can fetch.
+
+    Primary: Cloudinary (permanent CDN URL, reliable from any IP including
+    GitHub Actions). Falls back to tmpfiles.org when Cloudinary is not
+    configured — fine for local Mac posts but unreliable from cloud IPs.
+    """
+    from src.publish.image_host import CloudinaryVideoHost, TmpfilesHost
+    size_kb = mp4_path.stat().st_size // 1024
+
+    # Try Cloudinary first — permanent URL, no IP restrictions.
+    try:
+        host = CloudinaryVideoHost()
+        print(f"  [cloudinary] uploading {size_kb} KB...")
+        result = host.upload(mp4_path)
+        print(f"  [cloudinary] url: {result.public_url}")
+        return result.public_url
+    except RuntimeError as exc:
+        if "CLOUDINARY_CLOUD_NAME" in str(exc) or "CLOUDINARY_UPLOAD_PRESET" in str(exc):
+            print(f"  [cloudinary] not configured — falling back to tmpfiles")
+        else:
+            print(f"  [cloudinary] failed ({exc}) — falling back to tmpfiles")
+
     host = TmpfilesHost()
-    print(f"  [tmpfiles] uploading {mp4_path.stat().st_size // 1024} KB...")
+    print(f"  [tmpfiles] uploading {size_kb} KB...")
     result = host.upload(mp4_path)
     print(f"  [tmpfiles] url: {result.public_url}")
     return result.public_url

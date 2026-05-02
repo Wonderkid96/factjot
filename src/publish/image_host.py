@@ -188,13 +188,60 @@ class CloudinaryHost:
         return [self.upload(p) for p in local_paths]
 
 
+class CloudinaryVideoHost:
+    """Cloudinary video upload adapter.
+
+    Used as the primary video host for Reels. Produces permanent, globally
+    cached CDN URLs that Instagram can reliably fetch from any IP including
+    GitHub Actions runners. tmpfiles.org 1-hour expiry URLs caused Instagram
+    container ERROR status when posted from cloud IPs (2026-05-02 incident).
+
+    Env vars (same account as CloudinaryHost):
+        CLOUDINARY_CLOUD_NAME    — your cloud name (public)
+        CLOUDINARY_UPLOAD_PRESET — unsigned upload preset name
+    """
+
+    def __init__(self) -> None:
+        self.cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME", "").strip()
+        self.upload_preset = os.getenv("CLOUDINARY_UPLOAD_PRESET", "").strip()
+        if not self.cloud_name or not self.upload_preset:
+            raise RuntimeError(
+                "CLOUDINARY_CLOUD_NAME and CLOUDINARY_UPLOAD_PRESET must be set "
+                "for video hosting. Sign up free at cloudinary.com, create an "
+                "unsigned upload preset, and add both vars to .env and GitHub Secrets."
+            )
+        self._url = f"https://api.cloudinary.com/v1_1/{self.cloud_name}/video/upload"
+
+    def upload(self, local_path: str | Path) -> HostedImage:
+        path = Path(local_path)
+        if not path.exists():
+            raise FileNotFoundError(path)
+        data = path.read_bytes()
+        mime = "video/mp4" if path.suffix.lower() == ".mp4" else "video/quicktime"
+        files = {"file": (path.name, data, mime)}
+        resp = requests.post(
+            self._url,
+            files=files,
+            data={"upload_preset": self.upload_preset},
+            timeout=120,
+        )
+        if not resp.ok:
+            raise RuntimeError(
+                f"Cloudinary video upload failed ({resp.status_code}): {resp.text[:300]}"
+            )
+        body = resp.json()
+        url = body.get("secure_url") or body.get("url")
+        if not url:
+            raise RuntimeError(f"Cloudinary video response missing url: {body}")
+        return HostedImage(local_path=path, public_url=url, expires_at=None)
+
+
 class TmpfilesHost:
     """tmpfiles.org adapter — anonymous, no signup, ~1h auto-expiry.
 
-    Used as an emergency/fallback host. Files only need to live long enough
-    for Meta to fetch (seconds), so the short expiry is fine. Not suitable
-    as a primary because of the short lifetime and lack of any uptime SLA,
-    but it's saved us when imgbb's CDN was being blocked by Meta's fetcher.
+    Fallback only. Do not use as primary video host — 1h URLs cause Instagram
+    container ERROR when Meta's servers fetch from cloud IPs. Use
+    CloudinaryVideoHost as primary (see _upload_video in make_reel.py).
     """
 
     UPLOAD_URL = "https://tmpfiles.org/api/v1/upload"

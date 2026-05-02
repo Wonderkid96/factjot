@@ -57,6 +57,8 @@ jobs:
           COVERR_API_KEY=${{ secrets.COVERR_API_KEY }}
           PIXABAY_API_KEY=${{ secrets.PIXABAY_API_KEY }}
           MUSIC_CREDIT=${{ secrets.MUSIC_CREDIT }}
+          CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_UPLOAD_PRESET=${{ secrets.CLOUDINARY_UPLOAD_PRESET }}
           TIMEZONE=UTC
           ENVEOF
 
