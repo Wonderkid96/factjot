@@ -349,9 +349,9 @@ def _synthesise_elevenlabs(
             "text": text,
             "model_id": EL_MODEL,
             "voice_settings": {
-                "stability": 0.40,        # balanced — natural without being robotic
+                "stability": 0.25,        # lower = more natural pitch variation
                 "similarity_boost": 0.82,
-                "style": 0.25,            # expressive but not over-performed
+                "style": 0.45,            # more energy and expression
                 "use_speaker_boost": True,
             },
         },
