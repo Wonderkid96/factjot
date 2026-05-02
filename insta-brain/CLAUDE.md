@@ -147,3 +147,9 @@ Fix the code. Do not weaken the rule. Update `rules/index.md` if a new rule emer
 ## When uncertain
 
 Stop and ask Toby. Do not silently work around a rule.
+
+---
+
+## Related
+
+[[CRITICAL_FACTS]] · [[MEMORY_INDEX]] · [[PUBLISH_PLAN]] · [[rules/index]] · [[log]] · [[inbox]]

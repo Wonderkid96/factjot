@@ -51,3 +51,9 @@ If sources exist: `Sources checked: <n>` with the number of unique URLs across t
 - Invent a fact. If it's not in the verified claim, it doesn't get into the slide.
 - Capitalise random words for emphasis.
 - Use exclamation marks. Once a year, maximum. Period.
+
+
+---
+
+## Related
+[[CLAUDE]] · [[index]] · [[../bank/quotes]]

@@ -72,6 +72,8 @@ jobs:
       - name: Validate reel fact bank
         run: python3 scripts/validate_reel_facts.py
 
+      - name: Prune old caches and trim brain log
+        run: python3 scripts/cleanup_caches.py --keep-days 14 --keep-log-lines 500
 
       - name: Capture failure to brain log
         if: failure()

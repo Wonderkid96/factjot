@@ -132,3 +132,37 @@ Newest at top. One terse line per non-trivial action. No essays.
 
 ### One-off 21:00 UTC reel trigger
 - Added to reel.yml cron for rate-limit recovery post; remove after it fires
+
+## 2026-05-02 evening session — audit + tidy + storage
+
+### 2-slide carousel root-cause + fix
+- 18:05 UTC carousel posted 1 slide (Mac 128KB fact). Tech bank exhausted (0 fresh).
+- Fix shipped: `CarouselDraftGenerator.generate()` now skips topics with <3 facts (no more silent stubs). `ship_first_post.py` aborts cleanly if topic has <3 fresh facts after sensitivity gate. Brain log entry on abort.
+- Tech bank needs topping up before next Saturday evening.
+
+### Storage cleanup
+- `data/cache/` was 2.7GB locally (722MB reels, 1.9GB renders).
+- New `scripts/cleanup_caches.py`: prunes per-reel and per-carousel caches that are published in the ledgers AND older than --keep-days. Trims `insta-brain/log.md` to last N lines. `--dry-run` flag.
+- Wired into Sunday `weekly-plan.yml`: runs every week with --keep-days 14 --keep-log-lines 500.
+
+### TikTok credentials stored
+- `TIKTOK_CLIENT_KEY` and `TIKTOK_CLIENT_SECRET` in .env and GitHub Secrets.
+- Awaiting TikTok app review approval before integration is wired.
+
+### Code quality audit (2026-05-02 evening)
+Subagent audit returned ~40 findings. Critical to fix BEFORE next reel run (post-21:00 UTC tonight):
+1. **Hash mismatch in reel dedup** — `make_reel._record` writes SHA1, `brain.assert_no_duplicate` reads SHA256. Reel dedup gate is broken. Fix: use `brain.claim_hash(claim)` consistently.
+2. **Atomic .env writes** — `refresh_token.py` rewrites .env with truncate-and-write. Crash mid-write nukes credentials. Fix: tmp file + os.replace.
+3. **Atomic queue.jsonl writes** — `approval_queue.update_status` same pattern.
+4. **ElevenLabs alignment crash safety** — empty alignment data crashes `word_beats[-1]` after MP4 written.
+5. **Bare `except (json.JSONDecodeError, Exception)` in brain dedup** — swallows every error.
+Plus dead code removal (audio_duration, group_into_lines, find_video, HOOK_LABEL_*, etc.) and several Medium-tier issues. Full list captured in MEMORY_INDEX.
+
+### Reel folder naming (queued for after 21:00 UTC reel posts)
+- Replace SHA-1 hex IDs with human-readable `<topic>_<slug>` (e.g. `space_the-demon-core`).
+- Implementation written but not pushed; held until tonight's reel completes.
+
+
+---
+
+Related: [[CLAUDE]] · [[CRITICAL_FACTS]] · [[MEMORY_INDEX]] · [[PUBLISH_PLAN]] · [[rules/index]]

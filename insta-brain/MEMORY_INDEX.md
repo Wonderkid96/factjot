@@ -2,6 +2,8 @@
 
 Quick handover ledger. Newest entry first. Older entries summarised or removed once superseded.
 
+Related: [[CLAUDE]] · [[CRITICAL_FACTS]] · [[PUBLISH_PLAN]] · [[log]] · [[rules/13-memory-index]]
+
 ---
 
 ## 2026-05-02 — GitHub Actions + full pipeline hardening

@@ -93,3 +93,8 @@ Meta access token expires every ~60 days. Sunday workflow runs `refresh_token.py
 | Check TikTok approval (pending) | Will dual-post once approved |
 
 Toby never logs into Instagram to post.
+
+---
+
+## Related
+[[CLAUDE]] · [[CRITICAL_FACTS]] · [[MEMORY_INDEX]] · [[rules/index]] · [[log]]

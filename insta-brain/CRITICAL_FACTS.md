@@ -74,4 +74,4 @@ Direct, dry, plain. No "did you know" preamble. No corporate fluff. No "I'm exci
 Ask Toby. Do not silently break a rule to make a task easier.
 
 ## Related
-[[CLAUDE]] · [[PUBLISH_PLAN]] · [[rules/index]] · [[rules/01-no-repost]] · [[rules/02-no-image-reuse]] · [[rules/10-truth]] · [[rules/11-no-naked-slides]] · [[log]] · [[inbox]]
+[[CLAUDE]] · [[MEMORY_INDEX]] · [[PUBLISH_PLAN]] · [[rules/index]] · [[rules/01-no-repost]] · [[rules/02-no-image-reuse]] · [[rules/10-truth]] · [[rules/11-no-naked-slides]] · [[log]] · [[inbox]]
