@@ -92,9 +92,13 @@ class CarouselDraftGenerator:
 
         posts: list[CarouselPost] = []
         for index, (topic, topic_facts) in enumerate(grouped.items()):
-            if len(topic_facts) < self.MIN_SLIDES_PER_POST and len(topic_facts) >= 1:
-                # Allow short posts down to 1 slide rather than dropping them.
-                pass
+            if len(topic_facts) < self.MIN_SLIDES_PER_POST:
+                # Hard floor: never ship a carousel with fewer than 3 slides.
+                # Silently producing a 1-slide carousel was the cause of the
+                # 18:05 UTC 2026-05-02 incident (Mac 128KB RAM single-slide post).
+                # When a topic is exhausted, return nothing and let the caller
+                # decide what to do (skip slot, fall back to another topic).
+                continue
             chunk = topic_facts[: self.SLIDES_PER_POST]
             series = default_series[index % len(default_series)] if default_series else "factjot"
             seed_id = "+".join(f.fact_id for f in chunk)

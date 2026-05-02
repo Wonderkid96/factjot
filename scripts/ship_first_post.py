@@ -104,6 +104,21 @@ def main() -> int:
     # Bias toward higher quirky_score so the screenshot-worthy stuff goes first.
     # Stable sort: ties keep original bank order.
     fresh_rows.sort(key=lambda r: r.get("quirky_score", 1), reverse=True)
+
+    # Hard floor: a carousel needs at least 3 slides. If the topic is exhausted,
+    # abort cleanly rather than ship a 1-slide stub (the 18:05 UTC 2026-05-02
+    # incident — Mac 128KB RAM single-slide carousel went out because tech bank
+    # had only 1 fresh fact left).
+    MIN_FRESH_FACTS = 3
+    if len(fresh_rows) < MIN_FRESH_FACTS:
+        print(f"\nABORT: only {len(fresh_rows)} fresh fact(s) for topic={args.topic!r}, need >={MIN_FRESH_FACTS}.")
+        print(f"Top up src/research/rare_fact_bank.py with new {args.topic} facts.")
+        brain.append_log(
+            f"carousel ABORTED — topic={args.topic} runway too low "
+            f"({len(fresh_rows)} fresh, need {MIN_FRESH_FACTS}+)"
+        )
+        return 2
+
     facts = [_fact_from_bank(row) for row in fresh_rows]
     quirky_picked = sum(1 for r in fresh_rows[:6] if r.get("quirky_score", 1) >= 2)
     print(f"Found {len(fresh_rows)} fresh facts for topic={args.topic!r} ({posted_skipped} already-posted, {sensitivity_skipped} sensitivity-gated, top-6 contains {quirky_picked} quirky_score≥2)")
