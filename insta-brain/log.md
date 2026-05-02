@@ -1,5 +1,7 @@
 # factjot agent log
 
+- 2026-05-02 20:13 WORKFLOW FAILED: .github/workflows/reel.yml | run=25260791652 | trigger=workflow_dispatch | ref=main
+- 2026-05-02 20:13 reel FAILED publish — fact='In 1908 something exploded above remote Siberia with the for' topic=space video_url=https://res.cloudinary.com/dmzer6hgv/video/upload/v177775279 error=Reel not ready after 300s: {'ok': False, 'error': {'status_code': 'ERROR', 'status': 'ERROR', 'id': '18097149712917064'}}
 - 2026-05-02 18:05 published abbfe0cb3c1bd8 (TECH, 2 slides, ig_media=17912739300385468)
 - 2026-05-02 15:50 published 19d537d2558d19 (HISTORY, 7 slides, ig_media=18358128016230728)
 - 2026-05-02 15:47 published 089e4295b0aee4 (EARTH, 6 slides, ig_media=17883422796395247)
