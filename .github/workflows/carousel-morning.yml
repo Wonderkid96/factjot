@@ -1,0 +1,90 @@
+name: Morning Carousel (10:00 UTC)
+
+on:
+  schedule:
+    - cron: "45 9 * * *"   # 09:45 UTC — GitHub cron can drift, start early
+  workflow_dispatch:         # allow manual trigger from GitHub UI
+
+permissions:
+  contents: write            # needed to commit state back to main
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright browsers
+        run: playwright install chromium --with-deps
+
+      - name: Write .env from secrets
+        run: |
+          cat > .env << 'ENVEOF'
+          INSTAGRAM_ACCOUNT_ID=${{ secrets.INSTAGRAM_ACCOUNT_ID }}
+          FACEBOOK_PAGE_ID=${{ secrets.FACEBOOK_PAGE_ID }}
+          META_ACCESS_TOKEN=${{ secrets.META_ACCESS_TOKEN }}
+          META_GRAPH_VERSION=${{ secrets.META_GRAPH_VERSION }}
+          META_APP_SECRET=${{ secrets.META_APP_SECRET }}
+          META_GRAPH_HOST=${{ secrets.META_GRAPH_HOST }}
+          IMGBB_API_KEY=${{ secrets.IMGBB_API_KEY }}
+          PEXELS_API_KEY=${{ secrets.PEXELS_API_KEY }}
+          TMDB_READ_TOKEN=${{ secrets.TMDB_READ_TOKEN }}
+          TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}
+          OMDB_API_KEY=${{ secrets.OMDB_API_KEY }}
+          ELEVENLABS_API_KEY=${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE=${{ secrets.ELEVENLABS_VOICE }}
+          COVERR_API_KEY=${{ secrets.COVERR_API_KEY }}
+          PIXABAY_API_KEY=${{ secrets.PIXABAY_API_KEY }}
+          IMAGE_HOST=${{ secrets.IMAGE_HOST }}
+          MUSIC_CREDIT=${{ secrets.MUSIC_CREDIT }}
+          TIMEZONE=UTC
+          ENVEOF
+
+      - name: Post morning carousel
+        run: |
+          # Pick topic by rotating day-of-week: Mon=history Tue=space Wed=biology
+          # Thu=ocean Fri=earth Sat=history Sun=technology
+          DAY=$(date +%u)   # 1=Mon ... 7=Sun
+          case $DAY in
+            1) TOPIC=history ;;
+            2) TOPIC=space ;;
+            3) TOPIC=biology ;;
+            4) TOPIC=ocean ;;
+            5) TOPIC=earth ;;
+            6) TOPIC=history ;;
+            7) TOPIC=technology ;;
+          esac
+          echo "Today is day $DAY, topic=$TOPIC"
+          /usr/bin/python3 scripts/ship_first_post.py --topic $TOPIC
+
+      - name: Commit state back to main
+        if: always()
+        run: |
+          git config user.name  "factjot-bot"
+          git config user.email "bot@factjot"
+          git add \
+            insta-brain/data/posted.jsonl \
+            insta-brain/data/posted_quotes.jsonl \
+            insta-brain/data/queue.jsonl \
+            insta-brain/log.md \
+            insta-brain/MEMORY_INDEX.md \
+            data/approval_queue.jsonl \
+            data/ledgers/approval_queue.jsonl \
+            || true
+          git diff --cached --quiet || \
+            git commit -m "state: morning carousel $(date -u +%Y-%m-%d)"
+          git push origin main

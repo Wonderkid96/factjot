@@ -1,0 +1,85 @@
+name: Weekly Plan + Token Refresh (Sunday 04:00 UTC)
+
+on:
+  schedule:
+    - cron: "0 4 * * 0"     # Sunday 04:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright browsers
+        run: playwright install chromium --with-deps
+
+      - name: Write .env from secrets
+        run: |
+          cat > .env << 'ENVEOF'
+          INSTAGRAM_ACCOUNT_ID=${{ secrets.INSTAGRAM_ACCOUNT_ID }}
+          FACEBOOK_PAGE_ID=${{ secrets.FACEBOOK_PAGE_ID }}
+          META_ACCESS_TOKEN=${{ secrets.META_ACCESS_TOKEN }}
+          META_GRAPH_VERSION=${{ secrets.META_GRAPH_VERSION }}
+          META_APP_SECRET=${{ secrets.META_APP_SECRET }}
+          META_GRAPH_HOST=${{ secrets.META_GRAPH_HOST }}
+          META_LOGIN_FLOW=${{ secrets.META_LOGIN_FLOW }}
+          IMGBB_API_KEY=${{ secrets.IMGBB_API_KEY }}
+          PEXELS_API_KEY=${{ secrets.PEXELS_API_KEY }}
+          TMDB_READ_TOKEN=${{ secrets.TMDB_READ_TOKEN }}
+          TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}
+          OMDB_API_KEY=${{ secrets.OMDB_API_KEY }}
+          ELEVENLABS_API_KEY=${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE=${{ secrets.ELEVENLABS_VOICE }}
+          COVERR_API_KEY=${{ secrets.COVERR_API_KEY }}
+          PIXABAY_API_KEY=${{ secrets.PIXABAY_API_KEY }}
+          IMAGE_HOST=${{ secrets.IMAGE_HOST }}
+          MUSIC_CREDIT=${{ secrets.MUSIC_CREDIT }}
+          TIMEZONE=UTC
+          ENVEOF
+
+      - name: Refresh Meta access token
+        run: /usr/bin/python3 scripts/refresh_token.py || echo "Token refresh failed — check token manually"
+
+      - name: Discover new facts
+        run: /usr/bin/python3 scripts/discover_facts.py || echo "Discovery failed — continuing"
+
+      - name: Run reel runway check and alert
+        run: /usr/bin/python3 scripts/plan_week.py --days 7 --start-tomorrow
+
+      - name: Commit state back to main
+        if: always()
+        run: |
+          git config user.name  "factjot-bot"
+          git config user.email "bot@factjot"
+          git add \
+            insta-brain/data/posted.jsonl \
+            insta-brain/data/posted_quotes.jsonl \
+            insta-brain/data/queue.jsonl \
+            insta-brain/data/weekly_state.json \
+            insta-brain/log.md \
+            insta-brain/MEMORY_INDEX.md \
+            data/approval_queue.jsonl \
+            data/ledgers/approval_queue.jsonl \
+            data/ledgers/discovered_facts.jsonl \
+            || true
+          git diff --cached --quiet || \
+            git commit -m "state: weekly plan $(date -u +%Y-%m-%d)"
+          git push origin main

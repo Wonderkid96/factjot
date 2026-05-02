@@ -2,6 +2,37 @@
 
 Purpose: quick handover ledger for future agents so they can understand recent system behaviour changes without replaying full chat history.
 
+## 2026-05-02 — Reel quality hardening (long-term fix for short-reel + bad-title bug)
+
+**What changed.**
+- Backfilled hand-written `reel_script` (>=70 words) and `reel_title` for all 34 previously bare q3 facts in `src/research/rare_fact_bank.py`. Three already-curated scripts (Cordyceps, Strasbourg, Wow signal, Radium, Toba) extended to clear the new word floor.
+- `scripts/make_reel.py`: `_pick_fact` now requires `reel_script`, `reel_title`, word count >= 70, AND filters out `sensitivity: controversial`. Auto-fallback to `to_voice_script` REMOVED entirely. Hard abort if final reel total_dur < 35s. Duplicate gate moved to immediately after fact pick. Ledger write order fixed: reels.jsonl first via O_APPEND + fsync, then posted.jsonl via brain.record_publish.
+- `src/content/reel_caption.py`: removed two em-dash phrases from `_CTAS` pool. Final caption now passes through `_strip_em_dashes` defence in depth.
+- `src/publish/instagram_publisher.py`: `_publish_container` recovery now scoped by `expected_media_type` and a tight time window starting from publish call — fixes race where a carousel published seconds earlier could be misattributed to a reel.
+- `src/render/tts_engine.py`: ElevenLabs fallback now logged to brain via `_alert_tts_fallback`. Was previously silent — wrong voice could ship undetected.
+- `scripts/validate_reel_facts.py`: NEW CLI. Validates every q3 fact has reel_title, reel_script, word_count >= 70, no em-dashes. Exit 1 on any failure.
+
+**Why.** Audit on 2026-05-01 traced the 22.7-second Switzerland reel (titled "The Story of Until Switzerland") to a missing `reel_script` field that fell through to a weak auto-formatter, and a missing `reel_title` that fell through to an auto-titler picking "Until" as a proper noun. Toby asked for long-term fixes only, with no possibility of a short or badly-titled reel happening again.
+
+**Affected files.**
+- `src/research/rare_fact_bank.py` (34 facts updated, 5 extended)
+- `scripts/make_reel.py` (`_pick_fact`, `_log_pick_diagnostics`, duration gate, ledger ordering)
+- `src/content/reel_caption.py` (CTA pool, em-dash strip)
+- `src/publish/instagram_publisher.py` (`_publish_container`, `_find_recently_published`)
+- `src/render/tts_engine.py` (`_alert_tts_fallback`)
+- `scripts/validate_reel_facts.py` (new)
+
+**Verification.**
+- `python3 scripts/validate_reel_facts.py` → PASS, every reel-eligible fact has long-form curated content.
+- `python3 scripts/make_reel.py --dry-run` → 54.2s reel with title "The Demon Core".
+- Live reel ee890ddbbfd464 published 2026-05-02 — 52.6s, ig_media_id 18075000272243034, story posted.
+
+**Routine impact.**
+- Daily 19:00 UTC reel job will now refuse to publish if any fact lacks curated content. Failure mode flipped from silent-bad-output to loud-no-output. Run validate_reel_facts.py after any rare_fact_bank.py edit.
+- Reel runway after this incident: 28 unused q3 facts, 4 weeks at 1/day.
+
+
+
 ## Current Truth Snapshot (read this first)
 
 - Canonical priority for operational truth:

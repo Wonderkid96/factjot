@@ -43,7 +43,7 @@ class InstagramGraphPublisher:
         if not ready.get("ok"):
             return {"ok": False, "error": f"Container not ready: {ready}"}
 
-        publish_result = self._publish_container(parent["id"])
+        publish_result = self._publish_container(parent["id"], expected_media_type="CAROUSEL_ALBUM")
         if "id" not in publish_result:
             return {"ok": False, "error": f"Publish failed: {publish_result}"}
         return {"ok": True, "ig_media_id": publish_result["id"]}
@@ -86,14 +86,17 @@ class InstagramGraphPublisher:
         url = f"{self.base_url}/{self.account_id}/media"
         return requests.post(url, data=params, timeout=20).json()
 
-    def _publish_container(self, creation_id: str) -> dict:
+    def _publish_container(self, creation_id: str, expected_media_type: str | None = None) -> dict:
         """POST to media_publish. Includes recovery: IG sometimes processes
         the publish successfully but returns an error response (e.g. rate-limit
-        errors returned after the commit). We wait 3s then check recent account
-        media for a post that appeared in the last 2 minutes. If found, we
-        treat it as success and return the real ig_media_id."""
+        errors returned after the commit). We wait briefly then check recent
+        account media for a post that matches the expected media_type and
+        appeared after this call started. Without the type+time window check,
+        the recovery could falsely attribute an unrelated carousel published
+        seconds earlier to this reel call (audit 2026-05-01 finding 4)."""
         params = {"creation_id": creation_id, "access_token": self.access_token}
         url = f"{self.base_url}/{self.account_id}/media_publish"
+        publish_started_at = time.time()
         try:
             data = requests.post(url, data=params, timeout=20).json()
         except requests.RequestException as exc:
@@ -101,9 +104,12 @@ class InstagramGraphPublisher:
         if "id" in data:
             return data
         # Response lacked an id — but IG may have committed the post anyway.
-        # Wait briefly then probe the account's recent media.
+        # Probe with a tight window starting AFTER this publish began.
         time.sleep(4)
-        recovered = self._find_recently_published()
+        recovered = self._find_recently_published(
+            since_ts=publish_started_at - 5,  # small backstop for clock drift
+            expected_media_type=expected_media_type,
+        )
         if recovered:
             return {"id": recovered, "_recovered": True}
         return data
@@ -223,7 +229,7 @@ class InstagramGraphPublisher:
             return {"ok": False, "error": f"Reel not ready after {poll_timeout_s}s: {ready}"}
 
         # Step 3: Publish
-        publish_result = self._publish_container(creation_id)
+        publish_result = self._publish_container(creation_id, expected_media_type="REELS")
         if "id" not in publish_result:
             return {"ok": False, "error": f"Reel publish failed: {publish_result}"}
 
@@ -232,18 +238,29 @@ class InstagramGraphPublisher:
         print(f"  [reels] published ig_media_id={ig_media_id}" + (" (recovered)" if recovered else ""))
         return {"ok": True, "ig_media_id": ig_media_id}
 
-    def _find_recently_published(self, within_seconds: int = 180) -> str | None:
-        """Return ig_media_id of a post that appeared on the account
-        within `within_seconds`. Used to recover from false-failure
-        responses on _publish_container.
+    def _find_recently_published(
+        self,
+        since_ts: float | None = None,
+        expected_media_type: str | None = None,
+        within_seconds: int = 60,
+    ) -> str | None:
+        """Return ig_media_id of a post that appeared on the account AFTER
+        `since_ts` (epoch seconds) and matches `expected_media_type` (e.g.
+        'REELS', 'CAROUSEL_ALBUM', 'IMAGE'). Used to recover from false-
+        failure responses on _publish_container.
+
+        If `since_ts` is None, falls back to a 60-second lookback. The
+        expected_media_type filter prevents the recovery picking up an
+        unrelated post (e.g. a carousel published moments before).
         """
         import datetime
         now = time.time()
+        floor_ts = since_ts if since_ts is not None else (now - within_seconds)
         try:
             url = f"{self.base_url}/{self.account_id}/media"
             r = requests.get(url, params={
-                "fields": "id,timestamp",
-                "limit": 5,
+                "fields": "id,timestamp,media_type,media_product_type",
+                "limit": 10,
                 "access_token": self.access_token,
             }, timeout=10).json()
             for post in r.get("data", []):
@@ -253,8 +270,14 @@ class InstagramGraphPublisher:
                 ts = datetime.datetime.fromisoformat(
                     ts_str.replace("Z", "+00:00")
                 ).timestamp()
-                if (now - ts) < within_seconds:
-                    return post["id"]
+                if ts < floor_ts:
+                    continue
+                if expected_media_type:
+                    pt = post.get("media_product_type") or ""
+                    mt = post.get("media_type") or ""
+                    if expected_media_type not in (pt, mt):
+                        continue
+                return post["id"]
         except Exception:
             pass
         return None

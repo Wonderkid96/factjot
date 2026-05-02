@@ -3,12 +3,26 @@
 *.key
 *.pem
 
-# ── Operational data (ledgers, caches, queues) ─────────────────────
-data/
+# ── Operational data ───────────────────────────────────────────────
+# Large caches and logs: ignore
+data/cache/
+data/trends/
+data/metrics_db.json
+data/db/
 logs/
-insta-brain/data/
 insta-brain/inbox.md
-insta-brain/log.md
+
+# Ledgers: TRACK in git so GitHub Actions can read/write state
+# across runs without an external store.
+# data/approval_queue.jsonl  <- tracked
+# insta-brain/data/*.jsonl   <- tracked
+# insta-brain/log.md         <- tracked
+# insta-brain/MEMORY_INDEX.md <- tracked
+
+# Still ignore large/ephemeral ledgers
+data/ledgers/used_images.jsonl
+data/launchd_publish.log
+data/launchd_publish.err
 
 # ── Large generated assets ─────────────────────────────────────────
 assets/music/

@@ -6,7 +6,7 @@ that has not yet been published (per `insta-brain/data/posted_quotes.jsonl`).
 Quote line formats supported:
     - The world is beautiful, and so are you.
     - "Be kind, for everyone you meet is fighting a hard battle." - Ian Maclaren
-    - "It always seems impossible until it's done." — Nelson Mandela
+    - "It always seems impossible until it's done." - Nelson Mandela
 
 Attribution is whatever follows the closing quote mark + dash separator.
 """
@@ -24,7 +24,7 @@ QUOTES_PATH = BRAIN_DIR / "bank" / "quotes.md"
 _LINE_RE = re.compile(r"^\s*-\s+(.*?)\s*$")
 _ATTR_RE = re.compile(r"""
     ^
-    (?:["“](?P<quote>.+?)["”])    # quoted body
+    (?:["“](?P<quote>.+?)["”])    # quoted body (straight or curly quotes)
     \s*[—–\-]\s*                  # em/en/hyphen separator
     (?P<attribution>.+?)
     \s*$
@@ -45,6 +45,12 @@ class QuoteBank:
     def __init__(self, path: Path = QUOTES_PATH) -> None:
         self.path = Path(path)
         self._all = self._load()
+        # Session-level picks: quotes selected during this planning run but not
+        # yet written to posted_quotes.jsonl (that only happens at publish time).
+        # Without this, every carousel in a plan_week run sees the same available
+        # pool and can receive the same quote. This set grows across calls within
+        # a single process lifetime.
+        self._session_hashes: set[str] = set()
 
     def _load(self) -> list[Quote]:
         if not self.path.exists():
@@ -57,23 +63,42 @@ class QuoteBank:
             body = m.group(1).strip()
             attr_m = _ATTR_RE.match(body)
             if attr_m:
-                out.append(Quote(text=attr_m.group("quote").strip(),
-                                  attribution=attr_m.group("attribution").strip()))
+                out.append(Quote(
+                    text=attr_m.group("quote").strip(),
+                    attribution=attr_m.group("attribution").strip(),
+                ))
             else:
-                # Plain originals — no attribution, may have surrounding quotes still.
-                clean = body.strip("\"“”")
+                # Plain originals: no attribution, strip any surrounding quote chars.
+                clean = body.strip('"“”')
                 out.append(Quote(text=clean, attribution=""))
         return out
 
     def pick_unused(self, *, rng: random.Random | None = None) -> Quote | None:
+        """Return a quote not yet published OR already assigned this session.
+
+        Checks two exclusion sets:
+          1. posted_quotes.jsonl on disk (quotes already published).
+          2. _session_hashes (quotes handed out in this process run but not
+             yet committed to disk, e.g. during plan_week where 14 carousels
+             are generated before any are published).
+
+        The picked quote is immediately added to _session_hashes so the next
+        call in the same session cannot pick the same one.
+        """
         rng = rng or random.Random()
-        used = brain.quote_used_hashes()
-        # Filter out used quotes by claim_hash equivalence.
         from src.brain import claim_hash
+        used = brain.quote_used_hashes() | self._session_hashes
         fresh = [q for q in self._all if claim_hash(q.text) not in used]
         if not fresh:
+            # All quotes exhausted including session picks. Fall back to only
+            # excluding published ones so the bot does not go silent.
+            used = brain.quote_used_hashes()
+            fresh = [q for q in self._all if claim_hash(q.text) not in used]
+        if not fresh:
             return None
-        return rng.choice(fresh)
+        picked = rng.choice(fresh)
+        self._session_hashes.add(claim_hash(picked.text))
+        return picked
 
     def all_count(self) -> int:
         return len(self._all)

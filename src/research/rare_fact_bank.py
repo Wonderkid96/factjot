@@ -37,8 +37,30 @@ STRONG (pass the shock test):
 quirky_score field:
   3 = shock tier (Reel-eligible, the only facts make_reel.py picks)
   2 = strong carousel fact (use freely)
-  1 = standard fact (use sparingly — prefer upgrading or replacing)
+  1 = standard fact (use sparingly, prefer upgrading or replacing)
   0 = textbook (do not use for carousels, only background bank)
+
+## REEL ELIGIBILITY (quirky_score=3 only) — HARD REQUIREMENTS
+
+Every q3 fact MUST carry these two fields, or `make_reel.py` will refuse
+to pick it. There is no auto-fallback path.
+
+  reel_title:  Short documentary-style hook (3-7 words). The opening card.
+               Examples: "The Demon Core", "The Girls Who Glowed".
+               Must NOT contain em-dashes (brand voice rule).
+
+  reel_script: Hand-written voice-over script, >= 70 words. Narrative
+               build with ellipses for dramatic pacing. Targets 35-55s
+               of voice at ElevenLabs delivery. Must NOT contain em-dashes.
+
+After editing this file, run:
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 \
+        scripts/validate_reel_facts.py
+
+This was added 2026-05-02 in response to a Switzerland 1986 reel that
+shipped at 22.7 seconds with the title "The Story of Until Switzerland"
+because both fields were missing on that fact. The auto-formatter and
+auto-titler are no longer invoked from make_reel.py. Do not reintroduce.
 
 `RARE_FACT_BANK` is the hand-curated source of truth.
 `load_all_facts()` merges it with `data/discovered_facts.jsonl` (auto-pulled
@@ -740,6 +762,21 @@ RARE_FACT_BANK = [
         "quirky_score": 3,
         "intensity": "medium",
         "tone": "shocking",
+        "reel_title": "The Man With a Spike Through His Head",
+        "reel_script": (
+            "In 1848, a railroad worker named Phineas Gage was packing dynamite into rock. "
+            "Something sparked. "
+            "A 3-foot iron rod shot up... straight through his skull. "
+            "It went in under his cheek and out the top of his head. "
+            "He didn't die. "
+            "He sat up, talked, and walked to the doctor. "
+            "He lived another 12 years. "
+            "But something had changed. "
+            "His friends said... he was no longer Gage. "
+            "His personality. His judgment. His patience. All gone. "
+            "The case proved that personality lives in the brain. "
+            "And modern neuroscience was born."
+        ),
     },
     {
         "topic": "history",
@@ -763,6 +800,22 @@ RARE_FACT_BANK = [
         "quirky_score": 3,
         "intensity": "heavy",
         "tone": "sober",
+        "reel_title": "The Man Who Saved the World",
+        "reel_script": (
+            "October 1962. The world was 13 days into the Cuban Missile Crisis. "
+            "A Soviet submarine sat trapped near Cuba. "
+            "Cut off from Moscow. Out of contact for days. "
+            "American destroyers were dropping signal charges to force them to surface. "
+            "The crew thought... war had already begun. "
+            "On board was a single nuclear torpedo. "
+            "Three officers had to agree to launch it. "
+            "Two voted yes. "
+            "One man said no. "
+            "His name was Vasili Arkhipov. "
+            "He held the line. He refused. "
+            "And because of one stranger you've never heard of... "
+            "you are alive today."
+        ),
     },
     {
         "topic": "history",
@@ -772,6 +825,22 @@ RARE_FACT_BANK = [
         "quirky_score": 3,
         "intensity": "light",
         "tone": "shocking",
+        "reel_title": "The House That Never Stopped",
+        "reel_script": (
+            "Sarah Winchester was the heir to the Winchester rifle fortune. "
+            "She had millions. "
+            "She also believed she was haunted... by every person her family's rifles had killed. "
+            "A medium told her she had to keep building. "
+            "If construction ever stopped, the spirits would catch her. "
+            "So she did. "
+            "For 38 years... carpenters worked 24 hours a day. "
+            "She built 161 rooms. "
+            "Stairs that lead to ceilings. "
+            "Doors that open onto walls. "
+            "Hallways that vanish into nothing. "
+            "She only stopped when she died. "
+            "And the house? It still stands today."
+        ),
     },
     {
         "topic": "history",
@@ -794,6 +863,23 @@ RARE_FACT_BANK = [
         "quirky_score": 3,
         "intensity": "heavy",
         "tone": "shocking",
+        "reel_title": "127 Hours",
+        "reel_script": (
+            "In 2003, a hiker named Aron Ralston went out alone in Utah. "
+            "He told no one where. "
+            "Deep in a slot canyon, a boulder shifted. "
+            "It crushed his right arm against the rock wall. "
+            "He couldn't move it. He couldn't break it. "
+            "He waited. "
+            "For five days. "
+            "Out of water. Out of food. Hallucinating. "
+            "Then he made a choice. "
+            "He used a dull multitool to cut through his own arm. "
+            "He freed himself. "
+            "He rappelled down a cliff. "
+            "And walked 8 miles before anyone found him. "
+            "He survived."
+        ),
     },
     {
         "topic": "history",
@@ -807,14 +893,19 @@ RARE_FACT_BANK = [
         "reel_script": (
             "In the 1920s, young women were paid to paint watch dials with radium. "
             "It glowed in the dark. "
+            "Beautiful. Magical. The future of luxury timepieces. "
             "Their managers told them to shape the brush tip... with their lips. "
             "Every single day. "
+            "Lick. Dip. Paint. "
+            "The factories told them it was harmless. "
             "Many of them died slowly. "
             "Their bones. Their jaws. Eaten away from the inside. "
             "When they sued, the company called them unhealthy women. "
+            "And tried to bury them. "
             "They fought anyway... "
+            "Some testified from their hospital beds. "
             "They won. "
-            "And their case rewrote safety law forever."
+            "And their case rewrote workplace safety law forever."
         ),
     },
     {
@@ -825,6 +916,22 @@ RARE_FACT_BANK = [
         "quirky_score": 3,
         "intensity": "heavy",
         "tone": "sober",
+        "reel_title": "Switzerland, 1986",
+        "reel_script": (
+            "Switzerland is famous for being modern. "
+            "Neutral. Wealthy. Civilised. "
+            "But here's something they don't put in the brochure. "
+            "Until 1986... a married woman in Switzerland could not take a paid job. "
+            "Not without her husband's written permission. "
+            "She couldn't open her own bank account. "
+            "She couldn't sign a lease. "
+            "Legally, she was his subordinate. "
+            "1986. "
+            "The same year as Top Gun. "
+            "The same year as the Chernobyl disaster. "
+            "Half the population of an entire country... still owned, on paper, by the other half. "
+            "And it took a national vote to change it."
+        ),
     },
 
     # ---------- SPACE (shock) ----------
@@ -836,6 +943,23 @@ RARE_FACT_BANK = [
         "quirky_score": 3,
         "intensity": "medium",
         "tone": "shocking",
+        "reel_title": "The Demon Core",
+        "reel_script": (
+            "In 1945, the Manhattan Project built a third nuclear core. "
+            "A sphere of plutonium the size of a grapefruit. "
+            "It was meant for a third bomb. "
+            "Japan surrendered before they could use it. "
+            "So scientists ran experiments on it. "
+            "Tickling the dragon's tail, they called it. "
+            "One slip and it would go critical. "
+            "It killed Harry Daghlian in 1945. "
+            "A screwdriver slipped. He died nine months later. "
+            "It killed Louis Slotin in 1946. "
+            "Same core. Same lab. "
+            "Two men. The same sphere. "
+            "After that, they gave it a name. "
+            "The Demon Core."
+        ),
     },
     {
         "topic": "space",
@@ -845,6 +969,23 @@ RARE_FACT_BANK = [
         "quirky_score": 3,
         "intensity": "medium",
         "tone": "shocking",
+        "reel_title": "The Explosion With No Crater",
+        "reel_script": (
+            "On the morning of June 30th, 1908... something exploded above Siberia. "
+            "It wasn't a bomb. There were no bombs that big yet. "
+            "It flattened 80 million trees. "
+            "An area larger than New York City. "
+            "The blast was equivalent to 1,000 Hiroshima bombs. "
+            "Windows shattered hundreds of miles away. "
+            "The night sky over Europe glowed for days. "
+            "But here's the strange part. "
+            "There was no crater. "
+            "No fragments. No metal. "
+            "Whatever it was... exploded in the air. "
+            "Scientists still argue. Asteroid. Comet. We may never know. "
+            "If it had hit a city instead of a forest... "
+            "we'd remember 1908 very differently."
+        ),
     },
     {
         "topic": "space",
@@ -854,6 +995,21 @@ RARE_FACT_BANK = [
         "quirky_score": 3,
         "intensity": "medium",
         "tone": "shocking",
+        "reel_title": "The Day the Sun Struck Earth",
+        "reel_script": (
+            "September 1st, 1859. A British astronomer named Carrington saw two flashes on the Sun. "
+            "Eighteen hours later... the planet caught fire. "
+            "The aurora was so bright over the Caribbean... people thought the morning had come early. "
+            "Telegraph wires sparked. "
+            "Operators got electric shocks. "
+            "Some machines kept sending messages... after they'd been unplugged. "
+            "Papers caught fire on telegraph desks. "
+            "It was the strongest solar storm ever recorded. "
+            "If the Carrington Event happened today... "
+            "the global electrical grid would be down for years. "
+            "Trillions in damage. Billions without power. "
+            "And every century or so... it happens again."
+        ),
     },
     {
         "topic": "space",
@@ -863,6 +1019,21 @@ RARE_FACT_BANK = [
         "quirky_score": 3,
         "intensity": "light",
         "tone": "shocking",
+        "reel_title": "Pluto Is Smaller Than Russia",
+        "reel_script": (
+            "When you picture Pluto... you probably imagine a planet. "
+            "A frozen world out at the edge of the solar system. "
+            "Vast. Distant. Massive. "
+            "It's not. "
+            "Pluto's surface area is 17.7 million square kilometres. "
+            "Russia's surface area is 17.1 million square kilometres. "
+            "Pluto is barely bigger than one country on Earth. "
+            "And here's the part that breaks your brain. "
+            "Pluto is smaller than our Moon. "
+            "If you put Pluto in front of the Moon... it would disappear behind it. "
+            "An entire former planet. "
+            "Smaller than the rock we look at every night."
+        ),
     },
 
     # ---------- BIOLOGY (shock) ----------
@@ -874,6 +1045,23 @@ RARE_FACT_BANK = [
         "quirky_score": 3,
         "intensity": "light",
         "tone": "shocking",
+        "reel_title": "Nine Brains, Eight Decisions",
+        "reel_script": (
+            "An octopus has three hearts. "
+            "Blue blood. "
+            "And nine brains. "
+            "One central brain... and a smaller brain in each of its eight arms. "
+            "Each arm can taste. Each arm can think. "
+            "Each arm makes its own decisions. "
+            "If you cut one off, it keeps reaching. "
+            "It keeps grabbing food. It keeps responding to threats. "
+            "Without the main brain at all. "
+            "When an octopus solves a maze... "
+            "it isn't one mind solving it. "
+            "It's nine. "
+            "We have no idea what that feels like from the inside. "
+            "And we share a planet with them."
+        ),
     },
     {
         "topic": "biology",
@@ -883,6 +1071,21 @@ RARE_FACT_BANK = [
         "quirky_score": 3,
         "intensity": "light",
         "tone": "shocking",
+        "reel_title": "The Deadliest Punch in Nature",
+        "reel_script": (
+            "The mantis shrimp is small. About the size of your hand. "
+            "But it throws the fastest punch in the animal kingdom. "
+            "Its claw accelerates at 10,000 g. "
+            "Faster than a bullet leaving a gun. "
+            "The strike is so fast... it boils the water around it. "
+            "Tiny bubbles collapse with a flash of light. "
+            "For a fraction of a second... that bubble is hotter than the surface of the Sun. "
+            "Hard enough to crack glass aquarium walls. "
+            "And it sees colour the way no human ever will. "
+            "16 different colour receptors. "
+            "We have three. "
+            "What it sees... we cannot imagine."
+        ),
     },
     {
         "topic": "biology",
@@ -892,6 +1095,22 @@ RARE_FACT_BANK = [
         "quirky_score": 3,
         "intensity": "light",
         "tone": "shocking",
+        "reel_title": "The Mammal That Shouldn't Exist",
+        "reel_script": (
+            "Meet the naked mole-rat. "
+            "It is wrinkled. Hairless. Almost blind. "
+            "And it breaks every rule of being a mammal. "
+            "It can survive 18 minutes without oxygen. "
+            "When the air runs out, its body stops burning sugar. "
+            "It starts burning fructose. Like a plant. "
+            "Nothing else with a spine on this planet does that. "
+            "It almost never gets cancer. "
+            "It feels almost no pain. "
+            "It lives 30 years. "
+            "Most rodents live 3. "
+            "Scientists think it might hold the key to slowing human ageing. "
+            "An ugly little rodent... rewriting medicine."
+        ),
     },
     {
         "topic": "biology",
@@ -902,7 +1121,27 @@ RARE_FACT_BANK = [
         "intensity": "medium",
         "tone": "shocking",
         "reel_title": "The Fungus That Controls Minds",
-        "reel_script": "There is a fungus that controls minds. It's called Cordyceps. It finds an ant... infects its brain... and takes the wheel. The ant climbs. It bites down on a leaf. It holds there. And then... the fungus erupts from its head. Nature made this. On purpose.",
+        "reel_script": (
+            "Deep in the jungles of South America... there is a fungus. "
+            "It is called Cordyceps. "
+            "And it doesn't just kill insects. "
+            "It controls them. "
+            "It floats through the air as a tiny spore. "
+            "When one lands on an ant... it burrows inside. "
+            "Then it grows. Through muscle. Through nerves. Into the brain. "
+            "And it takes the wheel. "
+            "The ant stops doing ant things. "
+            "It leaves the colony. "
+            "It climbs up the nearest plant. To exactly the right height. "
+            "It bites down hard on a leaf. "
+            "And it holds there. "
+            "Frozen. "
+            "Until the fungus erupts from its head. "
+            "Spreading new spores. "
+            "Onto the ants below. "
+            "Nature made this. "
+            "On purpose."
+        ),
     },
     {
         "topic": "biology",
@@ -912,6 +1151,20 @@ RARE_FACT_BANK = [
         "quirky_score": 3,
         "intensity": "light",
         "tone": "shocking",
+        "reel_title": "Born Already Pregnant",
+        "reel_script": (
+            "Aphids are tiny green insects you've seen on a thousand garden leaves. "
+            "Ignore them at your peril. "
+            "When food is plentiful, aphids skip males entirely. "
+            "Females clone themselves. "
+            "But here's the twist. "
+            "An aphid is born... already pregnant. "
+            "The next generation is growing inside her... before she has even been born. "
+            "Three generations, nested like Russian dolls, before any of them sees daylight. "
+            "It's why one aphid in spring becomes thousands by midsummer. "
+            "Time itself bends for them. "
+            "Birth, pregnancy, generation... happening all at once."
+        ),
     },
 
     # ---------- TECHNOLOGY (shock) ----------
@@ -923,6 +1176,24 @@ RARE_FACT_BANK = [
         "quirky_score": 3,
         "intensity": "light",
         "tone": "shocking",
+        "reel_title": "The Ancient Computer",
+        "reel_script": (
+            "In 1901, divers off the Greek island of Antikythera found a Roman shipwreck. "
+            "Inside it... a lump of corroded bronze. "
+            "It sat in a museum drawer for decades. "
+            "Then someone X-rayed it. "
+            "Inside were 30 perfectly cut bronze gears. "
+            "Interlocking. Tiny. Precise. "
+            "It was a computer. "
+            "Built 2,000 years ago. "
+            "It predicted eclipses. "
+            "It tracked the position of every known planet. "
+            "It even followed the four-year cycle of the Olympic Games. "
+            "Nothing this complex would appear again... for another 1,400 years. "
+            "Who built it? "
+            "We still don't know. "
+            "And the world forgot."
+        ),
     },
     {
         "topic": "technology",
@@ -933,6 +1204,22 @@ RARE_FACT_BANK = [
         "allow_archival": True,
         "intensity": "light",
         "tone": "shocking",
+        "reel_title": "The Book Nobody Can Read",
+        "reel_script": (
+            "The Voynich Manuscript is 600 years old. "
+            "240 pages of text. Hundreds of illustrations. "
+            "Plants no botanist recognises. "
+            "Star charts that match no known sky. "
+            "Naked figures bathing in green water through interconnecting tubes. "
+            "And every single word... is written in a language that has never existed. "
+            "Top codebreakers from World War One and Two failed. "
+            "The CIA failed. "
+            "Modern AI has failed. "
+            "Statistical analysis says it follows real linguistic patterns. "
+            "But no one alive can tell you what a single sentence means. "
+            "It sits in a vault at Yale University. "
+            "Waiting for someone to crack it."
+        ),
     },
     {
         "topic": "technology",
@@ -943,6 +1230,25 @@ RARE_FACT_BANK = [
         "allow_archival": True,
         "intensity": "light",
         "tone": "shocking",
+        "reel_title": "The First Person Ever Photographed",
+        "reel_script": (
+            "Paris. 1838. "
+            "A Frenchman named Daguerre points a wooden box camera out his window. "
+            "It's the first decent photograph anyone has ever taken. "
+            "The exposure takes 8 minutes. "
+            "In 1838, that meant... anything moving disappears. "
+            "Carriages. Horses. Hundreds of people walking. "
+            "All gone. The boulevard looks empty. "
+            "All except for one man. "
+            "Standing perfectly still. "
+            "He was getting his shoes shined. "
+            "We don't know his name. "
+            "We don't know who he was. "
+            "But we know this. "
+            "A man getting his shoes shined in 1838... "
+            "is the first human ever photographed. "
+            "And he had no idea."
+        ),
     },
 
     # ---------- OCEAN (shock) ----------
@@ -982,6 +1288,23 @@ RARE_FACT_BANK = [
         "quirky_score": 3,
         "intensity": "light",
         "tone": "shocking",
+        "reel_title": "The World's Tallest Waterfall",
+        "reel_script": (
+            "Angel Falls in Venezuela is the tallest waterfall above ground. "
+            "Just under a kilometre tall. "
+            "But it isn't even close to the real record. "
+            "Between Greenland and Iceland... beneath the ocean... "
+            "there is a waterfall three times taller. "
+            "Cold, dense water from the Arctic crashes down into the warmer Atlantic. "
+            "Three and a half kilometres tall. "
+            "And the volume? "
+            "It carries 50,000 times more water than Niagara Falls. "
+            "Every second. "
+            "And nobody can ever see it. "
+            "It's the largest waterfall on the planet. "
+            "Hidden beneath the sea. "
+            "It has been falling for thousands of years."
+        ),
     },
 
     # ---------- EARTH (shock) ----------
@@ -999,12 +1322,16 @@ RARE_FACT_BANK = [
             "But this wasn't ordinary. "
             "This was Mount Toba. "
             "The largest eruption on Earth in two million years. "
-            "Ash blanketed the planet. "
+            "It threw 2,800 cubic kilometres of rock into the sky. "
+            "Ash blanketed the planet. From India to East Africa. "
             "Sunlight dimmed for years. "
             "Temperatures crashed. "
+            "Forests died. Food chains collapsed. "
             "And humanity? "
             "We almost didn't make it. "
-            "Every human alive today descends from just a few thousand survivors. "
+            "Genetic studies show our ancestors crashed... "
+            "to as few as three thousand individuals. "
+            "Every human alive today descends from those survivors. "
             "An entire species... hanging by a thread."
         ),
     },
@@ -1016,6 +1343,26 @@ RARE_FACT_BANK = [
         "quirky_score": 3,
         "intensity": "light",
         "tone": "shocking",
+        "reel_title": "The Fire That Never Goes Out",
+        "reel_script": (
+            "Hidden in a forest in upstate New York... is a small waterfall. "
+            "Tucked behind it is a tiny grotto. "
+            "And inside that grotto... a flame. "
+            "Burning. "
+            "Underwater. "
+            "It has been burning for thousands of years. "
+            "Long before anyone wrote it down. "
+            "Native Americans knew about it. "
+            "European settlers found it lit. "
+            "It's still lit today. "
+            "Underneath, a pocket of natural methane seeps up through the rock. "
+            "It feeds the flame from below. "
+            "Wind doesn't kill it. "
+            "Rain doesn't kill it. "
+            "The waterfall doesn't kill it. "
+            "Eternal Flame Falls. "
+            "Real. And quietly burning. Right now."
+        ),
     },
 
     # ============================================================
@@ -1034,6 +1381,23 @@ RARE_FACT_BANK = [
         "intensity": "medium",
         "tone": "shocking",
         "reel_title": "The Great Molasses Flood",
+        "reel_script": (
+            "On a warm afternoon in January 1919... "
+            "a giant tank in Boston's North End burst open. "
+            "Inside it... 2.3 million gallons of molasses. "
+            "Sweet, sticky, brown molasses. "
+            "The wave that came out was 15 feet tall. "
+            "It moved at 35 miles an hour. "
+            "Faster than people could run. "
+            "It tore buildings off their foundations. "
+            "Threw a freight train off its tracks. "
+            "21 people died. "
+            "150 were injured. "
+            "Drowned in molasses. "
+            "Survivors said the syrup smelled in the streets for decades. "
+            "On hot summer days, locals swore... they could still smell it. "
+            "Ridiculous. And true."
+        ),
     },
     {
         "topic": "history",
@@ -1044,6 +1408,23 @@ RARE_FACT_BANK = [
         "intensity": "heavy",
         "tone": "sober",
         "reel_title": "Typhoid Mary",
+        "reel_script": (
+            "Mary Mallon was a cook in early 1900s New York. "
+            "She felt fine. Strong. Healthy. "
+            "But everywhere she worked... families got sick. "
+            "Typhoid fever. "
+            "She moved on. Found new work. "
+            "More families. More fever. "
+            "An investigator finally tracked her down. "
+            "She was a healthy carrier. "
+            "Her body produced typhoid bacteria... but it never made her ill. "
+            "She infected at least 51 people. Three died. "
+            "She was forcibly quarantined twice on a small island. "
+            "She spent the last 23 years of her life there. "
+            "Alone. Imprisoned. "
+            "She was never convicted of a crime. "
+            "Her only offence... was being well."
+        ),
     },
     {
         "topic": "history",
@@ -1054,7 +1435,26 @@ RARE_FACT_BANK = [
         "intensity": "medium",
         "tone": "shocking",
         "reel_title": "The Dancing Plague of 1518",
-        "reel_script": "In 1518, in the city of Strasbourg, people started dancing. And couldn't stop. One by one, more joined. Within weeks, four hundred people were dancing in the streets. Day and night. Some for days without stopping. Their feet bled. Their hearts gave out. People died from exhaustion. Nobody played music. Nobody gave an order. It just... happened. Nobody has ever explained why.",
+        "reel_script": (
+            "In July 1518, in the city of Strasbourg, "
+            "a woman walked into the street and began to dance. "
+            "She didn't stop. "
+            "She danced for days. "
+            "Within a week... 30 more people had joined her. "
+            "Within a month... there were 400. "
+            "All dancing. "
+            "Day and night. Without music. Without rest. "
+            "The city authorities thought dancing harder would cure them. "
+            "They built a wooden stage. Hired musicians. "
+            "It made it worse. "
+            "Their feet bled. Their hearts gave out. "
+            "Some collapsed. Some died of exhaustion. "
+            "Nobody had given an order. "
+            "Nobody had played music. "
+            "It just... started. "
+            "Five centuries later... "
+            "no one has ever explained why."
+        ),
     },
     {
         "topic": "history",
@@ -1065,6 +1465,25 @@ RARE_FACT_BANK = [
         "intensity": "medium",
         "tone": "shocking",
         "reel_title": "The Man Who Stole Einstein's Brain",
+        "reel_script": (
+            "When Albert Einstein died in 1955... "
+            "the pathologist at his autopsy did something extraordinary. "
+            "Without the family's permission... he removed the brain. "
+            "His name was Thomas Harvey. "
+            "He took it home. "
+            "He kept it in a jar. In his basement. "
+            "For decades. "
+            "He drove it across America in the boot of his car. "
+            "He sliced it into 240 thin sections. "
+            "He posted pieces of it to researchers. "
+            "Around the world. "
+            "He lost his medical licence. He lost his marriage. "
+            "But he never gave the brain back. "
+            "Not all of it. "
+            "Pieces of Einstein's brain... are still in collections today. "
+            "Studied. Catalogued. "
+            "Stolen."
+        ),
     },
     {
         "topic": "history",
@@ -1086,6 +1505,24 @@ RARE_FACT_BANK = [
         "intensity": "heavy",
         "tone": "sober",
         "reel_title": "The Day Four Nuclear Bombs Fell on Spain",
+        "reel_script": (
+            "January 17th, 1966. The Cold War. "
+            "An American B-52 bomber is flying near the Spanish coast. "
+            "It's carrying four hydrogen bombs. "
+            "Standard patrol. Just in case. "
+            "It tries to refuel mid-air. "
+            "Something goes wrong. "
+            "The two planes collide. "
+            "The bomber breaks apart. "
+            "And four nuclear bombs fall toward Spain. "
+            "None of them detonated. "
+            "But two of them broke open on impact. "
+            "Plutonium scattered across farmland near a small village. "
+            "Palomares. "
+            "American crews quietly took 1,400 tonnes of contaminated soil back to South Carolina. "
+            "Locals are still being monitored today. "
+            "The world almost never knew."
+        ),
     },
 
     # ---------- SPACE ----------
@@ -1098,6 +1535,22 @@ RARE_FACT_BANK = [
         "intensity": "medium",
         "tone": "shocking",
         "reel_title": "The Biggest Thing in the Universe",
+        "reel_script": (
+            "There is an object 18 billion light years from Earth. "
+            "It's called TON 618. "
+            "It is a black hole. "
+            "But not like any you've imagined. "
+            "Its mass is 66 billion times that of our Sun. "
+            "Its event horizon... the point of no return... is so large... "
+            "you could fit our entire solar system inside it. "
+            "Forty times over. "
+            "Pluto. The Sun. All the planets. Gone. With room to spare. "
+            "Light goes in and never comes back. "
+            "Time slows to a stop near it. "
+            "It is the largest single object we have ever found. "
+            "And somewhere out there... it's silently feeding. "
+            "Right now."
+        ),
     },
     {
         "topic": "space",
@@ -1108,6 +1561,26 @@ RARE_FACT_BANK = [
         "intensity": "medium",
         "tone": "shocking",
         "reel_title": "The Great Nothing",
+        "reel_script": (
+            "In the constellation of Boötes... there is a region of space. "
+            "330 million light years across. "
+            "Astronomers call it the Boötes Void. "
+            "By every model we have... "
+            "it should contain at least 2,000 galaxies. "
+            "Stars. Planets. Solar systems. "
+            "Spread across that volume. "
+            "Instead... there are fewer than 60. "
+            "Almost nothing. "
+            "It is the emptiest place in the known universe. "
+            "Some scientists think it's just a statistical fluke. "
+            "Others think it's evidence of something we don't understand. "
+            "A wound in the cosmos. "
+            "An echo of a different universe. "
+            "We do not know. "
+            "All we know is... "
+            "the void is real. "
+            "And it is enormous."
+        ),
     },
     {
         "topic": "space",
@@ -1118,6 +1591,24 @@ RARE_FACT_BANK = [
         "intensity": "medium",
         "tone": "shocking",
         "reel_title": "The Ocean Hidden Beneath the Ice",
+        "reel_script": (
+            "Europa is one of Jupiter's moons. "
+            "From space, it looks like a smooth white marble. "
+            "Cracked. Frozen. Lifeless. "
+            "But beneath that ice... "
+            "there is an ocean. "
+            "A real, liquid, saltwater ocean. "
+            "And it contains more water than every ocean on Earth. "
+            "Combined. Twice over. "
+            "It is kept warm by the gravitational pull of Jupiter. "
+            "Hydrothermal vents may line its floor. "
+            "On Earth, those vents are crowded with life. "
+            "Scientists think... if life exists anywhere else in the solar system... "
+            "it is most likely there. "
+            "Right now. "
+            "Swimming in the dark beneath the ice. "
+            "Waiting to be found."
+        ),
     },
     {
         "topic": "space",
@@ -1128,7 +1619,25 @@ RARE_FACT_BANK = [
         "intensity": "medium",
         "tone": "shocking",
         "reel_title": "Wow.",
-        "reel_script": "In 1977, a radio telescope in Ohio picked up a signal from deep space. It lasted 72 seconds. It matched exactly what scientists expected from an alien transmission. The astronomer on duty circled it on his printout... and wrote one word. Wow. It has never been detected again. Nobody has explained it. Nobody has found the source. It remains the strongest candidate for contact with something... out there.",
+        "reel_script": (
+            "In 1977, a radio telescope in Ohio was scanning the deep sky. "
+            "It was looking for nothing in particular. "
+            "Then a signal arrived. "
+            "It lasted 72 seconds. "
+            "Loud. Narrow. Sharp. "
+            "It matched almost exactly what scientists expected an alien transmission to look like. "
+            "The astronomer on duty was Jerry Ehman. "
+            "He looked at the printout. "
+            "And he circled the numbers. "
+            "And he wrote one word in the margin. "
+            "Wow. "
+            "Nothing like it has ever been detected again. "
+            "Nobody has explained it. "
+            "Nobody has found the source. "
+            "Nearly 50 years later... "
+            "the Wow signal remains the strongest candidate for contact... "
+            "with something out there."
+        ),
     },
 
     # ---------- BIOLOGY ----------
@@ -1141,6 +1650,27 @@ RARE_FACT_BANK = [
         "intensity": "light",
         "tone": "shocking",
         "reel_title": "The Animal That Regrows Its Brain",
+        "reel_script": (
+            "The axolotl is a small pink salamander from Mexico. "
+            "It looks like it's smiling. "
+            "But it can do something nothing else with a spine can do. "
+            "Cut off one of its legs. "
+            "It grows back. "
+            "Perfect bone. Perfect muscle. Perfect nerve. "
+            "Cut its spinal cord. "
+            "It regrows. "
+            "Damage its heart. "
+            "It regrows. "
+            "Take out a piece of its brain. "
+            "It regrows that too. "
+            "You can transplant an eye from one axolotl to another. "
+            "It accepts it. No rejection. "
+            "Scientists are studying it... "
+            "to learn how humans might one day do the same. "
+            "Wild in the wild, the axolotl is nearly extinct. "
+            "The animal that could rebuild us... "
+            "we couldn't protect."
+        ),
     },
     {
         "topic": "biology",
@@ -1151,6 +1681,24 @@ RARE_FACT_BANK = [
         "intensity": "light",
         "tone": "shocking",
         "reel_title": "The Most Generous Animal You've Never Heard Of",
+        "reel_script": (
+            "Vampire bats have a problem. "
+            "If they don't feed every two nights... they die. "
+            "Their bodies just can't store the energy. "
+            "But here's the thing nobody told you. "
+            "When one bat misses a meal... "
+            "another bat will regurgitate blood into its mouth. "
+            "Sharing. Not for its young. For a friend. "
+            "They keep track of who feeds them. "
+            "And they pay it back. "
+            "They adopt orphan young from other mothers. "
+            "They groom each other. They form lifelong friendships. "
+            "We tell stories about vampires. We make them monsters. "
+            "But the real vampires of the natural world... "
+            "are some of the most generous animals alive. "
+            "Quietly keeping each other from dying. "
+            "In the dark."
+        ),
     },
     {
         "topic": "biology",
@@ -1161,6 +1709,24 @@ RARE_FACT_BANK = [
         "intensity": "light",
         "tone": "shocking",
         "reel_title": "You Can See Right Through Them",
+        "reel_script": (
+            "In the rainforests of Central America... lives a frog. "
+            "Tiny. Bright green. "
+            "Until you turn it over. "
+            "Then everything changes. "
+            "Its underside is completely transparent. "
+            "You can watch its heart beating. "
+            "You can see blood pumping through the chambers. "
+            "You can see its stomach digesting. "
+            "Its intestines moving. "
+            "If she's a pregnant female... you can count the developing eggs inside her. "
+            "It's called a glass frog. "
+            "And it's not just an oddity. "
+            "By going transparent, it disappears against leaves. "
+            "Predators look right through it. "
+            "Evolution made a window. "
+            "And put a heartbeat behind it."
+        ),
     },
     {
         "topic": "biology",
@@ -1171,6 +1737,23 @@ RARE_FACT_BANK = [
         "intensity": "light",
         "tone": "shocking",
         "reel_title": "Birds Can See What We Cannot",
+        "reel_script": (
+            "Every autumn, birds migrate thousands of miles. "
+            "Often at night. Often through cloud. "
+            "How do they know where to go? "
+            "The answer is stranger than anyone expected. "
+            "In the back of a robin's eye... "
+            "are special proteins called cryptochromes. "
+            "When light hits them, they trigger a quantum effect. "
+            "Two electrons become entangled. "
+            "And those electrons... can feel Earth's magnetic field. "
+            "It means migratory birds can literally see the magnetic field of the planet. "
+            "Like an overlay on the sky. "
+            "A glowing compass painted across the world. "
+            "We have the same proteins. "
+            "We just lost the ability to use them. "
+            "Birds are using quantum mechanics... to find their way home."
+        ),
     },
 
     # ---------- OCEAN ----------
@@ -1194,6 +1777,25 @@ RARE_FACT_BANK = [
         "intensity": "medium",
         "tone": "shocking",
         "reel_title": "The Master of Disguise",
+        "reel_script": (
+            "Most octopuses can change colour. "
+            "The mimic octopus does something else entirely. "
+            "It doesn't just blend in. "
+            "It impersonates other animals. "
+            "Whole creatures. "
+            "It can shape itself into a venomous lionfish. "
+            "Spread its arms wide and become a flatfish on the seafloor. "
+            "Trail two arms behind it... and turn into a banded sea snake. "
+            "At least 15 different species. "
+            "And here's the trick. "
+            "It picks which one to imitate... based on which predator is nearby. "
+            "Threat by a damselfish? "
+            "Become the snake that eats damselfish. "
+            "It is the only known animal that actively chooses its disguise. "
+            "Improvising. Lying. "
+            "Outsmarting predators that have hunted in this ocean... "
+            "for millions of years."
+        ),
     },
     {
         "topic": "ocean",
@@ -1204,6 +1806,25 @@ RARE_FACT_BANK = [
         "intensity": "medium",
         "tone": "shocking",
         "reel_title": "The Real Sea Serpent",
+        "reel_script": (
+            "Sailors have told stories of sea serpents for centuries. "
+            "Long, silver creatures rising from the deep. "
+            "Most people called them myths. "
+            "Then science found one. "
+            "It's called the giant oarfish. "
+            "It can grow to 11 metres long. "
+            "Longer than a London bus. "
+            "It is the longest bony fish on Earth. "
+            "It swims vertically. Head pointing up. Body trailing down. "
+            "Like a silver ribbon dropped from the surface. "
+            "It lives in the deep dark ocean. "
+            "Almost no one has ever seen one alive. "
+            "When they wash up on beaches, locals still take photos in shock. "
+            "The sea serpents in old sailor stories... "
+            "weren't legends at all. "
+            "They were really down there. "
+            "And they always have been."
+        ),
     },
 
     # ---------- EARTH ----------
@@ -1227,6 +1848,27 @@ RARE_FACT_BANK = [
         "intensity": "heavy",
         "tone": "shocking",
         "reel_title": "The Tallest Wave Ever Recorded",
+        "reel_script": (
+            "July 9th, 1958. Lituya Bay, Alaska. "
+            "An earthquake hits. 7.8 on the Richter scale. "
+            "It shakes 90 million tonnes of rock loose from a mountainside. "
+            "The rock crashes into the bay. "
+            "The water has nowhere to go. "
+            "It rises. "
+            "Higher than the Eiffel Tower. "
+            "Higher than the Empire State Building. "
+            "524 metres tall. "
+            "The biggest wave ever recorded by humans. "
+            "Trees were stripped from the cliffs above. "
+            "The forest scrubbed clean. "
+            "Two fishing boats happened to be anchored in the bay. "
+            "They didn't drown. "
+            "They surfed it. "
+            "Over the trees, over the cliff... and down the other side. "
+            "They lived to tell it. "
+            "Nobody believed them. "
+            "Until the satellite images came out."
+        ),
     },
     {
         "topic": "earth",
@@ -1237,6 +1879,26 @@ RARE_FACT_BANK = [
         "intensity": "medium",
         "tone": "shocking",
         "reel_title": "The World Sealed for Five Million Years",
+        "reel_script": (
+            "In Romania, deep beneath the ground, there is a cave. "
+            "It is sealed. "
+            "And it has been sealed for 5 and a half million years. "
+            "No sunlight has ever reached it. "
+            "The air inside is poisonous. "
+            "Almost no oxygen. Hydrogen sulfide. Methane. "
+            "And yet... "
+            "48 species of animals live inside. "
+            "Spiders. Scorpions. Leeches. Insects. "
+            "All of them blind. All of them pale. "
+            "None of them exist anywhere else on Earth. "
+            "They feed on bacteria... that pull energy from the toxic chemicals in the rock. "
+            "Not from the sun. "
+            "An entire ecosystem. "
+            "Cut off. Forgotten. Surviving. "
+            "For longer than humans have existed. "
+            "It's called Movile Cave. "
+            "And it shouldn't even be possible."
+        ),
     },
     {
         "topic": "earth",
@@ -1247,6 +1909,26 @@ RARE_FACT_BANK = [
         "intensity": "light",
         "tone": "shocking",
         "reel_title": "The Eye of the Sahara",
+        "reel_script": (
+            "In the middle of the Sahara desert... "
+            "is a circle. "
+            "50 kilometres across. "
+            "Concentric rings of rock. "
+            "Like a giant target. Or an eye. Staring up at the sky. "
+            "It is so large... it can only really be seen from space. "
+            "When astronauts first photographed it in the 1960s... "
+            "no one had any idea what it was. "
+            "A meteor crater? "
+            "A volcano? "
+            "Aliens? "
+            "We finally have an answer. "
+            "It's a geological dome that slowly collapsed. "
+            "Different layers of rock eroded at different speeds. "
+            "Leaving rings. "
+            "It is one of the most striking shapes on the planet. "
+            "And for most of human history... "
+            "we never even knew it was there."
+        ),
     },
 ]
 

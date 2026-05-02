@@ -41,6 +41,17 @@ except ImportError:
 
 VOICE = "en-GB-RyanNeural"  # edge-tts default
 
+
+def _alert_tts_fallback(reason: str) -> None:
+    """Surface ElevenLabs failures into the brain log so silent fallback
+    to edge-tts can be detected after the fact (otherwise the wrong voice
+    just ships and nobody notices). Best-effort — never raises."""
+    try:
+        from src.brain import brain
+        brain.append_log(f"TTS FALLBACK to edge-tts: {reason}")
+    except Exception:
+        pass
+
 # ElevenLabs defaults
 EL_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"  # George — British male, authoritative (default)
 EL_MODEL    = "eleven_turbo_v2_5"       # Fast + high quality, good for social
@@ -87,13 +98,17 @@ def synthesise(
     if resolved == "elevenlabs":
         api_key = os.getenv("ELEVENLABS_API_KEY", "").strip()
         if not api_key:
-            print("  [tts] ELEVENLABS_API_KEY not set — falling back to edge-tts")
+            msg = "ELEVENLABS_API_KEY not set — falling back to edge-tts"
+            print(f"  [tts] {msg}")
+            _alert_tts_fallback(msg)
         else:
             try:
                 result = _synthesise_elevenlabs(text, out_dir, voice)
                 return result
             except Exception as exc:
-                print(f"  [tts] ElevenLabs failed ({exc.__class__.__name__}: {exc}) — falling back to edge-tts")
+                msg = f"ElevenLabs failed ({exc.__class__.__name__}: {exc}) — falling back to edge-tts"
+                print(f"  [tts] {msg}")
+                _alert_tts_fallback(msg)
 
     # Fallback: edge-tts (free, always available)
     if not _EDGE_TTS_AVAILABLE:

@@ -1,0 +1,74 @@
+name: Daily Reel (19:00 UTC)
+
+on:
+  schedule:
+    - cron: "45 18 * * *"   # 18:45 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20      # reel pipeline is slower: TTS + footage + FFmpeg
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright browsers
+        run: playwright install chromium --with-deps
+
+      - name: Write .env from secrets
+        run: |
+          cat > .env << 'ENVEOF'
+          INSTAGRAM_ACCOUNT_ID=${{ secrets.INSTAGRAM_ACCOUNT_ID }}
+          FACEBOOK_PAGE_ID=${{ secrets.FACEBOOK_PAGE_ID }}
+          META_ACCESS_TOKEN=${{ secrets.META_ACCESS_TOKEN }}
+          META_GRAPH_VERSION=${{ secrets.META_GRAPH_VERSION }}
+          META_APP_SECRET=${{ secrets.META_APP_SECRET }}
+          META_GRAPH_HOST=${{ secrets.META_GRAPH_HOST }}
+          IMGBB_API_KEY=${{ secrets.IMGBB_API_KEY }}
+          PEXELS_API_KEY=${{ secrets.PEXELS_API_KEY }}
+          ELEVENLABS_API_KEY=${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE=${{ secrets.ELEVENLABS_VOICE }}
+          COVERR_API_KEY=${{ secrets.COVERR_API_KEY }}
+          PIXABAY_API_KEY=${{ secrets.PIXABAY_API_KEY }}
+          MUSIC_CREDIT=${{ secrets.MUSIC_CREDIT }}
+          TIMEZONE=UTC
+          ENVEOF
+
+      - name: Post reel
+        run: /usr/bin/python3 scripts/make_reel.py
+
+      - name: Commit state back to main
+        if: always()
+        run: |
+          git config user.name  "factjot-bot"
+          git config user.email "bot@factjot"
+          git add \
+            insta-brain/data/posted.jsonl \
+            insta-brain/data/reels.jsonl \
+            insta-brain/log.md \
+            insta-brain/MEMORY_INDEX.md \
+            || true
+          git diff --cached --quiet || \
+            git commit -m "state: reel $(date -u +%Y-%m-%d)"
+          git push origin main

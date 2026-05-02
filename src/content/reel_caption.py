@@ -26,13 +26,20 @@ from urllib.parse import urlparse
 
 _CTAS = [
     "Follow @factjot for more facts like this.",
-    "Follow @factjot — new fact every day.",
+    "Follow @factjot for a new fact every day.",
     "More where that came from. Follow @factjot.",
     "Follow @factjot for your daily fact.",
     "Want more? Follow @factjot.",
-    "Daily facts at @factjot — follow to keep learning.",
+    "Daily facts at @factjot. Follow to keep learning.",
     "This one stopped me. Follow @factjot for more.",
 ]
+
+
+# Hard rule: no em-dashes anywhere in caption output.
+# Brand voice convention. Catch any em-dash that slips through string
+# concatenation (sources, titles, music credits, etc).
+def _strip_em_dashes(text: str) -> str:
+    return text.replace("—", ",").replace("–", ",")
 
 # Tier 1: broad reach — always included
 _BROAD = "#facts #didyouknow #learnontiktok #mindblown #interestingfacts"
@@ -234,4 +241,5 @@ def build_reel_caption(
 
     parts = [hook, body, "", cta, "", "\n".join(credit_lines), "", hashtags]
     caption = "\n".join(parts)
+    caption = _strip_em_dashes(caption)
     return caption[:2200]

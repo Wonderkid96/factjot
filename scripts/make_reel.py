@@ -109,22 +109,85 @@ def _pick_music(topic: str) -> Path | None:
 # Fact selection
 # ------------------------------------------------------------------ #
 
+# Hard floor on the curated reel_script length. Below this, the auto-generator
+# would have produced a 22-second reel (the bug we're fixing). 70 words at
+# ~140 wpm = ~30s of voice + 3.5s intro + ~2.3s tail ≈ 36s final reel.
+MIN_REEL_SCRIPT_WORDS = 70
+
+
+class ReelFactInvariantError(RuntimeError):
+    """Raised when the picked fact violates a reel-quality invariant.
+
+    Hard guarantees enforced by `_pick_fact`:
+      1. quirky_score == 3
+      2. sensitivity != 'controversial' (mirrors plan_week.py — never auto-publish flagged facts)
+      3. has a curated `reel_title`        (no nonsense auto-titles like "The Story of Until Switzerland")
+      4. has a curated `reel_script`       (no 22-second auto-formatted reels)
+      5. reel_script word count >= MIN_REEL_SCRIPT_WORDS (length floor)
+    """
+
+
 def _pick_fact(topic: str | None) -> dict | None:
-    """Pick the best unused quirky_score=3 fact (optionally filtered by topic)."""
+    """Pick the best unused fact that passes every reel-quality invariant.
+
+    See `ReelFactInvariantError` for the full list. Facts that fail any gate
+    are silently skipped here; the caller logs which gates eliminated them
+    via `_log_pick_diagnostics`.
+    """
+    from src.research.sensitivity_guide import CONTROVERSIAL
+
     used_as_reel = brain.list_reel_claims()  # reads reels.jsonl fresh from disk
     all_facts = [_with_defaults(dict(r)) for r in RARE_FACT_BANK if r.get("quirky_score", 0) == 3]
     if topic:
         all_facts = [r for r in all_facts if r["topic"] == topic]
+
     fresh = [
         r for r in all_facts
         if not brain.is_fact_posted(r["claim"])
         and r["claim"] not in used_as_reel
+        and r.get("sensitivity") != CONTROVERSIAL
+        and r.get("reel_title")
+        and r.get("reel_script")
+        and len(r["reel_script"].split()) >= MIN_REEL_SCRIPT_WORDS
     ]
     if not fresh:
         return None
-    # Sort by quirky_score desc (all are 3 here), then stable order
     fresh.sort(key=lambda r: r.get("quirky_score", 0), reverse=True)
     return fresh[0]
+
+
+def _log_pick_diagnostics(topic: str | None) -> None:
+    """Print why no fact qualified, so failures are immediately actionable."""
+    from src.research.sensitivity_guide import CONTROVERSIAL
+    used_as_reel = brain.list_reel_claims()
+    pool = [_with_defaults(dict(r)) for r in RARE_FACT_BANK if r.get("quirky_score", 0) == 3]
+    if topic:
+        pool = [r for r in pool if r["topic"] == topic]
+
+    posted = used = controversial = no_title = no_script = short_script = ok = 0
+    for r in pool:
+        if brain.is_fact_posted(r["claim"]):
+            posted += 1; continue
+        if r["claim"] in used_as_reel:
+            used += 1; continue
+        if r.get("sensitivity") == CONTROVERSIAL:
+            controversial += 1; continue
+        if not r.get("reel_title"):
+            no_title += 1; continue
+        if not r.get("reel_script"):
+            no_script += 1; continue
+        if len(r["reel_script"].split()) < MIN_REEL_SCRIPT_WORDS:
+            short_script += 1; continue
+        ok += 1
+
+    print(f"  pool: {len(pool)} q3 facts  (topic={topic or 'any'})")
+    print(f"    posted-elsewhere : {posted}")
+    print(f"    already-as-reel  : {used}")
+    print(f"    controversial    : {controversial}")
+    print(f"    missing reel_title : {no_title}")
+    print(f"    missing reel_script: {no_script}")
+    print(f"    script < {MIN_REEL_SCRIPT_WORDS} words   : {short_script}")
+    print(f"    eligible         : {ok}")
 
 
 # ------------------------------------------------------------------ #
@@ -138,10 +201,14 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
     # Step 1: Select fact
     fact = _pick_fact(topic)
     if not fact:
-        msg = f"No unused quirky_score=3 facts"
+        msg = f"No reel-eligible fact found"
         if topic:
             msg += f" for topic={topic!r}"
-        print(msg + ". Add more facts or pick a different topic.")
+        print(msg + ".")
+        _log_pick_diagnostics(topic)
+        print("\nFix: add curated reel_title + reel_script (>= "
+              f"{MIN_REEL_SCRIPT_WORDS} words) to a q3 fact in rare_fact_bank.py, "
+              "or run scripts/validate_reel_facts.py for the full audit.")
         return 2
 
     claim    = fact["claim"]
@@ -157,14 +224,28 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
     print(f"  claim   : {claim[:100]}")
     print(f"  hint    : {hint}")
 
+    # Early duplicate gate — abort BEFORE we spend 2-5 minutes on TTS + FFmpeg
+    # if another process has already published this claim.
+    from src.brain import DuplicatePostError
+    try:
+        brain.assert_no_duplicate([claim])
+    except DuplicatePostError as e:
+        print(f"\nABORTED — duplicate block (early gate):\n{e}")
+        brain.append_log(f"reel BLOCKED early — duplicate claim: {claim[:80]}")
+        return 8
+
     # Step 2: Voice-over
-    from src.content.reel_script import to_voice_script
-    if fact.get("reel_script"):
-        vo_body = fact["reel_script"]
-        print(f"\nUsing curated reel_script ({len(vo_body.split())} words)")
-    else:
-        vo_body = to_voice_script(claim)
-        print(f"\nNo reel_script — formatter applied ({len(vo_body.split())} words)")
+    # Curated reel_script is REQUIRED — auto-formatter has been removed because
+    # it produces ~22-second reels from short claims (the bug fixed 2026-05-01).
+    # _pick_fact already enforced reel_script + word floor; this is belt-and-braces.
+    vo_body = fact["reel_script"]
+    word_count = len(vo_body.split())
+    if word_count < MIN_REEL_SCRIPT_WORDS:
+        raise ReelFactInvariantError(
+            f"reel_script for {claim[:60]!r} is {word_count} words, "
+            f"below floor of {MIN_REEL_SCRIPT_WORDS}. _pick_fact should have rejected this."
+        )
+    print(f"\nUsing curated reel_script ({word_count} words)")
 
     # Append a randomised outro. Each variation contains "factjot" so the
     # compositor can sync the CTA card to the exact moment it is spoken.
@@ -216,6 +297,20 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
     n_clips   = n_clips_for_duration(total_dur)
 
     print(f"  voice duration: {voice_end_s:.1f}s | total reel: {total_dur:.1f}s | CTA at {cta_s:.1f}s | clips: {n_clips}")
+
+    # Hard duration gate — never publish a reel shorter than 35s.
+    # Direct response to the 2026-05-01 incident where an auto-generated
+    # script produced a 22.7s reel. With curated scripts this should never
+    # trigger, but if TTS truncates or a future edit shortens a script
+    # below the floor, fail loudly rather than ship a stub.
+    MIN_REEL_TOTAL_S = 35.0
+    if total_dur < MIN_REEL_TOTAL_S:
+        msg = (f"Reel total duration {total_dur:.1f}s is below floor of "
+               f"{MIN_REEL_TOTAL_S}s. ABORTING. Curated reel_script may have "
+               f"been truncated by TTS, or word floor needs raising.")
+        print(f"\nABORTED — {msg}")
+        brain.append_log(f"reel ABORTED — short duration {total_dur:.1f}s for {claim[:60]}")
+        return 9
 
     # Step 3: Find N pieces of footage (multi-clip storytelling)
     allow_archival = bool(fact.get("allow_archival", False))
@@ -401,14 +496,14 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         print(f"  Caption preview:\n---\n{caption}\n---")
         return 0
 
-    # Hard duplicate gate — reads fresh from disk, blocks even spontaneous requests.
-    # DuplicatePostError is intentionally not caught: the post must not go out.
+    # Final duplicate re-check just before publish — closes the race window
+    # between the early gate and now (in case a parallel publish_due ran).
     from src.brain import DuplicatePostError
     try:
         brain.assert_no_duplicate([claim])
     except DuplicatePostError as e:
-        print(f"\nABORTED — duplicate block:\n{e}")
-        brain.append_log(f"reel BLOCKED — duplicate claim: {claim[:80]}")
+        print(f"\nABORTED at publish-time — duplicate block:\n{e}")
+        brain.append_log(f"reel BLOCKED at publish — duplicate claim: {claim[:80]}")
         return 8
 
     # Step 9: Upload video + thumbnail
@@ -486,22 +581,20 @@ def _record(
 ) -> None:
     """Persist the Reel to the ledger and brain log.
 
-    Writes to BOTH reels.jsonl (reel-specific) and posted.jsonl (shared dedup
-    pool) so this claim is blocked from appearing in future carousels AND reels.
+    Order matters. The reel-specific record (reels.jsonl) is the canonical
+    artefact pointer (cache dir, thumbnail, story). The shared posted.jsonl
+    is the dedup pool. We write reels.jsonl FIRST so a mid-write crash never
+    leaves a posted entry without its reel record. (Crash before either =
+    fact is still pickable next run; crash between writes = at worst a dup
+    block, never a lost reel.)
     """
-    brain.append_log(
-        f"reel {reel_id} published ({topic}, ig_media={ig_media_id})"
-    )
-    # Block this claim from future carousels by writing to the shared posted pool
-    brain.record_publish(
-        post_id=reel_id,
-        ig_media_id=ig_media_id,
-        slides=[{"claim": claim, "topic": topic, "category": "REEL", "sources": []}],
-    )
+    import hashlib as _h
+    claim_hash = _h.sha1(claim.lower().strip().encode()).hexdigest()
     reel_record = {
         "reel_id":       reel_id,
         "ig_media_id":   ig_media_id,
         "claim":         claim,
+        "claim_hash":    claim_hash,
         "topic":         topic,
         "published_at":  datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "out_dir":       str(out_dir),
@@ -511,9 +604,26 @@ def _record(
     from src.core.paths import REELS_LEDGER
     ledger = REELS_LEDGER
     ledger.parent.mkdir(parents=True, exist_ok=True)
-    with open(ledger, "a", encoding="utf-8") as f:
-        f.write(json.dumps(reel_record) + "\n")
+    # Atomic-ish append: open with O_APPEND, single write, fsync.
+    import os as _os
+    line = json.dumps(reel_record) + "\n"
+    fd = _os.open(str(ledger), _os.O_WRONLY | _os.O_APPEND | _os.O_CREAT, 0o644)
+    try:
+        _os.write(fd, line.encode("utf-8"))
+        _os.fsync(fd)
+    finally:
+        _os.close(fd)
     print(f"Recorded in {ledger}")
+
+    # Then mirror into shared dedup pool (carousels + future reels).
+    brain.record_publish(
+        post_id=reel_id,
+        ig_media_id=ig_media_id,
+        slides=[{"claim": claim, "topic": topic, "category": "REEL", "sources": []}],
+    )
+    brain.append_log(
+        f"reel {reel_id} published ({topic}, ig_media={ig_media_id})"
+    )
 
 
 # ------------------------------------------------------------------ #
