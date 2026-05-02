@@ -1,5 +1,10 @@
 # factjot agent log
 
+- 2026-05-02 20:49 reel SHIPPED 'Nine Brains, Eight Decisions' (octopus, biology) → https://www.instagram.com/reel/DX2ahirE5uV/  | FIX: Meta URL-fetch threshold tightened to ~5MB; reels now encoded at crf 30 maxrate 800k (~4-5MB for 60s); Cloudinary + tmpfiles both 413 anything >5MB
+- 2026-05-02 20:42 reel FAILED publish — fact='Octopuses have nine brains. One central brain plus a smaller' topic=biology video_url=https://tmpfiles.org/dl/36217422/final.mp4 error=Reel not ready after 300s: {'ok': False, 'error': {'status_code': 'ERROR', 'status': 'ERROR', 'id': '18097155631917064'}}
+- 2026-05-02 20:40 reel FAILED publish — fact='In 1908 something exploded above remote Siberia with the for' topic=space video_url=https://tmpfiles.org/dl/36217279/final.mp4 error=Reel not ready after 300s: {'ok': False, 'error': {'status_code': 'ERROR', 'status': 'ERROR', 'id': '18097155262917064'}}
+- 2026-05-02 20:35 reel FAILED publish — fact='In 1908 something exploded above remote Siberia with the for' topic=space video_url=https://res.cloudinary.com/dmzer6hgv/video/upload/v177775410 error=Reel not ready after 300s: {'ok': False, 'error': {'status_code': 'ERROR', 'status': 'ERROR', 'id': '18097154578917064'}}
+- 2026-05-02 20:32 reel FAILED publish — fact='In 1908 something exploded above remote Siberia with the for' topic=space video_url=https://res.cloudinary.com/dmzer6hgv/video/upload/v177775394 error=Reel not ready after 300s: {'ok': False, 'error': {'status_code': 'ERROR', 'status': 'ERROR', 'id': '18097154266917064'}}
 - 2026-05-02 20:13 WORKFLOW FAILED: .github/workflows/reel.yml | run=25260791652 | trigger=workflow_dispatch | ref=main
 - 2026-05-02 20:13 reel FAILED publish — fact='In 1908 something exploded above remote Siberia with the for' topic=space video_url=https://res.cloudinary.com/dmzer6hgv/video/upload/v177775279 error=Reel not ready after 300s: {'ok': False, 'error': {'status_code': 'ERROR', 'status': 'ERROR', 'id': '18097149712917064'}}
 - 2026-05-02 18:05 published abbfe0cb3c1bd8 (TECH, 2 slides, ig_media=17912739300385468)
