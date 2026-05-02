@@ -61,7 +61,8 @@ jobs:
           ENVEOF
 
       - name: Refresh Meta access token
-        run: python3 scripts/refresh_token.py || echo "WARNING: token refresh failed — check manually before it expires"
+        run: |
+          python3 scripts/refresh_token.py || echo "WARNING token refresh failed, check manually before it expires"
 
       - name: Discover new facts
         run: python3 scripts/discover_facts.py || echo "Discovery failed — continuing with existing bank"
@@ -77,22 +78,13 @@ jobs:
 
       - name: Capture failure to brain log
         if: failure()
-        run: |
-          python3 -c "
-import sys, os
-sys.path.insert(0, '.')
-from dotenv import load_dotenv
-load_dotenv()
-try:
-    from src.brain import brain
-    brain.append_log(
-        'WORKFLOW FAILED: .github/workflows/weekly-plan.yml | run=${{ github.run_id }} | '
-        'trigger=${{ github.event_name }} | ref=${{ github.ref_name }}'
-    )
-    print('Failure logged to brain.')
-except Exception as e:
-    print(f'Could not log failure: {e}')
-"
+        env:
+          WORKFLOW_FILE: .github/workflows/weekly-plan.yml
+          RUN_ID: ${{ github.run_id }}
+          TRIGGER: ${{ github.event_name }}
+          REF: ${{ github.ref_name }}
+        run: python3 scripts/log_workflow_failure.py
+
       - name: Commit and push state
         if: always()
         run: |
