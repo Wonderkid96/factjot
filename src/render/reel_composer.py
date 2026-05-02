@@ -94,6 +94,8 @@ def compose(
         "-pix_fmt", "yuv420p",
         "-r", "30",
         "-c:a", "aac",
+        "-ar", "48000",    # Instagram requires <= 48000 Hz; loudnorm can upsample to 96000 Hz
+        "-ac", "2",        # stereo
         "-b:a", "128k",
         "-movflags", "+faststart",
         "-t", str(total_duration_s),
