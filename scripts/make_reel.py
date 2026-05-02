@@ -82,20 +82,29 @@ def _append_outro(script: str) -> str:
 # ------------------------------------------------------------------ #
 
 def _upload_video(mp4_path: Path) -> str:
-    """Upload the final MP4 and return a public URL Instagram can fetch.
-
-    Primary: tmpfiles.org. Demon Core (the only successful reel so far)
-    posted via tmpfiles. Cloudinary URLs began returning 413 from Meta's
-    downloader on 2026-05-02, so it is disabled until that's understood.
-    """
+    """Upload the final MP4 and return a public URL Instagram can fetch."""
     from src.publish.image_host import TmpfilesHost
     size_kb = mp4_path.stat().st_size // 1024
-
     host = TmpfilesHost()
     print(f"  [tmpfiles] uploading {size_kb} KB...")
     result = host.upload(mp4_path)
     print(f"  [tmpfiles] url: {result.public_url}")
     return result.public_url
+
+
+def _recompress(src: Path, crf: int = 30, maxrate: str = "800k") -> Path:
+    """Return a smaller re-encoded copy of the MP4 for 413 fallback."""
+    import subprocess
+    out = src.with_suffix(f".crf{crf}.mp4")
+    subprocess.run([
+        "ffmpeg", "-y", "-i", str(src),
+        "-c:v", "libx264", "-preset", "slow",
+        "-crf", str(crf), "-maxrate", maxrate, "-bufsize", str(int(maxrate[:-1]) * 2) + "k",
+        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "96k",
+        "-movflags", "+faststart", str(out),
+    ], check=True, capture_output=True)
+    print(f"  [recompress] crf={crf} -> {out.stat().st_size // 1024} KB")
+    return out
 
 
 # ------------------------------------------------------------------ #
@@ -323,10 +332,24 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
     # Step 3: Find N pieces of footage (multi-clip storytelling)
     allow_archival = bool(fact.get("allow_archival", False))
     print(f"\nFinding {n_clips} footage clips (allow_archival={allow_archival})...")
+
+    # Load global footage registry — prevents the same clip appearing in two different reels
+    from src.core.paths import USED_FOOTAGE
+    global_footage_registry: set[str] = set()
+    if USED_FOOTAGE.exists():
+        for line in USED_FOOTAGE.read_text().splitlines():
+            line = line.strip()
+            if line:
+                try:
+                    global_footage_registry.add(json.loads(line)["url"])
+                except Exception:
+                    pass
+
     footage_clips = find_videos(
         image_hint=hint, claim=claim, topic=ftopic,
         out_dir=out_dir, count=n_clips,
         allow_archival=allow_archival,
+        used_source_registry=global_footage_registry,
     )
     if not footage_clips:
         print("ERROR: could not find any footage. Pre-download safety pool clips with:")
@@ -448,6 +471,12 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         brain.append_log(f"reel FAILED ffmpeg — fact={claim[:60]!r} error={str(exc)[:300]}")
         return 5
 
+    # Persist global footage registry — append any newly used URLs so future reels skip them
+    USED_FOOTAGE.parent.mkdir(parents=True, exist_ok=True)
+    with USED_FOOTAGE.open("a") as _reg_f:
+        for _url in sorted(global_footage_registry):
+            _reg_f.write(json.dumps({"url": _url, "reel_id": reel_id}) + "\n")
+
     print(f"\nReel composed: {final_mp4}")
     print(f"  size: {final_mp4.stat().st_size / 1024 / 1024:.1f} MB")
 
@@ -538,7 +567,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         print(f"  [thumbnail] upload failed ({exc}) — publishing without cover")
         cover_url = None
 
-    # Step 10: Publish Reel
+    # Step 10: Publish Reel — adaptive quality: if Meta 413s, recompress and retry
     print("\nPublishing Reel to Instagram...")
     publisher = InstagramGraphPublisher(
         account_id=cfg.env["INSTAGRAM_ACCOUNT_ID"],
@@ -546,13 +575,30 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         graph_version=cfg.env["META_GRAPH_VERSION"],
         host=cfg.env["META_GRAPH_HOST"],
     )
-    result = publisher.publish_reel(
-        video_url=video_url,
-        caption=caption,
-        cover_url=cover_url,
-    )
-    if not result.get("ok"):
-        err = result.get("error")
+
+    result = None
+    for _attempt, (_crf, _rate) in enumerate([(None, None), (30, "800k"), (32, "600k")]):
+        if _attempt > 0:
+            print(f"  [adaptive] 413 on attempt {_attempt} — recompressing at crf={_crf}...")
+            _compressed = _recompress(final_mp4, crf=_crf, maxrate=_rate)
+            try:
+                video_url = _upload_video(_compressed)
+            except RuntimeError as _exc:
+                print(f"  [adaptive] re-upload failed: {_exc}")
+                break
+        result = publisher.publish_reel(
+            video_url=video_url,
+            caption=caption,
+            cover_url=cover_url,
+        )
+        if result.get("ok"):
+            break
+        _err_str = str(result.get("error", ""))
+        if "413" not in _err_str and "Payload too large" not in _err_str:
+            break  # non-size error — retrying won't help
+
+    if not result or not result.get("ok"):
+        err = (result or {}).get("error", "unknown")
         print(f"\nReel publish failed: {err}")
         brain.append_log(
             f"reel FAILED publish — fact={claim[:60]!r} topic={ftopic} "

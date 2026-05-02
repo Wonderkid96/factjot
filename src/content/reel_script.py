@@ -187,28 +187,18 @@ def _cap_sentence(sent: str, max_words: int = 12) -> list[str]:
 # ------------------------------------------------------------------ #
 
 def _add_drama(text: str) -> str:
-    """Insert ellipses before contrast/reveal words for dramatic pacing.
+    """Insert pauses at pivots for dramatic pacing.
 
-    ElevenLabs treats '...' as a natural pause with building anticipation.
-    Applied at sentence pivots — "X. But Y" → "X... But Y".
-    Also adds a beat after stat sentences so the number lands before
-    the next idea starts.
+    Uses a single comma-breath (,) rather than ellipsis (...) at most
+    pivots. ElevenLabs at low-stability settings interprets '...' as a
+    very long hold (2-3s) which sounds unnatural in short-form video.
+    A comma creates a brief, natural breath without killing the momentum.
+    Reserve '...' only for the single biggest reveal in the script.
     """
-    # Pivot words: dramatic pause before them
+    # Pivot words: brief comma breath before them
     text = re.sub(
         r"\.\s+(But|And then|Then|Until|Except|Nobody|No one|Nothing|He was|She was)\b",
-        r"... \1",
-        text,
-    )
-
-    # Stat sentences: add brief pause after a number at sentence end
-    # "killed 4 billion." → "killed 4 billion..."
-    text = re.sub(
-        r"(\d[\d,]*"
-        r"(?:\s+(?:people|scientists|survivors|lives|years|days|miles|km|"
-        r"tonnes|metres|percent|billion|trillion|million|thousand))?"
-        r")\.",
-        r"\1...",
+        r". \1",
         text,
     )
 

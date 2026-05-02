@@ -1,5 +1,6 @@
 # factjot agent log
 
+- 2026-05-02 21:53 reel 7f219dd429d897 published (space, ig_media=18317490070260182)
 - 2026-05-02 21:39 reel 93a193f9096433 published (space, ig_media=18388463002091149)
 - 2026-05-02 20:49 reel SHIPPED 'Nine Brains, Eight Decisions' (octopus, biology) → https://www.instagram.com/reel/DX2ahirE5uV/  | FIX: Meta URL-fetch threshold tightened to ~5MB; reels now encoded at crf 30 maxrate 800k (~4-5MB for 60s); Cloudinary + tmpfiles both 413 anything >5MB
 - 2026-05-02 20:42 reel FAILED publish — fact='Octopuses have nine brains. One central brain plus a smaller' topic=biology video_url=https://tmpfiles.org/dl/36217422/final.mp4 error=Reel not ready after 300s: {'ok': False, 'error': {'status_code': 'ERROR', 'status': 'ERROR', 'id': '18097155631917064'}}

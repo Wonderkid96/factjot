@@ -110,6 +110,7 @@ def find_videos(
     count: int = 5,
     use_narrative_beats: bool = True,
     allow_archival: bool = False,
+    used_source_registry: set[str] | None = None,
 ) -> list[Path]:
     """Find `count` distinct portrait videos for this fact.
 
@@ -147,7 +148,8 @@ def find_videos(
 
     clips: list[Path] = []
     used_paths: set[str] = set()       # local file paths already in this batch
-    used_source_urls: set[str] = set() # remote URLs already downloaded — prevents same content via different queries
+    # Seed from global registry so clips used in previous reels are skipped
+    used_source_urls: set[str] = set(used_source_registry or ())
     safety = _safety_pool_pick(topic) or []
     safety_idx = 0
 
@@ -174,6 +176,9 @@ def find_videos(
             used_paths.add(str(candidate))
 
     print(f"  [video] -> {len(clips)} unique clips ready for composition")
+    # Propagate used URLs back to caller's registry for cross-reel dedup
+    if used_source_registry is not None:
+        used_source_registry.update(used_source_urls)
     return clips
 
 
