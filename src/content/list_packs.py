@@ -159,6 +159,321 @@ LIST_PACKS: dict[str, dict] = {
             "list, work your way through. Sources via TMDB."
         ),
     },
+    "war_films": {
+        "slug": "war_films",
+        "title": "Five war films that don't glorify it",
+        "subtitle": "the ones that show what it actually costs.",
+        "category": "FILM LIST",
+        "series": "factjot",
+        "items": [
+            {
+                "kind": "movie",
+                "tmdb_id": 374720,  # Dunkirk (2017) — Christopher Nolan
+                "hook": "400,000 soldiers stranded on a beach. Nolan strips out all dialogue you don't need and leaves only the noise of dying.",
+                "accent_word": "400,000 soldiers",
+                "imdb_score": "7.8",
+                "rotten_score": "92%",
+                "genre": "WAR",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 530385,  # 1917 (2019) — Sam Mendes
+                "hook": "Two soldiers cross no man's land to stop an ambush. Shot to appear as one unbroken take. The tension never releases.",
+                "accent_word": "one unbroken take",
+                "imdb_score": "8.3",
+                "rotten_score": "89%",
+                "genre": "WAR",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 324786,  # Hacksaw Ridge (2016) — Mel Gibson
+                "hook": "A conscientious objector refuses to carry a weapon and saves 75 men at Okinawa. Based entirely on a true story.",
+                "accent_word": "75 men",
+                "imdb_score": "8.1",
+                "rotten_score": "84%",
+                "genre": "WAR",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 11329,  # Come and See (1985) — Elem Klimov
+                "hook": "A Belarusian boy joins the resistance in 1943. The most viscerally disturbing anti-war film ever made. Watch it once.",
+                "accent_word": "most viscerally disturbing",
+                "imdb_score": "8.3",
+                "rotten_score": "100%",
+                "genre": "WAR",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 857,  # Saving Private Ryan (1998) — Steven Spielberg
+                "hook": "The D-Day opening is 27 minutes long and still the most accurate depiction of the beach landings ever committed to film.",
+                "accent_word": "27 minutes",
+                "imdb_score": "8.6",
+                "rotten_score": "93%",
+                "genre": "WAR",
+            },
+        ],
+        "closing": {
+            "headline": "Save this list.",
+            "cta": "Follow @factjot for more.",
+        },
+        "caption": (
+            "Five war films that make you feel the weight of it, not the thrill. "
+            "No glory, no easy heroism. Each one is a different angle on the same "
+            "horror. Sources via TMDB."
+        ),
+    },
+    "horror_films": {
+        "slug": "horror_films",
+        "title": "Five horror films that actually scared people",
+        "subtitle": "no jump scares. pure dread.",
+        "category": "HORROR LIST",
+        "series": "factjot",
+        "items": [
+            {
+                "kind": "movie",
+                "tmdb_id": 493922,  # Hereditary (2018) — Ari Aster
+                "hook": "A family inherits more than grief after their grandmother dies. The scariest film in a decade, and it barely raises its voice.",
+                "accent_word": "barely raises its voice",
+                "imdb_score": "7.3",
+                "rotten_score": "89%",
+                "genre": "HORROR",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 310131,  # The Witch (2015) — Robert Eggers
+                "hook": "A Puritan family is banished to the edge of a New England forest in 1630. Something is wrong with the woods. Something is wrong with the goat.",
+                "accent_word": "wrong with the goat",
+                "imdb_score": "6.9",
+                "rotten_score": "90%",
+                "genre": "HORROR",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 419430,  # Get Out (2017) — Jordan Peele
+                "hook": "A Black man visits his white girlfriend's family for the weekend. Jordan Peele's debut is a horror film about a horror that already exists.",
+                "accent_word": "already exists",
+                "imdb_score": "7.7",
+                "rotten_score": "98%",
+                "genre": "HORROR",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 272841,  # It Follows (2014) — David Robert Mitchell
+                "hook": "After a sexual encounter, something starts following you. It walks. It never stops. The concept is simple and relentless.",
+                "accent_word": "walks. It never stops",
+                "imdb_score": "6.8",
+                "rotten_score": "96%",
+                "genre": "HORROR",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 447332,  # A Quiet Place (2018) — John Krasinski
+                "hook": "Creatures hunt by sound. A family with a deaf daughter has a slight advantage. A horror film with almost no dialogue.",
+                "accent_word": "almost no dialogue",
+                "imdb_score": "7.5",
+                "rotten_score": "95%",
+                "genre": "HORROR",
+            },
+        ],
+        "closing": {
+            "headline": "Save this list.",
+            "cta": "Follow @factjot for more.",
+        },
+        "caption": (
+            "Five horror films that work through atmosphere and dread, not shock. "
+            "Each one has something genuinely unsettling at its core. "
+            "Watch them alone. Sources via TMDB."
+        ),
+    },
+    "crime_thrillers": {
+        "slug": "crime_thrillers",
+        "title": "Five crime thrillers that keep you guessing",
+        "subtitle": "plots that don't insult your intelligence.",
+        "category": "FILM LIST",
+        "series": "factjot",
+        "items": [
+            {
+                "kind": "movie",
+                "tmdb_id": 207,  # No Country for Old Men (2007) — Coen Brothers
+                "hook": "A hunter stumbles onto a drug deal gone wrong and takes the money. What follows him is not a man in any normal sense.",
+                "accent_word": "not a man in any normal sense",
+                "imdb_score": "8.2",
+                "rotten_score": "93%",
+                "genre": "THRILLER",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 769,  # Chinatown (1974) — Roman Polanski
+                "hook": "A private detective in 1930s Los Angeles takes a simple adultery case. It leads somewhere no detective ever comes back from clean.",
+                "accent_word": "no detective ever comes back from clean",
+                "imdb_score": "8.2",
+                "rotten_score": "99%",
+                "genre": "THRILLER",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 745,  # Se7en (1995) — David Fincher
+                "hook": "Two detectives hunt a killer using the seven deadly sins as a template. The ending is one of cinema's most unflinching.",
+                "accent_word": "most unflinching",
+                "imdb_score": "8.6",
+                "rotten_score": "82%",
+                "genre": "THRILLER",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 497,  # The Departed (2006) — Martin Scorsese
+                "hook": "An undercover cop inside the mob. A mob mole inside the police. Each is hunting the other without knowing who they are.",
+                "accent_word": "hunting the other",
+                "imdb_score": "8.5",
+                "rotten_score": "91%",
+                "genre": "THRILLER",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 274,  # The Silence of the Lambs (1991) — Jonathan Demme
+                "hook": "An FBI trainee asks a cannibal psychiatrist to help catch a serial killer. He agrees. The price is a conversation.",
+                "accent_word": "price is a conversation",
+                "imdb_score": "8.6",
+                "rotten_score": "95%",
+                "genre": "THRILLER",
+            },
+        ],
+        "closing": {
+            "headline": "Save this list.",
+            "cta": "Follow @factjot for more.",
+        },
+        "caption": (
+            "Five crime thrillers that hold together under repeat viewing. "
+            "Smart writing, no easy resolutions. If you've seen them all, "
+            "you know why they're on here. Sources via TMDB."
+        ),
+    },
+    "films_for_bad_days": {
+        "slug": "films_for_bad_days",
+        "title": "Five films for when you've had a terrible day",
+        "subtitle": "comfort viewing that isn't condescending.",
+        "category": "FILM LIST",
+        "series": "factjot",
+        "items": [
+            {
+                "kind": "movie",
+                "tmdb_id": 346648,  # Paddington 2 (2017) — Paul King
+                "hook": "Paddington goes to prison. Somehow it is the warmest film of the decade. Critics called it one of the best sequels ever made.",
+                "accent_word": "warmest film of the decade",
+                "imdb_score": "7.8",
+                "rotten_score": "99%",
+                "genre": "COMEDY",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 409,  # Amelie (2001) — Jean-Pierre Jeunet
+                "hook": "A Parisian woman quietly improves the lives of strangers while avoiding her own happiness. Visually unlike anything else from 2001.",
+                "accent_word": "quietly improves",
+                "imdb_score": "8.3",
+                "rotten_score": "89%",
+                "genre": "COMEDY",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 140607,  # Sing Street (2016) — John Carney
+                "hook": "A Dublin teenager starts a band to impress a girl in 1985. Every song is good. Every scene is kind.",
+                "accent_word": "every scene is kind",
+                "imdb_score": "7.9",
+                "rotten_score": "97%",
+                "genre": "DRAMA",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 245891,  # John Wick (2014) — Chad Stahelski
+                "hook": "A retired hitman's dog is killed. What follows is two hours of extremely cathartic precision violence. Exactly what some days need.",
+                "accent_word": "extremely cathartic",
+                "imdb_score": "7.4",
+                "rotten_score": "86%",
+                "genre": "ACTION",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 72105,  # Chef (2014) — Jon Favreau
+                "hook": "A chef quits his restaurant job, buys a food truck, and drives it across America with his son. Nobody is a villain.",
+                "accent_word": "nobody is a villain",
+                "imdb_score": "7.3",
+                "rotten_score": "86%",
+                "genre": "DRAMA",
+            },
+        ],
+        "closing": {
+            "headline": "Save this list.",
+            "cta": "Follow @factjot for more.",
+        },
+        "caption": (
+            "Five films that are genuinely good for you on a rough day. "
+            "Not saccharine, not stupid. Just well-made stories that leave you "
+            "feeling something other than drained. Sources via TMDB."
+        ),
+    },
+    "directors_first_features": {
+        "slug": "directors_first_features",
+        "title": "Five debut films that announced a director",
+        "subtitle": "before they were household names.",
+        "category": "FILM LIST",
+        "series": "factjot",
+        "items": [
+            {
+                "kind": "movie",
+                "tmdb_id": 11134,  # Following (1998) — Christopher Nolan
+                "hook": "Nolan's debut, shot on weekends for 6,000 dollars in black and white. A neo-noir about a writer who follows strangers. It works completely.",
+                "accent_word": "6,000 dollars",
+                "imdb_score": "7.5",
+                "rotten_score": "79%",
+                "genre": "THRILLER",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 500,  # Reservoir Dogs (1992) — Quentin Tarantino
+                "hook": "A diamond heist that the film never shows. Just the aftermath, a warehouse, and a cast of criminals who don't trust each other.",
+                "accent_word": "never shows",
+                "imdb_score": "8.3",
+                "rotten_score": "91%",
+                "genre": "THRILLER",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 10929,  # Pi (1998) — Darren Aronofsky
+                "hook": "A mathematician believes a 216-digit number holds the key to everything. Shot in paranoid black and white for 60,000 dollars.",
+                "accent_word": "key to everything",
+                "imdb_score": "7.4",
+                "rotten_score": "84%",
+                "genre": "THRILLER",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 40096,  # Bottle Rocket (1996) — Wes Anderson
+                "hook": "Three friends with no criminal talent attempt to become criminals. Wes Anderson's first film, before the symmetry fully locked in.",
+                "accent_word": "no criminal talent",
+                "imdb_score": "7.0",
+                "rotten_score": "85%",
+                "genre": "COMEDY",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 666,  # Eraserhead (1977) — David Lynch
+                "hook": "Lynch's first feature took five years to make and was shot mostly at night. Nobody agreed on what it meant, including Lynch.",
+                "accent_word": "five years to make",
+                "imdb_score": "7.4",
+                "rotten_score": "89%",
+                "genre": "HORROR",
+            },
+        ],
+        "closing": {
+            "headline": "Save this list.",
+            "cta": "Follow @factjot for more.",
+        },
+        "caption": (
+            "Five debut features that signalled exactly what kind of director "
+            "was coming. All made on tiny budgets, all completely singular. "
+            "A masterclass in doing more with less. Sources via TMDB."
+        ),
+    },
 }
 
 

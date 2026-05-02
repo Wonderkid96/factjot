@@ -1,4 +1,4 @@
-name: Evening Carousel (18:00 UTC)
+name: Evening List Carousel (18:00 UTC)
 
 on:
   schedule:
@@ -60,31 +60,18 @@ jobs:
           TIMEZONE=UTC
           ENVEOF
 
-      - name: Post evening carousel
-        run: |
-          # Evening topics offset from morning so each day gets two different categories.
-          # Mon=space Tue=earth Wed=ocean Thu=history Fri=biology Sat=technology Sun=history
-          DAY=$(date +%u)
-          case $DAY in
-            1) TOPIC=space ;;
-            2) TOPIC=earth ;;
-            3) TOPIC=ocean ;;
-            4) TOPIC=history ;;
-            5) TOPIC=biology ;;
-            6) TOPIC=technology ;;
-            7) TOPIC=history ;;
-          esac
-          echo "Day $DAY -> topic=$TOPIC"
-          python3 scripts/ship_first_post.py --topic "$TOPIC"
+      - name: Post list carousel
+        run: python3 scripts/ship_list_post.py --next
 
       - name: Capture failure to brain log
         if: failure()
         env:
-          WORKFLOW_FILE: .github/workflows/carousel-evening.yml
+          WORKFLOW_FILE: .github/workflows/list-carousel.yml
           RUN_ID: ${{ github.run_id }}
           TRIGGER: ${{ github.event_name }}
           REF: ${{ github.ref_name }}
         run: python3 scripts/log_workflow_failure.py
+
       - name: Commit and push state
         if: always()
         run: |
@@ -100,6 +87,6 @@ jobs:
             data/ledgers/approval_queue.jsonl \
             || true
           git diff --cached --quiet && echo "No state changes to commit." && exit 0
-          git commit -m "state: evening carousel $(date -u +%Y-%m-%dT%H:%M)Z"
+          git commit -m "state: list carousel $(date -u +%Y-%m-%dT%H:%M)Z"
           git pull --rebase --autostash origin main
           git push origin main

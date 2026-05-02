@@ -34,7 +34,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from src.brain import brain
 from src.content.description_builder import build_instagram_description
-from src.content.list_packs import get_pack, list_packs
+from src.content.list_packs import LIST_PACKS, get_pack, list_packs
 from src.core.config import load_config
 from src.core.models import CarouselPost
 from src.publish.image_host import make_image_host
@@ -230,10 +230,23 @@ def _print_preview(pack: dict, specs: list[ListSlideSpec]) -> None:
             print(f"  [closing] {s.headline} | recap × {len(s.recap_items)}")
 
 
+def _pick_next_unposted_pack() -> str | None:
+    """Return the slug of the next unposted pack, in LIST_PACKS insertion order."""
+    for slug in LIST_PACKS:
+        if not brain.is_fact_posted(_list_dedupe_claim(slug)):
+            return slug
+    return None
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--pack", required=True,
-                        help=f"list pack slug. Known: {', '.join(list_packs())}")
+    parser = argparse.ArgumentParser(
+        description="Ship a list-format carousel to Instagram.",
+    )
+    pack_group = parser.add_mutually_exclusive_group(required=True)
+    pack_group.add_argument("--pack",
+                            help=f"list pack slug. Known: {', '.join(list_packs())}")
+    pack_group.add_argument("--next", action="store_true",
+                            help="auto-pick the next unposted pack in order")
     parser.add_argument("--dry-run", action="store_true",
                         help="render + host on imgbb but skip the IG publish call")
     args = parser.parse_args()
@@ -241,6 +254,14 @@ def main() -> int:
     configure_logging()
     cfg = load_config()
     brand = json.loads(Path("brand/brand_kit.json").read_text())
+
+    if args.next:
+        chosen_slug = _pick_next_unposted_pack()
+        if chosen_slug is None:
+            print("WARNING: all list packs have been posted. Add new packs to list_packs.py.")
+            return 1
+        print(f"--next selected pack: {chosen_slug!r}")
+        args.pack = chosen_slug
 
     pack = get_pack(args.pack)
     post_id = _slug_post_id(args.pack)
