@@ -2,7 +2,8 @@ name: Daily Reel (19:00 UTC)
 
 on:
   schedule:
-    - cron: "45 18 * * *"
+    - cron: "45 18 * * *"      # daily 18:45 UTC
+    - cron: "0 21 2 5 *"       # one-off: 21:00 UTC tonight (2 May) — rate limit recovery
   workflow_dispatch:
 
 concurrency:
