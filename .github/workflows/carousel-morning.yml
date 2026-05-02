@@ -78,7 +78,9 @@ jobs:
             7) TOPIC=technology ;;
           esac
           echo "Day $DAY -> topic=$TOPIC"
-          python3 scripts/ship_first_post.py --topic "$TOPIC"      - name: Capture failure to brain log
+          python3 scripts/ship_first_post.py --topic "$TOPIC"
+
+      - name: Capture failure to brain log
         if: failure()
         env:
           WORKFLOW_FILE: .github/workflows/carousel-morning.yml
