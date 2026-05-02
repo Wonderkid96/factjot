@@ -90,12 +90,16 @@ def compose(
         *map_args,
         "-c:v", "libx264",
         "-preset", "fast",
-        "-crf", "22",
+        "-profile:v", "main",
+        "-level", "4.0",
+        "-crf", "26",
+        "-maxrate", "2500k",
+        "-bufsize", "5000k",
         "-pix_fmt", "yuv420p",
         "-r", "30",
         "-c:a", "aac",
-        "-ar", "48000",    # Instagram requires <= 48000 Hz; loudnorm can upsample to 96000 Hz
-        "-ac", "2",        # stereo
+        "-ar", "44100",
+        "-ac", "2",
         "-b:a", "128k",
         "-movflags", "+faststart",
         "-t", str(total_duration_s),
@@ -250,11 +254,12 @@ def _build_filter_graph(
     else:
         filter_lines.append(f"{clip_labels[0]}copy[footage_concat]")
 
-    # Light brightness pull-down so text reads
+    # Light brightness pull-down so text reads.
+    # Note: noise filter removed — temporal noise (allf=t+u) maximises per-frame
+    # entropy, causing Instagram's transcoder to time out on processing.
     filter_lines.append(
         "[footage_concat]"
-        "eq=brightness=-0.10:saturation=1.08:contrast=1.04,"
-        "noise=alls=3:allf=t+u"    # light film grain — level 3 is barely perceptible
+        "eq=brightness=-0.10:saturation=1.08:contrast=1.04"
         "[footage_dark]"
     )
 
@@ -269,7 +274,7 @@ def _build_filter_graph(
         enable = f"between(t,{ov.start_s:.3f},{ov.end_s:.3f})"
         filter_lines.append(
             f"[{prev}][{png_idx}:v]"
-            f"overlay=0:0:enable='{enable}':format=auto"
+            f"overlay=0:0:enable='{enable}':format=yuv420"
             f"[{cur}]"
         )
         prev = cur
@@ -284,7 +289,7 @@ def _build_filter_graph(
         )
         filter_lines.append(
             f"[{prev}][intro_alpha]"
-            f"overlay=0:0:enable='between(t,0,{intro_dur})':format=auto"
+            f"overlay=0:0:enable='between(t,0,{intro_dur})':format=yuv420"
             f"[after_intro]"
         )
         prev = "after_intro"
