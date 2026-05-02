@@ -76,6 +76,25 @@ jobs:
           echo "Day $DAY -> topic=$TOPIC"
           python3 scripts/ship_first_post.py --topic "$TOPIC"
 
+
+      - name: Capture failure to brain log
+        if: failure()
+        run: |
+          python3 -c "
+import sys, os
+sys.path.insert(0, '.')
+from dotenv import load_dotenv
+load_dotenv()
+try:
+    from src.brain import brain
+    brain.append_log(
+        'WORKFLOW FAILED: .github/workflows/carousel-evening.yml | run=${{ github.run_id }} | '
+        'trigger=${{ github.event_name }} | ref=${{ github.ref_name }}'
+    )
+    print('Failure logged to brain.')
+except Exception as e:
+    print(f'Could not log failure: {e}')
+"
       - name: Commit and push state
         if: always()
         run: |

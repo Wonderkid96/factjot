@@ -344,6 +344,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
     if not footage_clips:
         print("ERROR: could not find any footage. Pre-download safety pool clips with:")
         print("  python3 scripts/setup_reel_assets.py")
+        brain.append_log(f"reel FAILED no footage — fact={claim[:60]!r} hint={hint!r}")
         return 3
 
     # Step 4: Group words into 5-6 word chunks. FFmpeg segfaults beyond ~50
@@ -457,6 +458,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         )
     except RuntimeError as exc:
         print(f"\nFFmpeg error:\n{exc}")
+        brain.append_log(f"reel FAILED ffmpeg — fact={claim[:60]!r} error={str(exc)[:300]}")
         return 5
 
     print(f"\nReel composed: {final_mp4}")
@@ -536,6 +538,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         video_url = _upload_video(final_mp4)
     except RuntimeError as exc:
         print(f"\nVideo upload failed: {exc}")
+        brain.append_log(f"reel FAILED video upload — fact={claim[:60]!r} error={exc}")
         return 6
 
     print("Uploading thumbnail...")
@@ -562,7 +565,12 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         cover_url=cover_url,
     )
     if not result.get("ok"):
-        print(f"\nReel publish failed: {result.get('error')}")
+        err = result.get("error")
+        print(f"\nReel publish failed: {err}")
+        brain.append_log(
+            f"reel FAILED publish — fact={claim[:60]!r} topic={ftopic} "
+            f"video_url={video_url[:60]} error={str(err)[:200]}"
+        )
         return 7
 
     ig_media_id = result["ig_media_id"]
