@@ -94,9 +94,10 @@ def _runway_by_topic() -> dict[str, list[dict]]:
 
 
 def _trigger_discovery() -> None:
+    import sys
     print("Bank runway low; triggering discover_facts.py...")
     subprocess.run([
-        "/Library/Frameworks/Python.framework/Versions/Current/bin/python3",
+        sys.executable,
         str(Path(__file__).parent / "discover_facts.py"),
     ], check=False)
 

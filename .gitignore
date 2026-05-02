@@ -25,10 +25,12 @@ data/launchd_publish.log
 data/launchd_publish.err
 
 # ── Large generated assets ─────────────────────────────────────────
-assets/music/
-assets/video/
-assets/intros/
+assets/video/      # 466MB footage pool — too large for git
 assets/avatars/
+
+# Music and intro tracked in git so GitHub Actions has them
+# assets/music/default.mp3  <- tracked
+# assets/intros/factjot_intro.mov  <- tracked
 
 # ── Python ─────────────────────────────────────────────────────────
 __pycache__/
