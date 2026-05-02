@@ -593,9 +593,8 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         )
         if result.get("ok"):
             break
-        _err_str = str(result.get("error", ""))
-        if "413" not in _err_str and "Payload too large" not in _err_str:
-            break  # non-size error — retrying won't help
+        if not result.get("size_error"):
+            break  # non-size error — recompressing won't help
 
     if not result or not result.get("ok"):
         err = (result or {}).get("error", "unknown")

@@ -57,7 +57,7 @@ class InstagramGraphPublisher:
         At 15s polling the same 300s window costs only 20 calls.
         """
         url = f"{self.base_url}/{creation_id}"
-        params = {"fields": "status_code,status", "access_token": self.access_token}
+        params = {"fields": "status_code,status,error_message", "access_token": self.access_token}
         # Initial wait — Instagram needs at least 10s to start processing
         time.sleep(10)
         deadline = time.time() + timeout_seconds
@@ -75,7 +75,9 @@ class InstagramGraphPublisher:
             if code == "FINISHED":
                 return {"ok": True}
             if code in {"ERROR", "EXPIRED"}:
-                return {"ok": False, "error": last}
+                err_msg = last.get("error_message", "")
+                is_size_error = "413" in err_msg or "Payload too large" in err_msg or "too large" in err_msg.lower()
+                return {"ok": False, "error": last, "size_error": is_size_error}
             time.sleep(15)
         return {"ok": False, "error": f"timeout after {timeout_seconds}s, last={last}"}
 
