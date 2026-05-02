@@ -1,5 +1,6 @@
 # factjot agent log
 
+- 2026-05-02 18:05 published abbfe0cb3c1bd8 (TECH, 2 slides, ig_media=17912739300385468)
 - 2026-05-02 15:50 published 19d537d2558d19 (HISTORY, 7 slides, ig_media=18358128016230728)
 - 2026-05-02 15:47 published 089e4295b0aee4 (EARTH, 6 slides, ig_media=17883422796395247)
 - 2026-05-02 reel quality hardening: 34 q3 facts backfilled with curated reel_script (>=70 words) + reel_title. make_reel._pick_fact now refuses facts missing either; auto-fallback path removed. Hard duration gate < 35s aborts. Em-dashes stripped from caption output (audit found 2 in CTA pool). Sensitivity gate added (matches plan_week). Ledger write order fixed (reels.jsonl first, atomic O_APPEND). Publisher recovery race fixed via media_type filter. TTS fallbacks logged. validate_reel_facts.py CLI added. Replacement reel "The Demon Core" (52.6s) published live ig_media=18075000272243034 to verify the new pipeline.
