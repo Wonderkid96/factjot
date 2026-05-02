@@ -4,11 +4,11 @@
     "type": "split",
     "children": [
       {
-        "id": "4f03f8528f295560",
+        "id": "20ad808fc24f8b09",
         "type": "tabs",
         "children": [
           {
-            "id": "3def228f576eec79",
+            "id": "1c04816f46c9cc9d",
             "type": "leaf",
             "state": {
               "type": "graph",
@@ -176,8 +176,9 @@
       "bases:Create new base": false
     }
   },
-  "active": "3def228f576eec79",
+  "active": "1c04816f46c9cc9d",
   "lastOpenFiles": [
+    "MEMORY_INDEX.md",
     "CRITICAL_FACTS.md",
     "data/reels.jsonl",
     "bank/README.md",
@@ -186,7 +187,6 @@
     "rules/index.md",
     "CLAUDE.md",
     "rules/13-memory-index.md",
-    "MEMORY_INDEX.md",
     "rules/12-memory-index.md",
     "data/posted_quotes.jsonl",
     "data/used_images.jsonl",

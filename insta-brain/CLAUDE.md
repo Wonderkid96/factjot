@@ -10,10 +10,10 @@ If anything below contradicts a CLAUDE.md higher up the tree, the higher-level f
 
 The freshness gate runs before every publish:
 ```
-/Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/check_brain_fresh.py
+python3 scripts/check_brain_fresh.py
 ```
 
-**This check blocks publishing if any source file is newer than `insta-brain/MEMORY_INDEX.md` or `insta-brain/log.md`.** It fails with exit 1. `publish_due.py` and `publish_now.py` refuse to post if it fails.
+**This check blocks publishing if any source file is newer than `insta-brain/MEMORY_INDEX.md` or `insta-brain/log.md`.** It fails with exit 1. `publish_due.py` and `publish_now.py` refuse to post if it fails. On GitHub Actions all files have the same checkout mtime so the gate always passes — it is most relevant for local Mac development.
 
 **You must update the brain immediately after any non-trivial code or pipeline change — not at session end, but the moment the change lands.** If you edit a src/ file and don't update MEMORY_INDEX.md and log.md, the next scheduled post will be blocked. This is intentional.
 
@@ -71,10 +71,11 @@ Do this before any code edits, generation, scheduling, or publishing.
 
 - **Instagram handle:** @factjot
 - **Owner:** Toby Johnson (TJCreate), Lincoln UK
-- **Daily schedule:**
-  - 10:00 UTC: carousel (morning fact, 5-6 slides, auto-scheduled Sundays)
-  - 18:00 UTC: carousel (evening fact, 5-6 slides, auto-scheduled Sundays)
-  - 19:00 UTC: Reel (auto-generated fresh daily, ~40s, with thumbnail + story)
+- **Daily schedule (GitHub Actions — laptop not required):**
+  - 09:45 UTC: carousel morning (`carousel-morning.yml`)
+  - 17:45 UTC: carousel evening (`carousel-evening.yml`)
+  - 18:45 UTC: Reel + story (`reel.yml`)
+  - Sunday 04:00 UTC: weekly plan + token refresh + discovery (`weekly-plan.yml`)
   - List posts: manual, whenever a pack is ready (`ship_list_post.py`)
 
 ---

@@ -6,8 +6,8 @@ These are invariants. If anything you are about to do violates one, stop and ask
 
 | Word | Meaning | Pipeline |
 |---|---|---|
-| **Reel** | A VIDEO post (~40s, voice-over, footage clips) | `scripts/make_reel.py` → launchd fires daily at 19:00 UTC |
-| **Carousel** | A FACT CAROUSEL (5-6 image slides, curated facts) | `scripts/publish_due.py` → launchd fires every 15 min, posts from queue |
+| **Reel** | A VIDEO post (~45-60s, voice-over, footage clips) | `scripts/make_reel.py` → GitHub Actions fires daily at 18:45 UTC |
+| **Carousel** | A FACT CAROUSEL (5-6 image slides, curated facts) | `scripts/ship_first_post.py` → GitHub Actions fires at 09:45 + 17:45 UTC |
 | **List** | A RECOMMENDATION LIST (films/TV/books, image slides) | `scripts/ship_list_post.py` → MANUAL only |
 
 These are three completely separate pipelines with separate ledgers, separate dedup, and separate schedules.
@@ -21,11 +21,13 @@ Never call the wrong script for the wrong format. Never mix terminology in log e
 - **Instagram handle:** @factjot
 - **Owner:** Toby Johnson (TJCreate)
 - **Goal:** automated daily Instagram content — carousels + Reels + stories
-- **Posting cadence (as of 2026-05-01):**
-  - 10:00 UTC — carousel (morning fact, 5-6 slides)
-  - 18:00 UTC — carousel (evening fact, 5-6 slides)
-  - 19:00 UTC — Reel (video, ~40s, auto-generated + story posted immediately after)
+- **Posting cadence (as of 2026-05-02, via GitHub Actions):**
+  - 09:45 UTC — carousel (morning, GitHub Actions `carousel-morning.yml`)
+  - 17:45 UTC — carousel (evening, GitHub Actions `carousel-evening.yml`)
+  - 18:45 UTC — Reel (GitHub Actions `reel.yml`, story posted immediately after)
+  - Sunday 04:00 UTC — weekly plan + token refresh + fact discovery
   - List posts: manual, shipped via `ship_list_post.py` when a pack is ready
+- **Scheduler:** GitHub Actions (repo: Wonderkid96/factjot). Mac launchd ALL DISABLED.
 - **Repo root:** `/Users/Music/Documents/Insta-bot`
 
 ## Hard rules (non-negotiable)
