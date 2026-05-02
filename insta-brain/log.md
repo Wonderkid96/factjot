@@ -86,3 +86,49 @@ Newest at top. One terse line per non-trivial action. No essays.
 - 2026-04-29 brain: initial structure created (CLAUDE, CRITICAL_FACTS, rules 01-11, data ledgers, bank seed)
 
 2026-05-02T13:08:17Z weekly: skip, last ok 2026-05-01T16:17:01Z
+
+## 2026-05-02 — Major session: pipeline hardening + GitHub Actions + TikTok setup
+
+### Reel quality (all 43 q3 facts now curated)
+- Wrote reel_script (≥70 words) + reel_title for all 34 previously-bare q3 facts
+- Hard gate: _pick_fact rejects facts without both fields; abort if final reel < 35s
+- validate_reel_facts.py added; passes clean on all 43 eligible facts
+
+### Audio bug fixed
+- loudnorm filter upsampled voice+music mix to 96000 Hz; Instagram rejects this
+- Fix: -ar 44100 -ac 2 in FFmpeg output (reel_composer.py)
+
+### Instagram rate limiting incident
+- 30+ containers + 3s polling = ~3000 API calls; hit code 4 / subcode 1349210
+- All containers showed ERROR until rate limit cleared (~2h)
+- Fix: poll every 15s (was 3s); initial 10s wait; code-4 errors trigger 30s backoff
+
+### FFmpeg improvements
+- format=auto → format=yuv420 on all 26+ overlay ops (non-standard pixel format risk)
+- noise=alls=3:allf=t+u removed (temporal entropy slows Instagram transcoder)
+- crf 22 → 26; maxrate 2500k added; profile:v main explicit
+
+### GitHub Actions deployed
+- 4 workflows: carousel-morning, carousel-evening, reel, weekly-plan
+- 19 secrets set via gh CLI
+- State (.jsonl ledgers) committed back to main after every run
+- All 5 launchd jobs unloaded — Actions is now sole scheduler
+- Repo made public for GitHub Pages (secrets safe — in GitHub Secrets not code)
+
+### Cloudinary wired
+- CloudinaryVideoHost added; primary for reel video uploads
+- Credentials: cloud=dmzer6hgv, preset=factjot
+
+### Quote dedup fixed
+- QuoteBank._session_hashes prevents same quote in two carousels per plan_week run
+- Fixed 5 existing queue duplicates
+
+### TikTok app submitted
+- Login Kit + Content Posting API; Direct Post enabled
+- Domain verified: wonderkid96.github.io/factjot/
+- GitHub Pages deployed for terms/privacy policy pages
+- Demo video generated via FFmpeg+Playwright and uploaded
+- Awaiting review approval (1-3 business days)
+
+### One-off 21:00 UTC reel trigger
+- Added to reel.yml cron for rate-limit recovery post; remove after it fires
