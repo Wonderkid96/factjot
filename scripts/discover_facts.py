@@ -208,6 +208,36 @@ def _record_reject(reason: str, post_id: str, claim: str) -> None:
         }, ensure_ascii=True) + "\n")
 
 
+_VIRAL_SIGNALS = [
+    "never", "no one", "nobody", "impossible", "always", "only",
+    "first", "last", "largest", "smallest", "fastest", "oldest", "youngest",
+    "killed", "survived", "destroyed", "discovered", "extinct", "banned",
+    "illegal", "secret", "hidden", "forgotten", "accidental", "exploded",
+    "radiation", "poison", "venom", "lethal", "deadly", "catastrophe",
+    "billion", "trillion", "million years", "thousand years",
+]
+
+def _score_fact(claim: str, upvotes: int) -> int:
+    """Assign quirky_score 1-3 based on upvote count and content signals.
+
+    Thresholds calibrated against Reddit r/TIL voting patterns:
+    - 5k-15k upvotes: interesting but common → score 1 (carousel)
+    - 15k-30k upvotes: genuinely surprising → score 2
+    - 30k+ upvotes: viral 'wait, what?!' tier → score 3 (reel-eligible)
+    Content bonus: viral signal words push score up by 1 (capped at 3).
+    """
+    if upvotes >= 30_000:
+        base = 3
+    elif upvotes >= 15_000:
+        base = 2
+    else:
+        base = 1
+
+    claim_lower = claim.lower()
+    has_signal = any(sig in claim_lower for sig in _VIRAL_SIGNALS)
+    return min(3, base + (1 if has_signal and base < 3 else 0))
+
+
 def main() -> int:
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     seen = _existing_reddit_ids()
@@ -292,6 +322,7 @@ def main() -> int:
                 "claim": claim,
                 "sources": [link],
                 "image_hint": suggest_image_hint(claim, topic),
+                "quirky_score": _score_fact(claim, ups),
                 "discovered_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 "source_kind": f"r/{SUBREDDIT}",
                 "reddit_id": rid,

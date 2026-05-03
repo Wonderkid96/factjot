@@ -158,14 +158,21 @@ def _pick_fact(topic: str | None) -> dict | None:
     if topic:
         all_facts = [r for r in all_facts if r["topic"] == topic]
 
-    # Prefer facts with curated scripts; allow facts without (script generated at render time)
-    fresh = [
-        r for r in all_facts
-        if not brain.is_fact_posted(r["claim"])
-        and r["claim"] not in used_as_reel
-        and r.get("sensitivity") != CONTROVERSIAL
-    ]
-    # Sort: curated scripts first (better quality), then uncurated
+    # Try q3 first (shock/viral tier). Fall back to q2 when q3 exhausted.
+    # q2 facts from discover_facts.py (15k+ upvotes) are genuine "surprising" facts
+    # that work well as reels — just not quite "wait, WHAT?!" level.
+    for min_score in (3, 2):
+        candidates = [
+            r for r in all_facts
+            if r.get("quirky_score", 0) >= min_score
+            and not brain.is_fact_posted(r["claim"])
+            and r["claim"] not in used_as_reel
+            and r.get("sensitivity") != CONTROVERSIAL
+        ]
+        if candidates:
+            break
+    fresh = candidates
+    # Sort: curated scripts first, then by quirky_score descending
     fresh.sort(key=lambda r: (
         bool(r.get("reel_title") and r.get("reel_script") and len(r.get("reel_script","").split()) >= MIN_REEL_SCRIPT_WORDS),
         r.get("quirky_score", 0),
