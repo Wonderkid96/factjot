@@ -35,7 +35,7 @@ from __future__ import annotations
 LIST_PACKS: dict[str, dict] = {
     "top_war_films": {
         "slug": "top_war_films",
-        "title": "Eight war films worth your time",
+        "title": "Ten war films worth your time",
         "subtitle": "ranked by staying power, not box office.",
         "category": "FILM LIST",
         "series": "factjot",
@@ -105,6 +105,24 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
+                "tmdb_id": 792,  # Platoon (1986) — Oliver Stone
+                "hook": "Oliver Stone served two tours in Vietnam. This is what he saw. Not a reconstruction. Won Best Picture.",
+                "accent_word": "not a reconstruction",
+                "imdb_score": "7.8",
+                "rotten_score": "87%",
+                "genre": "WAR",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 374720,  # Dunkirk (2017) — Christopher Nolan
+                "hook": "338,000 men evacuated from a beach with no plan and nowhere near enough boats. Three timelines that converge at the same moment. No score, just sound design.",
+                "accent_word": "no plan",
+                "imdb_score": "7.8",
+                "rotten_score": "92%",
+                "genre": "WAR",
+            },
+            {
+                "kind": "movie",
                 "tmdb_id": 324786,  # Hacksaw Ridge (2016) — Mel Gibson
                 "hook": "Desmond Doss refused to carry a weapon. He was mocked, beaten, court-martialled. Then he saved 75 men at Okinawa and became the only conscientious objector to receive the Medal of Honor.",
                 "accent_word": "only conscientious objector",
@@ -118,7 +136,7 @@ LIST_PACKS: dict[str, dict] = {
             "cta": "Follow @factjot for more.",
         },
         "caption": (
-            "Eight war films. Ranked by staying power. "
+            "Ten war films. Ranked by staying power. "
             "Every one of these will change how you think about the genre. "
             "Sources via TMDB."
         ),

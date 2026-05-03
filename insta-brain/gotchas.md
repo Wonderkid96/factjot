@@ -87,9 +87,9 @@ There is no auto-fallback path. If a discovered fact is missing either field, `m
 
 ---
 
-## Instagram carousel hard cap: 10 images maximum
+## Instagram carousel cap: 20 images (raised from 10 in August 2024)
 
-**Instagram rejects carousels with more than 10 images.** List packs generate: 1 hook slide + N item slides + 1 closing slide = N+2 total. Maximum items per pack is therefore **8** (8+2=10). `pack_resolver.py` enforces this automatically by trimming `pack["items"]` to 8 before resolving. Do not write packs with more than 8 items — the resolver will silently drop the extras. This was discovered when the `top_war_films` pack (10 films = 12 slides) failed at publish with: `Carousel exceeds Instagram's 10-image cap`.
+**`instagram_publisher.py` previously had a hardcoded cap of 10.** This caused the `top_war_films` post to fail on 2026-05-03 with `Carousel exceeds Instagram's 10-image cap (12)` — but the error was from our own code, not Meta's API. Instagram raised the limit to 20 frames in August 2024. The publisher cap has been updated to 20. `pack_resolver.py` enforces a maximum of 18 items (20 - 2 for hook and closing) and trims silently if exceeded. Do not set the publisher cap below 20 without verifying Meta's current policy.
 
 ---
 

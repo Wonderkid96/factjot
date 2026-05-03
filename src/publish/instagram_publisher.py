@@ -23,8 +23,8 @@ class InstagramGraphPublisher:
             return {"ok": False, "error": "Missing Instagram API credentials"}
         if not image_urls:
             return {"ok": False, "error": "No image URLs provided"}
-        if len(image_urls) > 10:
-            return {"ok": False, "error": f"Carousel exceeds Instagram's 10-image cap ({len(image_urls)})"}
+        if len(image_urls) > 20:
+            return {"ok": False, "error": f"Carousel exceeds Instagram's 20-image cap ({len(image_urls)})"}
         if len(caption) > 2200:
             return {"ok": False, "error": f"Caption exceeds Instagram's 2200-char cap ({len(caption)})"}
 
