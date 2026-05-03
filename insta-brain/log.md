@@ -1,7 +1,6 @@
 # factjot agent log
 
-- 2026-05-03 09:27 WORKFLOW FAILED: .github/workflows/carousel-morning.yml | run=25275423648 | trigger=workflow_dispatch | ref=main
-- 2026-05-03 05:08 token refreshed: new expiry ~60 days
+- 2026-05-03 morning: HALTED brain_stale (video_finder.py newer than log.md); alert appended, no discovery run
 - 2026-05-02 22:04 reel 4334c81e57a585 published biology mantis shrimp ig=18083655689091763
 - 2026-05-02 22:02 reel FAILED publish — fact='The mantis shrimp punches with the speed of a bullet, accele' topic=biology video_url=https://tmpfiles.org/dl/36224201/final.mp4 error=Reel not ready after 300s: {'ok': False, 'error': {'status_code': 'ERROR', 'status': 'ERROR', 'id': '18097169149917064'}}
 - 2026-05-02 21:53 reel 7f219dd429d897 published (space, ig_media=18317490070260182)

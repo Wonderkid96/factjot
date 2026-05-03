@@ -31,7 +31,7 @@ from src.core.models import SourceEvidence, VerifiedFact
 from src.publish.image_host import make_image_host
 from src.publish.instagram_publisher import InstagramGraphPublisher
 from src.render.render_carousel import BrandKitRenderer
-from src.research.rare_fact_bank import RARE_FACT_BANK, _with_defaults
+from src.research.rare_fact_bank import load_all_facts, _with_defaults
 from src.research.sensitivity_guide import filter_for_publish
 from src.utils.logging_utils import configure_logging
 
@@ -74,7 +74,7 @@ def main() -> int:
     # ----- Pick the topic's facts; skip ones already in posted.jsonl (rule 01) -----
     # Apply schema defaults (incl. sensitivity auto-classification) so every
     # row carries sensitivity/sensitivity_flags before we filter.
-    all_topic_rows = [_with_defaults(dict(row)) for row in RARE_FACT_BANK if row["topic"] == args.topic]
+    all_topic_rows = [_with_defaults(dict(row)) for row in load_all_facts() if row["topic"] == args.topic]
     posted_filtered = [row for row in all_topic_rows if not brain.is_fact_posted(row["claim"])]
     posted_skipped = len(all_topic_rows) - len(posted_filtered)
 
