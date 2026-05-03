@@ -26,7 +26,7 @@ class InstagramGraphPublisher:
         if len(image_urls) > 20:
             return {"ok": False, "error": f"Carousel exceeds Instagram's 20-image cap ({len(image_urls)})"}
         if len(caption) > 2200:
-            return {"ok": False, "error": f"Caption exceeds Instagram's 2200-char cap ({len(caption)})"}
+            caption = caption[:2197] + "..."
 
         child_creation_ids = []
         for url in image_urls:
