@@ -35,14 +35,14 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 from src.brain import brain
 from src.content.description_builder import build_instagram_description
 from src.content.list_packs import LIST_PACKS, get_pack, list_packs
+from src.content.pack_resolver import resolve_pack, slug_post_id, list_dedupe_claim
 from src.core.config import load_config
 from src.core.models import CarouselPost
+from src.core.paths import LIST_PACK_CACHE
 from src.publish.image_host import make_image_host
 from src.publish.instagram_publisher import InstagramGraphPublisher
 from src.render.render_carousel import BrandKitRenderer
 from src.render.list_renderer import ListCarouselRenderer, ListSlideSpec
-from src.research.omdb_client import OMDbClient
-from src.research.tmdb_client import TMDBClient
 from src.utils.logging_utils import configure_logging
 
 
@@ -55,29 +55,38 @@ HASHTAGS_FILM = [
 
 
 def _slug_post_id(slug: str) -> str:
-    """Stable post id derived from pack slug only.
-
-    Each pack ships ONCE — no re-runs on later days. The dedupe claim
-    written into posted.jsonl is `list:<slug>`, which means the next time
-    you call this script with the same pack the brain freshness check
-    blocks the publish. Add a new pack rather than re-shipping an old one.
-    """
-    return hashlib.sha1(f"list:{slug}".encode()).hexdigest()[:14]
+    return slug_post_id(slug)
 
 
 def _list_dedupe_claim(slug: str) -> str:
-    """The string we write to posted.jsonl as the dedupe key for a list post."""
-    return f"list:{slug}"
+    return list_dedupe_claim(slug)
 
 
-def _download(url: str, dest: Path) -> Path:
-    if dest.exists() and dest.stat().st_size > 1024:
-        return dest
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    r = requests.get(url, timeout=20)
-    r.raise_for_status()
-    dest.write_bytes(r.content)
-    return dest
+def _load_pack_cache(slug: str) -> dict | None:
+    """Return cached prep data for this slug if it exists and is still valid."""
+    if not LIST_PACK_CACHE.exists():
+        return None
+    for line in LIST_PACK_CACHE.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if row.get("slug") != slug:
+            continue
+        from datetime import timezone
+        valid_until = row.get("valid_until", "")
+        if valid_until:
+            from datetime import datetime as dt
+            try:
+                if dt.fromisoformat(valid_until.replace("Z", "+00:00")) < dt.now(timezone.utc):
+                    return None   # expired
+            except ValueError:
+                pass
+        return row
+    return None
 
 
 def _resolve_pack(pack: dict, post_id: str) -> tuple[list[ListSlideSpec], list[dict], list[str]]:
@@ -289,54 +298,91 @@ def main() -> int:
         print(f"List pack {args.pack!r} has already been shipped. Add a new pack rather than reposting.")
         return 2
 
-    print(f"Resolving pack via TMDB...")
-    specs, recap, sources = _resolve_pack(pack, post_id)
-    _print_preview(pack, specs)
+    # Cache-first: if Sunday's prepare_packs.py already resolved and uploaded
+    # this pack, skip TMDB + render + imgbb entirely and post directly.
+    cached = _load_pack_cache(args.pack)
+    if cached:
+        print(f"Cache hit for {args.pack!r} — skipping TMDB, render, and imgbb.")
+        public_urls = cached["imgbb_urls"]
+        full_caption = cached["caption"]
+        sources = cached.get("sources", [])
+        post_id = cached.get("post_id", post_id)
+        # Jump straight to publish
+        from src.brain import DuplicatePostError
+        try:
+            brain.assert_no_duplicate([_list_dedupe_claim(args.pack)])
+        except DuplicatePostError as e:
+            print(f"\nABORTED — duplicate blocked:\n{e}")
+            brain.append_log(f"list carousel BLOCKED — duplicate: {args.pack}")
+            return 3
+        if args.dry_run:
+            print("\nDRY-RUN — cached URLs:")
+            for u in public_urls:
+                print(f"  {u}")
+            return 0
+        # Skip to publish block below
+        _use_cache = True
+    else:
+        _use_cache = False
+        print(f"Resolving pack via TMDB...")
+        specs, recap, sources = resolve_pack(pack, post_id)
+    if _use_cache:
+        # Already have public_urls and full_caption from cache — skip to publish.
+        pass
+    else:
+        _print_preview(pack, specs)
 
-    print("\nRendering slides (Playwright + Chromium)...")
-    renderer = ListCarouselRenderer(
+    if not _use_cache:
+        print("\nRendering slides (Playwright + Chromium)...")
+        renderer = ListCarouselRenderer(
         brand=brand,
         width=brand["layout"]["canvas_width"],
         height=brand["layout"]["canvas_height"],
     )
-    paths = renderer.render(post_id=post_id, category=pack["category"],
-                            series=pack["series"], slides=specs)
-    if not paths:
-        print("Render produced no PNGs.")
-        return 5
-    print(f"  {len(paths)} PNGs at {Path(paths[0]).parent}/")
+        paths = renderer.render(post_id=post_id, category=pack["category"],
+                                series=pack["series"], slides=specs)
+        if not paths:
+            print("Render produced no PNGs.")
+            return 5
+        print(f"  {len(paths)} PNGs at {Path(paths[0]).parent}/")
 
-    try:
-        host = make_image_host()
-    except RuntimeError as exc:
-        print(f"Image host setup failed: {exc}")
-        return 6
+        try:
+            host = make_image_host()
+        except RuntimeError as exc:
+            print(f"Image host setup failed: {exc}")
+            return 6
 
-    def _host_label(h) -> str:
-        return getattr(h, "active_name", type(h).__name__)
+        def _host_label(h) -> str:
+            return getattr(h, "active_name", type(h).__name__)
 
-    def _upload_via(h):
-        print(f"\nUploading via {_host_label(h)}...")
-        hosted = h.upload_many(paths)
-        urls = [x.public_url for x in hosted]
-        for u in urls:
-            print(f"  {u}")
-        return urls
+        def _upload_via(h):
+            print(f"\nUploading via {_host_label(h)}...")
+            hosted = h.upload_many(paths)
+            urls = [x.public_url for x in hosted]
+            for u in urls:
+                print(f"  {u}")
+            return urls
 
-    public_urls = _upload_via(host)
+        public_urls = _upload_via(host)
 
-    if args.dry_run:
-        print("\nDRY-RUN — skipping Instagram publish call.")
-        print("Open the URLs above to preview the layout.")
-        return 0
+        if args.dry_run:
+            print("\nDRY-RUN — skipping Instagram publish call.")
+            print("Open the URLs above to preview the layout.")
+            return 0
 
-    from src.brain import DuplicatePostError
-    try:
-        brain.assert_no_duplicate([_list_dedupe_claim(args.pack)])
-    except DuplicatePostError as e:
-        print(f"\nABORTED — duplicate blocked:\n{e}")
-        brain.append_log(f"list carousel BLOCKED — duplicate: {args.pack}")
-        return 3
+        from src.brain import DuplicatePostError
+        try:
+            brain.assert_no_duplicate([_list_dedupe_claim(args.pack)])
+        except DuplicatePostError as e:
+            print(f"\nABORTED — duplicate blocked:\n{e}")
+            brain.append_log(f"list carousel BLOCKED — duplicate: {args.pack}")
+            return 3
+
+        full_caption = build_instagram_description(
+            base_caption=pack["caption"],
+            hashtags=HASHTAGS_FILM,
+            image_credits=[{"source": "TMDB", "url": s} for s in sources],
+        )
 
     print("\nPublishing carousel to Instagram...")
     publisher = InstagramGraphPublisher(
@@ -344,11 +390,6 @@ def main() -> int:
         access_token=cfg.env["META_ACCESS_TOKEN"],
         graph_version=cfg.env["META_GRAPH_VERSION"],
         host=cfg.env["META_GRAPH_HOST"],
-    )
-    full_caption = build_instagram_description(
-        base_caption=pack["caption"],
-        hashtags=HASHTAGS_FILM,
-        image_credits=[{"source": "TMDB", "url": s} for s in sources],
     )
 
     def _looks_like_fetch_failure(err) -> bool:

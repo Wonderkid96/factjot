@@ -32,6 +32,7 @@ ROOT = Path(__file__).resolve().parents[2]
 LEDGERS         = ROOT / "data" / "ledgers"
 APPROVAL_QUEUE  = LEDGERS / "approval_queue.jsonl"
 DISCOVERED_FACTS = LEDGERS / "discovered_facts.jsonl"
+LIST_PACK_CACHE  = LEDGERS / "list_pack_cache.jsonl"
 DISCOVERY_LOG   = LEDGERS / "discovery.log.jsonl"
 USED_IMAGES     = LEDGERS / "used_images.jsonl"
 USED_FOOTAGE    = LEDGERS / "used_footage_urls.jsonl"

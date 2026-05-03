@@ -23,12 +23,10 @@
   }
 
   :root {
-    --paper:     #F4F1E9;
-    --ink:       #0A0A0A;
-    --near-black:#0B0B0C;
-    --off-white: #EDE8DD;
-    --accent:    #E6352A;
-    --lime:      #C8DB45;
+    --near-black: #0B0B0C;
+    --off-white:  #EDE8DD;
+    --accent:     #E6352A;
+    --lime:       #C8DB45;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -42,7 +40,6 @@
     text-rendering: optimizeLegibility;
   }
 
-  /* ── Footage background ─────────────────────────────────────────── */
   .stage {
     position: relative;
     width: 100%;
@@ -84,7 +81,7 @@
     pointer-events: none;
   }
 
-  /* ── Title scrim: localised darkening behind content group ─────── */
+  /* ── Title scrim ────────────────────────────────────────────────── */
   .title-scrim {
     position: absolute;
     top: 22%;
@@ -99,7 +96,7 @@
     pointer-events: none;
   }
 
-  /* ── Left accent line: full height, red → lime ──────────────────── */
+  /* ── Left accent line ───────────────────────────────────────────── */
   .accent-line {
     position: absolute;
     left: 0;
@@ -118,7 +115,42 @@
     opacity: 0.80;
   }
 
-  /* ── Corner brackets: viewfinder aesthetic ──────────────────────── */
+  /* ── Header: factjot. top-left, TOPIC top-right ────────────────── */
+  .header {
+    position: absolute;
+    top: 88px;
+    left: 56px;
+    right: 56px;
+    display: flex;
+    align-items: center;
+    z-index: 5;
+  }
+  .header-wordmark {
+    font-family: "Instrument Serif", Georgia, serif;
+    font-weight: 400;
+    font-size: 30px;
+    letter-spacing: -0.02em;
+    color: var(--off-white);
+    flex: 1 1 auto;
+    white-space: nowrap;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.6);
+  }
+  .header-wordmark .reg  { font-style: normal; }
+  .header-wordmark .ital { font-style: italic; }
+  .header-wordmark .dot  { color: var(--accent); }
+  .header-topic {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-weight: 700;
+    font-size: 22px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--off-white);
+    flex: 0 0 auto;
+    white-space: nowrap;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.6);
+  }
+
+  /* ── Corner brackets ────────────────────────────────────────────── */
   .corners { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
   .corner { position: absolute; width: 56px; height: 56px; }
   .corner::before, .corner::after {
@@ -131,54 +163,14 @@
   .corner-bl { bottom: 48px; left: 48px;  transform: scaleY(-1); }
   .corner-br { bottom: 48px; right: 48px; transform: scale(-1); }
 
-  /* ── Content group: logo-bar + title, vertically centred ────────── */
-  /* Width matches the title column so the lines terminate at the same  */
-  /* horizontal edges as the text.                                      */
-  .content-group {
+  /* ── Title: centred, Instrument Serif ───────────────────────────── */
+  .title {
     position: absolute;
     top: 50%;
-    left: 50%;
-    transform: translate(-50%, -54%);
-    width: 82%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 52px;
+    left: 72px;
+    right: 72px;
+    transform: translateY(-50%);
     z-index: 5;
-  }
-
-  /* ── Logo bar: [────] fact*jot*. [────] ─────────────────────────── */
-  /* Lines extend flush to the edges of the content-group width,       */
-  /* framing the wordmark symmetrically.                                */
-  .logo-bar {
-    display: flex;
-    align-items: center;
-    width: 100%;
-    gap: 20px;
-  }
-  .logo-line {
-    flex: 1 1 auto;
-    height: 1px;
-    background: var(--off-white);
-    opacity: 0.45;
-  }
-  .logo-wordmark {
-    font-family: "Instrument Serif", Georgia, serif;
-    font-weight: 400;
-    font-size: 140px;
-    letter-spacing: -0.02em;
-    color: var(--off-white);
-    flex: 0 0 auto;
-    white-space: nowrap;
-    text-shadow: 2px 2px 0 rgba(0,0,0,0.65);
-  }
-  .logo-wordmark .reg  { font-style: normal; }
-  .logo-wordmark .ital { font-style: italic; }
-  .logo-wordmark .dot  { color: var(--accent); font-style: normal; }
-
-  /* ── Title: Instrument Serif, centred under logo bar ───────────── */
-  .title {
-    width: 100%;
     font-family: "Instrument Serif", Georgia, serif;
     font-weight: 400;
     font-size: {{ title_size }}px;
@@ -206,6 +198,13 @@
   <div class="title-scrim"></div>
   <div class="accent-line"></div>
 
+  <div class="header">
+    <span class="header-wordmark">
+      <span class="reg">fact</span><span class="ital">jot</span><span class="dot">.</span>
+    </span>
+    <span class="header-topic">{{ topic }}</span>
+  </div>
+
   <div class="corners">
     <div class="corner corner-tl"></div>
     <div class="corner corner-tr"></div>
@@ -213,16 +212,7 @@
     <div class="corner corner-br"></div>
   </div>
 
-  <div class="content-group">
-    <div class="logo-bar">
-      <div class="logo-line"></div>
-      <span class="logo-wordmark">
-        <span class="reg">fact</span><span class="ital">jot</span><span class="dot">.</span>
-      </span>
-      <div class="logo-line"></div>
-    </div>
-    <div class="title">{{ title_html | safe }}</div>
-  </div>
+  <div class="title">{{ title_html | safe }}</div>
 
 </div>
 </body>

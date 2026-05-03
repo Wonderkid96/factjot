@@ -83,6 +83,9 @@ jobs:
       - name: Restock — discover facts + runway report
         run: python3 scripts/restock.py || echo "Restock failed - continuing"
 
+      - name: Prepare list pack assets
+        run: python3 scripts/prepare_packs.py || echo "Pack prep failed - continuing"
+
       - name: Validate reel fact bank
         run: python3 scripts/validate_reel_facts.py
 
@@ -111,6 +114,7 @@ jobs:
             data/ledgers/approval_queue.jsonl \
             data/ledgers/discovered_facts.jsonl \
             data/ledgers/discovery.log.jsonl \
+            data/ledgers/list_pack_cache.jsonl \
             || true
           git diff --cached --quiet && echo "No state changes to commit." && exit 0
           git commit -m "state: weekly plan $(date -u +%Y-%m-%dT%H:%M)Z"

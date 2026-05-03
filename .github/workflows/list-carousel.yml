@@ -119,6 +119,7 @@ jobs:
             insta-brain/MEMORY_INDEX.md \
             data/ledgers/approval_queue.jsonl \
             data/ledgers/used_images.jsonl \
+            data/ledgers/list_pack_cache.jsonl \
             || true
           git diff --cached --quiet && echo "No state changes to commit." && exit 0
           git commit -m "state: list carousel $(date -u +%Y-%m-%dT%H:%M)Z"
