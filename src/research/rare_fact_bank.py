@@ -802,7 +802,7 @@ RARE_FACT_BANK = [
             "https://en.wikipedia.org/wiki/Harold_Davidson",
             "https://en.wikipedia.org/wiki/List_of_unusual_deaths_in_the_20th_century",
         ],
-        "image_hint": "1930s English priest seaside sideshow lion",
+        "image_hint": "lion tamer circus vintage 1930s",
         "quirky_score": 3,
         "intensity": "medium",
         "tone": "shocking",
