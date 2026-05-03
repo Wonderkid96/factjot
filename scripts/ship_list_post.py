@@ -330,6 +330,14 @@ def main() -> int:
         print("Open the URLs above to preview the layout.")
         return 0
 
+    from src.brain import DuplicatePostError
+    try:
+        brain.assert_no_duplicate([_list_dedupe_claim(args.pack)])
+    except DuplicatePostError as e:
+        print(f"\nABORTED — duplicate blocked:\n{e}")
+        brain.append_log(f"list carousel BLOCKED — duplicate: {args.pack}")
+        return 3
+
     print("\nPublishing carousel to Instagram...")
     publisher = InstagramGraphPublisher(
         account_id=cfg.env["INSTAGRAM_ACCOUNT_ID"],

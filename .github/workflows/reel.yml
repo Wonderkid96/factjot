@@ -132,6 +132,7 @@ jobs:
             insta-brain/log.md \
             insta-brain/MEMORY_INDEX.md \
             data/ledgers/used_footage_urls.jsonl \
+            data/ledgers/used_images.jsonl \
             || true
           git diff --cached --quiet && echo "No state changes to commit." && exit 0
           git commit -m "state: reel $(date -u +%Y-%m-%dT%H:%M)Z"

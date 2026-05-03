@@ -81,8 +81,9 @@ class Brain:
         self._load_posted()
         self._load_posted_quotes()
 
-        # Image dedupe is shared with the renderer's UsedImageLedger.
-        self.images = UsedImageLedger(str(REPO_ROOT / "data" / "used_images.jsonl"))
+        # Image dedupe — uses the canonical path from paths.py so brain and
+        # image_fetcher both read/write the same file.
+        self.images = UsedImageLedger()
 
     # ----- read APIs -----
 

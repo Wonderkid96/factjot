@@ -19,8 +19,7 @@ insta-brain/inbox.md
 # insta-brain/log.md         <- tracked
 # insta-brain/MEMORY_INDEX.md <- tracked
 
-# Still ignore large/ephemeral ledgers
-data/ledgers/used_images.jsonl
+# Ephemeral/local logs only
 data/launchd_publish.log
 data/launchd_publish.err
 

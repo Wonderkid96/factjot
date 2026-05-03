@@ -115,11 +115,10 @@ jobs:
           git add \
             insta-brain/data/posted.jsonl \
             insta-brain/data/posted_quotes.jsonl \
-            insta-brain/data/queue.jsonl \
             insta-brain/log.md \
             insta-brain/MEMORY_INDEX.md \
-            data/approval_queue.jsonl \
             data/ledgers/approval_queue.jsonl \
+            data/ledgers/used_images.jsonl \
             || true
           git diff --cached --quiet && echo "No state changes to commit." && exit 0
           git commit -m "state: list carousel $(date -u +%Y-%m-%dT%H:%M)Z"
