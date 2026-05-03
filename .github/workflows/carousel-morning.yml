@@ -2,7 +2,8 @@ name: Morning Carousel (10:00 BST)
 
 on:
   schedule:
-    - cron: "0 9 * * *"     # 09:00 UTC = 10:00 BST
+    - cron: "0 9 * * *"     # 09:00 UTC = 10:00 BST (primary)
+    - cron: "45 9 * * *"    # 09:45 UTC = 10:45 BST (backup — skips if already posted)
   workflow_dispatch:
 
 # Prevent two publish jobs running at the same time.
@@ -76,7 +77,29 @@ jobs:
           TIMEZONE=UTC
           ENVEOF
 
+      - name: Check if carousel already posted today
+        id: check
+        run: |
+          TODAY=$(date -u +%Y-%m-%d)
+          COUNT=$(python3 -c "
+import json; from pathlib import Path
+try:
+    lines=[l for l in Path('insta-brain/data/posted.jsonl').read_text().splitlines() if l.strip()]
+    posts=[json.loads(l) for l in lines]
+    today=[p for p in posts if p.get('published_at','').startswith('$TODAY') and p.get('category','CAROUSEL')=='CAROUSEL']
+    print(len(today))
+except: print(0)
+" 2>/dev/null || echo 0)
+          echo "Carousels posted today: $COUNT"
+          if [ "$COUNT" -gt "0" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Already posted today — skipping."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Post morning carousel
+        if: steps.check.outputs.skip != 'true'
         run: |
           # Topics rotate by weekday so morning and evening cover different categories.
           # Mon=history Tue=space Wed=biology Thu=ocean Fri=earth Sat=history Sun=technology

@@ -2,7 +2,8 @@ name: Daily Reel (12:00 BST)
 
 on:
   schedule:
-    - cron: "0 11 * * *"      # 11:00 UTC = 12:00 BST
+    - cron: "0 11 * * *"      # 11:00 UTC = 12:00 BST (primary)
+    - cron: "45 11 * * *"     # 11:45 UTC = 12:45 BST (backup — skips if already posted)
   workflow_dispatch:
 
 concurrency:
@@ -78,24 +79,43 @@ jobs:
           TIMEZONE=UTC
           ENVEOF
 
-      - name: Runway check — discover facts if running low
+      - name: Check if reel already posted today + runway
+        id: check
         run: |
-          REMAINING=$(/Library/Frameworks/Python.framework/Versions/Current/bin/python3 -c "
+          TODAY=$(date -u +%Y-%m-%d)
+          # Idempotency: skip if reel already posted today
+          COUNT=$(python3 -c "
+import json; from pathlib import Path
+try:
+    lines=[l for l in Path('insta-brain/data/reels.jsonl').read_text().splitlines() if l.strip()]
+    reels=[json.loads(l) for l in lines]
+    today=[r for r in reels if r.get('published_at','').startswith('$TODAY')]
+    print(len(today))
+except: print(0)
+" 2>/dev/null || echo 0)
+          echo "Reels posted today: $COUNT"
+          if [ "$COUNT" -gt "0" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Already posted a reel today — skipping."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            # Runway check — discover if running low
+            REMAINING=$(python3 -c "
 import sys; sys.path.insert(0,'.')
 from src.brain import brain
 from src.research.rare_fact_bank import load_all_facts
-q3 = [f for f in load_all_facts() if f.get('quirky_score')==3 and not brain.is_fact_posted(f['claim'])]
+q3=[f for f in load_all_facts() if f.get('quirky_score',0)>=2 and not brain.is_fact_posted(f['claim'])]
 print(len(q3))
 " 2>/dev/null || echo 99)
-          echo "Reel runway: $REMAINING q3 facts remaining"
-          if [ "$REMAINING" -lt 14 ]; then
-            echo "Runway below 14 days — running fact discovery..."
-            python3 scripts/discover_facts.py || echo "Discovery failed, continuing"
-          else
-            echo "Runway OK — skipping discovery."
+            echo "Reel runway: $REMAINING facts remaining"
+            if [ "$REMAINING" -lt 14 ]; then
+              echo "Runway below 14 — running fact discovery..."
+              python3 scripts/discover_facts.py || echo "Discovery failed, continuing"
+            fi
           fi
 
       - name: Post reel
+        if: steps.check.outputs.skip != 'true'
         run: python3 scripts/make_reel.py
 
       - name: Capture failure to brain log
