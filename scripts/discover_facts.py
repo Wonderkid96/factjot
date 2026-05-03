@@ -427,15 +427,11 @@ def _score_fact(claim: str, upvotes: int) -> int:
 # The original combined page is now a stub redirect, so we fetch each child.
 _WIKI_API_BASE = "https://en.wikipedia.org/w/api.php"
 _WIKI_PAGES = [
-    "List_of_unusual_deaths_in_the_19th_century",
-    "List_of_unusual_deaths_in_the_20th_century",
-    "List_of_unusual_deaths_in_the_21st_century",
-    "List_of_unusual_deaths_(1800-1849)",
-    "List_of_unusual_deaths_(1850-1899)",
-    # Spontaneous combustion, unidentified sounds, etc.
+    # Spontaneous combustion, unidentified sounds, unexplained phenomena
     "List_of_unidentified_sounds",
     "List_of_reportedly_haunted_locations",
-    # Mass-event lists rich with shock detail
+    "List_of_unexplained_phenomena",
+    # Mass-event and disaster lists
     "List_of_industrial_disasters",
     "List_of_explosion_disasters",
 ]
