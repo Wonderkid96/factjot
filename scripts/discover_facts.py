@@ -1,10 +1,9 @@
 """Autonomous fact discovery from multiple sources with multi-check truth gates.
 
 Sources:
-    - r/todayilearned (upvotes >= 10,000)
-    - r/morbidreality (upvotes >= 3,000 -- smaller sub, dark historical facts)
-    - r/Damnthatsinteresting (upvotes >= 10,000)
-    - Wikipedia "List of unusual deaths" (entries from 1800 onwards)
+    - r/Damnthatsinteresting (upvotes >= 10,000) -- public Reddit JSON API
+    - r/morbidreality (upvotes >= 3,000) -- requires Reddit OAuth (NSFW-gated)
+    - Wikipedia "List of unusual deaths" (per-century children, 1800 onwards)
 
 Pipeline per candidate:
     1. Parse the claim from the title (TIL prefix stripped for r/todayilearned;
@@ -55,10 +54,15 @@ from src.core.paths import DISCOVERED_FACTS as OUT_PATH, DISCOVERY_LOG as LOG_PA
 # ---------------------------------------------------------------------------
 
 SOURCES = [
-    # r/todayilearned removed -- too mainstream, content too well-known for shock value.
-    # r/morbidreality removed -- NSFW-gated by Reddit, returns 403 without OAuth.
-    # Re-enable when we wire up PRAW with proper Reddit auth credentials.
+    # All public Reddit JSON (no auth required) except r/morbidreality which is
+    # NSFW-gated and uses OAuth via _reddit_oauth_token() when REDDIT_* secrets
+    # are present. r/todayilearned removed: too mainstream.
     {"subreddit": "Damnthatsinteresting", "title_format": "direct", "min_upvotes": 10_000},
+    {"subreddit": "interestingasfuck",    "title_format": "direct", "min_upvotes": 10_000},
+    {"subreddit": "UnresolvedMysteries",  "title_format": "direct", "min_upvotes":  2_000},
+    {"subreddit": "AskHistorians",        "title_format": "direct", "min_upvotes":  2_000},
+    {"subreddit": "history",              "title_format": "direct", "min_upvotes":  2_000},
+    {"subreddit": "MorbidReality",        "title_format": "direct", "min_upvotes":  3_000, "needs_oauth": True},
 ]
 
 USER_AGENT   = "factjot-discoverer/1.0 (educational, contact @factjot)"
@@ -189,12 +193,74 @@ def _existing_source_ids() -> set[str]:
 
 
 # ---------------------------------------------------------------------------
-# Reddit fetchers
+# Reddit fetchers (with optional OAuth for NSFW-gated subreddits)
 # ---------------------------------------------------------------------------
 
-def _fetch_top(subreddit: str, period: str = "month", limit: int = MAX_CANDIDATES) -> list[dict]:
-    url = f"https://www.reddit.com/r/{subreddit}/top.json"
-    resp = session.get(url, params={"t": period, "limit": limit}, timeout=15)
+import os
+
+_REDDIT_TOKEN_CACHE: dict[str, str] = {}
+
+
+def _reddit_oauth_token() -> str | None:
+    """Return a cached Reddit OAuth bearer token, fetching if needed.
+
+    Uses the script-app password grant. Required env vars:
+        REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET,
+        REDDIT_USERNAME,  REDDIT_PASSWORD
+
+    Returns None if any credential is missing (caller should fall back
+    to public JSON or skip the source). The token lives for ~1 hour and
+    is cached in-process so a single discovery run only authenticates once.
+    """
+    if "token" in _REDDIT_TOKEN_CACHE:
+        return _REDDIT_TOKEN_CACHE["token"]
+    cid = os.getenv("REDDIT_CLIENT_ID")
+    csec = os.getenv("REDDIT_CLIENT_SECRET")
+    user = os.getenv("REDDIT_USERNAME")
+    pw   = os.getenv("REDDIT_PASSWORD")
+    if not all([cid, csec, user, pw]):
+        return None
+    try:
+        resp = requests.post(
+            "https://www.reddit.com/api/v1/access_token",
+            auth=(cid, csec),
+            data={"grant_type": "password", "username": user, "password": pw},
+            headers={"User-Agent": USER_AGENT},
+            timeout=15,
+        )
+    except requests.RequestException as exc:
+        print(f"  Reddit OAuth request failed: {exc}")
+        return None
+    if not resp.ok:
+        print(f"  Reddit OAuth failed: HTTP {resp.status_code}")
+        return None
+    token = resp.json().get("access_token")
+    if token:
+        _REDDIT_TOKEN_CACHE["token"] = token
+    return token
+
+
+def _fetch_top(subreddit: str, period: str = "month", limit: int = MAX_CANDIDATES,
+               needs_oauth: bool = False) -> list[dict]:
+    """Fetch top posts. Uses public JSON by default, OAuth for NSFW-gated subs."""
+    if needs_oauth:
+        token = _reddit_oauth_token()
+        if not token:
+            print(f"  Skipping r/{subreddit}: REDDIT_* OAuth credentials not set.")
+            return []
+        url = f"https://oauth.reddit.com/r/{subreddit}/top"
+        try:
+            resp = requests.get(
+                url,
+                params={"t": period, "limit": limit},
+                headers={"Authorization": f"bearer {token}", "User-Agent": USER_AGENT},
+                timeout=15,
+            )
+        except requests.RequestException:
+            return []
+    else:
+        url = f"https://www.reddit.com/r/{subreddit}/top.json"
+        resp = session.get(url, params={"t": period, "limit": limit}, timeout=15)
     if not resp.ok:
         return []
     return [c["data"] for c in resp.json().get("data", {}).get("children", [])]
@@ -365,6 +431,12 @@ _WIKI_PAGES = [
     "List_of_unusual_deaths_in_the_21st_century",
     "List_of_unusual_deaths_(1800-1849)",
     "List_of_unusual_deaths_(1850-1899)",
+    # Spontaneous combustion, unidentified sounds, etc.
+    "List_of_unidentified_sounds",
+    "List_of_reportedly_haunted_locations",
+    # Mass-event lists rich with shock detail
+    "List_of_industrial_disasters",
+    "List_of_explosion_disasters",
 ]
 _WIKI_SOURCE_URL_BASE = "https://en.wikipedia.org/wiki/"
 
@@ -502,10 +574,13 @@ def main() -> int:
             subreddit    = source["subreddit"]
             title_format = source["title_format"]
             min_upvotes  = source["min_upvotes"]
+            needs_oauth  = source.get("needs_oauth", False)
             source_kind  = f"r/{subreddit}"
 
-            print(f"\nFetching {source_kind} (min upvotes: {min_upvotes:,}) ...")
-            posts = _fetch_top(subreddit, period="month", limit=MAX_CANDIDATES)
+            auth_label = " [OAuth]" if needs_oauth else ""
+            print(f"\nFetching {source_kind}{auth_label} (min upvotes: {min_upvotes:,}) ...")
+            posts = _fetch_top(subreddit, period="month", limit=MAX_CANDIDATES,
+                               needs_oauth=needs_oauth)
             if not posts:
                 print(f"  No posts fetched for {source_kind} (rate-limit or network issue).")
                 continue

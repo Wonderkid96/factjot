@@ -792,33 +792,42 @@ RARE_FACT_BANK = [
         "sensitivity": "controversial",
         "sensitivity_flags": ["animal_welfare", "factual_dispute"],
     },
+    # Sourced via the new auto-discovery pipeline (Wikipedia "List of unusual deaths
+    # in the 20th century"). Curated reel_script + reel_title written here so the
+    # fact qualifies for the reel pipeline's quality gates.
     {
         "topic": "history",
-        "claim": "In 1943 British intelligence dressed a dead homeless man as a Royal Marines officer, chained a briefcase of fake invasion plans to his wrist, and floated him off the coast of Spain. German spies found him. Hitler believed it. He moved his Panzer divisions away from Sicily. When the real Allied landing came, the beaches were almost undefended. One corpse helped win the war.",
+        "claim": "In 1937 a defrocked English priest named Harold Davidson was mauled to death by a lion in a sideshow at Skegness. He had spent five years protesting his innocence after a scandal stripped him of his church, exhibiting himself in a barrel on Blackpool seafront and finally re-enacting Daniel in the Lions' Den live in a cage with two lions. The lions did not play along.",
         "sources": [
-            "https://www.iwm.org.uk/history/operation-mincemeat-the-incredible-story-of-britains-most-daring-deception",
-            "https://www.nationalarchives.gov.uk/education/resources/operation-mincemeat/",
+            "https://en.wikipedia.org/wiki/Harold_Davidson",
+            "https://en.wikipedia.org/wiki/List_of_unusual_deaths_in_the_20th_century",
         ],
-        "image_hint": "World War 2 naval officer briefcase 1940s",
+        "image_hint": "1930s English priest seaside sideshow lion",
         "quirky_score": 3,
         "intensity": "medium",
         "tone": "shocking",
-        "reel_title": "The Dead Man Who Fooled Hitler",
+        "reel_title": "The Priest Who Died in the Lions' Den",
         "reel_script": (
-            "In 1943, the Allies needed to invade Sicily. "
-            "But if Hitler knew, the beaches would be waiting. "
-            "So British intelligence hatched a plan so strange... it should not have worked. "
-            "They found a dead homeless man in London. "
-            "Dressed him in the uniform of a Royal Marines officer. "
-            "Chained a briefcase to his wrist... full of fake invasion plans. "
-            "Then they floated his body off the coast of Spain. "
-            "German spies recovered the documents. Decoded them. Reported to Berlin. "
-            "Hitler believed every word. "
-            "He moved his Panzer divisions away from Sicily and into Greece. "
-            "When the real Allied landing came... the beaches were almost undefended. "
-            "The operation was called Mincemeat. "
-            "One dead man, one briefcase, and the course of the Second World War changed forever."
+            "In 1932, a Church of England priest named Harold Davidson was defrocked. "
+            "A scandal had stripped him of his church. "
+            "He swore he was innocent. "
+            "And he spent the next five years trying to prove it. "
+            "He exhibited himself in a barrel on Blackpool seafront. "
+            "He performed in seaside sideshows up and down the coast. "
+            "All to raise money for his reinstatement. "
+            "By 1937, he had a new act. "
+            "He would re-enact the Bible story of Daniel in the Lions' Den. "
+            "Live. "
+            "In a cage. "
+            "With two real lions. "
+            "At a seaside spectacular in Skegness. "
+            "The lions did not play along. "
+            "They mauled him. He died two days later. "
+            "He was 62 years old. "
+            "The man who built his life around proving his innocence... "
+            "ended it inside a lion's cage."
         ),
+        "discovered_via": "wikipedia:unusual_deaths",
     },
     {
         "topic": "history",

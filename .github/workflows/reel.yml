@@ -6,6 +6,12 @@ on:
     - cron: "0 11 * * *"      # 11:00 UTC = 12:00 BST (primary)
     - cron: "45 11 * * *"     # 11:45 UTC = 12:45 BST (backup - skips if already posted)
   workflow_dispatch:
+    inputs:
+      force:
+        description: "Force-post even if a reel was already posted today (bypasses idempotency check)"
+        type: boolean
+        default: false
+        required: false
 
 concurrency:
   group: factjot-publish
@@ -93,10 +99,15 @@ jobs:
 
       - name: Check if reel already posted today + runway
         id: check
+        env:
+          FORCE_POST: ${{ inputs.force }}
         run: |
           # Pull latest state - another concurrent run may have just posted
           git pull --rebase --autostash origin main 2>/dev/null || true
-          if python3 scripts/check_posted_today.py reel | grep -q already_posted; then
+          if [ "$FORCE_POST" = "true" ]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "FORCE_POST=true: bypassing idempotency check."
+          elif python3 scripts/check_posted_today.py reel | grep -q already_posted; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "Already posted a reel today - skipping."
           else
