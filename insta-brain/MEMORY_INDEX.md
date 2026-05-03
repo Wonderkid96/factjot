@@ -16,12 +16,21 @@ Related: [[CLAUDE]] · [[CRITICAL_FACTS]] · [[PUBLISH_PLAN]] · [[log]] · [[ru
 - `make_reel.py` publish retries: first recompress after 413 **crf 33 / 600k**, second **crf 35 / 500k** (first attempt must differ from primary 30/800k).
 
 ### GitHub Actions logs during FFmpeg
-- Plain `-stats` uses `\r`; line-based stderr readers never showed frame progress. compose uses **`-progress pipe:2`** and **`-stats_period 2`** (global options placed immediately after `-y`).
-- Blocking `read(4096)` on a pipe: FFmpeg can go quiet for minutes during filter init, so the job looked frozen. **`_pump_ffmpeg_stderr`** in `reel_composer.py` uses **`select()` + 25 s heartbeat** on POSIX while FFmpeg is still alive.
+- **Removed `-progress pipe:2`** (2026-05-03 follow-up): it flooded stderr; with **`stderr=None`** FFmpeg inherited a **narrow pipe** in Cursor/agent and some CI wrappers, the buffer filled, and **FFmpeg blocked on stderr writes** (fake “stuck on frame 0”). Compose stderr now goes to **`ffmpeg_compose_stderr.log`** in the reel cache dir; failures include a tail in the raised error.
+- Blocking `read(4096)` on a pipe without draining: can deadlock the child. **`_pump_ffmpeg_stderr`** in `reel_composer.py` uses **`select()` + 25 s heartbeat** on POSIX when that pattern is used.
 - **`reel.yml` Post reel step**: `PYTHONUNBUFFERED=1` and **`python3 -u scripts/make_reel.py`**.
 
 ### ASS / libass fonts
 - `make_reel.py` passes **`assets/fonts/subtitle_fonts`** as `fontsdir` only (e.g. Space Grotesk SemiBold for subs). Avoids loading the entire `assets/fonts` tree on every run.
+
+### Local FFmpeg (`FFMPEG_BIN`)
+- `src/core/ffmpeg_bin.py`: **`assert_reel_ffmpeg_ready()`** at start of `make_reel.py` (requires **`ass`** / libass). Default Homebrew **`ffmpeg`** often lacks it; use **`ffmpeg-full`** or set **`FFMPEG_BIN`** to a full path. All `make_reel` FFmpeg subprocesses and `compose(ffmpeg_bin=...)` use that binary.
+
+### Reel compose "stuck on frame 0" for hours (2026-05-03)
+- **Symptom:** **`frame=0`** for a long time, or **no forward progress**; runs looked hung for **hours**.
+- **Cause A (graph cost):** **`image2` + `stream_loop -1`** defaulted to **25 fps** on stills; huge JPEGs multiplied decodes before **`concat`**. **Fix:** **`-framerate 1`** before still **`-i`**, **`,fps=30`** after each clip leg (see `_build_filter_graph`).
+- **Cause B (silent stall):** **`-progress pipe:2`** + inherited stderr **pipe backpressure** once the buffer filled. **Fix:** drop **`-progress`**, log compose stderr to **`ffmpeg_compose_stderr.log`**.
+- **Not corruption:** Tier-0 JPEGs and H.264 clips were valid; failures were **scheduling + IO**, not bad media.
 
 ---
 

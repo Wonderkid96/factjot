@@ -93,12 +93,18 @@ def _upload_video(mp4_path: Path) -> str:
     return result.public_url
 
 
-def _recompress(src: Path, crf: int = 30, maxrate: str = "800k") -> Path:
+def _recompress(
+    src: Path,
+    crf: int = 30,
+    maxrate: str = "800k",
+    *,
+    ffmpeg_bin: str,
+) -> Path:
     """Return a smaller re-encoded copy of the MP4 for 413 fallback."""
     import subprocess
     out = src.with_suffix(f".crf{crf}.mp4")
     subprocess.run([
-        "ffmpeg", "-y", "-i", str(src),
+        ffmpeg_bin, "-y", "-i", str(src),
         "-c:v", "libx264", "-preset", "slow",
         "-crf", str(crf), "-maxrate", maxrate, "-bufsize", str(int(maxrate[:-1]) * 2) + "k",
         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "96k",
@@ -233,6 +239,15 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
     configure_logging()
     cfg = load_config()
 
+    from src.core.ffmpeg_bin import assert_reel_ffmpeg_ready
+
+    try:
+        ff_bin = assert_reel_ffmpeg_ready()
+    except RuntimeError as exc:
+        print(f"\n{exc}")
+        return 5
+    print(f"  [ffmpeg] binary: {ff_bin}")
+
     # Step 1: Select fact
     fact = _pick_fact(topic)
     if not fact:
@@ -316,7 +331,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         "[sil][vo]concat=n=2:v=0:a=1[a]"
     )
     _sp.run([
-        "ffmpeg", "-y",
+        ff_bin, "-y",
         "-f", "lavfi", "-t", str(INTRO_S), "-i", "anullsrc=r=48000:cl=mono",
         "-i", str(mp3_path),
         "-filter_complex", _pad_filter,
@@ -487,6 +502,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
             out_path=final_mp4,
             total_duration_s=total_dur,
             voice_delay_s=INTRO_S,
+            ffmpeg_bin=ff_bin,
             subtitle_ass_path=ass_path,
             # Pass only the one font .ass needs - loading all 14 fonts twice
             # was adding ~20s of fontconfig overhead before encoding started.
@@ -520,7 +536,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
     print("\nExtracting footage frame for thumbnail...")
     # Pull a frame from the ESTABLISHING clip at 1.0s — clean, on-subject still.
     _sp.run([
-        "ffmpeg", "-y",
+        ff_bin, "-y",
         "-ss", "1.0",
         "-i", str(footage_clips[0]),
         "-vframes", "1",
@@ -607,7 +623,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
     for _attempt, (_crf, _rate) in enumerate([(None, None), (33, "600k"), (35, "500k")]):
         if _attempt > 0:
             print(f"  [adaptive] 413 on attempt {_attempt} — recompressing at crf={_crf}...")
-            _compressed = _recompress(final_mp4, crf=_crf, maxrate=_rate)
+            _compressed = _recompress(final_mp4, crf=_crf, maxrate=_rate, ffmpeg_bin=ff_bin)
             try:
                 video_url = _upload_video(_compressed)
             except RuntimeError as _exc:
@@ -720,7 +736,11 @@ def _record(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate and publish a factjot Reel")
-    parser.add_argument("--topic", default=None, help="Restrict to: space, nature, ocean, history, tech, earth")
+    parser.add_argument(
+        "--topic",
+        default=None,
+        help="Restrict to: space, nature, ocean, history, tech, earth, biology, technology, science",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Compose video but skip upload + publish")
     parser.add_argument("--list-facts", action="store_true", help="List available quirky_score=3 facts and exit")
     parser.add_argument("--voice", default="en-GB-RyanNeural",

@@ -131,13 +131,23 @@ Each overlay stage re-renders the full 1080x1920 frame. 27 subtitle chunks = 27 
 
 **Primary reel encode (2026-05-03):** `libx264` **preset ultrafast**, **crf 30**, **maxrate 800k**, **bufsize 1600k**, **48 kHz** AAC. Older **crf 23** primary encodes overshot Meta's URL size limit and caused avoidable 413 retries.
 
-**GitHub Actions log looks empty mid-encode:** FFmpeg often prints **nothing** to stderr for minutes during **filter graph init** and first frames. A naive blocking `read()` on `stderr=PIPE` yields no new UI lines. **`_pump_ffmpeg_stderr`** in `reel_composer.py` uses **`select()`** with a **25 s heartbeat** on POSIX while the child is still alive. **`reel.yml`** runs **`python3 -u`** with **`PYTHONUNBUFFERED=1`** for `make_reel.py`. Human `-stats` lines use **`\r`**; compose uses **`-progress pipe:2`** and **`-stats_period 2`** (placed immediately after `-y`) and replaces **`\r` → `\n`** when forwarding stderr.
+**The real “hung forever” bug (2026-05-03): stderr pipe backpressure, not “slow filter init”.** We briefly used **`-progress pipe:2`**, which floods stderr with progress lines. **`compose()`** then used **`stderr=None`** so FFmpeg **inherited** the parent’s stderr. In Cursor’s agent shell (and any parent whose stderr is a **pipe** with a small kernel buffer), nothing drains that pipe fast enough. Once the buffer fills (~64KB), **FFmpeg blocks on every stderr write** and the encode never advances (looks stuck on frame 0 for hours). **Fix:** remove **`-progress pipe:2`** entirely; write compose **stderr to `ffmpeg_compose_stderr.log`** in the reel cache dir (disk never blocks the writer). On failure, the raised error includes a tail of that log. **`reel.yml`** still uses **`python3 -u`** and **`PYTHONUNBUFFERED=1`** for Python-side logs.
+
+**GitHub Actions log looks empty mid-encode:** FFmpeg can still print nothing useful for minutes during heavy **filter graph init**. A naive blocking `read()` on `stderr=PIPE` in Python without draining in parallel can deadlock the child. **`_pump_ffmpeg_stderr`** (same file) is the pattern for interactive pumping with a heartbeat; main compose no longer inherits a narrow pipe for high-volume stderr.
 
 **ProRes 4444 intro (`factjot_intro.mov`) is `yuva444p12le` — 12-bit with full alpha.**
 Scaling it with `flags=lanczos` inside the filter graph is expensive. Changed to `flags=bilinear`. Also added `eof_action=pass` to the intro overlay so FFmpeg doesn't attempt to hold the stream open after the intro's 1.37s duration ends.
 
 **Archive.org search requests with a 20s timeout block the footage finder.**
 For facts where Archive has no relevant footage (most modern facts), every query waits the full timeout before moving on. With 3-5 queries per reel, this added 60-100s of dead wait. `_HTTP_TIMEOUT` in `video_finder.py` cut from 20s to 10s.
+
+**Tier-0 still JPEGs + `stream_loop` + default image2 25 fps = multi-hour “stuck on frame 0”.** Not corrupt media: valid JPEGs and MP4s. **image2** defaults to **25 fps**, so a **~10 s** still window forced **~250** full **4K** decodes before **`concat`** could output; **25 vs 29.97 vs 60** fps across legs also broke **`concat`** expectations. Fixed in `reel_composer.py`: **`-framerate 1`** before **`-i`** for still suffixes, and **`,fps=30`** after each clip's pan crop so every leg is **30 fps** before **`concat`**.
+
+---
+
+## Local macOS (FFmpeg)
+
+**Default Homebrew `ffmpeg` often has no `ass` filter (no libass).** `make_reel.py` probes on startup via `ffmpeg -h filter=ass`. If it fails: `brew install ffmpeg-full` then put that binary first on `PATH`, or set **`FFMPEG_BIN`** to the full path (for example `export FFMPEG_BIN="$(brew --prefix ffmpeg-full)/bin/ffmpeg"`). CI static FFmpeg already includes libass.
 
 ---
 

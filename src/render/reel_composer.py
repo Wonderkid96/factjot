@@ -16,6 +16,9 @@ from __future__ import annotations
 import os
 import signal
 import subprocess
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
 
 # Module-level reference to the active FFmpeg process.
 # Lets signal handlers kill FFmpeg cleanly when the parent Python process
@@ -36,7 +39,6 @@ def _sigterm_handler(signum: int, frame: object) -> None:
 
 signal.signal(signal.SIGTERM, _sigterm_handler)
 signal.signal(signal.SIGINT, _sigterm_handler)
-from dataclasses import dataclass
 
 
 def _pump_ffmpeg_stderr(
@@ -95,8 +97,12 @@ def _pump_ffmpeg_stderr(
             b"normal during filter init or first frames)...\n"
         )
         _sys.stderr.buffer.flush()
-from pathlib import Path
-from typing import Optional
+
+
+# image2 default is 25 fps; stream_loop + multi-second trims decode the same
+# 4K JPEG hundreds of times (first-frame stall for hours). Use -framerate 1
+# on still inputs, then fps=30 after each clip so concat matches output -r 30.
+_STILL_IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg", ".png", ".webp"})
 
 # Timing constants (seconds) - locked by Rule 19 (Reels Strategy)
 INTRO_S            = 3.5    # silent intro window - hook title shows, voice starts after
@@ -236,11 +242,12 @@ def compose(
         fonts_dir=fonts_dir,
     )
 
+    # Do NOT use `-progress pipe:2` here. That streams high-volume progress to stderr.
+    # When stderr is inherited from a parent whose stderr is a pipe (Cursor agent capture,
+    # some CI wrappers), the pipe buffer fills, FFmpeg blocks on write(), and the job
+    # looks hung for hours. Progress for humans belongs in a file (below) or nowhere.
     cmd = [
         ffmpeg_bin, "-nostdin", "-y",
-        # Global progress: must be early so FFmpeg honours it reliably on all builds.
-        "-progress", "pipe:2",
-        "-stats_period", "2",
         *inputs,
         "-filter_complex", _join_filters(filter_parts),
         *map_args,
@@ -262,22 +269,32 @@ def compose(
     ]
 
     print(f"  [ffmpeg] composing {len(overlays)} overlays, duration={total_duration_s:.1f}s")
-    debug_path = out_path.parent / "ffmpeg_debug.txt"
+    out_dir = out_path.parent
+    err_log = out_dir / "ffmpeg_compose_stderr.log"
+    print(f"  [ffmpeg] stderr -> {err_log.name} (avoids pipe deadlock; tail on failure)")
+    debug_path = out_dir / "ffmpeg_debug.txt"
     debug_path.write_text(
         "FFmpeg command:\n" + " ".join(cmd) + "\n\n"
         + "Filter graph:\n" + _join_filters(filter_parts)
     )
-    # stderr=None: FFmpeg writes directly to the runner's captured output.
-    # No Python buffering, no read(4096) blocking, no log delays.
-    # On failure the exit code tells us it failed; ffmpeg_debug.txt has the command.
-    proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=None)
-    _register_active(proc)
-    proc.wait()
-    _register_active(None)
+    # stderr -> disk: never blocks FFmpeg; full log on failure (see gotchas: stderr pipe).
+    with err_log.open("wb") as err_f:
+        proc = subprocess.Popen(
+            cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=err_f
+        )
+        _register_active(proc)
+        proc.wait()
+        _register_active(None)
     if proc.returncode != 0:
+        tail = ""
+        try:
+            raw = err_log.read_bytes()
+            tail = raw[-12000:].decode("utf-8", errors="replace")
+        except OSError:
+            pass
         raise RuntimeError(
             f"FFmpeg failed (exit {proc.returncode}). "
-            f"Check ffmpeg_debug.txt for the full command."
+            f"See ffmpeg_debug.txt (command) and {err_log.name} (stderr tail below).\n{tail}"
         )
     size_mb = out_path.stat().st_size / 1024 / 1024
     print(f"  [ffmpeg] done -> {out_path.name} ({size_mb:.1f} MB)")
@@ -346,9 +363,15 @@ def _build_filter_graph(
         intro_input_idx = -1
         footage_offset = 0
 
-    # Inputs: each footage clip with stream_loop -1 so short clips can stretch
+    # Inputs: each footage clip with stream_loop -1 so short clips can stretch.
+    # Stills must use a low demux framerate (see _STILL_IMAGE_SUFFIXES) or FFmpeg
+    # decodes every nominal frame at default 25 fps (catastrophic for 4K JPEGs).
     for fp in footage_paths:
-        inputs += ["-stream_loop", "-1", "-i", str(fp)]
+        suf = fp.suffix.lower()
+        if suf in _STILL_IMAGE_SUFFIXES:
+            inputs += ["-framerate", "1", "-stream_loop", "-1", "-i", str(fp)]
+        else:
+            inputs += ["-stream_loop", "-1", "-i", str(fp)]
     voice_idx = len(footage_paths) + footage_offset
     inputs += ["-i", str(voice_path)]
 
@@ -393,7 +416,8 @@ def _build_filter_graph(
         else:             # static centre (subtle rest between moves)
             pan_x = f"{pan_x_range//2}"
 
-        # Scale video to oversized → trim so t starts at 0 → animated crop
+        # Scale → trim → pan crop → fps=30 so concat sees uniform 30 fps (mix of
+        # 1 fps stills, 29.97/60 mp4, and image2 defaults otherwise breaks concat).
         filter_lines.append(
             f"[{inp_idx}:v]"
             f"scale={ow}:{oh}:force_original_aspect_ratio=increase,"
@@ -401,7 +425,8 @@ def _build_filter_graph(
             f"setsar=1,"
             f"trim=duration={dur:.3f},"
             f"setpts=PTS-STARTPTS,"
-            f"crop=1080:1920:x='{pan_x}':y={pan_y_mid}"
+            f"crop=1080:1920:x='{pan_x}':y={pan_y_mid},"
+            f"fps=30"
             f"[clip{inp_idx}]"
         )
         clip_labels.append(f"[clip{inp_idx}]")

@@ -106,6 +106,8 @@ make_reel.py
 **Run commands (local, Mac):**
 ```bash
 cd /Users/Music/Documents/Insta-bot
+# If `ffmpeg -h filter=ass` fails, install libass-capable FFmpeg (e.g. brew ffmpeg-full) then:
+# export FFMPEG_BIN="$(brew --prefix ffmpeg-full)/bin/ffmpeg"
 /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/make_reel.py
 /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/make_reel.py --dry-run
 /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/make_reel.py --topic earth
@@ -149,6 +151,7 @@ cd /Users/Music/Documents/Insta-bot
 | `src/publish/image_host.py` | imgbb + tmpfiles with PNG salting for fresh URLs |
 | `src/core/brand.py` | Brand constants — fonts, colours, dimensions |
 | `src/core/paths.py` | All file paths — single source of truth |
+| `src/core/ffmpeg_bin.py` | `FFMPEG_BIN` + startup check that `ass` filter exists (local Mac vs CI) |
 
 ---
 
