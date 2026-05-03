@@ -1930,6 +1930,528 @@ RARE_FACT_BANK = [
             "we never even knew it was there."
         ),
     },
+
+    # ============================================================
+    # EXPANSION BATCH — 2026-05-02
+    # 18 new shock-tier facts with curated reel_title + reel_script.
+    # Covers earth, ocean, biology. All q3, all sourced, IG-safe.
+    # ============================================================
+
+    # ---------- EARTH ----------
+    {
+        "topic": "earth",
+        "claim": "Australia drifts north at roughly 7 centimetres a year. It has moved so far that GPS coordinates used in the 1990s are now off by more than 1.5 metres.",
+        "sources": ["https://www.bbc.com/news/world-australia-38650191", "https://www.geoscience.gov.au/news/australias-position-latitude-and-longitude-has-shifted-more-you-might-think"],
+        "image_hint": "world map continents",
+        "quirky_score": 3,
+        "intensity": "light",
+        "tone": "shocking",
+        "reel_title": "Australia Is Moving. Literally.",
+        "reel_script": (
+            "Every year, Australia moves. "
+            "Not metaphorically. "
+            "The entire continent physically drifts north at roughly 7 centimetres. "
+            "That doesn't sound like much. "
+            "But it adds up. "
+            "The GPS coordinates used when satellite navigation launched in the 1990s... "
+            "are now off by more than 1.5 metres. "
+            "In aviation and shipping, 1.5 metres matters. "
+            "So Australia had to officially update its own map. "
+            "Its legal coordinates. "
+            "The country moved so far it had to reposition itself on paper. "
+            "Every continent is doing this. "
+            "Drifting. Shifting. "
+            "The ground beneath you is not standing still. "
+            "It never has been."
+        ),
+    },
+    {
+        "topic": "earth",
+        "claim": "Lake Hillier in Western Australia stays bright bubblegum pink all year round. The colour comes from a combination of salt-loving algae and bacteria that thrive in its extreme salinity.",
+        "sources": ["https://www.nationalgeographic.com/travel/article/lake-hillier-pink-lake-australia", "https://www.bbc.com/travel/article/20140130-australias-pink-lake-explained"],
+        "image_hint": "pink lake aerial",
+        "quirky_score": 3,
+        "intensity": "light",
+        "tone": "shocking",
+        "reel_title": "The Lake That Stays Pink",
+        "reel_script": (
+            "Off the coast of Western Australia... there is a lake. "
+            "And it is pink. "
+            "Not occasionally. Not at certain times of day. "
+            "Permanently. Vibrantly. Bubblegum pink. "
+            "You can see it from a plane and assume you're looking at a cartoon. "
+            "The water itself is the colour. "
+            "Fill a glass from it... and the glass stays pink. "
+            "The reason? "
+            "Salt-loving algae and bacteria. "
+            "The lake is ten times saltier than the ocean. "
+            "Most things can't live in it. "
+            "But these organisms thrive. "
+            "And as they do, they turn the entire lake the colour of a flamingo. "
+            "Lake Hillier. "
+            "Nature decided to do something absurd. "
+            "And nobody stopped it."
+        ),
+    },
+    {
+        "topic": "earth",
+        "claim": "Earth's gravity is measurably weaker over Hudson Bay in Canada. A massive ice sheet that sat there during the last Ice Age compressed the crust so much that the rock is still slowly rebounding, leaving less mass under that region.",
+        "sources": ["https://www.nasa.gov/feature/goddard/2016/nasa-grace-data-explain-hudson-bay-gravity-low", "https://www.bbc.com/future/article/20160126-why-does-gravity-vary-across-earth"],
+        "image_hint": "satellite Earth view",
+        "quirky_score": 3,
+        "intensity": "medium",
+        "tone": "shocking",
+        "reel_title": "The Place Where Gravity Is Weaker",
+        "reel_script": (
+            "Gravity isn't the same everywhere. "
+            "You knew that in theory. "
+            "But here is a specific place where it is measurably, detectably weaker. "
+            "Hudson Bay. Canada. "
+            "If you stood there... you would weigh very slightly less than anywhere else on Earth. "
+            "Why? "
+            "Because 20,000 years ago, a kilometre-thick ice sheet sat on top of that land. "
+            "Its weight pushed the crust down. "
+            "The ice is long gone. "
+            "But the rock is still slowly rising. "
+            "Still recovering. "
+            "There is less mass under that region than there should be. "
+            "Less mass means less gravity. "
+            "The planet is still healing from an Ice Age... "
+            "and you can measure the wound from space."
+        ),
+    },
+    {
+        "topic": "earth",
+        "claim": "Lake Nyos in Cameroon released a vast cloud of carbon dioxide in 1986, silently suffocating 1,746 people, 3,500 livestock, and every living thing within 25 kilometres. No one heard anything. No one had any warning.",
+        "sources": ["https://www.bbc.com/future/article/20160706-the-deadly-lake-that-burps-poison", "https://www.britannica.com/place/Lake-Nyos"],
+        "image_hint": "crater lake at dawn",
+        "quirky_score": 3,
+        "intensity": "heavy",
+        "tone": "sober",
+        "reel_title": "The Lake That Exhaled Death",
+        "reel_script": (
+            "On the night of August 21st, 1986... a lake in Cameroon exhaled. "
+            "Lake Nyos. "
+            "Magma beneath it had been quietly saturating the water with carbon dioxide. "
+            "For years. Under enormous pressure. "
+            "Then something triggered it. "
+            "A landslide. A small tremor. Nobody is sure. "
+            "One million tonnes of CO2 erupted from the surface. "
+            "A silent cloud. Cold. Heavy. Rolling down the hillside at speed. "
+            "Heavier than air, it hugged the ground and flowed into every village. "
+            "Into every home. "
+            "1,746 people died in their sleep. "
+            "3,500 livestock. Every bird. Every insect. "
+            "No sound. No warning. "
+            "Survivors described waking up next to everyone they knew... "
+            "already gone. "
+            "The lake is still there. "
+            "Still filling."
+        ),
+    },
+    {
+        "topic": "earth",
+        "claim": "Earth has a small companion called Kamoʻoalewa (2016 HO3) that has been orbiting near our planet for at least a century. It is not a moon. It loops around Earth in a complex spiral, neither captured nor fully free.",
+        "sources": ["https://www.nasa.gov/solar-system/asteroid-2016-ho3-earths-quasi-satellite/", "https://www.bbc.com/news/science-environment-38476281"],
+        "image_hint": "small asteroid in space",
+        "quirky_score": 3,
+        "intensity": "light",
+        "tone": "shocking",
+        "reel_title": "Earth's Hidden Second Companion",
+        "reel_script": (
+            "Earth has a Moon. "
+            "You know this. "
+            "What you probably don't know... is that Earth has a second companion. "
+            "It's called Kamoʻoalewa. "
+            "A small asteroid, about the size of a house. "
+            "It has been orbiting near Earth for at least a century. "
+            "It's not a moon. "
+            "Gravity hasn't fully captured it. "
+            "But it's not free either. "
+            "It traces a complex looping spiral around us. "
+            "Staying close. Year after year. "
+            "Scientists recently studied its composition. "
+            "And found something strange. "
+            "Its material matches the surface of our Moon. "
+            "Which means Kamoʻoalewa might be a fragment of the Moon itself. "
+            "Broken off by an ancient impact. "
+            "Drifting beside us ever since."
+        ),
+    },
+    {
+        "topic": "earth",
+        "claim": "Earth went through what scientists call the Boring Billion. For almost a billion years, from roughly 1.8 to 0.8 billion years ago, the planet barely changed. Oxygen levels stalled. Evolution nearly froze. Then, without clear reason, everything exploded into complexity.",
+        "sources": ["https://www.bbc.com/future/article/20220309-the-mystery-of-earths-boring-billion-years", "https://www.smithsonianmag.com/science-nature/earths-boring-billion-years-180980214/"],
+        "image_hint": "fossil rock layers",
+        "quirky_score": 3,
+        "intensity": "medium",
+        "tone": "shocking",
+        "reel_title": "The Billion Years Nothing Happened",
+        "reel_script": (
+            "Earth is 4.5 billion years old. "
+            "Life appeared. Oxygen built up. Complexity was growing. "
+            "Then... it stopped. "
+            "For almost a billion years, from roughly 1.8 to 0.8 billion years ago... "
+            "essentially nothing changed. "
+            "No new body plans. No major evolution. "
+            "Oxygen levels flatlined. "
+            "Scientists call it the Boring Billion. "
+            "And it terrifies them a little. "
+            "Because we don't fully understand why it happened. "
+            "Or why it ended. "
+            "Then, around 800 million years ago... "
+            "something triggered a cascade. "
+            "Complex animals appeared. Then plants. Then us. "
+            "A billion years of stagnation... "
+            "and then everything, all at once. "
+            "The planet was holding its breath. "
+            "And we still don't know what made it exhale."
+        ),
+    },
+    {
+        "topic": "earth",
+        "claim": "Zealandia, a continent mostly hidden beneath the South Pacific Ocean, is 94% submerged and four times the size of Greenland. Scientists only formally recognised it as a continent in 2017.",
+        "sources": ["https://www.bbc.com/news/science-environment-39013094", "https://www.nationalgeographic.com/science/article/new-zealands-zealandia-continent"],
+        "image_hint": "ocean bathymetry map",
+        "quirky_score": 3,
+        "intensity": "light",
+        "tone": "shocking",
+        "reel_title": "The Continent We Nearly Missed",
+        "reel_script": (
+            "There are seven continents. "
+            "You learned that in school. "
+            "What your teacher probably didn't tell you is that there might be eight. "
+            "Beneath the South Pacific Ocean... "
+            "lies a continent called Zealandia. "
+            "It is four times the size of Greenland. "
+            "It has mountains. Crust. All the geological hallmarks. "
+            "And 94% of it is underwater. "
+            "The only part poking above the sea is New Zealand. "
+            "Scientists suspected it for decades. "
+            "It wasn't officially declared a continent until 2017. "
+            "A landmass the size of a continent... hiding in plain sight. "
+            "We mapped Mars before we understood what was beneath the ocean we sail across every day."
+        ),
+    },
+    {
+        "topic": "earth",
+        "claim": "The Salar de Uyuni salt flat in Bolivia is so large and so perfectly flat that it becomes a near-perfect mirror when covered by a thin layer of water. It is used to calibrate satellites in orbit.",
+        "sources": ["https://www.nationalgeographic.com/travel/article/salar-de-uyuni", "https://earthobservatory.nasa.gov/images/147516/the-worlds-largest-salt-flat"],
+        "image_hint": "salt flat reflection sky",
+        "quirky_score": 3,
+        "intensity": "light",
+        "tone": "shocking",
+        "reel_title": "The Mirror at the Top of the World",
+        "reel_script": (
+            "In Bolivia, at 3,600 metres above sea level... "
+            "there is a salt flat the size of a small country. "
+            "The Salar de Uyuni. "
+            "10,000 square kilometres of dried salt. "
+            "Completely flat. Impossibly flat. "
+            "When rain falls... a thin layer of water coats the surface. "
+            "And then something extraordinary happens. "
+            "The sky reflects perfectly. "
+            "The horizon disappears. "
+            "You cannot tell where the ground ends and the sky begins. "
+            "People stand in the clouds. "
+            "Walk on the stars. "
+            "It is so flat... so enormous... "
+            "that scientists use it to calibrate satellites in orbit. "
+            "The most precise instruments we've ever built... "
+            "check themselves against this ancient lake bed. "
+            "Earth used as a mirror. "
+            "For machines looking down from space."
+        ),
+    },
+
+    # ---------- OCEAN ----------
+    {
+        "topic": "ocean",
+        "claim": "The colossal squid has the largest eyes of any known animal. They can reach 27 centimetres across, about the size of a football, and are thought to help detect the bioluminescent flashes of predators like sperm whales in the deep dark ocean.",
+        "sources": ["https://www.nhm.ac.uk/discover/colossal-squid.html", "https://www.smithsonianmag.com/science-nature/the-giant-squid-the-colossal-squid-180949873/"],
+        "image_hint": "giant squid eye",
+        "quirky_score": 3,
+        "intensity": "light",
+        "tone": "shocking",
+        "reel_title": "The Biggest Eyes on Earth",
+        "reel_script": (
+            "The colossal squid lives in the deep Southern Ocean. "
+            "It can weigh over 400 kilograms. "
+            "It is the largest invertebrate on Earth. "
+            "And it has the largest eyes of any animal ever known to exist. "
+            "27 centimetres across. "
+            "About the size of a football. "
+            "Each one. "
+            "Why does an animal need eyes that big? "
+            "Because in the deep ocean... at 1,000 metres down... "
+            "there is no light. "
+            "Almost none. "
+            "But sperm whales hunt down there. "
+            "And when they move fast, bioluminescent plankton lights up around them. "
+            "A faint glow in the blackness. "
+            "Those eyes can detect it from 120 metres away. "
+            "The colossal squid evolved football-sized eyes... "
+            "to spot its hunter by the light it disturbs."
+        ),
+    },
+    {
+        "topic": "ocean",
+        "claim": "In 1997 NOAA hydrophones picked up a powerful underwater sound called the Bloop. It was extraordinarily loud, detected by sensors thousands of kilometres apart. Scientists later attributed it to an icequake, but for years it was unexplained.",
+        "sources": ["https://oceanservice.noaa.gov/facts/bloop.html", "https://www.bbc.com/future/article/20160218-the-mystery-of-the-bloop-sound-from-the-deep-sea"],
+        "image_hint": "deep ocean sonar",
+        "quirky_score": 3,
+        "intensity": "medium",
+        "tone": "shocking",
+        "reel_title": "The Sound From the Deep",
+        "reel_script": (
+            "In 1997, NOAA hydrophones scanning the Pacific Ocean picked up a sound. "
+            "Not a whale. Not a submarine. "
+            "Something else. "
+            "Extraordinarily loud. "
+            "Detectable by sensors thousands of kilometres apart. "
+            "The profile matched no known geological event. "
+            "No known animal. "
+            "Scientists called it the Bloop. "
+            "And for years... they had no explanation. "
+            "The location? "
+            "Roughly 1,600 kilometres from Lovecraft's fictional coordinates for R'lyeh. "
+            "That detail did not help. "
+            "We now think it was a massive icequake. "
+            "A glacier fracturing under its own weight. "
+            "But here is the thing. "
+            "For years... no one knew. "
+            "The ocean made a noise louder than anything we'd heard. "
+            "And we had no idea what made it."
+        ),
+    },
+    {
+        "topic": "ocean",
+        "claim": "Below 200 metres the Black Sea is anoxic. No oxygen reaches those depths, so organic material cannot fully decompose. Ancient shipwrecks discovered there are preserved almost perfectly, with masts, figureheads, and ropes still intact after thousands of years.",
+        "sources": ["https://www.nationalgeographic.com/history/article/black-sea-ancient-shipwrecks", "https://www.bbc.com/news/world-europe-41717747"],
+        "image_hint": "preserved ancient shipwreck",
+        "quirky_score": 3,
+        "intensity": "medium",
+        "tone": "shocking",
+        "reel_title": "The Ships That Never Rotted",
+        "reel_script": (
+            "In 2017, a robot submarine descended into the Black Sea. "
+            "It found a ship. "
+            "Ancient. Greek. Still standing. "
+            "Mast intact. Rudder intact. The ropes still hanging. "
+            "It was over 2,400 years old. "
+            "The best-preserved ancient vessel ever discovered. "
+            "And there were dozens more around it. "
+            "Why? "
+            "Below 200 metres, the Black Sea has almost no oxygen. "
+            "No bacteria to rot the wood. "
+            "No currents to break the hull. "
+            "Nothing to decompose anything. "
+            "Ships that sank in this sea over thousands of years... "
+            "are still sitting there. "
+            "Perfectly. "
+            "Like a museum no one ever built. "
+            "An entire archive of maritime history. "
+            "Preserved by a dead sea."
+        ),
+    },
+    {
+        "topic": "ocean",
+        "claim": "Greenland shark can live for at least 270 years, making them the longest-lived vertebrate on Earth. They are not sexually mature until they are around 150 years old. Some alive today may have been born in the 1700s.",
+        "sources": ["https://www.smithsonianmag.com/smart-news/greenland-sharks-can-live-for-hundreds-of-years-180960101/", "https://www.bbc.com/earth/story/20160811-greenland-sharks-live-for-400-years"],
+        "image_hint": "Greenland shark deep water",
+        "quirky_score": 3,
+        "intensity": "medium",
+        "tone": "shocking",
+        "reel_title": "The Shark Born Before America",
+        "reel_script": (
+            "There are sharks in the North Atlantic right now... "
+            "that were alive when George Washington was a child. "
+            "The Greenland shark. "
+            "Scientists estimate they can live for at least 270 years. "
+            "Some possibly 400. "
+            "They grow slowly. Barely a centimetre a year. "
+            "They do not reach sexual maturity until they are roughly 150 years old. "
+            "Think about that. "
+            "150 years of life... before they can reproduce. "
+            "They swim in near-freezing water, barely moving. "
+            "Slow. Patient. Enormous. "
+            "The oldest vertebrate ever recorded. "
+            "A creature that saw the Industrial Revolution. "
+            "Both World Wars. "
+            "Still swimming. "
+            "Still alive. "
+            "Somewhere beneath the ice, right now."
+        ),
+    },
+    {
+        "topic": "ocean",
+        "claim": "Horseshoe crabs predate the dinosaurs by hundreds of millions of years. Their blood is bright blue and contains a compound called LAL that is so effective at detecting bacterial contamination that it is used to test every injectable drug and vaccine given to humans.",
+        "sources": ["https://www.smithsonianmag.com/science-nature/the-blood-of-the-crab-3279007/", "https://www.nhm.ac.uk/discover/horseshoe-crabs-living-fossils.html"],
+        "image_hint": "horseshoe crab beach",
+        "quirky_score": 3,
+        "intensity": "medium",
+        "tone": "shocking",
+        "reel_title": "Your Vaccine Passed Through This Crab",
+        "reel_script": (
+            "The horseshoe crab has barely changed in 450 million years. "
+            "It was ancient when the dinosaurs were born. "
+            "It watched them come. "
+            "It watched them go. "
+            "And it has something inside it that no lab has yet managed to replicate. "
+            "Its blood is bright blue. "
+            "And it contains a compound called LAL. "
+            "LAL reacts instantly to bacterial contamination. "
+            "Any endotoxin. Any trace. "
+            "It is so sensitive that the pharmaceutical industry uses it... "
+            "to test every injectable drug ever given to a human being. "
+            "Every vaccine. Every IV drip. Every antibiotic injection. "
+            "Passed through the blood of an ancient crab. "
+            "Half a billion years of evolution. "
+            "And it ended up guarding every hospital on Earth."
+        ),
+    },
+    {
+        "topic": "ocean",
+        "claim": "The pistol shrimp snaps its claw shut so fast it creates a cavitation bubble that briefly reaches temperatures of around 8,000 Kelvin, almost as hot as the surface of the Sun. The resulting shockwave stuns or kills prey instantly.",
+        "sources": ["https://www.smithsonianmag.com/science-nature/the-snapping-shrimp-the-loudest-animal-in-the-sea-180978621/", "https://www.nhm.ac.uk/discover/pistol-shrimp-facts.html"],
+        "image_hint": "tropical pistol shrimp",
+        "quirky_score": 3,
+        "intensity": "light",
+        "tone": "shocking",
+        "reel_title": "The Shrimp That Shoots Plasma",
+        "reel_script": (
+            "The pistol shrimp is about the size of your finger. "
+            "One of its claws is comically oversized. "
+            "It looks ridiculous. "
+            "Until you learn what it can do. "
+            "The shrimp snaps that claw shut faster than a bullet leaves a gun. "
+            "The snap is so fast it creates a cavitation bubble in the water. "
+            "A tiny pocket of vacuum. "
+            "For a fraction of a second, that bubble reaches 8,000 Kelvin. "
+            "Almost as hot as the surface of the Sun. "
+            "It collapses instantly. "
+            "Producing a flash of light and a shockwave. "
+            "The shockwave stuns or kills prey outright. "
+            "No bite. No chase. "
+            "Just a snap. "
+            "This creature is so loud that submarines used to hide near colonies of them. "
+            "Because the noise masked their own sound. "
+            "The ocean's most unlikely weapon."
+        ),
+    },
+    {
+        "topic": "ocean",
+        "claim": "In 2023 scientists filmed a snailfish 8,336 metres beneath the surface of the Pacific Ocean, the deepest fish ever observed. At that depth, the pressure is 800 times the pressure at sea level. The fish appeared completely calm.",
+        "sources": ["https://www.bbc.com/news/science-environment-64864789", "https://www.nhm.ac.uk/discover/snailfish-facts.html"],
+        "image_hint": "translucent deep sea fish",
+        "quirky_score": 3,
+        "intensity": "light",
+        "tone": "shocking",
+        "reel_title": "The Deepest Fish Ever Found",
+        "reel_script": (
+            "In 2023, a camera descended into the Izu-Ogasawara Trench. "
+            "Down past where any fish had ever been observed alive. "
+            "8,336 metres. "
+            "At that depth, the pressure is 800 times what you feel on the surface. "
+            "Enough to crush unprotected human tissue instantly. "
+            "Enough to implode a sealed container. "
+            "And there it was. "
+            "A snailfish. "
+            "Translucent. Pale. Barely 30 centimetres long. "
+            "Drifting. Calm. "
+            "Looking like a creature from a nightmare. "
+            "Or a dream. "
+            "This is the deepest vertebrate ever recorded. "
+            "It exists in permanent darkness, at crushing pressure, at near-freezing temperatures. "
+            "And it was just... swimming. "
+            "The ocean is still showing us things we cannot quite believe."
+        ),
+    },
+    {
+        "topic": "ocean",
+        "claim": "The megalodon, the largest shark ever to live, could grow up to 18 metres long and had teeth the size of a human hand. It went extinct roughly 3.6 million years ago. Its bite force was estimated at 110,000 newtons, the strongest of any known animal.",
+        "sources": ["https://www.smithsonianmag.com/science-nature/megalodon-how-big-was-it-180979650/", "https://www.nhm.ac.uk/discover/megalodon-facts.html"],
+        "image_hint": "fossil megalodon tooth",
+        "quirky_score": 3,
+        "intensity": "medium",
+        "tone": "shocking",
+        "reel_title": "The Shark That Makes Great Whites Look Small",
+        "reel_script": (
+            "We talk about great white sharks like they're the apex of terror. "
+            "They're not. "
+            "For millions of years, the ocean was ruled by something else. "
+            "The megalodon. "
+            "18 metres long. "
+            "Three times the length of a great white. "
+            "Its teeth were the size of a human hand. "
+            "Its bite force was 110,000 newtons. "
+            "The strongest of any animal we've ever measured. "
+            "It didn't hunt fish. "
+            "It hunted whales. "
+            "It bit them in half. "
+            "Fossil whale bones have been found with megalodon bite marks... "
+            "right through them. "
+            "It went extinct about 3.6 million years ago. "
+            "Nobody is entirely sure why. "
+            "The great white filled the gap. "
+            "And suddenly the ocean felt a little smaller."
+        ),
+    },
+    {
+        "topic": "ocean",
+        "claim": "Leatherback sea turtles regularly dive past 1,000 metres in search of jellyfish. They are the deepest-diving reptiles on Earth and can travel over 10,000 kilometres in a single migration across the Pacific Ocean.",
+        "sources": ["https://www.nationalgeographic.com/animals/reptiles/facts/leatherback-sea-turtle", "https://oceanservice.noaa.gov/education/tutorial_currents/media/supp_cur09c.html"],
+        "image_hint": "leatherback sea turtle",
+        "quirky_score": 3,
+        "intensity": "light",
+        "tone": "shocking",
+        "reel_title": "The Turtle That Dives a Kilometre Deep",
+        "reel_script": (
+            "The leatherback sea turtle looks like it was made by someone who had never seen a turtle. "
+            "No hard shell. "
+            "A rubbery, ridged carapace. "
+            "It can weigh 900 kilograms. "
+            "It is the largest reptile on Earth. "
+            "And it dives. "
+            "Past 1,000 metres. "
+            "Deeper than the light goes. "
+            "Searching for jellyfish in the blackness. "
+            "It can regulate its own body temperature, unusual for a reptile, to stay warm in freezing water. "
+            "When it migrates, it crosses the entire Pacific Ocean. "
+            "Over 10,000 kilometres. "
+            "From the beaches of Indonesia to the coast of California. "
+            "Without stopping. "
+            "Navigating by the Earth's magnetic field. "
+            "A 100-million-year-old lineage. "
+            "Still crossing oceans."
+        ),
+    },
+    {
+        "topic": "biology",
+        "claim": "Captive octopuses have been observed recognising and treating individual humans differently. In studies, animals actively sprayed water at disliked handlers and were visibly friendlier toward others, demonstrating long-term individual memory for human faces.",
+        "sources": ["https://www.smithsonianmag.com/science-nature/the-mind-of-an-octopus-180949735/", "https://www.nhm.ac.uk/discover/octopus-facts.html"],
+        "image_hint": "octopus eye contact",
+        "quirky_score": 3,
+        "intensity": "light",
+        "tone": "shocking",
+        "reel_title": "The Animal That Holds a Grudge",
+        "reel_script": (
+            "At a research facility in Seattle... eight octopuses were kept in tanks. "
+            "Two staff members interacted with them every day. "
+            "One person fed them. One person poked them gently with a stick. "
+            "After a few weeks, something remarkable happened. "
+            "The octopuses started treating those two people completely differently. "
+            "They'd reach toward the feeder. "
+            "They'd turn their water jets on the one with the stick. "
+            "Deliberate. Targeted. Personal. "
+            "Octopuses can recognise individual human faces. "
+            "They hold memory of specific people. "
+            "They form opinions about them. "
+            "A creature with no common ancestor with us for 750 million years... "
+            "learned to identify you specifically. "
+            "And decided whether it liked you."
+        ),
+    },
 ]
 
 
