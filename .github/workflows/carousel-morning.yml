@@ -3,7 +3,7 @@ name: Morning Carousel (10:00 BST)
 on:
   schedule:
     - cron: "0 9 * * *"     # 09:00 UTC = 10:00 BST (primary)
-    - cron: "45 9 * * *"    # 09:45 UTC = 10:45 BST (backup — skips if already posted)
+    - cron: "45 9 * * *"    # 09:45 UTC = 10:45 BST (backup - skips if already posted)
   workflow_dispatch:
 
 # Prevent two publish jobs running at the same time.
@@ -93,7 +93,7 @@ except: print(0)
           echo "Carousels posted today: $COUNT"
           if [ "$COUNT" -gt "0" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Already posted today — skipping."
+            echo "Already posted today - skipping."
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi

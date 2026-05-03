@@ -115,19 +115,19 @@ jobs:
                   p.write_text("")
                   print(f"  cleared: {f}")
               except Exception as e:
-                  print(f"  warning: {f} — {e}, parent_exists={p.parent.exists()}")
+                  print(f"  warning: {f} - {e}, parent_exists={p.parent.exists()}")
                   # Force-create via open() as fallback
                   try:
                       open(str(p), "w").close()
                       print(f"  cleared (fallback): {f}")
                   except Exception as e2:
-                      print(f"  SKIP: {f} — {e2}")
+                      print(f"  SKIP: {f} - {e2}")
 
           Path("insta-brain/data/weekly_state.json").write_text("{}")
           print("  cleared: insta-brain/data/weekly_state.json")
 
           ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
-          Path("insta-brain/log.md").write_text(f"# factjot brain log\n\nReset {ts} — fresh start.\n")
+          Path("insta-brain/log.md").write_text(f"# factjot brain log\n\nReset {ts} - fresh start.\n")
           print("  cleared: insta-brain/log.md")
 
           for d in ["data/cache/reels","data/cache/images","data/cache/renders","data/cache/list_assets","data/cache/tmp"]:
@@ -165,7 +165,7 @@ jobs:
       - name: Discover fresh facts from Reddit
         run: |
           echo "Pulling fresh facts from r/todayilearned..."
-          python3 scripts/discover_facts.py || echo "Discovery failed — continuing with curated bank"
+          python3 scripts/discover_facts.py || echo "Discovery failed - continuing with curated bank"
 
       - name: Refresh Meta access token
         run: |

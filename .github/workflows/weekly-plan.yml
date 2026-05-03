@@ -78,7 +78,7 @@ jobs:
           python3 scripts/refresh_token.py || echo "WARNING token refresh failed, check manually before it expires"
 
       - name: Discover new facts
-        run: python3 scripts/discover_facts.py || echo "Discovery failed — continuing with existing bank"
+        run: python3 scripts/discover_facts.py || echo "Discovery failed - continuing with existing bank"
 
       - name: Reel runway check
         run: python3 scripts/plan_week.py --days 7 --start-tomorrow
