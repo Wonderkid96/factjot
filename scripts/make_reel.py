@@ -48,7 +48,7 @@ from src.render.reel_text_renderer import (
 )
 from src.content.reel_title import make_title
 from src.render.tts_engine import audio_duration, group_into_chunks, synthesise
-from src.research.rare_fact_bank import RARE_FACT_BANK, _with_defaults
+from src.research.rare_fact_bank import load_all_facts
 from src.research.video_finder import find_videos
 from src.utils.logging_utils import configure_logging
 
@@ -154,7 +154,7 @@ def _pick_fact(topic: str | None) -> dict | None:
     from src.research.sensitivity_guide import CONTROVERSIAL
 
     used_as_reel = brain.list_reel_claims()  # reads reels.jsonl fresh from disk
-    all_facts = [_with_defaults(dict(r)) for r in RARE_FACT_BANK if r.get("quirky_score", 0) == 3]
+    all_facts = [r for r in load_all_facts() if r.get("quirky_score", 0) == 3]
     if topic:
         all_facts = [r for r in all_facts if r["topic"] == topic]
 
@@ -177,7 +177,7 @@ def _log_pick_diagnostics(topic: str | None) -> None:
     """Print why no fact qualified, so failures are immediately actionable."""
     from src.research.sensitivity_guide import CONTROVERSIAL
     used_as_reel = brain.list_reel_claims()
-    pool = [_with_defaults(dict(r)) for r in RARE_FACT_BANK if r.get("quirky_score", 0) == 3]
+    pool = [r for r in load_all_facts() if r.get("quirky_score", 0) == 3]
     if topic:
         pool = [r for r in pool if r["topic"] == topic]
 
@@ -703,7 +703,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.list_facts:
-        all_q3 = [_with_defaults(dict(r)) for r in RARE_FACT_BANK if r.get("quirky_score", 0) == 3]
+        all_q3 = [r for r in load_all_facts() if r.get("quirky_score", 0) == 3]
         if args.topic:
             all_q3 = [r for r in all_q3 if r["topic"] == args.topic]
         print(f"\n{len(all_q3)} quirky_score=3 facts:")

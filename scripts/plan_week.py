@@ -169,17 +169,16 @@ def _check_reel_runway(cfg, days_ahead: int) -> None:
     `reel_low_runway_threshold` (default 14 = 2 weeks), discovery runs
     so the bank is topped up before the queue runs dry.
     """
-    from src.research.rare_fact_bank import RARE_FACT_BANK, _with_defaults
+    from src.research.rare_fact_bank import load_all_facts
     from src.research.sensitivity_guide import CONTROVERSIAL
 
     threshold = cfg.pipeline.get("reel_low_runway_threshold", 14)
 
     q3_fresh = [
-        _with_defaults(dict(r))
-        for r in RARE_FACT_BANK
+        r for r in load_all_facts()
         if r.get("quirky_score", 0) == 3
         and not brain.is_fact_posted(r["claim"])
-        and _with_defaults(dict(r)).get("sensitivity") != CONTROVERSIAL
+        and r.get("sensitivity") != CONTROVERSIAL
     ]
 
     days_remaining = len(q3_fresh)

@@ -97,10 +97,25 @@ def main() -> int:
             print(line)
 
     if not fresh_rows:
-        print(f"No publishable facts left for topic={args.topic!r}.")
-        print(f"  total bank rows: {len(all_topic_rows)} | already-posted: {posted_skipped} | sensitivity-gated: {sensitivity_skipped}")
-        print(f"Add new facts to src/research/rare_fact_bank.py, or rerun with --allow-edgy / --allow-controversial.")
-        return 2
+        print(f"No publishable facts left for topic={args.topic!r}. Trying fallback topics...")
+        all_topics = ["history", "space", "biology", "ocean", "earth", "technology", "science"]
+        fallbacks = [t for t in all_topics if t != args.topic]
+        for fb_topic in fallbacks:
+            fb_rows = [_with_defaults(dict(row)) for row in load_all_facts() if row["topic"] == fb_topic]
+            fb_fresh = filter_for_publish(
+                [r for r in fb_rows if not brain.is_fact_posted(r["claim"])],
+                allow_edgy=not args.safe_only,
+                allow_controversial=args.allow_controversial,
+            )
+            if len(fb_fresh) >= 3:
+                print(f"  Falling back to topic={fb_topic!r} ({len(fb_fresh)} facts available)")
+                args.topic = fb_topic
+                fresh_rows = fb_fresh
+                all_topic_rows = fb_rows
+                break
+        else:
+            print(f"All topics exhausted. Add new facts to src/research/rare_fact_bank.py.")
+            return 2
     # Bias toward higher quirky_score so the screenshot-worthy stuff goes first.
     # Stable sort: ties keep original bank order.
     fresh_rows.sort(key=lambda r: r.get("quirky_score", 1), reverse=True)

@@ -231,10 +231,28 @@ def _print_preview(pack: dict, specs: list[ListSlideSpec]) -> None:
 
 
 def _pick_next_unposted_pack() -> str | None:
-    """Return the slug of the next unposted pack, in LIST_PACKS insertion order."""
+    """Return the slug of the next unposted pack. Curated first, then TMDB auto-generated."""
     for slug in LIST_PACKS:
         if not brain.is_fact_posted(_list_dedupe_claim(slug)):
             return slug
+    # All curated packs posted — generate a trending pack from TMDB
+    print("All curated packs posted. Generating auto pack from TMDB trending...")
+    try:
+        from src.content.auto_pack import build_trending_pack, get_posted_tmdb_ids
+        from src.research.trend_scout import fetch_weekly_trends
+        trends = fetch_weekly_trends()
+        movies = trends.get("movies", [])
+        posted_ids = get_posted_tmdb_ids()
+        pack = build_trending_pack(movies, posted_tmdb_ids=posted_ids)
+        if pack:
+            slug = pack["slug"]
+            # Register it in a runtime dict so get_pack() can find it
+            from src.content.list_packs import LIST_PACKS as _lp
+            _lp[slug] = pack
+            print(f"  Auto pack generated: {slug!r}")
+            return slug
+    except Exception as exc:
+        print(f"  Auto pack generation failed: {exc}")
     return None
 
 
