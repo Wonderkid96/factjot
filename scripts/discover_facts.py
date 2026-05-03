@@ -56,8 +56,8 @@ from src.core.paths import DISCOVERED_FACTS as OUT_PATH, DISCOVERY_LOG as LOG_PA
 
 SOURCES = [
     # r/todayilearned removed -- too mainstream, content too well-known for shock value.
-    # morbidreality and Damnthatsinteresting are the primary Reddit sources.
-    {"subreddit": "morbidreality",        "title_format": "direct", "min_upvotes":  3_000},
+    # r/morbidreality removed -- NSFW-gated by Reddit, returns 403 without OAuth.
+    # Re-enable when we wire up PRAW with proper Reddit auth credentials.
     {"subreddit": "Damnthatsinteresting", "title_format": "direct", "min_upvotes": 10_000},
 ]
 
@@ -356,11 +356,17 @@ def _score_fact(claim: str, upvotes: int) -> int:
 # Wikipedia unusual deaths scraper
 # ---------------------------------------------------------------------------
 
-_WIKI_UNUSUAL_DEATHS_URL = (
-    "https://en.wikipedia.org/w/api.php"
-    "?action=parse&page=List_of_unusual_deaths&prop=wikitext&format=json"
-)
-_WIKI_SOURCE_URL = "https://en.wikipedia.org/wiki/List_of_unusual_deaths"
+# Wikipedia split the "List of unusual deaths" page into per-century children.
+# The original combined page is now a stub redirect, so we fetch each child.
+_WIKI_API_BASE = "https://en.wikipedia.org/w/api.php"
+_WIKI_PAGES = [
+    "List_of_unusual_deaths_in_the_19th_century",
+    "List_of_unusual_deaths_in_the_20th_century",
+    "List_of_unusual_deaths_in_the_21st_century",
+    "List_of_unusual_deaths_(1800-1849)",
+    "List_of_unusual_deaths_(1850-1899)",
+]
+_WIKI_SOURCE_URL_BASE = "https://en.wikipedia.org/wiki/"
 
 
 def _strip_wiki_markup(text: str) -> str:
@@ -381,58 +387,89 @@ def _strip_wiki_markup(text: str) -> str:
     return text
 
 
-def _fetch_wikipedia_unusual_deaths() -> list[dict]:
-    """Fetch and parse Wikipedia's "List of unusual deaths" article.
+def _parse_wiki_death_table(wikitext: str, page_url: str) -> list[dict]:
+    """Extract death-row Details cells from Wikipedia's table-formatted lists.
 
-    Returns a list of dicts with keys:
-        claim       -- cleaned plain-text entry
-        source_url  -- canonical Wikipedia URL for the article
-    Only entries from 1800 onwards are returned. Entries shorter than
-    60 chars or longer than 320 chars after cleaning are skipped.
+    Each row in these tables looks like:
+        |-
+        !Name of person
+        |[[File:image.jpg|...]]
+        |{{dts|3 January 1804}}
+        |The actual details about the death go here...
+
+    We split on `|-` row separators and extract the last cell of each row
+    (which is consistently the Details column). Header rows are skipped
+    because their cells are introduced with `!` instead of `|`.
     """
-    try:
-        resp = session.get(_WIKI_UNUSUAL_DEATHS_URL, timeout=20)
-    except requests.RequestException:
-        print("Wikipedia fetch failed (network error).")
-        return []
-    if not resp.ok:
-        print(f"Wikipedia fetch failed: HTTP {resp.status_code}.")
-        return []
-
-    try:
-        data = resp.json()
-    except Exception:
-        print("Wikipedia response could not be parsed as JSON.")
-        return []
-
-    wikitext = data.get("parse", {}).get("wikitext", {}).get("*", "")
-    if not wikitext:
-        print("Wikipedia: empty wikitext returned.")
-        return []
-
-    results: list[dict] = []
-    for m in _WIKI_BULLET_RE.finditer(wikitext):
-        raw_entry = m.group(1).strip()
-
-        # Check if there is a year prefix and filter to >= 1800.
-        year_match = _WIKI_YEAR_RE.match(raw_entry)
-        if year_match:
-            year = int(year_match.group(1))
-            if year < 1800:
-                continue
-
-        claim = _strip_wiki_markup(raw_entry)
-        # Strip leading year prefix that survived markup removal.
-        claim = re.sub(r"^\d{4}\s*[-:]+\s*", "", claim).strip()
+    out: list[dict] = []
+    rows = re.split(r"\n\|-\s*\n", wikitext)
+    for row in rows:
+        # Each row has cells separated by `\n|`. Take the last `|`-prefixed cell.
+        cells = re.split(r"\n\|", row)
+        if len(cells) < 2:
+            continue
+        details_raw = cells[-1].strip()
+        # Skip image-only or date-only cells that lack prose.
+        if details_raw.startswith("[[File:") or details_raw.startswith("{{dts"):
+            continue
+        # Drop trailing pipes / closing braces.
+        details_raw = details_raw.rstrip("|}").strip()
+        claim = _strip_wiki_markup(details_raw)
+        # Drop leading date if it survived markup removal.
+        claim = re.sub(r"^\d{1,2}\s+\w+\s+\d{4}\s*", "", claim).strip()
         claim = _normalise_claim(claim)
-
         if len(claim) < 60 or len(claim) > 320:
             continue
+        out.append({"claim": claim, "source_url": page_url})
+    return out
 
-        results.append({
-            "claim":      claim,
-            "source_url": _WIKI_SOURCE_URL,
-        })
+
+def _fetch_wikipedia_unusual_deaths() -> list[dict]:
+    """Fetch and parse Wikipedia's per-century "List of unusual deaths" pages.
+
+    Wikipedia split the original combined article into per-century children
+    that use wikitext tables, not bullet lists. Each row maps a person to
+    a Details cell containing the unusual circumstances of death.
+
+    Returns a list of dicts with keys:
+        claim       -- cleaned plain-text Details cell
+        source_url  -- canonical Wikipedia URL for the page it came from
+    Entries shorter than 60 chars or longer than 320 chars are skipped.
+    """
+    results: list[dict] = []
+    for page in _WIKI_PAGES:
+        page_url = _WIKI_SOURCE_URL_BASE + page
+        try:
+            resp = session.get(
+                _WIKI_API_BASE,
+                params={
+                    "action":   "parse",
+                    "page":     page,
+                    "prop":     "wikitext",
+                    "format":   "json",
+                },
+                timeout=20,
+            )
+        except requests.RequestException:
+            print(f"  Wikipedia fetch failed for {page} (network error).")
+            continue
+        if not resp.ok:
+            print(f"  Wikipedia fetch failed for {page}: HTTP {resp.status_code}.")
+            continue
+
+        try:
+            data = resp.json()
+        except Exception:
+            continue
+
+        wikitext = data.get("parse", {}).get("wikitext", {}).get("*", "")
+        if not wikitext:
+            continue
+
+        page_results = _parse_wiki_death_table(wikitext, page_url)
+        results.extend(page_results)
+        print(f"  {page}: {len(page_results)} entries")
+        time.sleep(0.5)  # Polite to Wikipedia API
 
     return results
 
