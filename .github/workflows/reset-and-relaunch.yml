@@ -76,44 +76,47 @@ jobs:
 
       - name: Clear all posting state and ledgers
         run: |
-          echo "Clearing all ledgers and posting history..."
+          python3 - << 'PYEOF'
+          import shutil
+          from pathlib import Path
+          from datetime import datetime, timezone
 
-          # Append-only JSONL ledgers → empty files (create if missing, clear if exists)
-          for f in \
-            insta-brain/data/posted.jsonl \
-            insta-brain/data/posted_quotes.jsonl \
-            insta-brain/data/queue.jsonl \
-            insta-brain/data/reels.jsonl \
-            insta-brain/data/stats.jsonl \
-            insta-brain/data/trends.jsonl \
-            insta-brain/data/used_images.jsonl \
-            data/approval_queue.jsonl \
-            data/ledgers/approval_queue.jsonl \
-            data/ledgers/discovered_facts.jsonl \
-            data/ledgers/used_footage_urls.jsonl; do
-            mkdir -p "$(dirname "$f")"
-            > "$f"
-            echo "  cleared: $f"
-          done
+          JSONL_FILES = [
+              "insta-brain/data/posted.jsonl",
+              "insta-brain/data/posted_quotes.jsonl",
+              "insta-brain/data/queue.jsonl",
+              "insta-brain/data/reels.jsonl",
+              "insta-brain/data/stats.jsonl",
+              "insta-brain/data/trends.jsonl",
+              "insta-brain/data/used_images.jsonl",
+              "data/approval_queue.jsonl",
+              "data/ledgers/approval_queue.jsonl",
+              "data/ledgers/discovered_facts.jsonl",
+              "data/ledgers/used_footage_urls.jsonl",
+          ]
 
-          # JSON state files → empty object
-          echo "{}" > insta-brain/data/weekly_state.json
-          echo "  cleared: insta-brain/data/weekly_state.json"
+          for f in JSONL_FILES:
+              p = Path(f)
+              p.parent.mkdir(parents=True, exist_ok=True)
+              p.write_text("")
+              print(f"  cleared: {f}")
 
-          # Brain log → clean slate
-          echo "# factjot brain log" > insta-brain/log.md
-          echo "" >> insta-brain/log.md
-          echo "Reset $(date -u +%Y-%m-%dT%H:%M)Z — fresh start." >> insta-brain/log.md
-          echo "  cleared: insta-brain/log.md"
+          Path("insta-brain/data/weekly_state.json").write_text("{}")
+          print("  cleared: insta-brain/data/weekly_state.json")
 
-          # Cache dirs (not git-tracked, safe to delete contents)
-          for d in data/cache/reels data/cache/images data/cache/renders data/cache/list_assets data/cache/tmp; do
-            rm -rf "$d"
-            mkdir -p "$d"
-            echo "  cleared: $d"
-          done
+          ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
+          Path("insta-brain/log.md").write_text(f"# factjot brain log\n\nReset {ts} — fresh start.\n")
+          print("  cleared: insta-brain/log.md")
 
-          echo "All state cleared."
+          for d in ["data/cache/reels","data/cache/images","data/cache/renders","data/cache/list_assets","data/cache/tmp"]:
+              p = Path(d)
+              if p.exists():
+                  shutil.rmtree(p)
+              p.mkdir(parents=True)
+              print(f"  cleared: {d}")
+
+          print("All state cleared.")
+          PYEOF
 
       - name: Commit cleared state
         run: |
