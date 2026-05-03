@@ -147,8 +147,15 @@ def compose(
     total_duration_s: float,
     voice_delay_s: float = 0.0,
     ffmpeg_bin: str = "ffmpeg",
+    subtitle_ass_path: Optional[Path] = None,
+    fonts_dir: Optional[Path] = None,
 ) -> Path:
-    """Compose the final Reel MP4 from multiple footage clips."""
+    """Compose the final Reel MP4 from multiple footage clips.
+
+    subtitle_ass_path: if provided, subtitles are rendered via FFmpeg's
+    native 'ass' filter (one filter pass) instead of chained PNG overlays.
+    This is the fast path -- 20+ overlay stages collapse to 1.
+    """
     if not footage_paths:
         raise RuntimeError("compose() requires at least one footage clip")
 
@@ -166,6 +173,8 @@ def compose(
         overlays=overlays,
         total_duration_s=total_duration_s,
         voice_delay_s=voice_delay_s,
+        subtitle_ass_path=subtitle_ass_path,
+        fonts_dir=fonts_dir,
     )
 
     cmd = [
@@ -262,6 +271,8 @@ def _build_filter_graph(
     overlays: list[OverlayFrame],
     total_duration_s: float,
     voice_delay_s: float = 0.0,
+    subtitle_ass_path: Optional[Path] = None,
+    fonts_dir: Optional[Path] = None,
 ) -> tuple[list[str], list[str], list[str]]:
     inputs: list[str] = []
     filter_lines: list[str] = []
@@ -372,6 +383,20 @@ def _build_filter_graph(
             f"[{cur}]"
         )
         prev = cur
+
+    # Native .ass subtitle render -- one filter pass for ALL subtitle text.
+    # Replaces the 20+ sequential PNG overlay stages when subtitle_ass_path
+    # is provided. libass is compiled into the GitHub Actions static FFmpeg.
+    if subtitle_ass_path and subtitle_ass_path.exists():
+        ass_arg = str(subtitle_ass_path).replace("\\", "/").replace(":", "\\:")
+        fd_arg = ""
+        if fonts_dir and fonts_dir.exists():
+            fd = str(fonts_dir).replace("\\", "/").replace(":", "\\:")
+            fd_arg = f":fontsdir={fd}"
+        filter_lines.append(
+            f"[{prev}]ass=filename={ass_arg}{fd_arg}[after_subs]"
+        )
+        prev = "after_subs"
 
     # Apply branded intro overlay (alpha - circle reveals footage, red wraps it).
     # eof_action=pass: when the 1.37s intro stream ends, the overlay passes

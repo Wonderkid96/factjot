@@ -166,6 +166,89 @@ def group_into_chunks(
     return chunks
 
 
+def generate_ass_file(
+    chunks: list[list[WordBeat]],
+    out_path: "Path",
+    *,
+    play_res_x: int = 1080,
+    play_res_y: int = 1920,
+    font_name: str = "Space Grotesk SemiBold",
+    font_size: int = 72,
+    margin_v: int = 140,
+    voice_delay_s: float = 3.5,
+    cta_start_s: float = 9999.0,
+    subtitle_start_gate: float = 3.5,
+) -> "Path":
+    """Generate an .ass subtitle file from word-beat chunks.
+
+    Replaces 20+ sequential PNG overlay stages with a single FFmpeg
+    'ass' filter -- one filter pass regardless of subtitle count.
+
+    libass (--enable-libass) is compiled into the static FFmpeg used
+    on GitHub Actions, so no extra install is needed.
+
+    Returns the path to the written .ass file.
+    """
+    from pathlib import Path as _Path
+
+    def _ts(seconds: float) -> str:
+        """Convert float seconds to ASS timestamp H:MM:SS.cc"""
+        seconds = max(0.0, seconds)
+        h = int(seconds // 3600)
+        m = int((seconds % 3600) // 60)
+        s = seconds % 60
+        cs = int(round((s - int(s)) * 100))
+        return f"{h}:{m:02d}:{int(s):02d}.{cs:02d}"
+
+    header = (
+        "[Script Info]\n"
+        "ScriptType: v4.00+\n"
+        f"PlayResX: {play_res_x}\n"
+        f"PlayResY: {play_res_y}\n"
+        "WrapStyle: 1\n"
+        "ScaledBorderAndShadow: yes\n"
+        "\n"
+        "[V4+ Styles]\n"
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour,"
+        " OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut,"
+        " ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow,"
+        " Alignment, MarginL, MarginR, MarginV, Encoding\n"
+        f"Style: Default,{font_name},{font_size},"
+        "&H00FFFFFF,&H000000FF,&H00000000,&HAA000000,"  # white text, dark bg
+        "-1,0,0,0,100,100,0,0,1,2.5,1.5,"              # bold, no italic, border+shadow
+        f"2,40,40,{margin_v},1\n"                       # bottom-centre alignment
+        "\n"
+        "[Events]\n"
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+    )
+
+    dialogue_lines: list[str] = []
+    for chunk_idx, chunk in enumerate(chunks):
+        raw_start = chunk[0].start_s + voice_delay_s
+        if chunk_idx + 1 < len(chunks):
+            raw_end = chunks[chunk_idx + 1][0].start_s + voice_delay_s
+        else:
+            raw_end = chunk[-1].end_s + voice_delay_s + 0.35
+
+        start = max(raw_start, subtitle_start_gate)
+        end = min(raw_end, cta_start_s - 0.05)
+        if start >= end:
+            continue
+
+        text = " ".join(b.word for b in chunk)
+        # Escape backslashes and braces (ASS override tag delimiters)
+        text = text.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}")
+
+        dialogue_lines.append(
+            f"Dialogue: 0,{_ts(start)},{_ts(end)},Default,,0,0,0,,{text}"
+        )
+
+    _Path(out_path).write_text(
+        header + "\n".join(dialogue_lines) + "\n", encoding="utf-8"
+    )
+    return _Path(out_path)
+
+
 def group_into_lines(
     beats: list[WordBeat],
     words_per_line: int = 5,

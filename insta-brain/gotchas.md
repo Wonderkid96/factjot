@@ -121,6 +121,25 @@ No logo divider line. No bottom strip. No flanking lines around the logo. The th
 
 ---
 
+## FFmpeg in GitHub Actions (CI)
+
+**FFmpeg hangs indefinitely in GitHub Actions without `-nostdin`.**
+Without `-nostdin`, FFmpeg opens stdin in interactive mode waiting for keypresses (q to quit, ? for help). In a TTY-less CI environment, stdin is a dead pipe and FFmpeg sits there forever. This caused every reel build to time out at 20 minutes. The fix is two-pronged: add `-nostdin` to the FFmpeg command AND `stdin=subprocess.DEVNULL` in the Python Popen call. Both are now in `src/render/reel_composer.py`. Never remove them.
+
+**20+ sequential PNG overlay stages are the wrong approach for kinetic subtitles.**
+Each overlay stage re-renders the full 1080x1920 frame. 27 subtitle chunks = 27 full-frame renders per output frame. The correct approach is FFmpeg's native `ass` filter (`--enable-libass` is compiled into the static FFmpeg build used on GitHub Actions). One `.ass` file replaces all subtitle PNG inputs. `generate_ass_file()` in `src/render/tts_engine.py` generates the file from word beats; `compose()` in `reel_composer.py` applies it via `-filter_complex "[prev]ass=filename=...:[after_subs]"`. The PNG approach was abandoned 2026-05-03.
+
+**FFmpeg `-preset fast` on a 2-core GitHub Actions runner is unnecessarily slow.**
+Changed to `veryfast` with `crf 23`. Imperceptible quality difference at Instagram resolution; meaningful encode-time saving on constrained hardware.
+
+**ProRes 4444 intro (`factjot_intro.mov`) is `yuva444p12le` — 12-bit with full alpha.**
+Scaling it with `flags=lanczos` inside the filter graph is expensive. Changed to `flags=bilinear`. Also added `eof_action=pass` to the intro overlay so FFmpeg doesn't attempt to hold the stream open after the intro's 1.37s duration ends.
+
+**Archive.org search requests with a 20s timeout block the footage finder.**
+For facts where Archive has no relevant footage (most modern facts), every query waits the full timeout before moving on. With 3-5 queries per reel, this added 60-100s of dead wait. `_HTTP_TIMEOUT` in `video_finder.py` cut from 20s to 10s.
+
+---
+
 ## Fix philosophy (mandatory)
 
 Every fix must be a long-term structural fix, not a temporary patch. A patch that suppresses a symptom without removing its root cause will reappear in a different form or a different part of the pipeline. Before shipping any fix, ask: does this eliminate the cause, or does it hide it? If it hides it, keep digging.
