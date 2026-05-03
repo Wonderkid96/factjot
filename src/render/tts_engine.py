@@ -107,6 +107,7 @@ def synthesise(
                 return result
             except Exception as exc:
                 msg = f"ElevenLabs failed ({exc.__class__.__name__}: {exc}) — falling back to edge-tts"
+                print(f"WARNING: ElevenLabs failed, using edge-tts fallback. Check ElevenLabs quota.")
                 print(f"  [tts] {msg}")
                 _alert_tts_fallback(msg)
 
@@ -343,6 +344,23 @@ def _synthesise_elevenlabs(
     voice_id = _el_resolve_voice(voice)
     mp3_path = out_dir / "voice.mp3"
 
+    # Check quota before burning characters
+    try:
+        quota_resp = _req.get(
+            "https://api.elevenlabs.io/v1/user/subscription",
+            headers={"xi-api-key": api_key},
+            timeout=10,
+        )
+        if quota_resp.ok:
+            sub = quota_resp.json()
+            used = sub.get("character_count", 0)
+            limit = sub.get("character_limit", 1)
+            pct_used = used / limit * 100
+            if pct_used > 80:
+                print(f"WARNING: ElevenLabs {pct_used:.0f}% quota used ({used}/{limit} chars)")
+    except Exception:
+        pass
+
     resp = _req.post(
         f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/with-timestamps",
         json={
@@ -374,11 +392,14 @@ def _synthesise_elevenlabs(
         starts=alignment.get("character_start_times_seconds", []),
         ends=alignment.get("character_end_times_seconds", []),
     )
-    print(
-        f"  [tts/elevenlabs] {len(beats)} words, "
-        f"duration~{beats[-1].end_s:.1f}s" if beats else
-        "  [tts/elevenlabs] no alignment data"
-    )
+    if beats:
+        print(f"  [tts/elevenlabs] {len(beats)} words, duration~{beats[-1].end_s:.1f}s")
+    else:
+        print("  [tts/elevenlabs] no alignment data")
+        raise RuntimeError(
+            "ElevenLabs returned empty alignment data — cannot build word beats. "
+            "Check the API response or fall back to edge-tts."
+        )
     return mp3_path, beats
 
 
