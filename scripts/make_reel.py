@@ -384,8 +384,8 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
     # comfortably under that limit. Larger chunks = fewer overlay PNGs.
     chunks = group_into_chunks(
         word_beats,
-        words_per_line=6,
-        max_chars=44,
+        words_per_line=8,
+        max_chars=52,
         original_text=vo_script,
     )
 
