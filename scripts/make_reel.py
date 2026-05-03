@@ -488,7 +488,9 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
             total_duration_s=total_dur,
             voice_delay_s=INTRO_S,
             subtitle_ass_path=ass_path,
-            fonts_dir=Path(__file__).resolve().parents[1] / "assets" / "fonts",
+            # Pass only the one font .ass needs - loading all 14 fonts twice
+            # was adding ~20s of fontconfig overhead before encoding started.
+            fonts_dir=Path(__file__).resolve().parents[1] / "assets" / "fonts" / "subtitle_fonts",
         )
     except RuntimeError as exc:
         print(f"\nFFmpeg error:\n{exc}")
