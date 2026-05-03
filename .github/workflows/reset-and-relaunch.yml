@@ -78,7 +78,7 @@ jobs:
         run: |
           echo "Clearing all ledgers and posting history..."
 
-          # Append-only JSONL ledgers → empty files (keep the file so git is happy)
+          # Append-only JSONL ledgers → empty files (create if missing, clear if exists)
           for f in \
             insta-brain/data/posted.jsonl \
             insta-brain/data/posted_quotes.jsonl \
@@ -91,6 +91,7 @@ jobs:
             data/ledgers/approval_queue.jsonl \
             data/ledgers/discovered_facts.jsonl \
             data/ledgers/used_footage_urls.jsonl; do
+            mkdir -p "$(dirname "$f")"
             > "$f"
             echo "  cleared: $f"
           done
