@@ -87,6 +87,34 @@ There is no auto-fallback path. If a discovered fact is missing either field, `m
 
 ---
 
+## List pack cache
+
+**List packs are pre-built on Sunday via `prepare_packs.py`.**
+TMDB calls, Playwright rendering, and imgbb uploads all happen on Sunday morning, not at 17:00 UTC post time. `ship_list_post.py` reads `data/ledgers/list_pack_cache.jsonl` — if the pack is cached and valid (<7 days old), it skips all of that work and posts directly. Cache is committed to git by both `weekly-plan.yml` (after prep) and `list-carousel.yml` (after post). Do not gitignore it.
+
+**If the cache is missing at post time**, `ship_list_post.py` falls back to the full TMDB + render + imgbb flow. This is intentional and correct — the fallback path must never be removed.
+
+**`src/content/pack_resolver.py` is the single source of truth for TMDB resolution.**
+Both `ship_list_post.py` and `prepare_packs.py` import from it. Do not add TMDB logic to either script directly — put it in pack_resolver.py.
+
+---
+
+## Entity-first footage sourcing
+
+**Tier 0 (Wikipedia/Wikimedia/Archive) runs before all Pexels B-roll.**
+For a fact about Phineas Gage, the pipeline searches Wikipedia for "Phineas Gage" first and downloads the actual historical photograph before trying any Pexels query. This is implemented in `_entity_sources()` in `video_finder.py`. Do not move or remove this — it is what makes reels about real people/events look credible.
+
+**Wikimedia Commons requires a two-step API call** (search then imageinfo). Do not try to shortcut it with a direct URL construction — filenames are not URL-safe and the API handles normalisation correctly.
+
+---
+
+## Reel thumbnail design
+
+**Current design (2026-05-03): `factjot.` top-left, `TOPIC` top-right, title centred, corner brackets.**
+No logo divider line. No bottom strip. No flanking lines around the logo. The thumbnail template went through many iterations — the settled design is in `src/render/templates/reel_thumbnail.html.j2`. Do not add back elements that were removed (bottom @factjot strip, flanking lines around wordmark) without testing a preview render first via `render_thumbnail()`.
+
+---
+
 ## Fix philosophy (mandatory)
 
 Every fix must be a long-term structural fix, not a temporary patch. A patch that suppresses a symptom without removing its root cause will reappear in a different form or a different part of the pipeline. Before shipping any fix, ask: does this eliminate the cause, or does it hide it? If it hides it, keep digging.

@@ -119,18 +119,19 @@ cd /Users/Music/Documents/Insta-bot
 | File | Purpose |
 |---|---|
 | `scripts/make_reel.py` | Main Reel pipeline entry point |
-| `scripts/ship_first_post.py` | Morning carousel (topic-based) |
-| `scripts/ship_list_post.py` | Evening list carousel (--next auto-picks next pack) |
-| `scripts/plan_week.py` | Plans 7 days of carousels + checks Reel runway |
-| `scripts/publish_due.py` | Publishes scheduled carousel posts |
+| `scripts/ship_first_post.py` | Morning carousel (topic-based, quirky_score >= 2 floor) |
+| `scripts/ship_list_post.py` | Evening list carousel (cache-first, then TMDB fallback) |
+| `scripts/prepare_packs.py` | Sunday: pre-resolves all unposted list packs, writes cache |
+| `scripts/restock.py` | Sunday: fact discovery + runway report across all content types |
 | `scripts/refresh_token.py` | Refreshes Meta 60-day access token |
 | `scripts/check_posted_today.py` | Idempotency guard — exits 1 if already posted today |
 | `scripts/check_token.py` | Verifies Meta token; prints `ok` or `invalid` |
-| `scripts/check_reel_runway.py` | Counts unposted q2+q3 facts for runway alert |
+| `scripts/check_reel_runway.py` | Counts unposted q2+q3 facts with reel fields for runway |
+| `scripts/discover_facts.py` | Discovers facts from Reddit TIL; scores 0-3; rejects boring |
 | `scripts/log_workflow_failure.py` | Writes failure entry to brain log on workflow error |
 | `scripts/log_token_alert.py` | Writes token-expired alert to brain log |
-| `scripts/discover_facts.py` | Discovers new facts; assigns quirky_score 1-3 by upvote count |
-| `src/research/rare_fact_bank.py` | 152 curated facts — source of truth |
+| `src/content/pack_resolver.py` | Shared TMDB resolution for list packs (used by both ship_list_post + prepare_packs) |
+| `src/research/rare_fact_bank.py` | Curated facts — source of truth |
 | `src/research/narrative_beats.py` | 5 footage queries derived from `image_hint` |
 | `src/research/video_finder.py` | Multi-source footage finder with relevance scoring |
 | `src/content/reel_script.py` | Formats claim into dramatic VO (narrative build + ellipses) |
@@ -157,7 +158,7 @@ cd /Users/Music/Documents/Insta-bot
 - **~43 quirky_score=3** (shock/viral tier — the only ones used for Reels by default)
 - All q3 facts **must** have curated `reel_script` (>=70 words) and `reel_title` — hard gate enforced
 - `allow_archival=True` set on facts where low-quality archival footage is appropriate (Voynich Manuscript, First Photograph)
-- `discover_facts.py` assigns quirky_score: 5k-15k upvotes=1, 15k-30k=2, 30k+=3 (plus viral signal words bonus)
+- `discover_facts.py` requires MIN_UPVOTES=10,000. Scores: 10k-15k=1, 15k-30k=2, 30k+=3. Viral signal words give +1 bonus. Generic openers with no specificity signals score 0 (rejected, never written to bank).
 
 **Runway rule:** keep at least 14 unused q3 facts (2 weeks buffer). Reel workflow checks runway before posting — if below 14, runs `discover_facts.py` automatically. Run `scripts/check_reel_runway.py` to see current count.
 
@@ -180,11 +181,22 @@ After editing `rare_fact_bank.py`, always run `scripts/validate_reel_facts.py`.
 
 ## Footage quality rules
 
-- All 5 beat queries are anchored to `image_hint` — they never drift to generic topic b-roll
-- Non-archival (default): 800KB minimum, Archive.org skipped, NASA space-only
+**Source priority (Tier 0 runs first):**
+1. **Wikipedia lead image** — fetches the actual article image for the named entity (no auth)
+2. **Wikimedia Commons** — entity-name search, video preferred over stills, rights-cleared only
+3. **Internet Archive** — exact-phrase entity search, scored by relevance
+4. **Pexels / Coverr / Pixabay** — B-roll fill from `image_hint`-derived queries
+
+Tier 0 fills the first 1-2 clip slots with fact-specific content. B-roll fills the rest.
+
+**Quality floors (do not lower):**
+- Non-archival: 2MB minimum file size, 4s minimum duration (probed via ffprobe)
 - Archival (`allow_archival=True`): 50KB minimum, all sources enabled
+- NSFW block: filenames/descriptions containing "nsfw", "explicit", "nude", "porn", etc. are skipped
+
+**Dedup:**
 - `used_source_urls` set prevents same video appearing twice within a single Reel
-- `data/ledgers/used_footage_urls.jsonl` prevents same video appearing across different Reels
+- `data/ledgers/used_footage_urls.jsonl` (git-tracked) prevents same video across different Reels
 - Pexels fetches 15 results per query to allow deduplication to find alternatives
 
 ---
@@ -204,14 +216,21 @@ After editing `rare_fact_bank.py`, always run `scripts/validate_reel_facts.py`.
 
 ---
 
-## Label design — full-width carousel-style header
+## Reel thumbnail design
 
-`factjot. [────────────────────] TOPIC`
+`factjot.` top-left (Instrument Serif 30px) · `TOPIC` top-right (JetBrains Mono 22px)
 
-- Left: Instrument Serif wordmark (`fact` regular, `jot` italic, `.` accent red)
-- Middle: `flex: 1 1 auto` separator line (off-white, opacity 0.38) — expands full width
-- Right: JetBrains Mono uppercase, letter-spacing 0.18em
-- Position: `top: 88px; left: 56px; right: 56px` (matches carousel slides exactly)
+- No separator line in header — wordmark and topic sit directly at top edges
+- Title centred vertically (Instrument Serif, ~108px, last word italicised)
+- Corner brackets: L-shaped viewfinder lines at all 4 corners, 56px arms, off-white 65% opacity
+- Left accent line: full height, red → lime gradient, 4px, 80% opacity
+- Title scrim: radial dark ellipse behind title area so footage never fights the text
+- Template: `src/render/templates/reel_thumbnail.html.j2`
+
+**Carousel slides** use a full-width header bar:
+`factjot. [────────────────────] TOPIC/INDEX`
+
+Position: `top: 56px; left: 72px; right: 72px` (see `src/render/templates/slide.html.j2`)
 
 ---
 
@@ -317,10 +336,10 @@ Every fix must be a long-term structural fix, not a temporary patch. A patch tha
 
 ## What is NOT yet done
 
-- Stories on carousel posts — `publish_due.py` doesn't post stories after carousels yet
-- Weekly reel schedule planner — `plan_week.py` checks runway but doesn't pre-assign facts to days
-- Carousel story images — no template exists yet for carousel story cards
+- Stories on carousel posts — carousels don't post a story after publishing; only reels do
+- Carousel story images — no template exists for carousel story cards
 - TikTok integration — app submitted for review 2026-05-02; not yet wired into pipeline
+- Meta System User token — current token is 60-day rolling; switching to System User would make it permanent (requires manual setup in Meta Business Manager)
 
 ---
 
