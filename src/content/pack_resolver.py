@@ -64,6 +64,12 @@ def _fetch_item_data(raw: dict, tmdb: TMDBClient, omdb: OMDbClient,
         entity = tmdb.get_tv_show(tmdb_id)
         credits = tmdb.get_tv_credits(tmdb_id)
         title = entity.get("name") or entity.get("original_name") or "Untitled"
+        expected = raw.get("expected_title")
+        if expected and expected.lower() not in title.lower() and title.lower() not in expected.lower():
+            raise RuntimeError(
+                f"TMDB ID {tmdb_id} returned {title!r} but pack expects {expected!r}. "
+                f"Wrong ID — fix list_packs.py before posting."
+            )
         year = (entity.get("first_air_date") or "")[:4] or ""
         credit_name = tmdb.first_creator_name(entity, credits) or ""
         director = f"by {credit_name}" if credit_name else ""
