@@ -1,0 +1,180 @@
+name: Reset + Relaunch (manual only)
+
+# ── DANGER ─────────────────────────────────────────────────────────────
+# This workflow clears ALL posting history, ledgers, and cached state.
+# Every fact, reel, and carousel will be treated as "never posted".
+# Only trigger this deliberately from the Actions tab on GitHub.
+# ────────────────────────────────────────────────────────────────────────
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: factjot-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install system dependencies (FFmpeg)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright browsers
+        run: playwright install chromium --with-deps
+
+      - name: Write .env from secrets
+        run: |
+          cat > .env << 'ENVEOF'
+          INSTAGRAM_ACCOUNT_ID=${{ secrets.INSTAGRAM_ACCOUNT_ID }}
+          FACEBOOK_PAGE_ID=${{ secrets.FACEBOOK_PAGE_ID }}
+          META_ACCESS_TOKEN=${{ secrets.META_ACCESS_TOKEN }}
+          META_GRAPH_VERSION=${{ secrets.META_GRAPH_VERSION }}
+          META_APP_SECRET=${{ secrets.META_APP_SECRET }}
+          META_APP_ID=${{ secrets.META_APP_ID }}
+          META_GRAPH_HOST=${{ secrets.META_GRAPH_HOST }}
+          META_LOGIN_FLOW=${{ secrets.META_LOGIN_FLOW }}
+          IMGBB_API_KEY=${{ secrets.IMGBB_API_KEY }}
+          PEXELS_API_KEY=${{ secrets.PEXELS_API_KEY }}
+          TMDB_READ_TOKEN=${{ secrets.TMDB_READ_TOKEN }}
+          TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}
+          OMDB_API_KEY=${{ secrets.OMDB_API_KEY }}
+          ELEVENLABS_API_KEY=${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE=${{ secrets.ELEVENLABS_VOICE }}
+          COVERR_API_KEY=${{ secrets.COVERR_API_KEY }}
+          PIXABAY_API_KEY=${{ secrets.PIXABAY_API_KEY }}
+          IMAGE_HOST=${{ secrets.IMAGE_HOST }}
+          MUSIC_CREDIT=${{ secrets.MUSIC_CREDIT }}
+          CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_UPLOAD_PRESET=${{ secrets.CLOUDINARY_UPLOAD_PRESET }}
+          CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
+          TIMEZONE=UTC
+          ENVEOF
+
+      - name: Clear all posting state and ledgers
+        run: |
+          echo "Clearing all ledgers and posting history..."
+
+          # Append-only JSONL ledgers → empty files (keep the file so git is happy)
+          for f in \
+            insta-brain/data/posted.jsonl \
+            insta-brain/data/posted_quotes.jsonl \
+            insta-brain/data/queue.jsonl \
+            insta-brain/data/reels.jsonl \
+            insta-brain/data/stats.jsonl \
+            insta-brain/data/trends.jsonl \
+            insta-brain/data/used_images.jsonl \
+            data/approval_queue.jsonl \
+            data/ledgers/approval_queue.jsonl \
+            data/ledgers/discovered_facts.jsonl \
+            data/ledgers/used_footage_urls.jsonl; do
+            > "$f"
+            echo "  cleared: $f"
+          done
+
+          # JSON state files → empty object
+          echo "{}" > insta-brain/data/weekly_state.json
+          echo "  cleared: insta-brain/data/weekly_state.json"
+
+          # Brain log → clean slate
+          echo "# factjot brain log" > insta-brain/log.md
+          echo "" >> insta-brain/log.md
+          echo "Reset $(date -u +%Y-%m-%dT%H:%M)Z — fresh start." >> insta-brain/log.md
+          echo "  cleared: insta-brain/log.md"
+
+          # Cache dirs (not git-tracked, safe to delete contents)
+          for d in data/cache/reels data/cache/images data/cache/renders data/cache/list_assets data/cache/tmp; do
+            rm -rf "$d"
+            mkdir -p "$d"
+            echo "  cleared: $d"
+          done
+
+          echo "All state cleared."
+
+      - name: Commit cleared state
+        run: |
+          git config user.name  "factjot-bot"
+          git config user.email "bot@factjot"
+          git add \
+            insta-brain/data/posted.jsonl \
+            insta-brain/data/posted_quotes.jsonl \
+            insta-brain/data/queue.jsonl \
+            insta-brain/data/reels.jsonl \
+            insta-brain/data/stats.jsonl \
+            insta-brain/data/trends.jsonl \
+            insta-brain/data/used_images.jsonl \
+            insta-brain/data/weekly_state.json \
+            insta-brain/log.md \
+            data/approval_queue.jsonl \
+            data/ledgers/approval_queue.jsonl \
+            data/ledgers/discovered_facts.jsonl \
+            data/ledgers/used_footage_urls.jsonl \
+            || true
+          git commit -m "reset: clear all posting state $(date -u +%Y-%m-%dT%H:%M)Z"
+          git push origin main
+
+      - name: Discover fresh facts from Reddit
+        run: |
+          echo "Pulling fresh facts from r/todayilearned..."
+          python3 scripts/discover_facts.py || echo "Discovery failed — continuing with curated bank"
+
+      - name: Refresh Meta access token
+        run: |
+          python3 scripts/refresh_token.py || echo "WARNING: token refresh failed"
+
+      - name: Post reel
+        run: python3 scripts/make_reel.py
+
+      - name: Capture failure to brain log
+        if: failure()
+        env:
+          WORKFLOW_FILE: .github/workflows/reset-and-relaunch.yml
+          RUN_ID: ${{ github.run_id }}
+          TRIGGER: ${{ github.event_name }}
+          REF: ${{ github.ref_name }}
+        run: python3 scripts/log_workflow_failure.py
+
+      - name: Commit and push final state
+        if: always()
+        run: |
+          git config user.name  "factjot-bot"
+          git config user.email "bot@factjot"
+          git add \
+            insta-brain/data/posted.jsonl \
+            insta-brain/data/posted_quotes.jsonl \
+            insta-brain/data/queue.jsonl \
+            insta-brain/data/reels.jsonl \
+            insta-brain/log.md \
+            insta-brain/MEMORY_INDEX.md \
+            data/approval_queue.jsonl \
+            data/ledgers/approval_queue.jsonl \
+            data/ledgers/discovered_facts.jsonl \
+            data/ledgers/used_footage_urls.jsonl \
+            || true
+          git diff --cached --quiet && echo "No state changes to commit." && exit 0
+          git commit -m "state: post-reset reel $(date -u +%Y-%m-%dT%H:%M)Z"
+          git pull --rebase --autostash origin main
+          git push origin main
