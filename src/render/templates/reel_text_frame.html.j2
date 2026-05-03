@@ -154,8 +154,8 @@
     position: absolute;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%);   /* true X and Y centre */
-    width: 86%;
+    transform: translate(-50%, -54%);   /* slightly above centre — visual weight below */
+    width: 84%;
     text-align: center;
     font-family: "Instrument Serif", Georgia, serif;
     font-weight: 400;
@@ -163,6 +163,10 @@
     line-height: 1.0;
     letter-spacing: -0.020em;
     text-wrap: balance;
+    text-shadow:
+      2px 2px 0 rgba(0,0,0,0.70),
+      0 4px 24px rgba(0,0,0,0.65),
+      0 8px 48px rgba(0,0,0,0.45);
   }
   .hook em { font-style: italic; }
   .hook em.accent { color: var(--accent); }

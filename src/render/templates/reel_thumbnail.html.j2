@@ -42,6 +42,7 @@
     text-rendering: optimizeLegibility;
   }
 
+  /* ── Footage background ─────────────────────────────────────────── */
   .stage {
     position: relative;
     width: 100%;
@@ -53,60 +54,131 @@
     {% endif %}
   }
 
-  /* Cinematic dark overlay — above footage frame, below all text and branding */
-  .dark-overlay {
+  /* ── Cinematic gradient stack ───────────────────────────────────── */
+  /* Top: ensures header always reads over bright footage */
+  .grad-top {
     position: absolute;
-    inset: 0;
-    z-index: 1;
+    inset: 0 0 auto 0;
+    height: 38%;
     background: linear-gradient(
       to bottom,
-      rgba(0,0,0,0.62) 0%,
-      rgba(0,0,0,0.28) 25%,
-      rgba(0,0,0,0.22) 55%,
-      rgba(0,0,0,0.72) 85%,
-      rgba(0,0,0,0.88) 100%
+      rgba(0,0,0,0.82) 0%,
+      rgba(0,0,0,0.50) 50%,
+      rgba(0,0,0,0.00) 100%
     );
+    z-index: 1;
+    pointer-events: none;
+  }
+  /* Bottom: ensures title area and strip always read */
+  .grad-bottom {
+    position: absolute;
+    inset: 30% 0 0 0;
+    background: linear-gradient(
+      to bottom,
+      rgba(0,0,0,0.00)  0%,
+      rgba(0,0,0,0.42) 35%,
+      rgba(0,0,0,0.80) 65%,
+      rgba(0,0,0,0.96) 100%
+    );
+    z-index: 1;
+    pointer-events: none;
+  }
+  /* Side vignette: pulls attention inward */
+  .grad-sides {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center,
+      rgba(0,0,0,0.00) 50%,
+      rgba(0,0,0,0.42) 100%
+    );
+    z-index: 1;
     pointer-events: none;
   }
 
-  /* Accent gradient line — left edge, matches carousel style */
+  /* ── Title scrim: soft localised darkening under the title only ─── */
+  /* Stops busy footage (skull, coral, etc.) competing with the text.  */
+  .title-scrim {
+    position: absolute;
+    top: 28%;
+    left: 0;
+    right: 0;
+    height: 46%;
+    background: radial-gradient(ellipse 80% 55% at 50% 55%,
+      rgba(0,0,0,0.65) 0%,
+      rgba(0,0,0,0.00) 100%
+    );
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  /* ── Left accent line: full height, red → lime ──────────────────── */
   .accent-line {
     position: absolute;
     left: 0;
-    top: 15%;
-    bottom: 15%;
-    width: 3px;
-    z-index: 2;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    z-index: 3;
     background: linear-gradient(
       to bottom,
-      transparent 0%,
-      var(--accent) 20%,
-      var(--lime) 60%,
-      transparent 100%
+      transparent    0%,
+      var(--accent)  18%,
+      var(--lime)    55%,
+      var(--accent)  82%,
+      transparent   100%
     );
-    opacity: 0.7;
+    opacity: 0.80;
   }
 
-  /* Header: factjot. [───────────] TOPIC — full width, carousel style */
+  /* ── Corner brackets: viewfinder / film-frame aesthetic ─────────── */
+  /* Four L-shaped corners, 3px wide, 48px arms, off-white.           */
+  .corners {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+  }
+  .corner {
+    position: absolute;
+    width: 56px;
+    height: 56px;
+  }
+  .corner::before,
+  .corner::after {
+    content: "";
+    position: absolute;
+    background: var(--off-white);
+    opacity: 0.70;
+  }
+  /* Horizontal arm */
+  .corner::before { height: 3px; width: 100%; top: 0; left: 0; }
+  /* Vertical arm */
+  .corner::after  { width:  3px; height: 100%; top: 0; left: 0; }
+
+  .corner-tl { top: 48px;  left: 48px; }
+  .corner-tr { top: 48px;  right: 48px; transform: scaleX(-1); }
+  .corner-bl { bottom: 48px; left: 48px;  transform: scaleY(-1); }
+  .corner-br { bottom: 48px; right: 48px; transform: scale(-1); }
+
+  /* ── Header: factjot. ─────────────── TOPIC ─────────────────────── */
   .header {
     position: absolute;
     top: 88px;
-    left: 56px;
-    right: 56px;
+    left: 72px;
+    right: 72px;
     display: flex;
     align-items: center;
-    z-index: 2;
+    z-index: 5;
   }
   .header-wordmark {
     font-family: "Instrument Serif", Georgia, serif;
     font-weight: 400;
-    font-size: 28px;
+    font-size: 30px;
     letter-spacing: -0.02em;
     color: var(--off-white);
-    opacity: 0.88;
     flex: 0 0 auto;
     white-space: nowrap;
-    text-shadow: 1px 1px 0 rgba(0,0,0,0.5);
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.6);
   }
   .header-wordmark .reg  { font-style: normal; }
   .header-wordmark .ital { font-style: italic; }
@@ -115,8 +187,8 @@
     flex: 1 1 auto;
     height: 1px;
     background: var(--off-white);
-    opacity: 0.25;
-    margin: 0 16px;
+    opacity: 0.30;
+    margin: 0 18px;
   }
   .header-topic {
     font-family: "JetBrains Mono", ui-monospace, monospace;
@@ -125,77 +197,90 @@
     letter-spacing: 0.18em;
     text-transform: uppercase;
     color: var(--off-white);
-    opacity: 0.88;
     flex: 0 0 auto;
     white-space: nowrap;
-    text-shadow: 1px 1px 0 rgba(0,0,0,0.5);
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.6);
   }
 
-  /* Title — centred X and Y, large Instrument Serif */
+  /* ── Title: centred, Instrument Serif ───────────────────────────── */
   .title {
     position: absolute;
     top: 50%;
-    left: 56px;
-    right: 56px;
-    transform: translateY(-50%);
-    z-index: 2;
+    left: 72px;
+    right: 72px;
+    transform: translateY(-54%);   /* slightly above true centre — more visual weight below */
+    z-index: 5;
     font-family: "Instrument Serif", Georgia, serif;
     font-weight: 400;
     font-size: {{ title_size }}px;
-    line-height: 1.05;
-    letter-spacing: -0.02em;
+    line-height: 1.06;
+    letter-spacing: -0.020em;
     color: var(--off-white);
     text-align: center;
     text-wrap: balance;
-    text-shadow: 2px 2px 0 rgba(0,0,0,0.5);
+    text-shadow:
+      2px 2px 0 rgba(0,0,0,0.65),
+      0 4px 16px rgba(0,0,0,0.55);
   }
   .title em { font-style: italic; }
   .title .accent { color: var(--accent); font-style: italic; }
 
-  /* Play icon — subtle cue that this is a video */
-  .play-hint {
+  /* ── Bottom info strip ──────────────────────────────────────────── */
+  /* Replaces the faint play-circle — more legible, more branded.     */
+  .bottom-strip {
     position: absolute;
-    bottom: 200px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 2;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 20px;
-    opacity: 0.55;
-  }
-  .play-circle {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    border: 2px solid var(--off-white);
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 120px;
+    z-index: 5;
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 0;
   }
-  .play-triangle {
-    width: 0;
-    height: 0;
-    border-top: 16px solid transparent;
-    border-bottom: 16px solid transparent;
-    border-left: 26px solid var(--off-white);
-    margin-left: 4px;
+  /* Thin accent rule above the strip */
+  .bottom-strip::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 72px;
+    right: 72px;
+    height: 1px;
+    background: var(--off-white);
+    opacity: 0.20;
   }
-  .play-label {
+  .strip-handle {
     font-family: "JetBrains Mono", ui-monospace, monospace;
     font-weight: 700;
-    font-size: 18px;
+    font-size: 24px;
     letter-spacing: 0.22em;
     text-transform: uppercase;
     color: var(--off-white);
+    opacity: 0.70;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.5);
+  }
+  .strip-dot {
+    color: var(--accent);
+    opacity: 1;
   }
 </style>
 </head>
 <body>
 <div class="stage">
-  <div class="dark-overlay"></div>
+
+  <div class="grad-top"></div>
+  <div class="grad-bottom"></div>
+  <div class="grad-sides"></div>
+  <div class="title-scrim"></div>
   <div class="accent-line"></div>
+
+  <div class="corners">
+    <div class="corner corner-tl"></div>
+    <div class="corner corner-tr"></div>
+    <div class="corner corner-bl"></div>
+    <div class="corner corner-br"></div>
+  </div>
 
   <div class="header">
     <span class="header-wordmark">
@@ -207,12 +292,10 @@
 
   <div class="title">{{ title_html | safe }}</div>
 
-  <div class="play-hint">
-    <div class="play-circle">
-      <div class="play-triangle"></div>
-    </div>
-    <span class="play-label">Watch</span>
+  <div class="bottom-strip">
+    <span class="strip-handle">@fact<span class="strip-dot">jot</span></span>
   </div>
+
 </div>
 </body>
 </html>
