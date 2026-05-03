@@ -138,10 +138,11 @@ def resolve_pack(pack: dict, post_id: str,
     asset_root = LIST_ASSETS_CACHE / post_id
     asset_root.mkdir(parents=True, exist_ok=True)
 
-    # Instagram carousel cap: 20 images (raised from 10 in August 2024).
-    # Hook + items + closing = total slides, so items max = 18.
-    INSTAGRAM_MAX_CAROUSEL = 20
-    MAX_ITEMS = INSTAGRAM_MAX_CAROUSEL - 2  # 18
+    # Instagram Graph API carousel hard cap: 10 images.
+    # (The "20 frames" figure applies to Stories, not feed carousels.)
+    # Hook + items + closing = total slides, so items max = 8.
+    INSTAGRAM_MAX_CAROUSEL = 10
+    MAX_ITEMS = INSTAGRAM_MAX_CAROUSEL - 2  # 8
     raw_items = pack["items"]
     if len(raw_items) > MAX_ITEMS:
         print(f"  [pack] trimming {len(raw_items)} items to {MAX_ITEMS} (Instagram {INSTAGRAM_MAX_CAROUSEL}-slide cap)")

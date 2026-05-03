@@ -35,7 +35,7 @@ from __future__ import annotations
 LIST_PACKS: dict[str, dict] = {
     "top_war_films_corrected": {
         "slug": "top_war_films_corrected",
-        "title": "Ten war films worth your time",
+        "title": "Eight war films worth your time",
         "subtitle": "ranked by staying power, not box office.",
         "category": "FILM LIST",
         "series": "factjot",
