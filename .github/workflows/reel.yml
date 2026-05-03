@@ -93,6 +93,8 @@ jobs:
       - name: Check if reel already posted today + runway
         id: check
         run: |
+          # Pull latest state — another concurrent run may have just posted
+          git pull --rebase --autostash origin main 2>/dev/null || true
           if python3 scripts/check_posted_today.py reel | grep -q already_posted; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "Already posted a reel today - skipping."

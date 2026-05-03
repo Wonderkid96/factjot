@@ -90,6 +90,7 @@ jobs:
       - name: Check if carousel already posted today
         id: check
         run: |
+          git pull --rebase --autostash origin main 2>/dev/null || true
           if python3 scripts/check_posted_today.py carousel | grep -q already_posted; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "Already posted today - skipping."
