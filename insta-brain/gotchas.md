@@ -87,6 +87,12 @@ There is no auto-fallback path. If a discovered fact is missing either field, `m
 
 ---
 
+## Instagram carousel hard cap: 10 images maximum
+
+**Instagram rejects carousels with more than 10 images.** List packs generate: 1 hook slide + N item slides + 1 closing slide = N+2 total. Maximum items per pack is therefore **8** (8+2=10). `pack_resolver.py` enforces this automatically by trimming `pack["items"]` to 8 before resolving. Do not write packs with more than 8 items — the resolver will silently drop the extras. This was discovered when the `top_war_films` pack (10 films = 12 slides) failed at publish with: `Carousel exceeds Instagram's 10-image cap`.
+
+---
+
 ## List pack cache
 
 **List packs are pre-built on Sunday via `prepare_packs.py`.**

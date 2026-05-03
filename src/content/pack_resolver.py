@@ -129,9 +129,18 @@ def resolve_pack(pack: dict, post_id: str,
     asset_root = LIST_ASSETS_CACHE / post_id
     asset_root.mkdir(parents=True, exist_ok=True)
 
+    # Instagram hard cap: 10 images per carousel.
+    # Hook + items + closing = total slides, so items max = 8.
+    INSTAGRAM_MAX_CAROUSEL = 10
+    MAX_ITEMS = INSTAGRAM_MAX_CAROUSEL - 2  # 8
+    raw_items = pack["items"]
+    if len(raw_items) > MAX_ITEMS:
+        print(f"  [pack] trimming {len(raw_items)} items to {MAX_ITEMS} (Instagram 10-slide cap)")
+        raw_items = raw_items[:MAX_ITEMS]
+
     tmdb = TMDBClient()
     omdb = OMDbClient()
-    items = list(enumerate(pack["items"], start=1))
+    items = list(enumerate(raw_items, start=1))
 
     if parallel and len(items) > 1:
         results: dict[int, dict] = {}
