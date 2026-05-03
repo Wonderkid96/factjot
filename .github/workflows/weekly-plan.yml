@@ -80,11 +80,8 @@ jobs:
             exit 1
           }
 
-      - name: Discover new facts
-        run: python3 scripts/discover_facts.py || echo "Discovery failed - continuing with existing bank"
-
-      - name: Reel runway check
-        run: python3 scripts/plan_week.py --days 7 --start-tomorrow
+      - name: Restock — discover facts + runway report
+        run: python3 scripts/restock.py || echo "Restock failed - continuing"
 
       - name: Validate reel fact bank
         run: python3 scripts/validate_reel_facts.py
@@ -109,13 +106,11 @@ jobs:
           git add \
             insta-brain/data/posted.jsonl \
             insta-brain/data/posted_quotes.jsonl \
-            insta-brain/data/queue.jsonl \
-            insta-brain/data/weekly_state.json \
             insta-brain/log.md \
             insta-brain/MEMORY_INDEX.md \
-            data/approval_queue.jsonl \
             data/ledgers/approval_queue.jsonl \
             data/ledgers/discovered_facts.jsonl \
+            data/ledgers/discovery.log.jsonl \
             || true
           git diff --cached --quiet && echo "No state changes to commit." && exit 0
           git commit -m "state: weekly plan $(date -u +%Y-%m-%dT%H:%M)Z"
