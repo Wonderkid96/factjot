@@ -13,6 +13,7 @@ Cuts every 2-4s synced to the voice make the eye stay on screen.
 """
 from __future__ import annotations
 
+import os
 import signal
 import subprocess
 
@@ -36,6 +37,64 @@ def _sigterm_handler(signum: int, frame: object) -> None:
 signal.signal(signal.SIGTERM, _sigterm_handler)
 signal.signal(signal.SIGINT, _sigterm_handler)
 from dataclasses import dataclass
+
+
+def _pump_ffmpeg_stderr(
+    proc: subprocess.Popen,
+    *,
+    stderr_buf: list[bytes],
+    heartbeat_s: float = 25.0,
+) -> None:
+    """Copy FFmpeg stderr to sys.stderr and append raw chunks to stderr_buf.
+
+    GitHub Actions only shows new lines when something is written. A plain
+    blocking read(4096) yields no UI updates while FFmpeg spends minutes in
+    filter graph init with no stderr. On POSIX we use select() with a timeout
+    to emit a heartbeat so the job does not look frozen or empty.
+    """
+    import sys as _sys
+
+    assert proc.stderr is not None
+
+    def emit(chunk: bytes) -> None:
+        if not chunk:
+            return
+        vis = chunk.replace(b"\r", b"\n")
+        _sys.stderr.buffer.write(vis)
+        _sys.stderr.buffer.flush()
+        stderr_buf.append(chunk)
+
+    fd = proc.stderr.fileno()
+
+    if os.name != "posix":
+        while True:
+            chunk = proc.stderr.read(65536)
+            if not chunk:
+                break
+            emit(chunk)
+        return
+
+    import select
+
+    while True:
+        r, _, _ = select.select([fd], [], [], heartbeat_s)
+        if r:
+            chunk = os.read(fd, 65536)
+            if not chunk:
+                break
+            emit(chunk)
+            continue
+        if proc.poll() is not None:
+            while True:
+                chunk = os.read(fd, 65536)
+                if not chunk:
+                    return
+                emit(chunk)
+        _sys.stderr.buffer.write(
+            b"\n[ffmpeg] still working (no stderr for a while; "
+            b"normal during filter init or first frames)...\n"
+        )
+        _sys.stderr.buffer.flush()
 from pathlib import Path
 from typing import Optional
 
@@ -179,6 +238,9 @@ def compose(
 
     cmd = [
         ffmpeg_bin, "-nostdin", "-y",
+        # Global progress: must be early so FFmpeg honours it reliably on all builds.
+        "-progress", "pipe:2",
+        "-stats_period", "2",
         *inputs,
         "-filter_complex", _join_filters(filter_parts),
         *map_args,
@@ -193,12 +255,8 @@ def compose(
         "-ar", "48000",
         "-b:a", "128k",
         "-movflags", "+faststart",
-        "-shortest",              # stop at shortest stream, prevents overrun
-        # Progress to stderr in machine-readable key=value format, ONE LINE PER UPDATE.
-        # We CANNOT use plain -stats because it uses \r (carriage return) instead of
-        # \n, and our line-iterator subprocess reader never sees \r-terminated lines.
-        "-progress", "pipe:2",
-        "-stats_period", "2",     # one progress block every 2 seconds
+        # NO -shortest: the ProRes intro is only 1.37s. -shortest would stop
+        # FFmpeg at 1.37s instead of the full reel duration.
         "-t", str(total_duration_s),
         str(out_path),
     ]
@@ -209,37 +267,17 @@ def compose(
         "FFmpeg command:\n" + " ".join(cmd) + "\n\n"
         + "Filter graph:\n" + _join_filters(filter_parts)
     )
-    # Use Popen so the process can be killed cleanly if the parent is interrupted.
-    # stderr=None streams FFmpeg progress directly to the parent process stderr,
-    # making it visible in real time in GitHub Actions logs and local runs.
-    import sys as _sys
-    stderr_buf: list[bytes] = []
-
-    proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    # stderr=None: FFmpeg writes directly to the runner's captured output.
+    # No Python buffering, no read(4096) blocking, no log delays.
+    # On failure the exit code tells us it failed; ffmpeg_debug.txt has the command.
+    proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=None)
     _register_active(proc)
-    # Stream stderr in raw byte chunks (not line-by-line). FFmpeg's -stats output
-    # uses \r (carriage return) to overwrite the same terminal line; iterating
-    # `for line in proc.stderr` only triggers on \n, so progress was invisible.
-    # Reading raw chunks captures both \r-terminated stats and \n-terminated logs.
-    assert proc.stderr is not None
-    while True:
-        chunk = proc.stderr.read(4096)
-        if not chunk:
-            break
-        # Convert \r to \n in the user-visible stream so each progress update
-        # appears on its own line in GitHub Actions logs.
-        visible = chunk.replace(b"\r", b"\n")
-        _sys.stderr.buffer.write(visible)
-        _sys.stderr.buffer.flush()
-        stderr_buf.append(chunk)
     proc.wait()
     _register_active(None)
-    stderr = b"".join(stderr_buf)
     if proc.returncode != 0:
-        (out_path.parent / "ffmpeg_stderr.txt").write_text(stderr.decode("utf-8", errors="replace"))
         raise RuntimeError(
-            f"FFmpeg failed (exit {proc.returncode}):\n"
-            f"STDERR (last 5000 chars):\n{stderr.decode('utf-8', errors='replace')[-5000:]}"
+            f"FFmpeg failed (exit {proc.returncode}). "
+            f"Check ffmpeg_debug.txt for the full command."
         )
     size_mb = out_path.stat().st_size / 1024 / 1024
     print(f"  [ffmpeg] done -> {out_path.name} ({size_mb:.1f} MB)")

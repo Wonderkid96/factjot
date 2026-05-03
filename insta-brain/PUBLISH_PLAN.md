@@ -1,19 +1,19 @@
 # Publish plan — factjot
 
-How content gets from idea to live on @factjot. Updated 2026-05-02.
+How content gets from idea to live on @factjot. Updated 2026-05-03.
 
 ---
 
 ## Scheduler: GitHub Actions
 
-All posting runs on GitHub Actions (repo: Wonderkid96/factjot). The Mac is not required. Mac launchd jobs are ALL DISABLED as of 2026-05-02.
+All posting runs on GitHub Actions (repo: Wonderkid96/factjot). The Mac is not required. Mac launchd jobs are ALL DISABLED as of 2026-05-02. **cron-job.org** remains the primary fire-at-wall-clock trigger; GitHub crons are backup (see root `CLAUDE.md`).
 
 | Workflow | Cron (UTC) | Script | What it posts |
 |---|---|---|---|
-| `carousel-morning.yml` | 09:45 daily | `ship_first_post.py --topic X` | Morning carousel |
-| `carousel-evening.yml` | 17:45 daily | `ship_first_post.py --topic X` | Evening carousel |
-| `reel.yml` | 18:45 daily | `make_reel.py` | Reel + story |
-| `weekly-plan.yml` | 04:00 Sunday | `plan_week.py` + `refresh_token.py` | Plan + token + discovery |
+| `carousel-morning.yml` | 09:00 (+ 09:45 backup) | `ship_first_post.py --topic X` | Morning carousel |
+| `reel.yml` | 11:00 (+ 11:45 backup) | `make_reel.py` | Reel + story |
+| `list-carousel.yml` | 17:00 (+ 17:45 backup) | `ship_list_post.py --next` | Evening list carousel |
+| `weekly-plan.yml` | 03:00 Sunday | `refresh_token.py`, `restock.py`, `generate_list_packs.py`, `prepare_packs.py`, `validate_reel_facts.py`, `cleanup_caches.py` | Weekly prep |
 
 Topics rotate by weekday (morning and evening use offset sets so the same category never posts twice in one day).
 
@@ -44,8 +44,8 @@ make_reel.py
   ← ElevenLabs TTS → voice MP3 + word timestamps
   ← Pexels/Coverr/Pixabay → 8 footage clips
   ← Playwright → overlay PNGs (label, title, subtitles, CTA)
-  ← FFmpeg → final.mp4 (~45-60s, Main/Level4.0, 48000Hz AAC; Meta rejects 44.1/96)
-  ← Cloudinary → permanent CDN video URL
+  ← FFmpeg → final.mp4 (48 kHz AAC, libx264 crf 30 + maxrate 800k for Meta ~5 MB cap)
+  ← tmpfiles.org → short-lived public MP4 URL (Meta fetches within publish poll window)
   ← imgbb → thumbnail + story PNG URLs
   ← Instagram Graph API → publish Reel
   ← Instagram Graph API → publish Story

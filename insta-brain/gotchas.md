@@ -19,10 +19,10 @@ Extract all Python logic to standalone scripts in `scripts/`. Never put more tha
 ## Meta / Instagram API
 
 **Meta's video URL downloader rejects files over ~5MB.**
-This limit appeared 2026-05-02 (previously 12MB worked). Encode reels at crf 30, maxrate 800k. Adaptive retry: if 413, recompress at crf 33 / maxrate 600k.
+This limit appeared 2026-05-02 (previously 12MB worked). Primary reel encode: **crf 30**, **maxrate 800k**, **bufsize 1600k** in `reel_composer.py` `compose()`. On **413**, `make_reel.py` recompresses **crf 33 / maxrate 600k** then **crf 35 / maxrate 500k** (each with matching bufsize).
 
 **Meta requires 48kHz audio. 44.1kHz and 96kHz are both rejected.**
-ElevenLabs returns 44.1kHz by default. Always resample to 48kHz in FFmpeg before muxing. 96kHz was encountered once from an edge-tts path and also rejected.
+ElevenLabs returns 44.1kHz by default. Always resample to 48kHz in FFmpeg before muxing. 96kHz was encountered once from an edge-tts path and also rejected. **Padding step:** concat of 48 kHz silence + 44.1 kHz TTS without `aresample` produced a 44.1 kHz `voice_padded.mp3` (bad). Fixed in `make_reel.py` with `aresample=48000` + matching channel layout before `concat`, plus `-ar 48000` on the MP3 encode.
 
 **Meta access tokens expire every 60 days.** `refresh_token.py` extends them. If `refresh_token.py` returns "API access blocked", the app was rate-limited by too-rapid API calls. Wait 30 minutes, retry. If still blocked, regenerate from developers.facebook.com.
 
@@ -127,10 +127,11 @@ No logo divider line. No bottom strip. No flanking lines around the logo. The th
 Without `-nostdin`, FFmpeg opens stdin in interactive mode waiting for keypresses (q to quit, ? for help). In a TTY-less CI environment, stdin is a dead pipe and FFmpeg sits there forever. This caused every reel build to time out at 20 minutes. The fix is two-pronged: add `-nostdin` to the FFmpeg command AND `stdin=subprocess.DEVNULL` in the Python Popen call. Both are now in `src/render/reel_composer.py`. Never remove them.
 
 **20+ sequential PNG overlay stages are the wrong approach for kinetic subtitles.**
-Each overlay stage re-renders the full 1080x1920 frame. 27 subtitle chunks = 27 full-frame renders per output frame. The correct approach is FFmpeg's native `ass` filter (`--enable-libass` is compiled into the static FFmpeg build used on GitHub Actions). One `.ass` file replaces all subtitle PNG inputs. `generate_ass_file()` in `src/render/tts_engine.py` generates the file from word beats; `compose()` in `reel_composer.py` applies it via `-filter_complex "[prev]ass=filename=...:[after_subs]"`. The PNG approach was abandoned 2026-05-03.
+Each overlay stage re-renders the full 1080x1920 frame. 27 subtitle chunks = 27 full-frame renders per output frame. The correct approach is FFmpeg's native `ass` filter (`--enable-libass` is compiled into the static FFmpeg build used on GitHub Actions). One `.ass` file replaces all subtitle PNG inputs. `generate_ass_file()` in `src/render/tts_engine.py` generates the file from word beats; `compose()` in `reel_composer.py` applies it via `-filter_complex "[prev]ass=filename=...:[after_subs]"`. The PNG approach was abandoned 2026-05-03. Pass **`fontsdir=assets/fonts/subtitle_fonts`** only so libass does not scan the whole font tree.
 
-**FFmpeg `-preset fast` on a 2-core GitHub Actions runner is unnecessarily slow.**
-Changed to `veryfast` with `crf 23`. Imperceptible quality difference at Instagram resolution; meaningful encode-time saving on constrained hardware.
+**Primary reel encode (2026-05-03):** `libx264` **preset ultrafast**, **crf 30**, **maxrate 800k**, **bufsize 1600k**, **48 kHz** AAC. Older **crf 23** primary encodes overshot Meta's URL size limit and caused avoidable 413 retries.
+
+**GitHub Actions log looks empty mid-encode:** FFmpeg often prints **nothing** to stderr for minutes during **filter graph init** and first frames. A naive blocking `read()` on `stderr=PIPE` yields no new UI lines. **`_pump_ffmpeg_stderr`** in `reel_composer.py` uses **`select()`** with a **25 s heartbeat** on POSIX while the child is still alive. **`reel.yml`** runs **`python3 -u`** with **`PYTHONUNBUFFERED=1`** for `make_reel.py`. Human `-stats` lines use **`\r`**; compose uses **`-progress pipe:2`** and **`-stats_period 2`** (placed immediately after `-y`) and replaces **`\r` → `\n`** when forwarding stderr.
 
 **ProRes 4444 intro (`factjot_intro.mov`) is `yuva444p12le` — 12-bit with full alpha.**
 Scaling it with `flags=lanczos` inside the filter graph is expensive. Changed to `flags=bilinear`. Also added `eof_action=pass` to the intro overlay so FFmpeg doesn't attempt to hold the stream open after the intro's 1.37s duration ends.

@@ -122,7 +122,9 @@ jobs:
 
       - name: Post reel
         if: steps.check.outputs.skip != 'true'
-        run: python3 scripts/make_reel.py
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python3 -u scripts/make_reel.py
 
       - name: Capture failure to brain log
         if: failure()

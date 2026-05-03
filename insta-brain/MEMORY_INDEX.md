@@ -6,11 +6,30 @@ Related: [[CLAUDE]] · [[CRITICAL_FACTS]] · [[PUBLISH_PLAN]] · [[log]] · [[ru
 
 ---
 
+## 2026-05-03 — Reel encode, Meta audio, CI observability
+
+### Voice and Meta audio
+- `make_reel.py`: padding concat now `aresample=48000` + mono `aformat` on both legs before `concat`, `anullsrc` mono 48 kHz, `-ar 48000` on lame output. Stops `voice_padded.mp3` staying at 44.1 kHz (Meta rejects 44.1 and 96 kHz; see gotchas).
+
+### Reel video size (Meta ~5 MB URL fetch)
+- `reel_composer.py` compose: libx264 **crf 30**, **maxrate 800k**, **bufsize 1600k**, preset **ultrafast** (replaces older crf 23 primary encode that ballooned files and caused 413).
+- `make_reel.py` publish retries: first recompress after 413 **crf 33 / 600k**, second **crf 35 / 500k** (first attempt must differ from primary 30/800k).
+
+### GitHub Actions logs during FFmpeg
+- Plain `-stats` uses `\r`; line-based stderr readers never showed frame progress. compose uses **`-progress pipe:2`** and **`-stats_period 2`** (global options placed immediately after `-y`).
+- Blocking `read(4096)` on a pipe: FFmpeg can go quiet for minutes during filter init, so the job looked frozen. **`_pump_ffmpeg_stderr`** in `reel_composer.py` uses **`select()` + 25 s heartbeat** on POSIX while FFmpeg is still alive.
+- **`reel.yml` Post reel step**: `PYTHONUNBUFFERED=1` and **`python3 -u scripts/make_reel.py`**.
+
+### ASS / libass fonts
+- `make_reel.py` passes **`assets/fonts/subtitle_fonts`** as `fontsdir` only (e.g. Space Grotesk SemiBold for subs). Avoids loading the entire `assets/fonts` tree on every run.
+
+---
+
 ## 2026-05-02 — GitHub Actions + full pipeline hardening
 
 ### Scheduler migrated to GitHub Actions
 Mac launchd ALL DISABLED. GitHub Actions is sole scheduler (repo: Wonderkid96/factjot).
-- `carousel-morning.yml` 09:45 UTC, `carousel-evening.yml` 17:45 UTC, `reel.yml` 18:45 UTC, `weekly-plan.yml` Sunday 04:00 UTC
+- Cron times and workflow names: see **[[PUBLISH_PLAN]]** (supersedes older notes here: morning carousel, reel midday, evening list carousel, Sunday weekly-plan).
 - State persisted via git commit after every run (ledgers committed back to main)
 - 19 secrets set in GitHub via `gh secret set`
 
@@ -25,7 +44,7 @@ Mac launchd ALL DISABLED. GitHub Actions is sole scheduler (repo: Wonderkid96/fa
 - Voice padding (`voice_padded.mp3`): concat of 48 kHz silence + 44.1 kHz TTS without `aresample` kept 44.1 kHz on the padded file. Fixed in `make_reel.py`: `aresample=48000` + mono `aformat` before `concat`, plus `-ar 48000` on encode.
 - `format=auto` on 26 chained overlay ops → non-standard pixel format. Fixed: `format=yuv420`
 - `noise=alls=3:allf=t+u` temporal noise removed — slows Instagram transcoder
-- `crf 26`, `maxrate 2500k`, `profile:v main` added
+- ~~`crf 26`, `maxrate 2500k`~~ superseded 2026-05-03 by crf 30 / 800k primary + tighter 413 retries (see new entry above).
 
 ### Instagram API rate limit incident
 - Created 30+ containers + polled every 3s = ~3000 API calls → hit code 4 / subcode 1349210
@@ -33,10 +52,8 @@ Mac launchd ALL DISABLED. GitHub Actions is sole scheduler (repo: Wonderkid96/fa
 - Fixed: `_wait_for_finished` polls every 15s (was 3s), initial 10s wait, code-4 backoff 30s
 - Never create >5-6 containers per session. If reels fail, wait 2h before retrying.
 
-### Cloudinary video hosting
-- Primary video host: `CloudinaryVideoHost` in `src/publish/image_host.py`
-- cloud=dmzer6hgv, preset=factjot (unsigned), API key set in .env + GitHub Secrets
-- tmpfiles.org retained as fallback only (unreliable 1h expiry URLs from cloud IPs)
+### Video hosting (historical note)
+- 2026-05-02: Cloudinary was still documented as primary here. **Current:** tmpfiles.org primary for Reel MP4 (Meta fetch window); Cloudinary disabled for video after 413 / timeout issues (see gotchas + root `CLAUDE.md`).
 
 ### Quote dedup
 - `QuoteBank._session_hashes` tracks picks within a process lifetime
@@ -65,15 +82,15 @@ Mac launchd ALL DISABLED. GitHub Actions is sole scheduler (repo: Wonderkid96/fa
 
 ---
 
-## Operational status (as of 2026-05-02)
+## Operational status (as of 2026-05-03)
 
 | Component | Status |
 |---|---|
 | Carousels | ✓ Live via GitHub Actions |
-| Reels | ✓ Live via GitHub Actions (one-off 21:00 UTC trigger tonight for rate limit recovery) |
+| Reels | ✓ Live via GitHub Actions |
 | Stories | ✓ Auto-posted after each Reel |
 | Token refresh | ✓ Weekly (Sunday workflow) |
 | Fact discovery | ✓ Weekly (Sunday workflow) |
-| Reel runway | 28 facts unused (~4 weeks) |
+| Reel runway | See `scripts/check_reel_runway.py` (varies with bank + posts) |
 | TikTok | Pending review approval |
-| Carousel readability improvements | TODO next session |
+| Carousel readability improvements | TODO when prioritised |
