@@ -21,7 +21,8 @@ Mac launchd ALL DISABLED. GitHub Actions is sole scheduler (repo: Wonderkid96/fa
 - Root incident: 22.7s Switzerland reel titled "The Story of Until Switzerland" (2026-05-01)
 
 ### Audio/FFmpeg fixes
-- `loudnorm` upsampled voice+music to 96000 Hz → Instagram rejects. Fixed: `-ar 44100 -ac 2`
+- `loudnorm` once produced 96000 Hz output → Meta rejected. **Canonical rule (see gotchas.md): Meta accepts 48 kHz only** (not 44.1, not 96). Output encoding must force 48 kHz; the old MEMORY_INDEX line about `-ar 44100` was wrong for Meta and contradicted gotchas.
+- Voice padding (`voice_padded.mp3`): concat of 48 kHz silence + 44.1 kHz TTS without `aresample` kept 44.1 kHz on the padded file. Fixed in `make_reel.py`: `aresample=48000` + mono `aformat` before `concat`, plus `-ar 48000` on encode.
 - `format=auto` on 26 chained overlay ops → non-standard pixel format. Fixed: `format=yuv420`
 - `noise=alls=3:allf=t+u` temporal noise removed — slows Instagram transcoder
 - `crf 26`, `maxrate 2500k`, `profile:v main` added

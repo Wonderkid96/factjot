@@ -307,13 +307,21 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
     # Silent intro - hook title shows here, voice starts AFTER it fades.
     padded_mp3 = out_dir / "voice_padded.mp3"
     import subprocess as _sp
+    # ElevenLabs (and many MP3 paths) are 44.1 kHz; anullsrc is 48 kHz. Raw concat
+    # keeps 44.1 kHz on the muxed file (see gotchas: Meta rejects 44.1). Resample
+    # both legs to 48 kHz mono before concat so voice_padded.mp3 is safe end-to-end.
+    _pad_filter = (
+        "[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono[sil];"
+        "[1:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono[vo];"
+        "[sil][vo]concat=n=2:v=0:a=1[a]"
+    )
     _sp.run([
         "ffmpeg", "-y",
-        "-f", "lavfi", "-t", str(INTRO_S), "-i", "anullsrc=r=48000:cl=stereo",
+        "-f", "lavfi", "-t", str(INTRO_S), "-i", "anullsrc=r=48000:cl=mono",
         "-i", str(mp3_path),
-        "-filter_complex", "[0:a][1:a]concat=n=2:v=0:a=1[a]",
+        "-filter_complex", _pad_filter,
         "-map", "[a]",
-        "-c:a", "libmp3lame", "-b:a", "192k",
+        "-c:a", "libmp3lame", "-b:a", "192k", "-ar", "48000",
         str(padded_mp3),
     ], check=True, capture_output=True)
     mp3_path = padded_mp3
@@ -593,7 +601,8 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
     )
 
     result = None
-    for _attempt, (_crf, _rate) in enumerate([(None, None), (30, "800k"), (32, "600k")]):
+    # Primary encode is already crf 30 / 800k maxrate; on 413, step down (gotchas.md).
+    for _attempt, (_crf, _rate) in enumerate([(None, None), (33, "600k"), (35, "500k")]):
         if _attempt > 0:
             print(f"  [adaptive] 413 on attempt {_attempt} — recompressing at crf={_crf}...")
             _compressed = _recompress(final_mp4, crf=_crf, maxrate=_rate)

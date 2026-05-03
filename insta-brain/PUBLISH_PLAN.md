@@ -44,7 +44,7 @@ make_reel.py
   ← ElevenLabs TTS → voice MP3 + word timestamps
   ← Pexels/Coverr/Pixabay → 8 footage clips
   ← Playwright → overlay PNGs (label, title, subtitles, CTA)
-  ← FFmpeg → final.mp4 (~45-60s, Main/Level4.0, 44100Hz AAC stereo)
+  ← FFmpeg → final.mp4 (~45-60s, Main/Level4.0, 48000Hz AAC; Meta rejects 44.1/96)
   ← Cloudinary → permanent CDN video URL
   ← imgbb → thumbnail + story PNG URLs
   ← Instagram Graph API → publish Reel

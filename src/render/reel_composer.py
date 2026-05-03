@@ -183,8 +183,10 @@ def compose(
         "-filter_complex", _join_filters(filter_parts),
         *map_args,
         "-c:v", "libx264",
-        "-preset", "ultrafast",   # CI: speed over compression, Instagram recompresses anyway
-        "-crf", "23",
+        "-preset", "ultrafast",   # CI: wall-clock; tune size via crf + maxrate (Meta ~5MB cap)
+        "-crf", "30",
+        "-maxrate", "800k",
+        "-bufsize", "1600k",
         "-pix_fmt", "yuv420p",
         "-r", "30",
         "-c:a", "aac",
@@ -192,7 +194,11 @@ def compose(
         "-b:a", "128k",
         "-movflags", "+faststart",
         "-shortest",              # stop at shortest stream, prevents overrun
-        "-stats",                 # print frame= fps= speed= progress to stderr
+        # Progress to stderr in machine-readable key=value format, ONE LINE PER UPDATE.
+        # We CANNOT use plain -stats because it uses \r (carriage return) instead of
+        # \n, and our line-iterator subprocess reader never sees \r-terminated lines.
+        "-progress", "pipe:2",
+        "-stats_period", "2",     # one progress block every 2 seconds
         "-t", str(total_duration_s),
         str(out_path),
     ]
@@ -211,12 +217,21 @@ def compose(
 
     proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     _register_active(proc)
-    # Stream stderr line-by-line so progress is visible in real time.
+    # Stream stderr in raw byte chunks (not line-by-line). FFmpeg's -stats output
+    # uses \r (carriage return) to overwrite the same terminal line; iterating
+    # `for line in proc.stderr` only triggers on \n, so progress was invisible.
+    # Reading raw chunks captures both \r-terminated stats and \n-terminated logs.
     assert proc.stderr is not None
-    for raw in proc.stderr:
-        _sys.stderr.buffer.write(raw)
+    while True:
+        chunk = proc.stderr.read(4096)
+        if not chunk:
+            break
+        # Convert \r to \n in the user-visible stream so each progress update
+        # appears on its own line in GitHub Actions logs.
+        visible = chunk.replace(b"\r", b"\n")
+        _sys.stderr.buffer.write(visible)
         _sys.stderr.buffer.flush()
-        stderr_buf.append(raw)
+        stderr_buf.append(chunk)
     proc.wait()
     _register_active(None)
     stderr = b"".join(stderr_buf)
