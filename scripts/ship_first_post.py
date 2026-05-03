@@ -96,8 +96,17 @@ def main() -> int:
         for line in skipped_examples:
             print(line)
 
+    # Quality floor — never post score=1 (mildly interesting) facts while
+    # better ones exist anywhere in the bank.
+    MIN_CAROUSEL_SCORE = 2
+    quality_rows = [r for r in fresh_rows if r.get("quirky_score", 1) >= MIN_CAROUSEL_SCORE]
+    quality_skipped = len(fresh_rows) - len(quality_rows)
+    if quality_skipped:
+        print(f"Quality gate dropped {quality_skipped} score<{MIN_CAROUSEL_SCORE} fact(s) for topic={args.topic!r}.")
+    fresh_rows = quality_rows
+
     if not fresh_rows:
-        print(f"No publishable facts left for topic={args.topic!r}. Trying fallback topics...")
+        print(f"No quality facts (score>={MIN_CAROUSEL_SCORE}) for topic={args.topic!r}. Trying fallback topics...")
         all_topics = ["history", "space", "biology", "ocean", "earth", "technology", "science"]
         fallbacks = [t for t in all_topics if t != args.topic]
         for fb_topic in fallbacks:
@@ -107,8 +116,21 @@ def main() -> int:
                 allow_edgy=not args.safe_only,
                 allow_controversial=args.allow_controversial,
             )
-            if len(fb_fresh) >= 3:
-                print(f"  Falling back to topic={fb_topic!r} ({len(fb_fresh)} facts available)")
+            # Apply quality floor to fallback too
+            fb_quality = [r for r in fb_fresh if r.get("quirky_score", 1) >= MIN_CAROUSEL_SCORE]
+            if len(fb_quality) >= 3:
+                print(f"  Falling back to topic={fb_topic!r} ({len(fb_quality)} quality facts)")
+                args.topic = fb_topic
+                fresh_rows = fb_quality
+                all_topic_rows = fb_rows
+                break
+            elif len(fb_fresh) >= 3:
+                # Emergency: quality facts exhausted across all topics — use any-score
+                # as last resort rather than silently failing. Triggers restock alert.
+                print(f"  Emergency fallback to topic={fb_topic!r} (bank low — score<{MIN_CAROUSEL_SCORE} facts used)")
+                brain.append_log(
+                    f"carousel WARNING — quality bank low, used score<{MIN_CAROUSEL_SCORE} facts for topic={fb_topic}"
+                )
                 args.topic = fb_topic
                 fresh_rows = fb_fresh
                 all_topic_rows = fb_rows

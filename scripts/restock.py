@@ -26,10 +26,11 @@ from src.brain import brain
 from src.research.rare_fact_bank import load_all_facts, RARE_FACT_BANK
 from src.core.paths import DISCOVERED_FACTS
 
-MIN_REEL_SCRIPT_WORDS = 70
-REEL_RUNWAY_WARN     = 30
-REEL_RUNWAY_CRITICAL = 14
-CAROUSEL_RUNWAY_WARN = 14
+MIN_REEL_SCRIPT_WORDS  = 70
+MIN_CAROUSEL_SCORE     = 2   # must match ship_first_post.py — never lower without updating both
+REEL_RUNWAY_WARN       = 30
+REEL_RUNWAY_CRITICAL   = 14
+CAROUSEL_RUNWAY_WARN   = 14
 TOPICS = ["space", "earth", "ocean", "biology", "history", "technology"]
 
 
@@ -46,11 +47,19 @@ def _reel_runway() -> int:
 
 
 def _carousel_runway() -> dict[str, int]:
+    """Count unposted facts per topic at or above the carousel quality floor.
+
+    Only facts with quirky_score >= MIN_CAROUSEL_SCORE are counted because
+    ship_first_post.py will not post score=1 facts unless the bank is in
+    emergency mode. Counting them would give a falsely optimistic runway.
+    """
     facts = load_all_facts()
     counts: dict[str, int] = {t: 0 for t in TOPICS}
     for f in facts:
         topic = f.get("topic", "").lower()
-        if topic in counts and not brain.is_fact_posted(f["claim"]):
+        if (topic in counts
+                and not brain.is_fact_posted(f["claim"])
+                and f.get("quirky_score", 1) >= MIN_CAROUSEL_SCORE):
             counts[topic] += 1
     return counts
 

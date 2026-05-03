@@ -43,7 +43,7 @@ from src.core.paths import DISCOVERED_FACTS as OUT_PATH, DISCOVERY_LOG as LOG_PA
 SUBREDDIT = "todayilearned"
 USER_AGENT = "factjot-discoverer/1.0 (educational, contact @factjot)"
 
-MIN_UPVOTES = 5000          # Community vetted
+MIN_UPVOTES = 10_000        # Community vetted — raised from 5k; sub-10k facts rarely clear the shock test
 MIN_AGE_DAYS = 3            # Time for corrections to surface
 MAX_CANDIDATES = 100        # Per run
 COMMENT_SCAN_TOP = 5        # Top-N comments to scan for correction signals
@@ -215,16 +215,36 @@ _VIRAL_SIGNALS = [
     "illegal", "secret", "hidden", "forgotten", "accidental", "exploded",
     "radiation", "poison", "venom", "lethal", "deadly", "catastrophe",
     "billion", "trillion", "million years", "thousand years",
+    "refused", "defied", "reversed", "collapsed", "betrayed", "executed",
+    "escaped", "single-handedly", "never before", "never again",
 ]
 
-def _score_fact(claim: str, upvotes: int) -> int:
-    """Assign quirky_score 1-3 based on upvote count and content signals.
+# Specificity signals — numbers and named persons make claims concrete and verifiable.
+_NUMBER_RE  = re.compile(r'\b\d[\d,]*(?:\.\d+)?(?:\s*(?:million|billion|trillion|thousand|percent|km|mph|years?|days?|metres?|meters?|tons?|kg|lbs?))?\b')
+_PERSON_RE  = re.compile(r'\b[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})+\b')
 
-    Thresholds calibrated against Reddit r/TIL voting patterns:
-    - 5k-15k upvotes: interesting but common → score 1 (carousel)
-    - 15k-30k upvotes: genuinely surprising → score 2
-    - 30k+ upvotes: viral 'wait, what?!' tier → score 3 (reel-eligible)
-    Content bonus: viral signal words push score up by 1 (capped at 3).
+# Boring opener patterns — generic "The X is a Y" structure with no specificity.
+_BORING_OPENER_RE = re.compile(
+    r'^(?:the |a |an )?[a-z]{2,30} (?:is|are|was|were) (?:a|an|the|one of the) [a-z]',
+    re.IGNORECASE,
+)
+
+
+def _score_fact(claim: str, upvotes: int) -> int:
+    """Assign quirky_score 0-3.  0 = reject (drop entirely), 1-3 = postable.
+
+    Upvote base:
+      10k-15k  → 1  (carousel only when score >= 2 floor is met via bonus)
+      15k-30k  → 2  (carousel)
+      30k+     → 3  (reel-eligible)
+
+    Bonuses / penalties applied after base:
+      +1  viral signal word present (capped at 3)
+      -1  boring generic opener ("The X is a Y") with no specificity signals
+          (no number, no named person in the claim)
+
+    A score of 0 means the claim is textbook-level and will be rejected at
+    discovery time — it never enters discovered_facts.jsonl.
     """
     if upvotes >= 30_000:
         base = 3
@@ -234,8 +254,19 @@ def _score_fact(claim: str, upvotes: int) -> int:
         base = 1
 
     claim_lower = claim.lower()
-    has_signal = any(sig in claim_lower for sig in _VIRAL_SIGNALS)
-    return min(3, base + (1 if has_signal and base < 3 else 0))
+    has_viral       = any(sig in claim_lower for sig in _VIRAL_SIGNALS)
+    has_number      = bool(_NUMBER_RE.search(claim))
+    has_person      = bool(_PERSON_RE.search(claim))
+    has_specificity = has_number or has_person
+    is_generic      = bool(_BORING_OPENER_RE.match(claim)) and not has_specificity
+
+    score = base
+    if has_viral:
+        score = min(3, score + 1)
+    if is_generic:
+        score -= 1   # demote — score can reach 0 (reject tier)
+
+    return score
 
 
 def main() -> int:
@@ -250,7 +281,7 @@ def main() -> int:
 
     counters = {"appended": 0, "dup": 0, "low_upvotes": 0, "young": 0,
                 "correction": 0, "untrusted": 0, "unsupported": 0,
-                "malformed": 0, "already_posted": 0}
+                "malformed": 0, "already_posted": 0, "boring": 0}
 
     now = datetime.now(timezone.utc).timestamp()
     age_threshold = MIN_AGE_DAYS * 86400
@@ -317,12 +348,18 @@ def main() -> int:
                 continue
 
             topic = route_to_topic(claim)
+            score = _score_fact(claim, ups)
+            if score == 0:
+                counters["boring"] += 1
+                _record_reject("boring_generic", rid, claim)
+                continue
+
             row = {
                 "topic": topic,
                 "claim": claim,
                 "sources": [link],
                 "image_hint": suggest_image_hint(claim, topic),
-                "quirky_score": _score_fact(claim, ups),
+                "quirky_score": score,
                 "discovered_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 "source_kind": f"r/{SUBREDDIT}",
                 "reddit_id": rid,

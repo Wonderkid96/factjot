@@ -67,6 +67,19 @@ This file must be committed after every reel or the same clip will appear in con
 
 ---
 
+## Fact quality thresholds — do not lower without a good reason
+
+**`MIN_UPVOTES = 10_000` in `discover_facts.py`.**
+Sub-10k TIL posts rarely clear the shock test. This was raised from 5k after auditing discovered facts — the 5k-10k tier was consistently bland.
+
+**`MIN_CAROUSEL_SCORE = 2` in `ship_first_post.py` and `restock.py`.**
+Score=1 facts (generic, low upvotes, no specificity signals) are never posted to carousels unless ALL topics are exhausted (emergency mode). If the runway report shows topics running low, add more curated facts — do not lower the threshold. These two constants are intentionally duplicated in two files; if you change one, change both.
+
+**`_score_fact()` returns 0 (reject tier) for generic openers with no specificity.**
+"The X is a Y that..." with no numbers, named persons, or viral signals scores 0 and is dropped at discovery time. Do not remove the boring penalty — discovered facts were routinely Wikipedia-quality before it was added.
+
+---
+
 ## Reel quality gates
 
 **q3 facts MUST have curated `reel_script` (>= 70 words) and `reel_title`.**
