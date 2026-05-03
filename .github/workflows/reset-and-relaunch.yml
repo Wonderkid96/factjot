@@ -98,8 +98,18 @@ jobs:
           for f in JSONL_FILES:
               p = Path(f)
               p.parent.mkdir(parents=True, exist_ok=True)
-              p.write_text("")
-              print(f"  cleared: {f}")
+              try:
+                  p.touch(exist_ok=True)
+                  p.write_text("")
+                  print(f"  cleared: {f}")
+              except Exception as e:
+                  print(f"  warning: {f} — {e}, parent_exists={p.parent.exists()}")
+                  # Force-create via open() as fallback
+                  try:
+                      open(str(p), "w").close()
+                      print(f"  cleared (fallback): {f}")
+                  except Exception as e2:
+                      print(f"  SKIP: {f} — {e2}")
 
           Path("insta-brain/data/weekly_state.json").write_text("{}")
           print("  cleared: insta-brain/data/weekly_state.json")
