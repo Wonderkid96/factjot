@@ -73,6 +73,16 @@ jobs:
           TIMEZONE=UTC
           ENVEOF
 
+      - name: Verify Meta token
+        run: |
+          VALID=$(python3 scripts/check_token.py 2>/dev/null || echo invalid)
+          if [ "$VALID" != "ok" ]; then
+            echo "::error::Meta access token is invalid or expired. Run refresh_token.py manually."
+            python3 scripts/log_token_alert.py 2>/dev/null || true
+            exit 1
+          fi
+          echo "Token valid."
+
       - name: Check if list carousel already posted today
         id: check
         run: |

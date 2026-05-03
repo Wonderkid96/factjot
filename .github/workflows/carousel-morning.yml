@@ -77,21 +77,20 @@ jobs:
           TIMEZONE=UTC
           ENVEOF
 
+      - name: Verify Meta token
+        run: |
+          VALID=$(python3 scripts/check_token.py 2>/dev/null || echo invalid)
+          if [ "$VALID" != "ok" ]; then
+            echo "::error::Meta access token is invalid or expired. Run refresh_token.py manually."
+            python3 scripts/log_token_alert.py 2>/dev/null || true
+            exit 1
+          fi
+          echo "Token valid."
+
       - name: Check if carousel already posted today
         id: check
         run: |
-          TODAY=$(date -u +%Y-%m-%d)
-          COUNT=$(python3 -c "
-import json; from pathlib import Path
-try:
-    lines=[l for l in Path('insta-brain/data/posted.jsonl').read_text().splitlines() if l.strip()]
-    posts=[json.loads(l) for l in lines]
-    today=[p for p in posts if p.get('published_at','').startswith('$TODAY') and p.get('category','CAROUSEL')=='CAROUSEL']
-    print(len(today))
-except: print(0)
-" 2>/dev/null || echo 0)
-          echo "Carousels posted today: $COUNT"
-          if [ "$COUNT" -gt "0" ]; then
+          if python3 scripts/check_posted_today.py carousel | grep -q already_posted; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "Already posted today - skipping."
           else

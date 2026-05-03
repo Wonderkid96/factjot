@@ -75,7 +75,10 @@ jobs:
 
       - name: Refresh Meta access token
         run: |
-          python3 scripts/refresh_token.py || echo "WARNING token refresh failed, check manually before it expires"
+          python3 scripts/refresh_token.py || {
+            echo "::error::Meta token refresh FAILED. Posts will stop working when token expires. Check developers.facebook.com immediately."
+            exit 1
+          }
 
       - name: Discover new facts
         run: python3 scripts/discover_facts.py || echo "Discovery failed - continuing with existing bank"

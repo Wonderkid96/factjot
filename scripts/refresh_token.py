@@ -26,7 +26,9 @@ def main() -> int:
     load_dotenv()
     old = os.getenv("META_ACCESS_TOKEN", "").strip()
     if not old:
-        print("ABORT — META_ACCESS_TOKEN not set in .env")
+        msg = "ABORT -- META_ACCESS_TOKEN not set in .env"
+        print(msg)
+        brain.append_log(f"CRITICAL: token refresh failed -- META_ACCESS_TOKEN missing from environment")
         return 1
 
     resp = requests.get(
@@ -35,7 +37,12 @@ def main() -> int:
         timeout=15,
     )
     if not resp.ok:
-        print(f"Refresh failed ({resp.status_code}): {resp.text[:200]}")
+        msg = f"Refresh failed ({resp.status_code}): {resp.text[:200]}"
+        print(msg)
+        brain.append_log(
+            f"CRITICAL: token refresh failed -- HTTP {resp.status_code} from Meta API. "
+            "Posts will stop working when token expires. Visit developers.facebook.com immediately."
+        )
         return 2
 
     body = resp.json()
@@ -43,9 +50,13 @@ def main() -> int:
     expires = int(body.get("expires_in", 0))
     if not new:
         print(f"Refresh response missing access_token: {body}")
+        brain.append_log(
+            "CRITICAL: token refresh failed -- Meta API returned no access_token in response. "
+            "Posts will stop working when token expires. Visit developers.facebook.com immediately."
+        )
         return 3
 
-    # Rewrite .env in place — preserve everything else.
+    # Rewrite .env in place, preserving everything else.
     lines = ENV_PATH.read_text(encoding="utf-8").splitlines()
     out: list[str] = []
     replaced = False
