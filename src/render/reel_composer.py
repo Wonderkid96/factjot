@@ -72,6 +72,69 @@ class OverlayFrame:
     end_s: float
     fade_in_s: float = 0.3
     fade_out_s: float = 0.2
+    is_subtitle: bool = False  # subtitle chunks are pre-composited into a single track
+
+
+def _pre_compose_subtitles(
+    subtitle_overlays: list[OverlayFrame],
+    total_duration_s: float,
+    out_dir: Path,
+    ffmpeg_bin: str = "ffmpeg",
+) -> Path:
+    """Pre-render all subtitle PNGs into a single alpha video track.
+
+    Runs as a fast, lightweight FFmpeg pass on a transparent source.
+    The result is a single WebM/VP9 file with alpha that the main compose
+    uses as one overlay instead of N sequential overlays -- cutting the
+    main filter graph from 30+ stages down to a handful.
+    """
+    import sys as _sys
+    out_path = out_dir / "subtitle_track.webm"
+    dur = f"{total_duration_s:.3f}"
+
+    inputs: list[str] = [
+        "-f", "lavfi", "-i",
+        f"color=c=0x00000000:s=1080x1920:r=30:d={dur}",
+    ]
+    filter_lines: list[str] = []
+    prev = "0:v"
+
+    for i, ov in enumerate(subtitle_overlays):
+        inputs += ["-i", str(ov.png)]
+        cur = f"sv{i}"
+        enable = f"between(t,{ov.start_s:.3f},{ov.end_s:.3f})"
+        filter_lines.append(
+            f"[{prev}][{i + 1}:v]overlay=0:0:enable='{enable}':format=rgba[{cur}]"
+        )
+        prev = cur
+
+    cmd = [
+        ffmpeg_bin, "-y",
+        *inputs,
+        "-filter_complex", ";".join(filter_lines),
+        "-map", f"[{prev}]",
+        "-c:v", "libvpx-vp9",
+        "-auto-alt-ref", "0",  # required for alpha in VP9
+        "-pix_fmt", "yuva420p",
+        "-deadline", "realtime",  # fastest VP9 mode
+        "-cpu-used", "8",
+        "-r", "30",
+        "-t", dur,
+        str(out_path),
+    ]
+    print(f"  [ffmpeg] pre-compositing {len(subtitle_overlays)} subtitles -> single track...")
+    proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    _register_active(proc)
+    assert proc.stderr is not None
+    for raw in proc.stderr:
+        _sys.stderr.buffer.write(raw)
+        _sys.stderr.buffer.flush()
+    proc.wait()
+    _register_active(None)
+    if proc.returncode != 0:
+        raise RuntimeError("Subtitle pre-composition failed")
+    print(f"  [ffmpeg] subtitle track ready: {out_path.name}")
+    return out_path
 
 
 def compose(
@@ -106,7 +169,7 @@ def compose(
     )
 
     cmd = [
-        ffmpeg_bin, "-y",
+        ffmpeg_bin, "-nostdin", "-y",
         *inputs,
         "-filter_complex", _join_filters(filter_parts),
         *map_args,
@@ -135,7 +198,7 @@ def compose(
     import sys as _sys
     stderr_buf: list[bytes] = []
 
-    proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     _register_active(proc)
     # Stream stderr line-by-line so progress is visible in real time.
     assert proc.stderr is not None
