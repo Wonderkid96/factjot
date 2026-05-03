@@ -41,7 +41,6 @@ from src.core.models import CarouselPost
 from src.core.paths import LIST_PACK_CACHE
 from src.publish.image_host import make_image_host
 from src.publish.instagram_publisher import InstagramGraphPublisher
-from src.render.render_carousel import BrandKitRenderer
 from src.render.list_renderer import ListCarouselRenderer, ListSlideSpec
 from src.utils.logging_utils import configure_logging
 
@@ -89,131 +88,6 @@ def _load_pack_cache(slug: str) -> dict | None:
     return None
 
 
-def _resolve_pack(pack: dict, post_id: str) -> tuple[list[ListSlideSpec], list[dict], list[str]]:
-    """Returns (slide_specs, recap_items, source_urls).
-
-    Walks the pack's items, hits TMDB for each, downloads backdrop + poster,
-    and assembles the slide specs. The first item's backdrop is reused on
-    the hook slide (most visually striking is positioned first per pack rules).
-    """
-    tmdb = TMDBClient()
-    omdb = OMDbClient()  # disabled if OMDB_API_KEY missing — that's fine
-    from src.core.paths import LIST_ASSETS_CACHE
-    asset_root = LIST_ASSETS_CACHE / post_id
-    asset_root.mkdir(parents=True, exist_ok=True)
-
-    item_specs: list[ListSlideSpec] = []
-    recap_items: list[dict] = []
-    sources: list[str] = []
-
-    for idx, raw in enumerate(pack["items"], start=1):
-        kind = raw.get("kind", "movie")
-        if kind not in ("movie", "tv"):
-            raise NotImplementedError(f"list item kind {kind!r} not supported yet")
-        tmdb_id = int(raw["tmdb_id"])
-
-        # ---- Fetch domain-specific TMDB data ----
-        if kind == "movie":
-            entity = tmdb.get_movie(tmdb_id)
-            credits = tmdb.get_movie_credits(tmdb_id)
-            title = entity.get("title") or entity.get("original_title") or "Untitled"
-            year = (entity.get("release_date") or "")[:4] or ""
-            credit_name = tmdb.director_name(credits) or ""
-            director = f"dir. {credit_name}" if credit_name else ""
-            imdb_id = entity.get("imdb_id") or ""
-            # Runtime in minutes for movies
-            duration_min = raw.get("runtime") or entity.get("runtime") or 0
-            duration_str = f"{duration_min} MIN" if duration_min else ""
-        else:  # tv
-            entity = tmdb.get_tv_show(tmdb_id)
-            credits = tmdb.get_tv_credits(tmdb_id)
-            title = entity.get("name") or entity.get("original_name") or "Untitled"
-            year = (entity.get("first_air_date") or "")[:4] or ""
-            credit_name = tmdb.first_creator_name(entity, credits) or ""
-            director = f"by {credit_name}" if credit_name else ""
-            # External IDs request for IMDB tt-id (used by OMDb)
-            try:
-                ext = tmdb.get_tv_external_ids(tmdb_id)
-                imdb_id = ext.get("imdb_id") or ""
-            except Exception:
-                imdb_id = ""
-            # Duration: TV uses seasons + episodes instead of runtime
-            seasons = entity.get("number_of_seasons") or 0
-            episodes = entity.get("number_of_episodes") or 0
-            if raw.get("runtime"):
-                # Pack can override with whatever string makes sense
-                duration_str = str(raw["runtime"]).upper()
-            elif seasons and episodes:
-                duration_str = f"{seasons} S · {episodes} EPS"
-            elif episodes:
-                duration_str = f"{episodes} EPS"
-            else:
-                duration_str = ""
-
-        backdrop_url = TMDBClient.best_backdrop(entity)
-        poster_url = TMDBClient.best_poster(entity)
-        if not backdrop_url or not poster_url:
-            raise RuntimeError(f"TMDB id {tmdb_id} ({title}) is missing backdrop or poster")
-
-        bd_path = _download(backdrop_url, asset_root / f"{idx:02d}_backdrop.jpg")
-        po_path = _download(poster_url, asset_root / f"{idx:02d}_poster.jpg")
-
-        # Pack-level scores win. OMDb fallback fills the gap from imdb_id.
-        imdb_score = raw.get("imdb_score", "") or ""
-        rotten_score = raw.get("rotten_score", "") or ""
-        if (not imdb_score or not rotten_score) and omdb.enabled and imdb_id:
-            fetched = omdb.scores_by_imdb_id(imdb_id)
-            imdb_score = imdb_score or fetched.get("imdb", "")
-            rotten_score = rotten_score or fetched.get("rotten", "")
-
-        # First listed genre, pack override beats API.
-        genre = raw.get("genre", "") or ""
-        if not genre and entity.get("genres"):
-            genre = (entity["genres"][0].get("name") or "").upper()
-
-        # Leading cast — top 2 from credits, ordered by `order`.
-        leading_cast = list(raw.get("leading_cast") or [])
-        if not leading_cast:
-            cast = sorted(credits.get("cast", []) or [], key=lambda c: c.get("order", 999))
-            leading_cast = [c["name"].upper() for c in cast[:2] if c.get("name")]
-
-        watch_providers = list(raw["watch_providers"]) if raw.get("watch_providers") else []
-
-        item_specs.append(ListSlideSpec(
-            kind="item",
-            title=title,
-            year=year,
-            director=director,
-            hook=raw.get("hook", ""),
-            accent_word=raw.get("accent_word", ""),
-            backdrop_local_path=str(bd_path),
-            poster_local_path=str(po_path),
-            imdb_score=imdb_score,
-            rotten_score=rotten_score,
-            runtime=duration_str,
-            genre=genre,
-            leading_cast=leading_cast,
-            watch_providers=watch_providers,
-        ))
-        recap_items.append({"title": title, "year": year})
-        source_path = "movie" if kind == "movie" else "tv"
-        sources.append(f"https://www.themoviedb.org/{source_path}/{tmdb_id}")
-
-    # Hook: reuse item-1 backdrop.
-    hook_spec = ListSlideSpec(
-        kind="hook",
-        title=pack["title"],
-        subtitle=pack["subtitle"],
-        kicker=pack["category"],
-        backdrop_local_path=item_specs[0].backdrop_local_path,
-    )
-    closing_spec = ListSlideSpec(
-        kind="closing",
-        headline=pack["closing"]["headline"],
-        cta=pack["closing"]["cta"],
-        backdrop_local_path=item_specs[0].backdrop_local_path,
-        recap_items=recap_items,
-    )
 
     return [hook_spec, *item_specs, closing_spec], recap_items, sources
 
@@ -393,31 +267,32 @@ def main() -> int:
     )
 
     def _looks_like_fetch_failure(err) -> bool:
-        # Meta returns "Media could not be fetched from this URI" /
-        # error code 9004 when the URL host is unreachable to its fetcher.
-        # That's the case where rolling forward to the next backend helps.
         s = str(err or "").lower()
         return ("could not be fetched" in s
                 or "doesn't meet our requirements" in s
                 or "9004" in s)
 
     result = publisher.publish_carousel(image_urls=public_urls, caption=full_caption)
-    while not result.get("ok") and _looks_like_fetch_failure(result.get("error")) and hasattr(host, "next_backend"):
-        try:
-            new_name = host.next_backend()
-        except RuntimeError as exc:
-            print(f"\nAll image-host backends exhausted. Last error: {exc}")
-            break
-        print(f"\nIG fetch failure on {_host_label(host)}'s previous host. "
-              f"Re-hosting via {new_name} and retrying...")
-        public_urls = _upload_via(host)
-        result = publisher.publish_carousel(image_urls=public_urls, caption=full_caption)
+
+    # Retry with next image-host backend only when we have a live host object
+    # (non-cache path). On cache path host is not defined so we skip retries.
+    if not _use_cache:
+        while not result.get("ok") and _looks_like_fetch_failure(result.get("error")) and hasattr(host, "next_backend"):
+            try:
+                new_name = host.next_backend()
+            except RuntimeError as exc:
+                print(f"\nAll image-host backends exhausted. Last error: {exc}")
+                break
+            print(f"\nIG fetch failure — re-hosting via {new_name} and retrying...")
+            public_urls = _upload_via(host)
+            result = publisher.publish_carousel(image_urls=public_urls, caption=full_caption)
 
     if not result.get("ok"):
         print(f"\nPublish failed: {result.get('error')}")
         return 7
     ig_media_id = result["ig_media_id"]
-    print(f"PUBLISHED via {_host_label(host)} — ig_media_id: {ig_media_id}")
+    src = "cache" if _use_cache else "live"
+    print(f"PUBLISHED ({src}) — ig_media_id: {ig_media_id}")
 
     # Growth path: push hook slide to Stories with a backlink to the carousel.
     story_result = {"ok": False, "error": "missing image url"}
