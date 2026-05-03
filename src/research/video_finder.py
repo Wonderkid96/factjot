@@ -1,6 +1,8 @@
 """Multi-source portrait video finder for Reels composition.
 
-Selection strategy (4 layers — tried in order, first hit wins):
+Selection strategy (5 layers — tried in order, first hit wins):
+  0. Entity sources      — Wikipedia lead image, Wikimedia Commons files,
+                           Internet Archive exact-phrase search (entity-specific)
   1. Curated image_hint  — manually written, most specific
   2. Derived queries     — auto-extracted subjects from the fact claim
   3. Topic-generic       — atmospheric fallback for the topic category
@@ -67,6 +69,9 @@ _OPEN_LICENSE_MARKERS = (
     "cc0", "cc-by", "cc by", "public domain", "pd ", "pd-", "pdm",
     "creativecommons", "no known copyright",
 )
+
+# Filenames/descriptions containing any of these strings are skipped
+_NSFW_BLOCK_TERMS = ("nsfw", "explicit", "nude", "nudity", "porn", "xxx", "adult", "erotic")
 
 # Stop words for query derivation
 _STOP = frozenset({
@@ -154,6 +159,21 @@ def find_videos(
     used_source_urls: set[str] = set(used_source_registry or ())
     safety = _safety_pool_pick(topic) or []
     safety_idx = 0
+
+    # Tier 0: entity-specific sources (Wikipedia, Wikimedia Commons, Archive.org)
+    # Run before the narrative-beat B-roll queries to anchor the reel with
+    # accurate visuals of the actual subject rather than generic stock footage.
+    if image_hint:
+        entity_clips = _entity_sources(
+            image_hint, out_dir,
+            used_source_urls=used_source_urls,
+            used_paths=used_paths,
+            max_clips=min(2, count),
+        )
+        for ec in entity_clips:
+            if len(clips) < count:
+                clips.append(ec)
+                print(f"  [video] ENTITY-0  ✓ {ec.name}")
 
     for label, query in queries:
         if len(clips) >= count:
@@ -617,6 +637,364 @@ def _pixabay_video_url(query: str, topic: str, skip_urls: set[str] | None = None
         skip_urls.add(f"pixabay:{best_id}")
     print(f"  [pixabay] best match score={best_score} from {len(candidates)} results")
     return best_url
+
+
+# ------------------------------------------------------------------ #
+# Entity-specific sources — run BEFORE generic B-roll queries
+# These target the named entity directly (via image_hint) using free
+# encyclopaedic APIs.  No API keys required.
+# ------------------------------------------------------------------ #
+
+def _nsfw_safe(name: str, description: str = "") -> bool:
+    """Return True if the filename and description are free of NSFW markers."""
+    combined = f"{name} {description}".lower()
+    return not any(term in combined for term in _NSFW_BLOCK_TERMS)
+
+
+def _wikipedia_lead_image(entity: str, out_dir: Path, *, used_source_urls: set[str] | None = None) -> Optional[Path]:
+    """Fetch the Wikipedia article lead image for `entity` as a still frame.
+
+    Returns the downloaded image path (PNG/JPG) on success, None otherwise.
+    Still images work fine with FFmpeg's stream_loop -1 and require no duration
+    check -- the compositor loops them to fill clip length.
+    """
+    # Normalise entity to title case for URL embedding
+    title = entity.strip().replace(" ", "_")
+    try:
+        r = requests.get(
+            f"https://en.wikipedia.org/api/rest_v1/page/summary/{title}",
+            headers={"User-Agent": "factjot-bot/1.0 (tobyjohnsonemail@gmail.com)"},
+            timeout=_HTTP_TIMEOUT,
+        )
+        if not r.ok:
+            return None
+        data = r.json()
+        img_info = data.get("originalimage") or data.get("thumbnail")
+        if not img_info:
+            return None
+        img_url = img_info.get("source", "")
+        if not img_url:
+            return None
+        if used_source_urls and img_url in used_source_urls:
+            return None
+        # Basic NSFW check on the URL itself
+        if not _nsfw_safe(img_url):
+            print(f"  [wikipedia] skipped NSFW-flagged URL")
+            return None
+        # Determine extension
+        ext = "jpg"
+        lower_url = img_url.lower().split("?")[0]
+        if lower_url.endswith(".png"):
+            ext = "png"
+        elif lower_url.endswith(".gif"):
+            ext = "gif"
+        slug = hashlib.sha1(img_url.encode()).hexdigest()[:10]
+        out_path = out_dir / f"wiki_lead_{slug}.{ext}"
+        print(f"  [wikipedia] lead image: {img_url[:80]}")
+        r2 = requests.get(
+            img_url,
+            headers={"User-Agent": "factjot-bot/1.0 (tobyjohnsonemail@gmail.com)"},
+            stream=True, timeout=60,
+        )
+        r2.raise_for_status()
+        total = 0
+        with open(out_path, "wb") as f:
+            for chunk in r2.iter_content(chunk_size=65536):
+                f.write(chunk)
+                total += len(chunk)
+        size = out_path.stat().st_size if out_path.exists() else 0
+        if size < _MIN_BYTES_ARK:
+            out_path.unlink(missing_ok=True)
+            print(f"  [wikipedia] image too small ({size//1024}KB), skipping")
+            return None
+        print(f"  [wikipedia] downloaded lead image {size//1024}KB -> {out_path.name}")
+        if used_source_urls is not None:
+            used_source_urls.add(img_url)
+        return out_path
+    except Exception as exc:
+        print(f"  [wikipedia] error: {exc}")
+        return None
+
+
+def _wikimedia_entity_files(
+    entity: str, out_dir: Path, *, used_source_urls: set[str] | None = None
+) -> Optional[Path]:
+    """Search Wikimedia Commons for files (video preferred, image fallback) matching `entity`.
+
+    Uses the MediaWiki search API then resolves actual file URLs via imageinfo.
+    Prefers video files; falls back to still images.  CC/PD licensed only.
+    50 KB minimum (archival threshold).
+    """
+    try:
+        # Step 1: search for files in File namespace (ns=6)
+        search_r = requests.get(
+            "https://commons.wikimedia.org/w/api.php",
+            params={
+                "action": "query",
+                "list": "search",
+                "srsearch": entity,
+                "srnamespace": "6",
+                "srlimit": "12",
+                "format": "json",
+            },
+            headers={"User-Agent": "factjot-bot/1.0 (tobyjohnsonemail@gmail.com)"},
+            timeout=_HTTP_TIMEOUT,
+        )
+        search_r.raise_for_status()
+        results = search_r.json().get("query", {}).get("search", [])
+        if not results:
+            return None
+
+        # Step 2: resolve file URLs in one batch query (up to 12 titles)
+        titles_pipe = "|".join(r["title"] for r in results)
+        info_r = requests.get(
+            "https://commons.wikimedia.org/w/api.php",
+            params={
+                "action": "query",
+                "titles": titles_pipe,
+                "prop": "imageinfo",
+                "iiprop": "url|size|mime|extmetadata",
+                "iiextmetadatafilter": "LicenseShortName|License|Restrictions",
+                "format": "json",
+            },
+            headers={"User-Agent": "factjot-bot/1.0 (tobyjohnsonemail@gmail.com)"},
+            timeout=_HTTP_TIMEOUT,
+        )
+        info_r.raise_for_status()
+        pages = info_r.json().get("query", {}).get("pages", {})
+
+        video_candidates: list[tuple[int, str, str]] = []
+        image_candidates: list[tuple[int, str, str]] = []
+
+        for page in pages.values():
+            info = (page.get("imageinfo") or [{}])[0]
+            url = info.get("url", "")
+            mime = info.get("mime", "")
+            size = info.get("size", 0)
+            title = page.get("title", "")
+
+            if not url or size < _MIN_BYTES_ARK:
+                continue
+            if size > _MAX_BYTES:
+                continue
+            if not _nsfw_safe(title):
+                continue
+            if used_source_urls and url in used_source_urls:
+                continue
+
+            meta = info.get("extmetadata", {})
+            license_short = meta.get("LicenseShortName", {}).get("value", "")
+            license_code  = meta.get("License", {}).get("value", "")
+            restrictions  = meta.get("Restrictions", {}).get("value", "")
+            if restrictions and restrictions.lower() not in ("", "none"):
+                continue
+            if not _is_rights_cleared(license_short, license_code):
+                continue
+
+            score = _relevance_score(entity, title)
+            lic = license_short or license_code
+
+            if mime.startswith("video/"):
+                video_candidates.append((score, url, lic))
+            elif mime.startswith("image/"):
+                image_candidates.append((score, url, lic))
+
+        # Prefer video over image; fall back to image still
+        for candidates, kind in ((video_candidates, "video"), (image_candidates, "image")):
+            if not candidates:
+                continue
+            candidates.sort(key=lambda x: -x[0])
+            score, url, lic = candidates[0]
+            print(f"  [wikimedia-entity] {kind} rights OK ({lic}) score={score} from {len(candidates)} candidates")
+
+            ext = "mp4"
+            lower = url.lower().split("?")[0]
+            if kind == "image":
+                ext = "jpg" if lower.endswith(".jpg") or lower.endswith(".jpeg") else "png"
+            elif ".webm" in lower:
+                ext = "webm"
+            elif ".ogv" in lower or ".ogg" in lower:
+                ext = "ogv"
+
+            slug = hashlib.sha1(url.encode()).hexdigest()[:10]
+            out_path = out_dir / f"wm_entity_{slug}.{ext}"
+
+            r3 = requests.get(
+                url,
+                headers={"User-Agent": "factjot-bot/1.0 (tobyjohnsonemail@gmail.com)"},
+                stream=True, timeout=60,
+            )
+            r3.raise_for_status()
+            total = 0
+            with open(out_path, "wb") as f:
+                for chunk in r3.iter_content(chunk_size=65536):
+                    f.write(chunk)
+                    total += len(chunk)
+
+            size_dl = out_path.stat().st_size if out_path.exists() else 0
+            if size_dl < _MIN_BYTES_ARK:
+                out_path.unlink(missing_ok=True)
+                continue
+
+            # Duration check only for actual video files
+            if kind == "video":
+                dur = _probe_duration(out_path)
+                if dur is not None and dur < _MIN_CLIP_DURATION_S:
+                    out_path.unlink(missing_ok=True)
+                    print(f"  [wikimedia-entity] clip too short ({dur:.1f}s), skipping")
+                    continue
+
+            print(f"  [wikimedia-entity] downloaded {size_dl//1024}KB -> {out_path.name}")
+            if used_source_urls is not None:
+                used_source_urls.add(url)
+            return out_path
+
+    except Exception as exc:
+        print(f"  [wikimedia-entity] error: {exc}")
+    return None
+
+
+def _archive_entity_search(
+    entity: str, out_dir: Path, *, used_source_urls: set[str] | None = None
+) -> Optional[Path]:
+    """Search Internet Archive for the specific entity using exact-phrase matching.
+
+    Uses quoted query for precision.  Falls back to unquoted if no results.
+    50 KB minimum.  Prefers h264/512kb web derivatives.
+    """
+    for q_form in (f'"{entity}"', entity):
+        try:
+            search_r = requests.get(
+                "https://archive.org/advancedsearch.php",
+                params={
+                    "q": f"({q_form}) AND mediatype:movies AND licenseurl:(creativecommons OR publicdomain)",
+                    "fl[]": ["identifier", "title", "description"],
+                    "rows": "8",
+                    "output": "json",
+                },
+                timeout=_HTTP_TIMEOUT,
+            )
+            search_r.raise_for_status()
+            docs = search_r.json().get("response", {}).get("docs", [])
+            if not docs:
+                continue
+
+            scored = sorted(
+                [(_relevance_score(entity, f"{doc.get('title', '')} {doc.get('description', '')} {doc.get('identifier', '')}"), doc)
+                 for doc in docs],
+                key=lambda x: -x[0],
+            )
+
+            for score, doc in scored:
+                identifier = doc.get("identifier")
+                if not identifier:
+                    continue
+                if not _nsfw_safe(identifier, doc.get("description", "") or ""):
+                    print(f"  [archive-entity] skipped NSFW item: {identifier}")
+                    continue
+
+                meta_r = requests.get(
+                    f"https://archive.org/metadata/{identifier}",
+                    timeout=_HTTP_TIMEOUT,
+                )
+                if not meta_r.ok:
+                    continue
+                meta_json = meta_r.json()
+                files = meta_json.get("files", [])
+                mp4s = [f for f in files if f.get("name", "").lower().endswith(".mp4")]
+                if not mp4s:
+                    continue
+
+                # Prefer small/web-friendly derivatives
+                small = [f for f in mp4s if any(k in f.get("name", "").lower() for k in ("512", "h264", "small", "mobile"))]
+                chosen_files = small or mp4s
+
+                for chosen in chosen_files:
+                    name = chosen.get("name", "")
+                    if not _nsfw_safe(name):
+                        continue
+                    url = f"https://archive.org/download/{identifier}/{name}"
+                    if used_source_urls and url in used_source_urls:
+                        continue
+
+                    slug = hashlib.sha1(url.encode()).hexdigest()[:10]
+                    out_path = out_dir / f"archive_entity_{slug}.mp4"
+
+                    license_url = meta_json.get("metadata", {}).get("licenseurl", "")
+                    print(f"  [archive-entity] score={score} rights OK ({license_url[:60] or 'CC/PD via query filter'}): {url[:80]}")
+
+                    if _download_mp4(url, out_path, min_bytes=_MIN_BYTES_ARK):
+                        if used_source_urls is not None:
+                            used_source_urls.add(url)
+                        return out_path
+        except Exception as exc:
+            print(f"  [archive-entity] error ({q_form!r}): {exc}")
+    return None
+
+
+def _entity_sources(
+    image_hint: str,
+    out_dir: Path,
+    *,
+    used_source_urls: set[str] | None = None,
+    used_paths: set[str] | None = None,
+    max_clips: int = 2,
+) -> list[Path]:
+    """Try entity-specific sources in order for the given image_hint.
+
+    Attempts the full hint first, then a shortened 2-word version if the
+    full hint yields nothing.  Returns up to `max_clips` paths.
+
+    Order:
+      1. Wikipedia lead image
+      2. Wikimedia Commons (video preferred, image fallback)
+      3. Internet Archive (exact phrase search)
+    """
+    clips: list[Path] = []
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Build entity strings to try: full hint, then first 2-3 words
+    hint = image_hint.strip()
+    words = hint.split()
+    entities = [hint]
+    if len(words) > 2:
+        entities.append(" ".join(words[:3]))
+    if len(words) > 3:
+        entities.append(" ".join(words[:2]))
+
+    for entity in entities:
+        if len(clips) >= max_clips:
+            break
+        print(f"  [entity-sources] trying entity: {entity!r}")
+
+        # 1. Wikipedia lead image
+        path = _wikipedia_lead_image(entity, out_dir, used_source_urls=used_source_urls)
+        if path and (used_paths is None or str(path) not in used_paths):
+            clips.append(path)
+            if used_paths is not None:
+                used_paths.add(str(path))
+            if len(clips) >= max_clips:
+                break
+
+        # 2. Wikimedia Commons entity search
+        path = _wikimedia_entity_files(entity, out_dir, used_source_urls=used_source_urls)
+        if path and (used_paths is None or str(path) not in used_paths):
+            clips.append(path)
+            if used_paths is not None:
+                used_paths.add(str(path))
+            if len(clips) >= max_clips:
+                break
+
+        # 3. Internet Archive entity search
+        path = _archive_entity_search(entity, out_dir, used_source_urls=used_source_urls)
+        if path and (used_paths is None or str(path) not in used_paths):
+            clips.append(path)
+            if used_paths is not None:
+                used_paths.add(str(path))
+
+    if clips:
+        print(f"  [entity-sources] found {len(clips)} entity clip(s)")
+    return clips
 
 
 # ------------------------------------------------------------------ #
