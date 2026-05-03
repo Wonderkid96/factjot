@@ -433,7 +433,6 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
     # 5d: KINETIC SUBTITLES via .ass file — one FFmpeg filter pass.
     # Previously used 20+ sequential PNG overlay stages; now a single
     # native libass render. generate_ass_file() handles timing offsets.
-    from src.core.brand import FONT_DIR
     ass_path = out_dir / "subtitles.ass"
     generate_ass_file(
         chunks,
