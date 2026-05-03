@@ -128,6 +128,107 @@ def build_trending_pack(
     return pack
 
 
+def build_themed_pack(
+    theme: dict,
+    posted_tmdb_ids: set[int] | None = None,
+    count: int = 5,
+) -> dict | None:
+    """Build a list pack from a theme definition using TMDB Discover.
+
+    Args:
+        theme:           A theme dict from list_themes.THEMES.
+        posted_tmdb_ids: TMDB IDs already published — never repeat a film.
+        count:           Number of items to include (default 5, max 8).
+
+    Returns:
+        A complete list pack dict ready for ship_list_post.py, or None
+        if fewer than 4 usable films are found.
+    """
+    import os
+    import requests as _req
+
+    token = os.environ.get("TMDB_READ_TOKEN", "")
+    if not token:
+        print("  [themed_pack] TMDB_READ_TOKEN missing")
+        return None
+
+    posted = posted_tmdb_ids or set()
+    headers = {"Authorization": f"Bearer {token}", "accept": "application/json"}
+    params: dict = {
+        "language": "en-GB",
+        "sort_by": theme.get("sort_by", "vote_average.desc"),
+        "vote_count.gte": theme.get("vote_count_gte", 500),
+        "vote_average.gte": theme.get("vote_avg_gte", 7.0),
+        "include_adult": False,
+        "page": 1,
+    }
+    if "genre_ids" in theme:
+        params["with_genres"] = ",".join(map(str, theme["genre_ids"]))
+    if "year_gte" in theme:
+        params["primary_release_date.gte"] = f"{theme['year_gte']}-01-01"
+    if "year_lte" in theme:
+        params["primary_release_date.lte"] = f"{theme['year_lte']}-12-31"
+    if "original_language" in theme:
+        params["with_original_language"] = theme["original_language"]
+    if "with_people" in theme:
+        params["with_people"] = theme["with_people"]
+    if "runtime_gte" in theme:
+        params["with_runtime.gte"] = theme["runtime_gte"]
+    if "vote_count_lte" in theme:
+        params["vote_count.lte"] = theme["vote_count_lte"]
+
+    try:
+        r = _req.get(
+            "https://api.themoviedb.org/3/discover/movie",
+            headers=headers, params=params, timeout=15,
+        )
+        r.raise_for_status()
+        movies = r.json().get("results", [])
+    except Exception as exc:
+        print(f"  [themed_pack] TMDB discover failed: {exc}")
+        return None
+
+    # Filter: needs backdrop, overview, not already posted
+    candidates = [
+        m for m in movies
+        if m.get("backdrop_path")
+        and m.get("overview")
+        and m.get("title")
+        and m["id"] not in posted
+    ]
+
+    if len(candidates) < 4:
+        print(f"  [themed_pack] only {len(candidates)} candidates for {theme['slug']!r} — skipping")
+        return None
+
+    count = min(count, 8, len(candidates))
+    items = []
+    for m in candidates[:count]:
+        items.append({
+            "kind":        "movie",
+            "tmdb_id":     m["id"],
+            "hook":        _make_hook(m["overview"], m["title"]),
+            "accent_word": None,
+            "genre":       _genre_label(m.get("genre_ids", [])),
+        })
+
+    return {
+        "slug":           theme["slug"],
+        "title":          theme["title"],
+        "subtitle":       theme["subtitle"],
+        "category":       theme.get("category", "FILM LIST"),
+        "series":         "factjot",
+        "auto_generated": True,
+        "generated_at":   datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "items":          items,
+        "closing": {
+            "headline": theme.get("closing_headline", "Save this list."),
+            "cta":      "Follow @factjot for more.",
+        },
+        "caption": theme["caption"],
+    }
+
+
 def get_posted_tmdb_ids() -> set[int]:
     """Return all TMDB IDs already published in list posts.
 

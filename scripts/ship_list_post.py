@@ -32,6 +32,7 @@ from src.brain import brain
 from src.content.description_builder import build_instagram_description
 from src.content.list_packs import LIST_PACKS, get_pack, list_packs
 from src.content.pack_resolver import resolve_pack, slug_post_id, list_dedupe_claim
+from src.core.paths import GENERATED_LIST_PACKS
 from src.core.config import load_config
 from src.core.models import CarouselPost
 from src.core.paths import LIST_PACK_CACHE
@@ -106,13 +107,38 @@ def _print_preview(pack: dict, specs: list[ListSlideSpec]) -> None:
             print(f"  [closing] {s.headline} | recap × {len(s.recap_items)}")
 
 
+def _load_generated_packs_into_runtime() -> None:
+    """Load generated_list_packs.jsonl into the runtime LIST_PACKS dict."""
+    if not GENERATED_LIST_PACKS.exists():
+        return
+    import json as _json
+    for line in GENERATED_LIST_PACKS.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            pack = _json.loads(line)
+            slug = pack.get("slug")
+            if slug and slug not in LIST_PACKS:
+                LIST_PACKS[slug] = pack
+        except Exception:
+            pass
+
+
+# Load generated packs at import time so get_pack() finds them.
+_load_generated_packs_into_runtime()
+
+
 def _pick_next_unposted_pack() -> str | None:
-    """Return the slug of the next unposted pack. Curated first, then TMDB auto-generated."""
+    """Return the slug of the next unposted pack.
+
+    Priority: curated packs → generated themed packs → TMDB trending fallback.
+    """
     for slug in LIST_PACKS:
         if not brain.is_fact_posted(_list_dedupe_claim(slug)):
             return slug
-    # All curated packs posted — generate a trending pack from TMDB
-    print("All curated packs posted. Generating auto pack from TMDB trending...")
+    # All known packs posted — generate a trending pack from TMDB as last resort
+    print("All packs posted. Generating auto pack from TMDB trending...")
     try:
         from src.content.auto_pack import build_trending_pack, get_posted_tmdb_ids
         from src.research.trend_scout import fetch_weekly_trends

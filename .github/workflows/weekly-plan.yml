@@ -83,6 +83,9 @@ jobs:
       - name: Restock - discover facts + runway report
         run: python3 scripts/restock.py || echo "Restock failed - continuing"
 
+      - name: Generate themed list packs
+        run: python3 scripts/generate_list_packs.py || echo "Pack generation failed - continuing"
+
       - name: Prepare list pack assets
         run: python3 scripts/prepare_packs.py || echo "Pack prep failed - continuing"
 
@@ -115,6 +118,8 @@ jobs:
             data/ledgers/discovered_facts.jsonl \
             data/ledgers/discovery.log.jsonl \
             data/ledgers/list_pack_cache.jsonl \
+            data/ledgers/generated_list_packs.jsonl \
+            data/ledgers/used_list_themes.jsonl \
             data/ledgers/alerts.jsonl \
             || true
           git diff --cached --quiet && echo "No state changes to commit." && exit 0
