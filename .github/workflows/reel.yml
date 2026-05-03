@@ -65,6 +65,23 @@ jobs:
           TIMEZONE=UTC
           ENVEOF
 
+      - name: Runway check — discover facts if running low
+        run: |
+          REMAINING=$(/Library/Frameworks/Python.framework/Versions/Current/bin/python3 -c "
+import sys; sys.path.insert(0,'.')
+from src.brain import brain
+from src.research.rare_fact_bank import load_all_facts
+q3 = [f for f in load_all_facts() if f.get('quirky_score')==3 and not brain.is_fact_posted(f['claim'])]
+print(len(q3))
+" 2>/dev/null || echo 99)
+          echo "Reel runway: $REMAINING q3 facts remaining"
+          if [ "$REMAINING" -lt 14 ]; then
+            echo "Runway below 14 days — running fact discovery..."
+            python3 scripts/discover_facts.py || echo "Discovery failed, continuing"
+          else
+            echo "Runway OK — skipping discovery."
+          fi
+
       - name: Post reel
         run: python3 scripts/make_reel.py
 

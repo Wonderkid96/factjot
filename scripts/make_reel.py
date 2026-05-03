@@ -158,15 +158,18 @@ def _pick_fact(topic: str | None) -> dict | None:
     if topic:
         all_facts = [r for r in all_facts if r["topic"] == topic]
 
+    # Prefer facts with curated scripts; allow facts without (script generated at render time)
     fresh = [
         r for r in all_facts
         if not brain.is_fact_posted(r["claim"])
         and r["claim"] not in used_as_reel
         and r.get("sensitivity") != CONTROVERSIAL
-        and r.get("reel_title")
-        and r.get("reel_script")
-        and len(r["reel_script"].split()) >= MIN_REEL_SCRIPT_WORDS
     ]
+    # Sort: curated scripts first (better quality), then uncurated
+    fresh.sort(key=lambda r: (
+        bool(r.get("reel_title") and r.get("reel_script") and len(r.get("reel_script","").split()) >= MIN_REEL_SCRIPT_WORDS),
+        r.get("quirky_score", 0),
+    ), reverse=True)
     if not fresh:
         return None
     fresh.sort(key=lambda r: r.get("quirky_score", 0), reverse=True)
@@ -252,17 +255,24 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         return 8
 
     # Step 2: Voice-over
-    # Curated reel_script is REQUIRED — auto-formatter has been removed because
-    # it produces ~22-second reels from short claims (the bug fixed 2026-05-01).
-    # _pick_fact already enforced reel_script + word floor; this is belt-and-braces.
-    vo_body = fact["reel_script"]
-    word_count = len(vo_body.split())
-    if word_count < MIN_REEL_SCRIPT_WORDS:
-        raise ReelFactInvariantError(
-            f"reel_script for {claim[:60]!r} is {word_count} words, "
-            f"below floor of {MIN_REEL_SCRIPT_WORDS}. _pick_fact should have rejected this."
-        )
-    print(f"\nUsing curated reel_script ({word_count} words)")
+    # Use curated reel_script if available (preferred — hand-crafted quality).
+    # If missing, auto-generate from the claim using reel_script.py.
+    # The 22-second bug (2026-05-01) was caused by auto-generation running on a
+    # claim that was too short. Guard: abort if result < MIN_REEL_SCRIPT_WORDS.
+    from src.content.reel_script import to_voice_script as build_reel_script
+    curated = fact.get("reel_script", "")
+    if curated and len(curated.split()) >= MIN_REEL_SCRIPT_WORDS:
+        vo_body = curated
+        print(f"\nUsing curated reel_script ({len(vo_body.split())} words)")
+    else:
+        vo_body = build_reel_script(claim, fact.get("reel_title") or "")
+        word_count = len(vo_body.split())
+        print(f"\nAuto-generated reel_script ({word_count} words)")
+        if word_count < MIN_REEL_SCRIPT_WORDS:
+            raise ReelFactInvariantError(
+                f"Auto-generated script for {claim[:60]!r} is only {word_count} words "
+                f"(floor: {MIN_REEL_SCRIPT_WORDS}). Claim may be too short to script."
+            )
 
     # Append a randomised outro. Each variation contains "factjot" so the
     # compositor can sync the CTA card to the exact moment it is spoken.
