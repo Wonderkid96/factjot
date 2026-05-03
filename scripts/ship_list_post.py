@@ -272,7 +272,7 @@ def main() -> int:
             return 3
 
         titles = [item["title"] for item in recap if item.get("title")]
-        credits_line = "Credits: " + ", ".join(titles) if titles else ""
+        credits_line = "Credits:\n" + "\n".join(f"• {t}" for t in titles) if titles else ""
         hashtag_block = " ".join(HASHTAGS_FILM)
         full_caption = "\n\n".join(p for p in [
             pack["caption"].strip(), credits_line, hashtag_block
