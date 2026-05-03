@@ -130,10 +130,22 @@ def compose(
         + "Filter graph:\n" + _join_filters(filter_parts)
     )
     # Use Popen so the process can be killed cleanly if the parent is interrupted.
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    # stderr=None streams FFmpeg progress directly to the parent process stderr,
+    # making it visible in real time in GitHub Actions logs and local runs.
+    import sys as _sys
+    stderr_buf: list[bytes] = []
+
+    proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     _register_active(proc)
-    stdout, stderr = proc.communicate()
+    # Stream stderr line-by-line so progress is visible in real time.
+    assert proc.stderr is not None
+    for raw in proc.stderr:
+        _sys.stderr.buffer.write(raw)
+        _sys.stderr.buffer.flush()
+        stderr_buf.append(raw)
+    proc.wait()
     _register_active(None)
+    stderr = b"".join(stderr_buf)
     if proc.returncode != 0:
         (out_path.parent / "ffmpeg_stderr.txt").write_text(stderr.decode("utf-8", errors="replace"))
         raise RuntimeError(
