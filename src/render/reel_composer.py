@@ -13,7 +13,28 @@ Cuts every 2-4s synced to the voice make the eye stay on screen.
 """
 from __future__ import annotations
 
+import signal
 import subprocess
+
+# Module-level reference to the active FFmpeg process.
+# Lets signal handlers kill FFmpeg cleanly when the parent Python process
+# is interrupted — prevents orphan FFmpeg processes eating CPU in the background.
+_active_proc: "subprocess.Popen | None" = None
+
+
+def _register_active(proc: "subprocess.Popen | None") -> None:
+    global _active_proc
+    _active_proc = proc
+
+
+def _sigterm_handler(signum: int, frame: object) -> None:
+    if _active_proc is not None:
+        _active_proc.kill()
+    raise SystemExit(1)
+
+
+signal.signal(signal.SIGTERM, _sigterm_handler)
+signal.signal(signal.SIGINT, _sigterm_handler)
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -101,19 +122,21 @@ def compose(
     ]
 
     print(f"  [ffmpeg] composing {len(overlays)} overlays, duration={total_duration_s:.1f}s")
-    # Dump command + filter graph for debugging
     debug_path = out_path.parent / "ffmpeg_debug.txt"
     debug_path.write_text(
         "FFmpeg command:\n" + " ".join(cmd) + "\n\n"
         + "Filter graph:\n" + _join_filters(filter_parts)
     )
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        # Save full stderr for inspection
-        (out_path.parent / "ffmpeg_stderr.txt").write_text(result.stderr)
+    # Use Popen so the process can be killed cleanly if the parent is interrupted.
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    _register_active(proc)
+    stdout, stderr = proc.communicate()
+    _register_active(None)
+    if proc.returncode != 0:
+        (out_path.parent / "ffmpeg_stderr.txt").write_text(stderr.decode("utf-8", errors="replace"))
         raise RuntimeError(
-            f"FFmpeg failed (exit {result.returncode}):\n"
-            f"STDERR (last 5000 chars):\n{result.stderr[-5000:]}"
+            f"FFmpeg failed (exit {proc.returncode}):\n"
+            f"STDERR (last 5000 chars):\n{stderr.decode('utf-8', errors='replace')[-5000:]}"
         )
     size_mb = out_path.stat().st_size / 1024 / 1024
     print(f"  [ffmpeg] done -> {out_path.name} ({size_mb:.1f} MB)")
