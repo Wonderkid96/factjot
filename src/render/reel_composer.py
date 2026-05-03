@@ -298,17 +298,23 @@ def _build_filter_graph(
         )
         prev = cur
 
-    # Apply branded intro overlay (alpha - circle reveals footage, red wraps it)
+    # Apply branded intro overlay (alpha - circle reveals footage, red wraps it).
+    # eof_action=pass: when the 1.37s intro stream ends, the overlay passes
+    # through the background instead of stalling FFmpeg for the remaining
+    # 60+ seconds of the reel. Without this, FFmpeg hangs waiting for more
+    # intro frames that will never arrive.
+    # bilinear scaler: lanczos is high quality but ~5x slower; imperceptible
+    # difference on a 1.37s branded overlay at Instagram quality.
     if has_intro:
         intro_dur = 1.37  # known duration of factjot_intro.mov
         filter_lines.append(
             f"[{intro_input_idx}:v]"
-            f"scale=1080:1920:flags=lanczos,setsar=1,setpts=PTS-STARTPTS"
+            f"scale=1080:1920:flags=bilinear,setsar=1,setpts=PTS-STARTPTS"
             f"[intro_alpha]"
         )
         filter_lines.append(
             f"[{prev}][intro_alpha]"
-            f"overlay=0:0:enable='between(t,0,{intro_dur})':format=yuv420"
+            f"overlay=0:0:enable='between(t,0,{intro_dur})':format=yuv420:eof_action=pass"
             f"[after_intro]"
         )
         prev = "after_intro"
