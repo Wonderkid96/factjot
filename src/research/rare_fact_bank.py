@@ -2100,15 +2100,15 @@ RARE_FACT_BANK = [
         "reel_title": "The Mirror at the Top of the World",
         "reel_script": (
             "In Bolivia, at 3,600 metres above sea level... "
-            "there is a salt flat the size of a small country. "
+            "is a salt flat the size of a small country. "
             "The Salar de Uyuni. 10,000 square kilometres of dried salt. "
             "When rain falls, a thin layer of water covers the surface. "
             "The sky reflects perfectly. The horizon disappears. "
             "You cannot tell where the ground ends and the sky begins. "
-            "People stand in the clouds. Walk on the stars. "
+            "People walk on the stars. "
             "It is so flat and enormous that scientists use it "
             "to calibrate satellites in orbit. "
-            "The most precise instruments we've ever built "
+            "The most precise instruments ever built "
             "check themselves against this ancient lake bed. "
             "Earth as a mirror. For machines looking down from space."
         ),
@@ -2126,8 +2126,8 @@ RARE_FACT_BANK = [
         "reel_title": "The Biggest Eyes on Earth",
         "reel_script": (
             "The colossal squid lives in the deep Southern Ocean. "
-            "It can weigh over 400 kilograms. The largest invertebrate on Earth. "
-            "And it has the largest eyes of any animal ever known to exist. "
+            "Over 400 kilograms. The largest invertebrate on Earth. "
+            "And it has the largest eyes of any known animal. "
             "27 centimetres across. The size of a football. Each one. "
             "Why so big? "
             "Because at 1,000 metres down, there is almost no light. "
@@ -2246,16 +2246,16 @@ RARE_FACT_BANK = [
         "tone": "shocking",
         "reel_title": "The Shrimp That Shoots Plasma",
         "reel_script": (
-            "The pistol shrimp is about the size of your finger. "
+            "The pistol shrimp is the size of your finger. "
             "One claw is comically oversized. It looks ridiculous. "
             "Until you learn what it can do. "
             "It snaps that claw faster than a bullet leaves a gun. "
             "The snap creates a cavitation bubble. A tiny pocket of vacuum. "
             "For a fraction of a second, it reaches 8,000 Kelvin. "
             "Almost as hot as the surface of the Sun. "
-            "It collapses, producing a flash of light and a shockwave. "
-            "The shockwave kills prey outright. No bite. No chase. Just a snap. "
-            "So loud that submarines hid near their colonies "
+            "It collapses, producing a shockwave that kills prey outright. "
+            "No bite. No chase. Just a snap. "
+            "Submarines used to hide near their colonies "
             "because the noise masked their own sound. "
             "The ocean's most unlikely weapon."
         ),
