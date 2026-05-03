@@ -62,7 +62,8 @@ SOURCES = [
     {"subreddit": "UnresolvedMysteries",  "title_format": "direct", "min_upvotes":  2_000},
     {"subreddit": "AskHistorians",        "title_format": "direct", "min_upvotes":  2_000},
     {"subreddit": "history",              "title_format": "direct", "min_upvotes":  2_000},
-    {"subreddit": "MorbidReality",        "title_format": "direct", "min_upvotes":  3_000, "needs_oauth": True},
+    # r/MorbidReality requires Reddit OAuth (NSFW-gated). Not worth the setup
+    # friction - Wikipedia unusual deaths covers the same dark-history angle.
 ]
 
 USER_AGENT   = "factjot-discoverer/1.0 (educational, contact @factjot)"
