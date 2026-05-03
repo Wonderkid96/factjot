@@ -21,14 +21,10 @@ browser before authorising a live ship.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
-
-import requests
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
@@ -42,6 +38,7 @@ from src.core.paths import LIST_PACK_CACHE
 from src.publish.image_host import make_image_host
 from src.publish.instagram_publisher import InstagramGraphPublisher
 from src.render.list_renderer import ListCarouselRenderer, ListSlideSpec
+from src.render.render_carousel import BrandKitRenderer
 from src.utils.logging_utils import configure_logging
 
 
@@ -86,10 +83,6 @@ def _load_pack_cache(slug: str) -> dict | None:
                 pass
         return row
     return None
-
-
-
-    return [hook_spec, *item_specs, closing_spec], recap_items, sources
 
 
 def _print_preview(pack: dict, specs: list[ListSlideSpec]) -> None:
@@ -209,10 +202,10 @@ def main() -> int:
     if not _use_cache:
         print("\nRendering slides (Playwright + Chromium)...")
         renderer = ListCarouselRenderer(
-        brand=brand,
-        width=brand["layout"]["canvas_width"],
-        height=brand["layout"]["canvas_height"],
-    )
+            brand=brand,
+            width=brand["layout"]["canvas_width"],
+            height=brand["layout"]["canvas_height"],
+        )
         paths = renderer.render(post_id=post_id, category=pack["category"],
                                 series=pack["series"], slides=specs)
         if not paths:
@@ -298,31 +291,35 @@ def main() -> int:
     story_result = {"ok": False, "error": "missing image url"}
     if public_urls:
         story_image_url = public_urls[0]
-        try:
-            story_renderer = BrandKitRenderer(
-                brand=brand,
-                width=brand["layout"]["canvas_width"],
-                height=brand["layout"]["canvas_height"],
-            )
-            story_post = CarouselPost(
-                post_id=post_id,
-                series=pack["series"],
-                hook="",
-                slides=[pack["title"]],
-                caption=pack["caption"],
-                hashtags=HASHTAGS_FILM,
-                sources=sources,
-                confidence=0.9,
-                category=pack["category"],
-            )
-            story_frame_path = story_renderer.render_stories_frame(
-                story_post,
-                bg_path=Path(paths[0]),
-            )
-            if story_frame_path:
-                story_image_url = host.upload(story_frame_path).public_url
-        except Exception as exc:
-            print(f"Story frame render skipped (non-fatal): {exc}")
+        # Custom story frame requires rendered paths and a live host object.
+        # On the cache path neither is available, so we skip frame rendering
+        # and fall back to story_image_url = public_urls[0] set above.
+        if not _use_cache:
+            try:
+                story_renderer = BrandKitRenderer(
+                    brand=brand,
+                    width=brand["layout"]["canvas_width"],
+                    height=brand["layout"]["canvas_height"],
+                )
+                story_post = CarouselPost(
+                    post_id=post_id,
+                    series=pack["series"],
+                    hook="",
+                    slides=[pack["title"]],
+                    caption=pack["caption"],
+                    hashtags=HASHTAGS_FILM,
+                    sources=sources,
+                    confidence=0.9,
+                    category=pack["category"],
+                )
+                story_frame_path = story_renderer.render_stories_frame(
+                    story_post,
+                    bg_path=Path(paths[0]),
+                )
+                if story_frame_path:
+                    story_image_url = host.upload(story_frame_path).public_url
+            except Exception as exc:
+                print(f"Story frame render skipped (non-fatal): {exc}")
         permalink = publisher.ig_permalink(ig_media_id)
         story_result = publisher.post_to_stories(
             image_url=story_image_url,

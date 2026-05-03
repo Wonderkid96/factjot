@@ -93,7 +93,7 @@ jobs:
       - name: Check if reel already posted today + runway
         id: check
         run: |
-          # Pull latest state — another concurrent run may have just posted
+          # Pull latest state - another concurrent run may have just posted
           git pull --rebase --autostash origin main 2>/dev/null || true
           if python3 scripts/check_posted_today.py reel | grep -q already_posted; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
@@ -133,6 +133,7 @@ jobs:
             insta-brain/MEMORY_INDEX.md \
             data/ledgers/used_footage_urls.jsonl \
             data/ledgers/used_images.jsonl \
+            data/ledgers/alerts.jsonl \
             || true
           git diff --cached --quiet && echo "No state changes to commit." && exit 0
           git commit -m "state: reel $(date -u +%Y-%m-%dT%H:%M)Z"

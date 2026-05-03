@@ -104,10 +104,16 @@ def prepare_pack(slug: str, pack: dict, cfg, brand: dict) -> dict | None:
     print(f"  uploaded {len(imgbb_urls)} images to imgbb")
 
     from src.content.description_builder import build_instagram_description
-    from scripts.ship_list_post import HASHTAGS_FILM  # type: ignore[import]
+    # Inlined — same value as HASHTAGS_FILM in ship_list_post.py
+    _HASHTAGS_FILM = [
+        "factjot", "filmrecs", "moviestowatch", "scifi", "filmtwitter",
+        "movienight", "cinephile", "indiefilm", "filmlovers", "filmlist",
+        "underratedfilms", "filmcommunity", "movierecommendations",
+        "filmsofinstagram", "watchlist",
+    ]
     caption = build_instagram_description(
         base_caption=pack["caption"],
-        hashtags=HASHTAGS_FILM,
+        hashtags=_HASHTAGS_FILM,
         image_credits=[{"source": "TMDB", "url": s} for s in sources],
     )
 
