@@ -44,6 +44,15 @@ def _fetch_item_data(raw: dict, tmdb: TMDBClient, omdb: OMDbClient,
         entity = tmdb.get_movie(tmdb_id)
         credits = tmdb.get_movie_credits(tmdb_id)
         title = entity.get("title") or entity.get("original_title") or "Untitled"
+        # Hard guard: if the pack item declares an expected_title, verify TMDB
+        # returns a matching title. A mismatch means the ID is wrong — abort
+        # immediately rather than silently posting the wrong film.
+        expected = raw.get("expected_title")
+        if expected and expected.lower() not in title.lower() and title.lower() not in expected.lower():
+            raise RuntimeError(
+                f"TMDB ID {tmdb_id} returned {title!r} but pack expects {expected!r}. "
+                f"Wrong ID — fix list_packs.py before posting."
+            )
         year = (entity.get("release_date") or "")[:4] or ""
         credit_name = tmdb.director_name(credits) or ""
         director = f"dir. {credit_name}" if credit_name else ""
