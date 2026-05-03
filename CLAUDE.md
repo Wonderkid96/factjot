@@ -278,6 +278,16 @@ GitHub uses a Go YAML parser (stricter than Python's PyYAML):
 
 ---
 
+## Fix philosophy — mandatory for every agent
+
+Every fix must be a long-term structural fix, not a temporary patch. A patch that suppresses a symptom without removing its root cause will reappear in a different form or a different part of the pipeline. Before shipping any fix, ask: does this eliminate the cause, or does it hide it? If it hides it, keep digging. No half-measures.
+
+## Gotchas
+
+`insta-brain/gotchas.md` — read this before touching anything. It documents everything that has broken, been tried, and failed. Keep it current. If you hit a new wall, add it before closing the session.
+
+---
+
 ## Invariants — never break
 
 1. Never repost a fact — check `insta-brain/data/posted.jsonl`.

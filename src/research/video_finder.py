@@ -26,6 +26,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -35,9 +36,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 _HTTP_TIMEOUT = 20
-_MAX_BYTES = 15 * 1024 * 1024   # 15 MB ceiling per clip — keeps FFmpeg memory sane
-_MIN_BYTES_HD  = 800_000        # 800 KB floor for modern HD footage (proxy for ≥720p)
+_MAX_BYTES = 15 * 1024 * 1024   # 15 MB ceiling per clip
+_MIN_BYTES_HD  = 2_000_000      # 2 MB floor — filters out sub-3s clips at typical bitrates
 _MIN_BYTES_ARK = 50_000         # 50 KB floor for archival/historical content
+_MIN_CLIP_DURATION_S = 4.0      # hard minimum: clips shorter than this loop and jolt
 
 # ------------------------------------------------------------------ #
 # Topic-generic atmospheric fallback queries
@@ -635,8 +637,21 @@ def _safety_pool_pick(topic: str) -> list[Path]:
 
 
 # ------------------------------------------------------------------ #
-# Download helper
+# Duration probe + download helper
 # ------------------------------------------------------------------ #
+
+def _probe_duration(path: Path) -> Optional[float]:
+    """Return the duration of a video file in seconds, or None if ffprobe unavailable."""
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        return float(result.stdout.strip())
+    except Exception:
+        return None
+
 
 def _download_mp4(url: str, out_path: Path, *, min_bytes: int = _MIN_BYTES_HD) -> bool:
     try:
@@ -655,7 +670,12 @@ def _download_mp4(url: str, out_path: Path, *, min_bytes: int = _MIN_BYTES_HD) -
             out_path.unlink(missing_ok=True)
             print(f"  [video] clip too small ({size//1024}KB < {min_bytes//1024}KB floor), skipping")
             return False
-        print(f"  [video] downloaded {size//1024}KB -> {out_path.name}")
+        dur = _probe_duration(out_path)
+        if dur is not None and dur < _MIN_CLIP_DURATION_S:
+            out_path.unlink(missing_ok=True)
+            print(f"  [video] clip too short ({dur:.1f}s < {_MIN_CLIP_DURATION_S}s), skipping")
+            return False
+        print(f"  [video] downloaded {size//1024}KB {f'({dur:.1f}s) ' if dur else ''}-> {out_path.name}")
         return True
     except Exception as exc:
         print(f"  [video] download error: {exc}")

@@ -316,14 +316,20 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
     voice_end_s = word_beats[-1].end_s + INTRO_S
 
     # Sync CTA to the moment the narrator says "factjot" in the outro.
-    # Search word beats (which are relative to the unpadded voice track)
-    # and offset by INTRO_S to get the absolute video timestamp.
+    # ElevenLabs sometimes renders "factjot" as two tokens: "fact" + "jot".
+    # Check for both: single word containing "factjot", or consecutive "fact"+"jot".
     _fj_beats = [b for b in word_beats if "factjot" in b.word.lower()]
+    if not _fj_beats:
+        for _i, _b in enumerate(word_beats[:-1]):
+            _nxt = word_beats[_i + 1]
+            if _b.word.lower().startswith("fact") and _nxt.word.lower().startswith("jot"):
+                _fj_beats = [_b]
+                break
     if _fj_beats:
         cta_s = _fj_beats[-1].start_s + INTRO_S
         print(f"  CTA locked to 'factjot' word beat at {cta_s:.1f}s")
     else:
-        cta_s = max(0.0, voice_end_s - 3.0)
+        cta_s = max(0.0, voice_end_s - 3.5)
         print(f"  CTA fallback (no 'factjot' beat found): {cta_s:.1f}s")
 
     # Total: voice ends + brief pause + fade to black
