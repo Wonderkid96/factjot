@@ -86,20 +86,9 @@ jobs:
       - name: Check if list carousel already posted today
         id: check
         run: |
-          TODAY=$(date -u +%Y-%m-%d)
-          COUNT=$(python3 -c "
-import json; from pathlib import Path
-try:
-    lines=[l for l in Path('insta-brain/data/posted.jsonl').read_text().splitlines() if l.strip()]
-    posts=[json.loads(l) for l in lines]
-    today=[p for p in posts if p.get('published_at','').startswith('$TODAY') and str(p.get('claim','')).startswith('list:')]
-    print(len(today))
-except: print(0)
-" 2>/dev/null || echo 0)
-          echo "List carousels posted today: $COUNT"
-          if [ "$COUNT" -gt "0" ]; then
+          if python3 scripts/check_posted_today.py list | grep -q already_posted; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Already posted a list carousel today - skipping."
+            echo "Already posted today - skipping."
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi

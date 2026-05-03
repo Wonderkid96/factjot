@@ -93,31 +93,12 @@ jobs:
       - name: Check if reel already posted today + runway
         id: check
         run: |
-          TODAY=$(date -u +%Y-%m-%d)
-          # Idempotency: skip if reel already posted today
-          COUNT=$(python3 -c "
-import json; from pathlib import Path
-try:
-    lines=[l for l in Path('insta-brain/data/reels.jsonl').read_text().splitlines() if l.strip()]
-    reels=[json.loads(l) for l in lines]
-    today=[r for r in reels if r.get('published_at','').startswith('$TODAY')]
-    print(len(today))
-except: print(0)
-" 2>/dev/null || echo 0)
-          echo "Reels posted today: $COUNT"
-          if [ "$COUNT" -gt "0" ]; then
+          if python3 scripts/check_posted_today.py reel | grep -q already_posted; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "Already posted a reel today - skipping."
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
-            # Runway check - discover if running low
-            REMAINING=$(python3 -c "
-import sys; sys.path.insert(0,'.')
-from src.brain import brain
-from src.research.rare_fact_bank import load_all_facts
-q3=[f for f in load_all_facts() if f.get('quirky_score',0)>=2 and not brain.is_fact_posted(f['claim'])]
-print(len(q3))
-" 2>/dev/null || echo 99)
+            REMAINING=$(python3 scripts/check_reel_runway.py 2>/dev/null || echo 99)
             echo "Reel runway: $REMAINING facts remaining"
             if [ "$REMAINING" -lt 14 ]; then
               echo "Runway below 14 - running fact discovery..."
