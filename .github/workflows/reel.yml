@@ -1,8 +1,8 @@
-name: Daily Reel (11:00 BST)
+name: Daily Reel (12:00 BST)
 
 on:
   schedule:
-    - cron: "45 10 * * *"      # daily 10:45 UTC (11:00 BST)
+    - cron: "0 11 * * *"      # 11:00 UTC = 12:00 BST
   workflow_dispatch:
 
 concurrency:

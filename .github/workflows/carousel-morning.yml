@@ -1,8 +1,8 @@
-name: Morning Carousel (10:00 UTC)
+name: Morning Carousel (10:00 BST)
 
 on:
   schedule:
-    - cron: "45 9 * * *"   # 09:45 UTC — GitHub cron can drift, start early
+    - cron: "0 9 * * *"     # 09:00 UTC = 10:00 BST
   workflow_dispatch:
 
 # Prevent two publish jobs running at the same time.

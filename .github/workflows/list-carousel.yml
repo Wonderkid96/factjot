@@ -1,8 +1,8 @@
-name: Evening List Carousel (18:00 UTC)
+name: Evening List Carousel (18:00 BST)
 
 on:
   schedule:
-    - cron: "45 17 * * *"
+    - cron: "0 17 * * *"    # 17:00 UTC = 18:00 BST
   workflow_dispatch:
 
 concurrency:
