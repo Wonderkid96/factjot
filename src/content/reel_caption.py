@@ -1,20 +1,20 @@
 """Build Instagram caption for a Reel.
 
 Structure:
-    Title        — reel_title if set, else first sentence of claim.
-    Punchline    — the single most striking detail from the claim (1 sentence).
+    Title        - reel_title if set, else first sentence of claim.
+    Punchline    - the single most striking detail from the claim (1 sentence).
     Blank line
-    CTA          — randomised "Follow @factjot" variant.
+    CTA          - randomised "Follow @factjot" variant.
     Blank line
-    Credits      — sources (publisher names), footage, music.
+    Credits      - sources (publisher names), footage, music.
     Blank line
-    Hashtags     — 3-tier: broad reach + topic + subject-specific (15-20 total).
+    Hashtags     - 3-tier: broad reach + topic + subject-specific (15-20 total).
 
 The 3-tier hashtag system:
-    Tier 1 — Broad (5 tags, >10M posts): drives discovery across all audiences.
-    Tier 2 — Topic (5 tags, 1M-10M posts): reaches people interested in the category.
-    Tier 3 — Subject (5 tags, <1M posts): highly relevant niche tags extracted
-             from the claim and title — the most likely to reach people who care
+    Tier 1 - Broad (5 tags, >10M posts): drives discovery across all audiences.
+    Tier 2 - Topic (5 tags, 1M-10M posts): reaches people interested in the category.
+    Tier 3 - Subject (5 tags, <1M posts): highly relevant niche tags extracted
+             from the claim and title, the most likely to reach people who care
              about THIS specific fact.
 """
 from __future__ import annotations
@@ -41,7 +41,7 @@ _CTAS = [
 def _strip_em_dashes(text: str) -> str:
     return text.replace("—", ",").replace("–", ",")
 
-# Tier 1: broad reach — always included
+# Tier 1: broad reach - always included
 _BROAD = "#facts #didyouknow #learnontiktok #mindblown #interestingfacts"
 
 # Tier 2: topic-specific
@@ -91,11 +91,11 @@ _STOP = frozenset({
 def _subject_hashtags(claim: str, title: str | None, topic: str) -> str:
     """Extract 4-5 subject-specific hashtags from the claim and title.
 
-    Uses individual proper nouns and key content words — not multi-word
+    Uses individual proper nouns and key content words, not multi-word
     phrases which produce garbage like #EruptionEnded. Niche tags reach
     people who care specifically about this subject.
     """
-    # Use claim only — title is already the hook and its words are redundant as tags
+    # Use claim only - title is already the hook and its words are redundant as tags
     sentences = re.split(r"(?<=[.!?])\s+", claim.strip())
     text = " ".join(sentences[:2])
     tokens = text.split()
@@ -103,7 +103,7 @@ def _subject_hashtags(claim: str, title: str | None, topic: str) -> str:
     tags: list[str] = []
     seen: set[str] = set()
 
-    # Pass 1: individual proper nouns — capitalised mid-sentence only.
+    # Pass 1: individual proper nouns - capitalised mid-sentence only.
     # Skip i=0 (first word of text) and skip words that follow sentence-final
     # punctuation (they're sentence-starters, not proper nouns).
     for i, tok in enumerate(tokens):

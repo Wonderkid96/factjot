@@ -1,13 +1,13 @@
 """Curated bank of self-contained facts grouped by topic.
 
-## Quality standard — MUST READ before adding any fact
+## Quality standard - MUST READ before adding any fact
 
 Every fact must pass the SHOCK TEST before entry:
 
   "Would a smart adult who reads a lot genuinely say 'wait, WHAT?'"
 
-If the answer is "probably, it's a nice fact" — it fails. If the answer is
-"that seems impossible, I need to verify this" — it passes.
+If the answer is "probably, it's a nice fact" - it fails. If the answer is
+"that seems impossible, I need to verify this" - it passes.
 
 Three sub-tests:
   1. SUB-KNOWN: Not something a school-age child would know. Not something
@@ -40,7 +40,7 @@ quirky_score field:
   1 = standard fact (use sparingly, prefer upgrading or replacing)
   0 = textbook (do not use for carousels, only background bank)
 
-## REEL ELIGIBILITY (quirky_score=3 only) — HARD REQUIREMENTS
+## REEL ELIGIBILITY (quirky_score=3 only) - HARD REQUIREMENTS
 
 Every q3 fact MUST carry these two fields, or `make_reel.py` will refuse
 to pick it. There is no auto-fallback path.
@@ -170,7 +170,7 @@ RARE_FACT_BANK = [
         "claim": "Tardigrades can survive being boiled, frozen near absolute zero, dehydrated for decades, and even floated in the vacuum of open space.",
         "sources": ["https://www.nationalgeographic.com/animals/article/tardigrades-water-bears", "https://www.nature.com/articles/srep00064"],
         "image_hint": "water bear microscope",
-        "quirky_score": 0,  # textbook tier — deprioritised
+        "quirky_score": 0,  # textbook tier - deprioritised
     },
     {
         "topic": "biology",
@@ -186,7 +186,7 @@ RARE_FACT_BANK = [
         "topic": "biology",
         "claim": "Cows have best friends, and produce more milk on days they get to spend time together. Separating them measurably stresses them out.",
         "sources": ["https://www.bbc.com/news/uk-northern-ireland-13716226", "https://www.cambridge.org/core/journals/animal-welfare/article/effects-of-social-isolation-on-the-behaviour-and-physiology-of-cattle"],
-        "quirky_score": 0,  # textbook tier — deprioritised
+        "quirky_score": 0,  # textbook tier - deprioritised
     },
 
     # ---------- HISTORY ----------
@@ -346,14 +346,14 @@ RARE_FACT_BANK = [
         "claim": "Sloths are so slow that algae grows in their fur, giving them a faint green tint that helps them blend into the canopy.",
         "sources": ["https://www.smithsonianmag.com/smart-news/why-sloths-have-algae-fur-180977789/", "https://www.nationalgeographic.com/animals/mammals/facts/sloths"],
         "image_hint": "sloth tree rainforest",
-        "quirky_score": 0,  # textbook tier — deprioritised
+        "quirky_score": 0,  # textbook tier - deprioritised
     },
     {
         "topic": "biology",
         "claim": "A single strand of spider silk is, by weight, stronger than steel and tougher than Kevlar. Several spiders make webs strong enough to catch small birds.",
         "sources": ["https://www.smithsonianmag.com/smart-news/spider-silk-strong-steel-and-also-stretchy-180956291/", "https://www.nhm.ac.uk/discover/spider-silk-the-toughest-natural-material.html"],
         "image_hint": "spider web macro",
-        "quirky_score": 0,  # textbook tier — deprioritised
+        "quirky_score": 0,  # textbook tier - deprioritised
     },
     {
         "topic": "biology",
@@ -590,7 +590,7 @@ RARE_FACT_BANK = [
         "claim": "Polar bears have black skin under their white fur. The fur itself is actually transparent and reflects light.",
         "sources": ["https://www.nationalgeographic.com/animals/mammals/facts/polar-bear", "https://www.nhm.ac.uk/discover/polar-bear-facts.html"],
         "image_hint": "polar bear arctic snow",
-        "quirky_score": 0,  # textbook tier — deprioritised
+        "quirky_score": 0,  # textbook tier - deprioritised
     },
     {
         "topic": "biology",
@@ -609,42 +609,42 @@ RARE_FACT_BANK = [
         "claim": "Wombats produce cube-shaped poo. Their intestines have varying elasticity that moulds the waste into neat blocks.",
         "sources": ["https://www.smithsonianmag.com/smart-news/scientists-finally-solve-mystery-wombats-cube-shaped-poop-180973957/", "https://www.bbc.com/news/world-australia-46559356"],
         "image_hint": "wombat australia wildlife",
-        "quirky_score": 0,  # textbook tier — deprioritised
+        "quirky_score": 0,  # textbook tier - deprioritised
     },
     {
         "topic": "biology",
         "claim": "Bananas are slightly radioactive. They contain potassium-40, an isotope that emits a tiny dose of radiation.",
         "sources": ["https://www.epa.gov/radiation/radioactive-decay-and-half-life", "https://www.britannica.com/science/potassium-40"],
         "image_hint": "bananas yellow fruit",
-        "quirky_score": 0,  # textbook tier — deprioritised
+        "quirky_score": 0,  # textbook tier - deprioritised
     },
     {
         "topic": "biology",
         "claim": "Hummingbirds are the only birds that can fly backwards. Their wings rotate in a near-figure-eight pattern.",
         "sources": ["https://www.nationalgeographic.com/animals/birds/facts/hummingbird", "https://www.audubon.org/news/how-do-hummingbirds-fly"],
         "image_hint": "hummingbird flying flower",
-        "quirky_score": 0,  # textbook tier — deprioritised
+        "quirky_score": 0,  # textbook tier - deprioritised
     },
     {
         "topic": "biology",
         "claim": "Cows have nearly 360-degree vision. Their eyes are positioned to spot predators while grazing.",
         "sources": ["https://www.britannica.com/animal/cattle-livestock", "https://www.nhm.ac.uk/discover/cows-facts.html"],
         "image_hint": "cow grazing field",
-        "quirky_score": 0,  # textbook tier — deprioritised
+        "quirky_score": 0,  # textbook tier - deprioritised
     },
     {
         "topic": "biology",
         "claim": "A group of flamingos is called a flamboyance. Their pink colour comes from the carotenoid pigments in the brine shrimp and algae they eat.",
         "sources": ["https://www.nationalgeographic.com/animals/birds/facts/flamingo", "https://www.britannica.com/animal/flamingo"],
         "image_hint": "flamingo pink wading",
-        "quirky_score": 0,  # textbook tier — deprioritised
+        "quirky_score": 0,  # textbook tier - deprioritised
     },
     {
         "topic": "biology",
         "claim": "Goats have rectangular pupils. The wide horizontal slit gives them nearly panoramic vision to spot predators in tall grass.",
         "sources": ["https://www.nationalgeographic.com/animals/mammals/facts/domestic-goat", "https://www.smithsonianmag.com/smart-news/why-goats-have-rectangular-pupils-180956211/"],
         "image_hint": "goat farm portrait",
-        "quirky_score": 0,  # textbook tier — deprioritised
+        "quirky_score": 0,  # textbook tier - deprioritised
     },
 
     # ---------- HISTORY (extra) ----------
@@ -748,7 +748,7 @@ RARE_FACT_BANK = [
     },
 
     # ============================================================
-    # SHOCK BATCH — 2026-04-30 (Ripley's tier, Tier 1+2 sources)
+    # SHOCK BATCH - 2026-04-30 (Ripley's tier, Tier 1+2 sources)
     # All entries here pass the screenshot test: specific, sub-known,
     # sourced, visceral, IG-safe. quirky_score 3 = "wait what".
     # ============================================================
@@ -791,6 +791,34 @@ RARE_FACT_BANK = [
         # Excluded from default publish; opt-in only via --allow-controversial.
         "sensitivity": "controversial",
         "sensitivity_flags": ["animal_welfare", "factual_dispute"],
+    },
+    {
+        "topic": "history",
+        "claim": "In 1943 British intelligence dressed a dead homeless man as a Royal Marines officer, chained a briefcase of fake invasion plans to his wrist, and floated him off the coast of Spain. German spies found him. Hitler believed it. He moved his Panzer divisions away from Sicily. When the real Allied landing came, the beaches were almost undefended. One corpse helped win the war.",
+        "sources": [
+            "https://www.iwm.org.uk/history/operation-mincemeat-the-incredible-story-of-britains-most-daring-deception",
+            "https://www.nationalarchives.gov.uk/education/resources/operation-mincemeat/",
+        ],
+        "image_hint": "World War 2 naval officer briefcase 1940s",
+        "quirky_score": 3,
+        "intensity": "medium",
+        "tone": "shocking",
+        "reel_title": "The Dead Man Who Fooled Hitler",
+        "reel_script": (
+            "In 1943, the Allies needed to invade Sicily. "
+            "But if Hitler knew, the beaches would be waiting. "
+            "So British intelligence hatched a plan so strange... it should not have worked. "
+            "They found a dead homeless man in London. "
+            "Dressed him in the uniform of a Royal Marines officer. "
+            "Chained a briefcase to his wrist... full of fake invasion plans. "
+            "Then they floated his body off the coast of Spain. "
+            "German spies recovered the documents. Decoded them. Reported to Berlin. "
+            "Hitler believed every word. "
+            "He moved his Panzer divisions away from Sicily and into Greece. "
+            "When the real Allied landing came... the beaches were almost undefended. "
+            "The operation was called Mincemeat. "
+            "One dead man, one briefcase, and the course of the Second World War changed forever."
+        ),
     },
     {
         "topic": "history",
@@ -1366,7 +1394,7 @@ RARE_FACT_BANK = [
     },
 
     # ============================================================
-    # EXPANSION BATCH — 2026-05-01
+    # EXPANSION BATCH - 2026-05-01
     # 21 new shock-tier facts. All pass: self-contained, sourced,
     # visually specific, IG-safe, not already in the bank.
     # ============================================================
@@ -1932,7 +1960,7 @@ RARE_FACT_BANK = [
     },
 
     # ============================================================
-    # EXPANSION BATCH — 2026-05-02
+    # EXPANSION BATCH - 2026-05-02
     # 18 new shock-tier facts with curated reel_title + reel_script.
     # Covers earth, ocean, biology. All q3, all sourced, IG-safe.
     # ============================================================

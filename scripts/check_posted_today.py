@@ -1,6 +1,6 @@
 """Check if a post of the given type was already published today.
 
-Usage:
+Usage (GitHub Actions uses bare python3; local Mac uses full path):
     python3 scripts/check_posted_today.py carousel
     python3 scripts/check_posted_today.py reel
     python3 scripts/check_posted_today.py list

@@ -90,7 +90,7 @@ class TMDBClient:
     def get_tv_credits(self, tmdb_id: int) -> dict[str, Any]:
         """Cast + crew for a TV show.
 
-        TV doesn't have a single "Director" — series have creators (in
+        TV doesn't have a single "Director" - series have creators (in
         `created_by` on the show record) plus rotating per-episode directors.
         For our slide we treat the first `created_by` as the credit.
         """
@@ -102,7 +102,7 @@ class TMDBClient:
 
     def get_tv_watch_providers(self, tmdb_id: int, region: str = "GB") -> list[str]:
         """UK flatrate streaming providers for a TV show. Same cleaning
-        as the movie equivalent — unknown providers and sub-channels are
+        as the movie equivalent - unknown providers and sub-channels are
         filtered out so the slide stays clean.
         """
         try:
@@ -143,12 +143,12 @@ class TMDBClient:
         """Return streaming-service short names for a region (default GB).
 
         TMDB's watch-provider data covers flatrate (subscription), rent, and
-        buy. We only surface flatrate here — that's what "where to watch"
+        buy. We only surface flatrate here - that's what "where to watch"
         means to most viewers. List is ordered by TMDB's display priority.
 
         We dedupe near-identical entries (e.g. "Amazon Prime Video" and
         "Amazon Prime Video with Ads" both collapse to "PRIME") and skip
-        anything that doesn't map to a known short name — that's what
+        anything that doesn't map to a known short name - that's what
         filters out random channel-pass entries like "Arrow Video Amazon
         Channel" which aren't where most viewers will actually watch.
         """
@@ -165,7 +165,7 @@ class TMDBClient:
             name = p.get("provider_name", "")
             short = self._short_provider_name(name)
             # Skip anything we don't recognise OR which looks like a
-            # sub-channel ("X Channel", "with Ads") — these are noisy.
+            # sub-channel ("X Channel", "with Ads") - these are noisy.
             if not short or short in seen:
                 continue
             if any(bad in name.lower() for bad in (
@@ -180,7 +180,7 @@ class TMDBClient:
     def _short_provider_name(name: str) -> str:
         """Compact provider names for slide chips.
 
-        Returns "" for anything not in this whitelist — that's intentional.
+        Returns "" for anything not in this whitelist - that's intentional.
         We only show major UK services so the slide stays clean. Sub-channel
         rentals get filtered out by the caller.
         """

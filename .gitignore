@@ -24,7 +24,8 @@ data/launchd_publish.log
 data/launchd_publish.err
 
 # ── Large generated assets ─────────────────────────────────────────
-assets/video/      # 466MB footage pool — too large for git
+# assets/video/ is 466MB footage pool, too large for git
+assets/video/
 assets/avatars/
 
 # Music and intro tracked in git so GitHub Actions has them

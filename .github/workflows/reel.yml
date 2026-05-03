@@ -67,6 +67,7 @@ jobs:
           META_APP_ID=${{ secrets.META_APP_ID }}
           META_GRAPH_HOST=${{ secrets.META_GRAPH_HOST }}
           IMGBB_API_KEY=${{ secrets.IMGBB_API_KEY }}
+          IMAGE_HOST=${{ secrets.IMAGE_HOST }}
           PEXELS_API_KEY=${{ secrets.PEXELS_API_KEY }}
           ELEVENLABS_API_KEY=${{ secrets.ELEVENLABS_API_KEY }}
           ELEVENLABS_VOICE=${{ secrets.ELEVENLABS_VOICE }}
@@ -133,6 +134,7 @@ jobs:
             insta-brain/MEMORY_INDEX.md \
             data/ledgers/used_footage_urls.jsonl \
             data/ledgers/used_images.jsonl \
+            data/ledgers/discovered_facts.jsonl \
             data/ledgers/alerts.jsonl \
             || true
           git diff --cached --quiet && echo "No state changes to commit." && exit 0

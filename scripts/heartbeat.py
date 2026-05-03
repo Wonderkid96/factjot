@@ -1,7 +1,7 @@
 """Lightweight heartbeat. Writes a single line to `data/heartbeat.log` every
-time it runs so we can verify launchd is actually firing the chain.
+time it runs so we can verify the scheduler is actually firing the chain.
 
-Run this from the publish_due plist as a co-trigger, or schedule it standalone.
+Can be triggered manually or added as a step in a GitHub Actions workflow.
 """
 from __future__ import annotations
 

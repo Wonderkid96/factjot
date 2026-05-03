@@ -14,10 +14,10 @@ Safety:
       duplicate posts.
     - --dry-run flag shows what would be deleted without touching anything.
 
-Usage:
-    python3 scripts/cleanup_caches.py --dry-run
-    python3 scripts/cleanup_caches.py --keep-days 7
-    python3 scripts/cleanup_caches.py --keep-days 14 --keep-log-lines 500
+Usage (local Mac):
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/cleanup_caches.py --dry-run
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/cleanup_caches.py --keep-days 7
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/cleanup_caches.py --keep-days 14 --keep-log-lines 500
 
 Schedule:
     Run weekly via the Sunday GitHub Actions workflow (weekly-plan.yml) or

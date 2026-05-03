@@ -113,7 +113,7 @@ def build_trending_pack(
             "cta":      "Follow @factjot for more picks every week.",
         },
         "caption": (
-            f"Five films trending this week — {now.strftime('%B %Y')}.\n\n"
+            f"Five films trending this week, {now.strftime('%B %Y')}.\n\n"
             "Follow @factjot for weekly picks."
         ),
     }
@@ -137,7 +137,7 @@ def build_themed_pack(
 
     Args:
         theme:           A theme dict from list_themes.THEMES.
-        posted_tmdb_ids: TMDB IDs already published — never repeat a film.
+        posted_tmdb_ids: TMDB IDs already published - never repeat a film.
         count:           Number of items to include (default 5, max 8).
 
     Returns:
@@ -198,7 +198,7 @@ def build_themed_pack(
     ]
 
     if len(candidates) < 4:
-        print(f"  [themed_pack] only {len(candidates)} candidates for {theme['slug']!r} — skipping")
+        print(f"  [themed_pack] only {len(candidates)} candidates for {theme['slug']!r} - skipping")
         return None
 
     count = min(count, 8, len(candidates))

@@ -13,7 +13,7 @@ Behaviour:
       previous post. So no slide repeats an image already shipped.
     * Queries are progressively broadened (slide-specific → topic-only) so
       we don't fall back to a generic gradient.
-    * No procedural fallback — if every source for every variant fails,
+    * No procedural fallback - if every source for every variant fails,
       we raise NoImageFound so the slide is flagged for review rather
       than shipping with a black/white gradient.
 
@@ -128,7 +128,7 @@ class ImageFetcher:
     # of these real-celestial-subject words. Pexels is full of "space-themed"
     # stock (camera lens-flare = "sun", studio control panel = "shuttle cockpit")
     # which were slipping past a positive-only filter. Words deliberately
-    # excluded: "sun", "star", "earth" alone — they match too loosely (lens
+    # excluded: "sun", "star", "earth" alone - they match too loosely (lens
     # flares, starfield wallpapers, Earth toned objects).
     SPACE_REQUIRED_TERMS = {
         "galaxy", "galaxies", "nebula", "milky way", "constellation",
@@ -157,7 +157,7 @@ class ImageFetcher:
         "abstract", "3d render", "render of", "gradient", "metal label",
         # Studio shoots and lifestyle that contain space-y words but aren't space
         "model posing", "hoodie", "person with",
-        # Camera / lens / photography contamination — "Olympus", "Sun" can
+        # Camera / lens / photography contamination - "Olympus", "Sun" can
         # match a vintage camera with sun-flare bokeh.
         "camera", "vintage camera", "trip 35", "lens", "dslr", "shutter",
         "bokeh", "flash", "polaroid", "instax", "tripod",
@@ -193,7 +193,7 @@ class ImageFetcher:
     INTENT_STOPWORDS = {
         # Topic-shaped words. They appear in the disambiguator suffix we tack
         # onto queries (e.g. "Tardigrades animal wildlife") and must not count
-        # as primary intent — otherwise any wildlife photo with "wildlife" in
+        # as primary intent - otherwise any wildlife photo with "wildlife" in
         # its alt text passes the candidate-allowed gate even when the actual
         # subject is missing (e.g. a deer photo for a tardigrade fact).
         "planet", "space", "astronomy", "science", "photo", "photography", "image",
@@ -464,7 +464,7 @@ class ImageFetcher:
                 or (data.get("thumbnail") or {}).get("source"))
 
     def _nasa_candidates(self, term: str, topic: str = "") -> Iterator[_Candidate]:
-        # NASA Images API — free, no key, excellent space coverage.
+        # NASA Images API - free, no key, excellent space coverage.
         resp = self.session.get(
             self.NASA_SEARCH,
             params={"q": term, "media_type": "image", "page_size": self.MAX_RESULTS_PER_PROVIDER},
@@ -486,7 +486,7 @@ class ImageFetcher:
                     break
 
     def _smithsonian_candidates(self, term: str, topic: str = "") -> Iterator[_Candidate]:
-        # Smithsonian Open Access — free, optional API key for higher limits.
+        # Smithsonian Open Access - free, optional API key for higher limits.
         api_key = os.getenv("SMITHSONIAN_API_KEY", "").strip() or "DEMO_KEY"
         resp = self.session.get(
             self.SMITHSONIAN_SEARCH,
@@ -511,7 +511,7 @@ class ImageFetcher:
                     break
 
     def _inaturalist_candidates(self, term: str, topic: str = "") -> Iterator[_Candidate]:
-        # iNaturalist — free, no key, perfect for biology / nature subjects.
+        # iNaturalist - free, no key, perfect for biology / nature subjects.
         resp = self.session.get(
             self.INATURALIST_SEARCH,
             params={"q": term, "per_page": self.MAX_RESULTS_PER_PROVIDER, "is_active": "true"},
@@ -600,7 +600,7 @@ class ImageFetcher:
         topic_low = topic.strip().lower()
         alt = str(photo.get("alt", "")).strip().lower()
         if not alt:
-            # No metadata, can't verify subject — too risky for any topic.
+            # No metadata, can't verify subject - too risky for any topic.
             return False
 
         # Universal negative-term filter per topic.

@@ -4,7 +4,7 @@ Supports two backends, selected via TTS_BACKEND env var or the `backend`
 argument to synthesise():
 
   edge-tts (default, free):
-    en-GB-RyanNeural  — British male, warm [DEFAULT]
+    en-GB-RyanNeural  - British male, warm [DEFAULT]
     en-GB-ThomasNeural, en-GB-SoniaNeural, en-US-BrianNeural, etc.
 
   elevenlabs (paid, near-human quality):
@@ -12,7 +12,7 @@ argument to synthesise():
     Good voices: George (British, authoritative), Daniel (precise),
     Brian (conversational). Billed per character (~400 chars/Reel).
     Uses /v1/text-to-speech/{voice_id}/with-timestamps endpoint which
-    returns character-level alignment — converted to WordBeat here.
+    returns character-level alignment - converted to WordBeat here.
     Model: eleven_turbo_v2_5 (fast + high quality, good for social).
 
 Both backends return the same (mp3_path, list[WordBeat]) so the rest of
@@ -45,7 +45,7 @@ VOICE = "en-GB-RyanNeural"  # edge-tts default
 def _alert_tts_fallback(reason: str) -> None:
     """Surface ElevenLabs failures into the brain log so silent fallback
     to edge-tts can be detected after the fact (otherwise the wrong voice
-    just ships and nobody notices). Best-effort — never raises."""
+    just ships and nobody notices). Best-effort - never raises."""
     try:
         from src.brain import brain
         brain.append_log(f"TTS FALLBACK to edge-tts: {reason}")
@@ -53,7 +53,7 @@ def _alert_tts_fallback(reason: str) -> None:
         pass
 
 # ElevenLabs defaults
-EL_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"  # George — British male, authoritative (default)
+EL_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"  # George - British male, authoritative (default)
 EL_MODEL    = "eleven_turbo_v2_5"       # Fast + high quality, good for social
 
 # ------------------------------------------------------------------ #
@@ -98,7 +98,7 @@ def synthesise(
     if resolved == "elevenlabs":
         api_key = os.getenv("ELEVENLABS_API_KEY", "").strip()
         if not api_key:
-            msg = "ELEVENLABS_API_KEY not set — falling back to edge-tts"
+            msg = "ELEVENLABS_API_KEY not set - falling back to edge-tts"
             print(f"  [tts] {msg}")
             _alert_tts_fallback(msg)
         else:
@@ -106,7 +106,7 @@ def synthesise(
                 result = _synthesise_elevenlabs(text, out_dir, voice)
                 return result
             except Exception as exc:
-                msg = f"ElevenLabs failed ({exc.__class__.__name__}: {exc}) — falling back to edge-tts"
+                msg = f"ElevenLabs failed ({exc.__class__.__name__}: {exc}) - falling back to edge-tts"
                 print(f"WARNING: ElevenLabs failed, using edge-tts fallback. Check ElevenLabs quota.")
                 print(f"  [tts] {msg}")
                 _alert_tts_fallback(msg)
@@ -213,7 +213,7 @@ def group_into_lines(
         tentative_text = " ".join(b.word for b in current)
         punct = end_punct.get(i, "")
 
-        # Hard breaks: sentence end, semicolon — always flush
+        # Hard breaks: sentence end, semicolon - always flush
         if punct in {".", "!", "?", ";"}:
             _flush()
             current = []
@@ -249,7 +249,7 @@ def _map_punctuation_to_beats(text: str, beats: list[WordBeat]) -> dict[int, str
         trailing = ""
         if tok and tok[-1] in ".,;:!?":
             trailing = tok[-1]
-        # Match — clean alphanumerics from token to compare with beat word
+        # Match - clean alphanumerics from token to compare with beat word
         clean = _re.sub(r"[^\w'-]", "", tok).lower()
         beat_word = beats[beat_idx].word.lower()
         if clean and beat_word and (clean == beat_word or clean.startswith(beat_word) or beat_word.startswith(clean)):
@@ -367,7 +367,7 @@ def _synthesise_elevenlabs(
             "text": text,
             "model_id": EL_MODEL,
             "voice_settings": {
-                "stability": 0.40,        # consistent pacing — 0.25 caused erratic long pauses
+                "stability": 0.40,        # consistent pacing - 0.25 caused erratic long pauses
                 "similarity_boost": 0.82,
                 "style": 0.35,            # energy without over-performing
                 "use_speaker_boost": True,
@@ -397,7 +397,7 @@ def _synthesise_elevenlabs(
     else:
         print("  [tts/elevenlabs] no alignment data")
         raise RuntimeError(
-            "ElevenLabs returned empty alignment data — cannot build word beats. "
+            "ElevenLabs returned empty alignment data - cannot build word beats. "
             "Check the API response or fall back to edge-tts."
         )
     return mp3_path, beats

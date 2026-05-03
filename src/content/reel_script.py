@@ -8,7 +8,7 @@ ElevenLabs reads punctuation as performance direction:
   !   = emphasis (use sparingly)
 
 Narrative build strategy (documentary-style):
-  1. Split the claim into logical beats — one idea per sentence.
+  1. Split the claim into logical beats - one idea per sentence.
   2. Isolate comparisons ("the same as", "equivalent to") as their own
      revelation beat so the listener gets the setup before the wow moment.
   3. Cap sentences at ~12 words; split at natural clause boundaries.
@@ -26,7 +26,7 @@ import re
 
 
 # ------------------------------------------------------------------ #
-# Contractions — written prose to spoken shortening
+# Contractions - written prose to spoken shortening
 # ------------------------------------------------------------------ #
 _CONTRACTIONS = {
     r"\bcould not\b":   "couldn't",
@@ -71,7 +71,7 @@ _FILLERS = [
     r"\bquite\b",
 ]
 
-# Comparison markers — split the sentence here to create a revelation beat
+# Comparison markers - split the sentence here to create a revelation beat
 _COMPARISON_RE = re.compile(
     r",\s*(?:"
     r"the same as|equivalent to|roughly equal to|which is roughly|"
@@ -113,7 +113,7 @@ def estimate_duration_s(script: str, wpm: int = 145) -> float:
 
 
 # ------------------------------------------------------------------ #
-# Beat structure — the core narrative shaper
+# Beat structure - the core narrative shaper
 # ------------------------------------------------------------------ #
 
 def _structure_beats(text: str) -> str:
@@ -124,7 +124,7 @@ def _structure_beats(text: str) -> str:
       2. For each sentence, isolate any comparison ("the same as ...") as
          a separate revelation beat so the listener gets setup then payoff.
       3. Cap any remaining long sentence at ~12 words at a natural break.
-      4. Join all beats with a single space — punctuation handles pauses.
+      4. Join all beats with a single space - punctuation handles pauses.
     """
     sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text.strip()) if s.strip()]
     beats: list[str] = []
@@ -183,7 +183,7 @@ def _cap_sentence(sent: str, max_words: int = 12) -> list[str]:
 
 
 # ------------------------------------------------------------------ #
-# Drama layer — ElevenLabs pause and emphasis signals
+# Drama layer - ElevenLabs pause and emphasis signals
 # ------------------------------------------------------------------ #
 
 def _add_drama(text: str) -> str:

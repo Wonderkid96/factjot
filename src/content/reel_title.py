@@ -1,6 +1,6 @@
 """Generate a compelling story title for a Reel from the fact claim.
 
-The title appears as a brief opening card (0-1.5s) — like a documentary
+The title appears as a brief opening card (during the 3.5s intro) - like a documentary
 episode title. It is NOT a subtitle and NOT the first line of the VO.
 It names the story. "The Demon Core." "The Man Who Saved the World."
 "The Sphere That Killed Twice."
@@ -40,9 +40,7 @@ _KNOWN_TITLES: list[tuple[str, str]] = [
     ("Denmark Strait", "The World's Tallest Waterfall"),
     ("Tunguska", "The Explosion With No Crater"),
     ("Antikythera", "The Ancient Computer"),
-    ("Octopus",     "Nine Brains, Eight Decisions"),
     ("octopus",     "Nine Brains, Eight Decisions"),
-    ("anglerfish",  "The Strangest Love Story in the Ocean"),
 ]
 
 # ------------------------------------------------------------------ #
@@ -54,7 +52,7 @@ _STOP = frozenset({
     "had", "has", "do", "did", "does", "will", "would", "could", "should",
     "that", "this", "with", "from", "as", "by", "he", "she", "it", "they",
     "his", "her", "its", "their", "who", "which", "when", "where", "not",
-    # Number words — prevent "One", "Two", "Each" being picked as proper nouns
+    # Number words - prevent "One", "Two", "Each" being picked as proper nouns
     "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
     "ten", "each", "every", "both", "all", "some", "any", "many", "most",
 })

@@ -22,8 +22,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from src.brain import brain
 from src.content.auto_pack import build_themed_pack, get_posted_tmdb_ids
 from src.content.list_themes import THEMES
+from src.content.pack_resolver import list_dedupe_claim
 from src.core.paths import GENERATED_LIST_PACKS, USED_LIST_THEMES
 
 PACKS_PER_RUN  = 3   # generate this many new packs each Sunday
@@ -71,8 +73,6 @@ def _append_generated_pack(pack: dict) -> None:
 
 
 def _count_unposted_generated(generated: list[dict]) -> int:
-    from src.brain import brain
-    from src.content.pack_resolver import list_dedupe_claim
     return sum(1 for p in generated if not brain.is_fact_posted(list_dedupe_claim(p["slug"])))
 
 

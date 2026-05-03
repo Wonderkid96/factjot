@@ -28,24 +28,27 @@ log = logging.getLogger(__name__)
 class DuplicatePostError(RuntimeError):
     """Raised when a claim that has already been published is about to post again.
 
-    This is a hard block — callers must not catch and suppress this exception.
+    This is a hard block - callers must not catch and suppress this exception.
     Log it, alert, and abort. Never override.
     """
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-BRAIN_DIR = REPO_ROOT / "insta-brain"
-DATA_DIR = BRAIN_DIR / "data"
-RULES_DIR = BRAIN_DIR / "rules"
-BANK_DIR = BRAIN_DIR / "bank"
-
-POSTED_PATH = DATA_DIR / "posted.jsonl"
-POSTED_QUOTES_PATH = DATA_DIR / "posted_quotes.jsonl"
-REELS_PATH = DATA_DIR / "reels.jsonl"
-QUEUE_PATH = DATA_DIR / "queue.jsonl"
-STATS_PATH = DATA_DIR / "stats.jsonl"
-TRENDS_PATH = DATA_DIR / "trends.jsonl"
-LOG_PATH = BRAIN_DIR / "log.md"
-INBOX_PATH = BRAIN_DIR / "inbox.md"
+# Path constants are imported from src.core.paths (single source of truth).
+# Local aliases preserved so the rest of this file reads naturally.
+from src.core.paths import (
+    REPO_ROOT,
+    BRAIN_DIR,
+    BRAIN_DATA as DATA_DIR,
+    BRAIN_RULES as RULES_DIR,
+    BRAIN_BANK as BANK_DIR,
+    POSTED as POSTED_PATH,
+    POSTED_QUOTES as POSTED_QUOTES_PATH,
+    REELS_LEDGER as REELS_PATH,
+    BRAIN_QUEUE as QUEUE_PATH,
+    STATS as STATS_PATH,
+    TRENDS as TRENDS_PATH,
+    BRAIN_LOG as LOG_PATH,
+    BRAIN_INBOX as INBOX_PATH,
+)
 
 
 def _now_iso() -> str:
@@ -81,7 +84,7 @@ class Brain:
         self._load_posted()
         self._load_posted_quotes()
 
-        # Image dedupe — uses the canonical path from paths.py so brain and
+        # Image dedupe - uses the canonical path from paths.py so brain and
         # image_fetcher both read/write the same file.
         self.images = UsedImageLedger()
 
@@ -106,15 +109,15 @@ class Brain:
         return len(self._posted_hashes)
 
     def assert_no_duplicate(self, claims: list[str]) -> None:
-        """Hard gate — raises DuplicatePostError if ANY claim has already been posted.
+        """Hard gate - raises DuplicatePostError if ANY claim has already been posted.
 
         Reads directly from disk on every call (not from the in-memory cache)
         so it catches facts posted in other processes since this session started.
 
         Call this immediately before every Instagram API publish call. If it
-        raises, abort the post unconditionally — no exceptions, no overrides.
+        raises, abort the post unconditionally - no exceptions, no overrides.
         """
-        # Fresh read from disk — bypasses the in-memory cache
+        # Fresh read from disk - bypasses the in-memory cache
         posted_on_disk: set[str] = set()
         for path in (POSTED_PATH, REELS_PATH):
             if not path.exists():
@@ -135,7 +138,7 @@ class Brain:
         duplicates = [c for c in claims if claim_hash(c) in posted_on_disk]
         if duplicates:
             raise DuplicatePostError(
-                f"DUPLICATE BLOCKED — {len(duplicates)} claim(s) already posted:\n"
+                f"DUPLICATE BLOCKED - {len(duplicates)} claim(s) already posted:\n"
                 + "\n".join(f"  • {c[:100]}" for c in duplicates)
             )
 
@@ -188,16 +191,27 @@ class Brain:
                     self._posted_hashes.add(h)
 
     def append_log(self, line: str) -> None:
+        """Prepend a line to insta-brain/log.md.
+
+        Logging never raises. If disk write fails (full disk, permissions,
+        locked file), we print a warning to stderr and continue. The whole
+        point of this log is observability AFTER a publish; if it could
+        crash a publish in flight it would be actively making things worse.
+        """
         when = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
         entry = f"- {when} {line.strip()}\n"
-        with self._lock:
-            current = LOG_PATH.read_text(encoding="utf-8") if LOG_PATH.exists() else ""
-            # Newest at top, after the header.
-            if current.startswith("# "):
-                head, _, body = current.partition("\n")
-                LOG_PATH.write_text(head + "\n\n" + entry + body.lstrip("\n"), encoding="utf-8")
-            else:
-                LOG_PATH.write_text(entry + current, encoding="utf-8")
+        try:
+            with self._lock:
+                current = LOG_PATH.read_text(encoding="utf-8") if LOG_PATH.exists() else ""
+                # Newest at top, after the header.
+                if current.startswith("# "):
+                    head, _, body = current.partition("\n")
+                    LOG_PATH.write_text(head + "\n\n" + entry + body.lstrip("\n"), encoding="utf-8")
+                else:
+                    LOG_PATH.write_text(entry + current, encoding="utf-8")
+        except OSError as exc:
+            import sys as _sys
+            print(f"[brain.append_log] WARN failed to write log: {exc}", file=_sys.stderr)
 
     def append_queue(self, row: dict) -> None:
         with self._lock:

@@ -1,0 +1,2 @@
+{"ts": "2026-05-02T10:48:19+00:00", "kind": "carousel_runway_low", "detail": "runway.py exit=1; low topics: ocean(5), technology(1); overall ~11 days at 1/day per topic", "source": "morning routine 09:00"}
+{"ts": "2026-05-03T09:23:03.393321+00:00", "kind": "brain_stale", "detail": "check_brain_fresh.py exit=1; newest source src/research/video_finder.py @ 2026-05-02 22:08:21Z, newest brain log.md @ 2026-05-02 22:04:52Z", "origin": "morning-routine"}

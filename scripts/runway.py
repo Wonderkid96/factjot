@@ -4,9 +4,9 @@ Run this any time before scheduling a week's worth of posts. If any topic
 has fewer than `MIN_RUNWAY` fresh facts left, the script exits non-zero
 so launchd / cron can alert.
 
-Usage:
-    python3 scripts/runway.py
-    python3 scripts/runway.py --min 7      # alert threshold
+Usage (local Mac):
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/runway.py
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/runway.py --min 7
 """
 from __future__ import annotations
 

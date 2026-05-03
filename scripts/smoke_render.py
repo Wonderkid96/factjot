@@ -3,8 +3,8 @@
 Pulls multiple facts from the rare fact bank for two topics, builds two
 carousels, and writes them as PNGs via the HTML+Playwright renderer.
 
-Usage:
-    python3 scripts/smoke_render.py
+Usage (local Mac):
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/smoke_render.py
 """
 from __future__ import annotations
 

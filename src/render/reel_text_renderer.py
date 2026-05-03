@@ -14,7 +14,6 @@ in FFmpeg.
 """
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import dataclass
 from html import escape
@@ -64,7 +63,7 @@ class TextFrame:
     style: str          # "label" | "hook" | "subtitle" | "cta" | "logo"
     text: str           # plain or with [i]/[h] tokens
     out_path: Path
-    hook_size: int = 124    # Hero scale — large enough to command attention
+    hook_size: int = 124    # Hero scale - large enough to command attention
     subtitle_size: int = 72  # Body-scale, Space Grotesk SemiBold reads cleanly
 
 
@@ -110,7 +109,7 @@ class ReelTextRenderer:
         return out_paths
 
     def _build_html(self, frame: TextFrame) -> str:
-        # Font paths come from src.core.brand — single source of truth.
+        # Font paths come from src.core.brand - single source of truth.
         # Adding a new font requires updating brand.py first.
         return self.template.render(
             width=_W,
@@ -126,21 +125,9 @@ class ReelTextRenderer:
             font_mono_bold=FONT_MONO_BOLD.as_uri(),
         )
 
-    def _asset_url(self, rel_path: str) -> str:
-        """Return a file:// URL for a brand asset."""
-        candidates = [
-            _PROJECT_ROOT / rel_path,
-            _PROJECT_ROOT / "assets" / "fonts" / Path(rel_path).name,
-            _PROJECT_ROOT / "brand" / "fonts" / Path(rel_path).name,
-        ]
-        for p in candidates:
-            if p.exists():
-                return p.absolute().as_uri()
-        return (_PROJECT_ROOT / rel_path).absolute().as_uri()
-
     # ------------------------------------------------------------------ #
-    # Emphasis token handling — converts plain text + [i]/[h] tokens into
-    # safe HTML.  If the text already contains tokens we honour them; if
+    # Emphasis token handling - converts plain text + [i]/[h] tokens into
+    # safe HTML. If the text already contains tokens we honour them; if
     # not, we apply heuristic emphasis (year/number -> [h], first proper
     # noun -> [i]) capped at the brand's max_highlights_per_slide.
     # ------------------------------------------------------------------ #
@@ -229,7 +216,7 @@ def _wrap_run(text: str, role: str) -> str:
 
 
 # ------------------------------------------------------------------ #
-# Hook word picker — preserved from old overlay module
+# Hook word picker - preserved from old overlay module
 # ------------------------------------------------------------------ #
 
 _WEAK_ENDINGS = frozenset({
@@ -244,7 +231,7 @@ def pick_hook_words(claim: str, max_words: int = 5) -> str:
 
     Rules:
     - If the fact starts with a year, use up to 4 words around it.
-    - Never end on a weak/conjunction word — walk back until we find a
+    - Never end on a weak/conjunction word - walk back until we find a
       strong noun, verb or adjective to close on.
     - Fall back to first N content words if no year is found.
     """
@@ -264,7 +251,7 @@ def pick_hook_words(claim: str, max_words: int = 5) -> str:
                 candidate = candidate[:-1]
             return " ".join(candidate).rstrip(",.;:")
 
-    # No year — take first max_words, strip weak endings
+    # No year - take first max_words, strip weak endings
     candidate = words[:max_words]
     while len(candidate) > 2 and candidate[-1].lower().strip(",.;:") in _WEAK_ENDINGS:
         candidate = candidate[:-1]

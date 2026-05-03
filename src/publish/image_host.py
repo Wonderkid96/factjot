@@ -3,8 +3,8 @@
 Two backends are supported. Pick one via the `IMAGE_HOST` environment
 variable (default `imgbb`):
 
-    IMAGE_HOST=imgbb        — primary, simple, free key
-    IMAGE_HOST=cloudinary   — backup, used when imgbb's CDN gets soft-blocked
+    IMAGE_HOST=imgbb        - primary, simple, free key
+    IMAGE_HOST=cloudinary   - backup, used when imgbb's CDN gets soft-blocked
                               by Meta's media fetcher (we've seen that happen
                               after heavy upload activity in a single session)
 
@@ -13,7 +13,7 @@ returns the same `HostedImage` shape so callers don't care which one's active.
 
 Per-upload PNG salting
 ----------------------
-Both backends deduplicate uploads by content hash — same bytes in, same URL
+Both backends deduplicate uploads by content hash - same bytes in, same URL
 out. That's a problem during iterative work (multiple dry-runs of the same
 post) because Meta's IG ingestion fetcher can blacklist a URL after a few
 too many of its own retries, and we'd then be stuck with a permanently-
@@ -140,8 +140,8 @@ class CloudinaryHost:
     via a named upload_preset configured in the Cloudinary dashboard.
 
     Env vars:
-        CLOUDINARY_CLOUD_NAME    — your account's cloud name (public)
-        CLOUDINARY_UPLOAD_PRESET — name of an unsigned upload preset
+        CLOUDINARY_CLOUD_NAME    - your account's cloud name (public)
+        CLOUDINARY_UPLOAD_PRESET - name of an unsigned upload preset
     """
 
     UPLOAD_URL_TEMPLATE = "https://api.cloudinary.com/v1_1/{cloud_name}/image/upload"
@@ -189,16 +189,16 @@ class CloudinaryHost:
 
 
 class CloudinaryVideoHost:
-    """Cloudinary video upload adapter.
+    """Cloudinary video upload adapter. DISABLED - not used by the pipeline.
 
-    Used as the primary video host for Reels. Produces permanent, globally
-    cached CDN URLs that Instagram can reliably fetch from any IP including
-    GitHub Actions runners. tmpfiles.org 1-hour expiry URLs caused Instagram
-    container ERROR status when posted from cloud IPs (2026-05-02 incident).
+    Was previously the primary video host for Reels. Disabled 2026-05-02 after
+    Meta 413'd Cloudinary URLs because they don't expire before Meta fetches.
+    TmpfilesHost is now primary. This class is kept in case re-enabling is
+    needed, but make_reel.py does not call it.
 
     Env vars (same account as CloudinaryHost):
-        CLOUDINARY_CLOUD_NAME    — your cloud name (public)
-        CLOUDINARY_UPLOAD_PRESET — unsigned upload preset name
+        CLOUDINARY_CLOUD_NAME    - your cloud name (public)
+        CLOUDINARY_UPLOAD_PRESET - unsigned upload preset name
     """
 
     def __init__(self) -> None:
@@ -237,17 +237,18 @@ class CloudinaryVideoHost:
 
 
 class TmpfilesHost:
-    """tmpfiles.org adapter — anonymous, no signup, ~1h auto-expiry.
+    """tmpfiles.org adapter - anonymous, no signup, ~1h auto-expiry.
 
-    Fallback only. Do not use as primary video host — 1h URLs cause Instagram
-    container ERROR when Meta's servers fetch from cloud IPs. Use
-    CloudinaryVideoHost as primary (see _upload_video in make_reel.py).
+    PRIMARY video host for Reels (as of 2026-05-02). Meta fetches the video
+    URL within the polling window, so the 1-hour expiry is not a problem.
+    Cloudinary was the previous primary but was disabled after Meta 413'd its
+    URLs. See _upload_video in make_reel.py for where this is called.
     """
 
     UPLOAD_URL = "https://tmpfiles.org/api/v1/upload"
 
     def __init__(self) -> None:
-        # No config needed — anonymous host.
+        # No config needed - anonymous host.
         pass
 
     def upload(self, local_path: str | Path) -> HostedImage:
@@ -275,7 +276,7 @@ class TmpfilesHost:
             raise RuntimeError(f"tmpfiles response missing url: {body}")
         # tmpfiles returns a viewer URL like https://tmpfiles.org/12345/file.png
         # The direct-download URL injects /dl/ after the host. Meta can only
-        # fetch the direct URL — the viewer URL serves an HTML page.
+        # fetch the direct URL - the viewer URL serves an HTML page.
         # Also force HTTPS regardless of what the API returned.
         direct = viewer_url.replace("tmpfiles.org/", "tmpfiles.org/dl/")
         if direct.startswith("http://"):
@@ -341,7 +342,7 @@ class ChainedImageHost:
     (caught by callers as RuntimeError) when no backends remain.
 
     Why not auto-detect IG failure here? Because the failure is downstream
-    of upload — we only know about it when InstagramGraphPublisher returns
+    of upload - we only know about it when InstagramGraphPublisher returns
     an error. Keeping the failover decision in the ship script makes the
     error path explicit and easy to log.
     """

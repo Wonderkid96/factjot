@@ -82,19 +82,21 @@ def render_thumbnail(
 
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
-        context = browser.new_context(
-            viewport={"width": REEL_W, "height": REEL_H},
-            device_scale_factor=1,
-        )
-        page = context.new_page()
-        page.set_content(html, wait_until="networkidle")
-        page.screenshot(
-            path=str(out_path),
-            omit_background=False,   # solid background — no transparency
-            full_page=False,
-            clip={"x": 0, "y": 0, "width": REEL_W, "height": REEL_H},
-        )
-        browser.close()
+        try:
+            context = browser.new_context(
+                viewport={"width": REEL_W, "height": REEL_H},
+                device_scale_factor=1,
+            )
+            page = context.new_page()
+            page.set_content(html, wait_until="networkidle")
+            page.screenshot(
+                path=str(out_path),
+                omit_background=False,   # solid background - no transparency
+                full_page=False,
+                clip={"x": 0, "y": 0, "width": REEL_W, "height": REEL_H},
+            )
+        finally:
+            browser.close()
 
     print(f"  [thumbnail] rendered {out_path.name}")
     return out_path

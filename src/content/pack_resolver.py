@@ -1,7 +1,7 @@
 """Shared TMDB resolution logic for list carousel packs.
 
 Used by both ship_list_post.py (post time) and prepare_packs.py (prep time).
-Single source of truth — change here, both scripts benefit.
+Single source of truth - change here, both scripts benefit.
 """
 from __future__ import annotations
 
@@ -45,13 +45,13 @@ def _fetch_item_data(raw: dict, tmdb: TMDBClient, omdb: OMDbClient,
         credits = tmdb.get_movie_credits(tmdb_id)
         title = entity.get("title") or entity.get("original_title") or "Untitled"
         # Hard guard: if the pack item declares an expected_title, verify TMDB
-        # returns a matching title. A mismatch means the ID is wrong — abort
+        # returns a matching title. A mismatch means the ID is wrong - abort
         # immediately rather than silently posting the wrong film.
         expected = raw.get("expected_title")
         if expected and expected.lower() not in title.lower() and title.lower() not in expected.lower():
             raise RuntimeError(
                 f"TMDB ID {tmdb_id} returned {title!r} but pack expects {expected!r}. "
-                f"Wrong ID — fix list_packs.py before posting."
+                f"Wrong ID - fix list_packs.py before posting."
             )
         year = (entity.get("release_date") or "")[:4] or ""
         credit_name = tmdb.director_name(credits) or ""
@@ -68,7 +68,7 @@ def _fetch_item_data(raw: dict, tmdb: TMDBClient, omdb: OMDbClient,
         if expected and expected.lower() not in title.lower() and title.lower() not in expected.lower():
             raise RuntimeError(
                 f"TMDB ID {tmdb_id} returned {title!r} but pack expects {expected!r}. "
-                f"Wrong ID — fix list_packs.py before posting."
+                f"Wrong ID - fix list_packs.py before posting."
             )
         year = (entity.get("first_air_date") or "")[:4] or ""
         credit_name = tmdb.first_creator_name(entity, credits) or ""
@@ -166,7 +166,7 @@ def resolve_pack(pack: dict, post_id: str,
                 for idx, raw in items
             }
             for future in as_completed(futures):
-                data = future.result()   # raises on error — intentional
+                data = future.result()   # raises on error - intentional
                 results[data["idx"]] = data
         ordered = [results[i] for i, _ in items]
     else:

@@ -4,11 +4,11 @@
     "type": "split",
     "children": [
       {
-        "id": "20ad808fc24f8b09",
+        "id": "1eeaa01f46c1d443",
         "type": "tabs",
         "children": [
           {
-            "id": "1c04816f46c9cc9d",
+            "id": "fa77af6e5ea02736",
             "type": "leaf",
             "state": {
               "type": "graph",
@@ -176,16 +176,21 @@
       "bases:Create new base": false
     }
   },
-  "active": "1c04816f46c9cc9d",
+  "active": "fa77af6e5ea02736",
   "lastOpenFiles": [
+    "PUBLISH_PLAN.md",
+    "gotchas.md",
     "MEMORY_INDEX.md",
+    "log.md",
+    "inbox.md",
     "CRITICAL_FACTS.md",
-    "data/reels.jsonl",
-    "bank/README.md",
-    "rules/03-voice.md",
-    "bank/quotes.md",
-    "rules/index.md",
     "CLAUDE.md",
+    "bank/quotes.md",
+    "rules/11-no-naked-slides.md",
+    "bank/README.md",
+    "data/reels.jsonl",
+    "rules/03-voice.md",
+    "rules/index.md",
     "rules/13-memory-index.md",
     "rules/12-memory-index.md",
     "data/posted_quotes.jsonl",
@@ -194,12 +199,9 @@
     "data/stats.jsonl",
     "data/queue.jsonl",
     "data/posted.jsonl",
-    "log.md",
-    "inbox.md",
     "rules/09-prompt-read-order.md",
     "rules/08-content-pipeline.md",
     "rules/07-tooling.md",
-    "rules/11-no-naked-slides.md",
     "rules/10-truth.md",
     "rules/06-data-capture.md",
     "rules/05-publishing.md",

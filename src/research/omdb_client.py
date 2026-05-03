@@ -9,7 +9,7 @@ We use OMDb only when:
     - the pack item does NOT have hardcoded imdb_score / rotten_score
 
 Pack-level overrides always win. OMDb is fallback automation, not the source
-of truth — scores can drift over time and a curated pack is allowed to
+of truth - scores can drift over time and a curated pack is allowed to
 freeze them.
 
 Public API:

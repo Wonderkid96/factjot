@@ -1,32 +1,32 @@
 """Curated list packs for entertainment carousels.
 
 Each pack is a hand-picked themed list (e.g. "5 mind-melting sci-fi films").
-We intentionally do NOT pull from TMDB top-rated lists — those surface the
+We intentionally do NOT pull from TMDB top-rated lists - those surface the
 same obvious blockbusters every time. The factjot voice is "stuff you didn't
 know about", so list curation is human-driven. TMDB is just the metadata +
 image source.
 
 A pack contains:
 
-    slug         — file-safe id, used as post_id seed and brain dedupe key
-    title        — hook-slide headline (Instrument Serif italic)
-    subtitle     — hook-slide kicker line
-    category     — slide-corner pill label, e.g. "FILM LIST"
-    series       — brand series tag (always "factjot" for now)
-    items        — ordered list of dicts:
-        kind     — currently "movie" only; later: "tv", "book", "album"
-        tmdb_id  — TMDB integer id (resolve manually before adding here)
-        hook     — 1-2 sentence pitch in factjot voice (will appear under title)
-        accent_word — optional word/phrase from the hook to wrap in [h]…[/h]
+    slug         - file-safe id, used as post_id seed and brain dedupe key
+    title        - hook-slide headline (Instrument Serif italic)
+    subtitle     - hook-slide kicker line
+    category     - slide-corner pill label, e.g. "FILM LIST"
+    series       - brand series tag (always "factjot" for now)
+    items        - ordered list of dicts:
+        kind     - currently "movie" only; later: "tv", "book", "album"
+        tmdb_id  - TMDB integer id (resolve manually before adding here)
+        hook     - 1-2 sentence pitch in factjot voice (will appear under title)
+        accent_word - optional word/phrase from the hook to wrap in [h]…[/h]
                       so it renders italic+orange. If absent, no highlight.
-    closing      — dict with `headline` + `cta` for the recap slide
-    caption      — IG caption body. Hashtags appended automatically.
+    closing      - dict with `headline` + `cta` for the recap slide
+    caption      - IG caption body. Hashtags appended automatically.
 
 Pack rules:
     - 5 items per pack is the standard. 4 minimum, 6 maximum.
     - Items must have a backdrop_path on TMDB (we check at render time).
     - Hooks must be ≤ 200 chars and stay in voice (no flattery, no em dashes).
-    - The pack's first item should be the most visually striking — its
+    - The pack's first item should be the most visually striking - its
       backdrop is reused for the hook slide.
 """
 from __future__ import annotations
@@ -104,125 +104,7 @@ LIST_PACKS: dict[str, dict] = {
                 "kind": "movie",
                 "tmdb_id": 530915,
                 "expected_title": "1917",
-                "hook": "Two soldiers have six hours to deliver a message that could save 1,600 lives. Shot to appear as a single continuous take. It is not — but you will never find the cut.",
-                "accent_word": "you will never find the cut",
-                "imdb_score": "8.3",
-                "rotten_score": "89%",
-                "genre": "WAR",
-            },
-            {
-                "kind": "movie",
-                "tmdb_id": 792,
-                "expected_title": "Platoon",
-                "hook": "Oliver Stone served two tours in Vietnam. This is what he saw. Not a reconstruction. Won Best Picture.",
-                "accent_word": "not a reconstruction",
-                "imdb_score": "7.8",
-                "rotten_score": "87%",
-                "genre": "WAR",
-            },
-            {
-                "kind": "movie",
-                "tmdb_id": 374720,
-                "expected_title": "Dunkirk",
-                "hook": "338,000 men evacuated from a beach with no plan and nowhere near enough boats. Three timelines that converge at the same moment. No score, just sound design.",
-                "accent_word": "no plan",
-                "imdb_score": "7.8",
-                "rotten_score": "92%",
-                "genre": "WAR",
-            },
-            {
-                "kind": "movie",
-                "tmdb_id": 324786,
-                "expected_title": "Hacksaw Ridge",
-                "hook": "Desmond Doss refused to carry a weapon. He was mocked, beaten, court-martialled. Then he saved 75 men at Okinawa and became the only conscientious objector to receive the Medal of Honor.",
-                "accent_word": "only conscientious objector",
-                "imdb_score": "8.1",
-                "rotten_score": "84%",
-                "genre": "WAR",
-            },
-        ],
-        "closing": {
-            "headline": "Save this list.",
-            "cta": "Follow @factjot for more.",
-        },
-        "caption": (
-            "Ten war films. Ranked by staying power. "
-            "Every one of these will change how you think about the genre. "
-            "Sources via TMDB."
-        ),
-    },
-    "top_war_films": {
-        "slug": "top_war_films",
-        "title": "Ten war films worth your time",
-        "subtitle": "ranked by staying power, not box office.",
-        "category": "FILM LIST",
-        "series": "factjot",
-        "items": [
-            {
-                "kind": "movie",
-                "tmdb_id": 28,
-                "expected_title": "Apocalypse Now",
-                "hook": "A US captain travels upriver through Vietnam to find a rogue colonel who has declared himself a god. Coppola lost his mind making it. The film is better for it.",
-                "accent_word": "declared himself a god",
-                "imdb_score": "8.4",
-                "rotten_score": "98%",
-                "genre": "WAR",
-            },
-            {
-                "kind": "movie",
-                "tmdb_id": 857,
-                "expected_title": "Saving Private Ryan",
-                "hook": "The Omaha Beach sequence runs 27 unbroken minutes and has never been equalled. Everything that follows is quieter and just as devastating.",
-                "accent_word": "27 unbroken minutes",
-                "imdb_score": "8.6",
-                "rotten_score": "93%",
-                "genre": "WAR",
-            },
-            {
-                "kind": "movie",
-                "tmdb_id": 975,
-                "expected_title": "Paths of Glory",
-                "hook": "Three French soldiers are court-martialled for cowardice after a suicidal attack their commanders ordered knowing it would fail. Kubrick at 29. Banned in France for 18 years.",
-                "accent_word": "banned in France for 18 years",
-                "imdb_score": "8.4",
-                "rotten_score": "96%",
-                "genre": "WAR",
-            },
-            {
-                "kind": "movie",
-                "tmdb_id": 600,
-                "expected_title": "Full Metal Jacket",
-                "hook": "Two films stitched together: a boot camp that ends in murder, and a war that ends in nothing. Kubrick shot the entire Vietnam sequence in a derelict gasworks in East London.",
-                "accent_word": "East London",
-                "imdb_score": "8.0",
-                "rotten_score": "91%",
-                "genre": "WAR",
-            },
-            {
-                "kind": "movie",
-                "tmdb_id": 387,
-                "expected_title": "Das Boot",
-                "hook": "A German submarine crew in 1941. Months of claustrophobia and creeping dread, then sudden violent death. The most uncomfortable two and a half hours in cinema.",
-                "accent_word": "creeping dread",
-                "imdb_score": "8.4",
-                "rotten_score": "99%",
-                "genre": "WAR",
-            },
-            {
-                "kind": "movie",
-                "tmdb_id": 11778,
-                "expected_title": "The Deer Hunter",
-                "hook": "Three friends go to Vietnam. What it does to them is shown slowly, obliquely, without mercy. Won five Oscars. The Russian roulette sequences are not a metaphor.",
-                "accent_word": "not a metaphor",
-                "imdb_score": "8.1",
-                "rotten_score": "93%",
-                "genre": "WAR",
-            },
-            {
-                "kind": "movie",
-                "tmdb_id": 530915,
-                "expected_title": "1917",
-                "hook": "Two soldiers have six hours to deliver a message that could save 1,600 lives. Shot to appear as a single continuous take. It is not — but you will never find the cut.",
+                "hook": "Two soldiers have six hours to deliver a message that could save 1,600 lives. Shot to appear as a single continuous take. It is not - but you will never find the cut.",
                 "accent_word": "you will never find the cut",
                 "imdb_score": "8.3",
                 "rotten_score": "89%",
@@ -278,7 +160,7 @@ LIST_PACKS: dict[str, dict] = {
         "items": [
             {
                 "kind": "tv",
-                "tmdb_id": 95396,  # Severance (2022) — Dan Erickson
+                "tmdb_id": 95396,  # Severance (2022) - Dan Erickson
                 "expected_title": "Severance",
                 "hook": "Office workers volunteer for a brain implant that walls their work selves off from their personal lives. The smartest premise on prestige TV.",
                 "accent_word": "walls their work selves off",
@@ -288,7 +170,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "tv",
-                "tmdb_id": 70523,  # Dark (2017) — Baran bo Odar / Jantje Friese
+                "tmdb_id": 70523,  # Dark (2017) - Baran bo Odar / Jantje Friese
                 "expected_title": "Dark",
                 "hook": "Children disappear in a small German town. The mystery threads four generations of one family across decades.",
                 "accent_word": "four generations",
@@ -298,7 +180,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "tv",
-                "tmdb_id": 81349,  # Devs (2020) — Alex Garland
+                "tmdb_id": 81349,  # Devs (2020) - Alex Garland
                 "expected_title": "Devs",
                 "hook": "A tech billionaire's secret quantum project hidden in a Silicon Valley campus. From the writer of Annihilation, slow-burning and quietly terrifying.",
                 "accent_word": "secret quantum project",
@@ -308,7 +190,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "tv",
-                "tmdb_id": 93784,  # Tales from the Loop (2020) — Nathaniel Halpern
+                "tmdb_id": 93784,  # Tales from the Loop (2020) - Nathaniel Halpern
                 "expected_title": "Tales from the Loop",
                 "hook": "Anthology episodes set around an underground physics experiment. Each story is a quiet meditation on time, memory, and loss.",
                 "accent_word": "quiet meditation",
@@ -318,7 +200,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "tv",
-                "tmdb_id": 69061,  # The OA (2016) — Brit Marling / Zal Batmanglij
+                "tmdb_id": 69061,  # The OA (2016) - Brit Marling / Zal Batmanglij
                 "expected_title": "The OA",
                 "hook": "A blind woman returns home with her sight restored after seven years missing. The story she tells is unlike anything else on television.",
                 "accent_word": "unlike anything else",
@@ -346,7 +228,7 @@ LIST_PACKS: dict[str, dict] = {
         "items": [
             {
                 "kind": "movie",
-                "tmdb_id": 329865,  # Arrival (2016) — Denis Villeneuve
+                "tmdb_id": 329865,  # Arrival (2016) - Denis Villeneuve
                 "expected_title": "Arrival",
                 "hook": "Twelve alien craft appear across the planet. A linguist is the world's last shot at understanding what they want before someone fires.",
                 "accent_word": "twelve alien craft",
@@ -356,7 +238,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 220289,  # Coherence (2013) — James Ward Byrkit
+                "tmdb_id": 220289,  # Coherence (2013) - James Ward Byrkit
                 "expected_title": "Coherence",
                 "hook": "One dinner party. A passing comet. Suddenly there are several houses on the street, and several versions of every guest.",
                 "accent_word": "several versions",
@@ -366,7 +248,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 14337,  # Primer (2004) — Shane Carruth
+                "tmdb_id": 14337,  # Primer (2004) - Shane Carruth
                 "expected_title": "Primer",
                 "hook": "Two engineers build a time machine in a garage on a 7,000 dollar budget. Nobody who watches it can fully agree on what happens.",
                 "accent_word": "7,000 dollar",
@@ -376,7 +258,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 206487,  # Predestination (2014) — Spierig brothers
+                "tmdb_id": 206487,  # Predestination (2014) - Spierig brothers
                 "expected_title": "Predestination",
                 "hook": "A time-travelling agent hunts a bomber across decades. The twist is so neat you can re-watch it as a different film.",
                 "accent_word": "re-watch it as a different film",
@@ -386,7 +268,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 300668,  # Annihilation (2018) — Alex Garland
+                "tmdb_id": 300668,  # Annihilation (2018) - Alex Garland
                 "expected_title": "Annihilation",
                 "hook": "A team enters a shimmering zone where biology refuses to behave. From the director of Ex Machina, visually like nothing else.",
                 "accent_word": "refuses to behave",
@@ -414,7 +296,7 @@ LIST_PACKS: dict[str, dict] = {
         "items": [
             {
                 "kind": "movie",
-                "tmdb_id": 374720,  # Dunkirk (2017) — Christopher Nolan
+                "tmdb_id": 374720,  # Dunkirk (2017) - Christopher Nolan
                 "expected_title": "Dunkirk",
                 "hook": "400,000 soldiers stranded on a beach. Nolan strips out all dialogue you don't need and leaves only the noise of dying.",
                 "accent_word": "400,000 soldiers",
@@ -424,7 +306,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 530915,  # 1917 (2019) — Sam Mendes
+                "tmdb_id": 530915,  # 1917 (2019) - Sam Mendes
                 "expected_title": "1917",
                 "hook": "Two soldiers cross no man's land to stop an ambush. Shot to appear as one unbroken take. The tension never releases.",
                 "accent_word": "one unbroken take",
@@ -434,7 +316,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 324786,  # Hacksaw Ridge (2016) — Mel Gibson
+                "tmdb_id": 324786,  # Hacksaw Ridge (2016) - Mel Gibson
                 "expected_title": "Hacksaw Ridge",
                 "hook": "A conscientious objector refuses to carry a weapon and saves 75 men at Okinawa. Based entirely on a true story.",
                 "accent_word": "75 men",
@@ -444,7 +326,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 11329,  # Come and See (1985) — Elem Klimov
+                "tmdb_id": 11329,  # Come and See (1985) - Elem Klimov
                 "expected_title": "Come and See",
                 "hook": "A Belarusian boy joins the resistance in 1943. The most viscerally disturbing anti-war film ever made. Watch it once.",
                 "accent_word": "most viscerally disturbing",
@@ -454,7 +336,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 857,  # Saving Private Ryan (1998) — Steven Spielberg
+                "tmdb_id": 857,  # Saving Private Ryan (1998) - Steven Spielberg
                 "expected_title": "Saving Private Ryan",
                 "hook": "The D-Day opening is 27 minutes long and still the most accurate depiction of the beach landings ever committed to film.",
                 "accent_word": "27 minutes",
@@ -482,7 +364,7 @@ LIST_PACKS: dict[str, dict] = {
         "items": [
             {
                 "kind": "movie",
-                "tmdb_id": 493922,  # Hereditary (2018) — Ari Aster
+                "tmdb_id": 493922,  # Hereditary (2018) - Ari Aster
                 "expected_title": "Hereditary",
                 "hook": "A family inherits more than grief after their grandmother dies. The scariest film in a decade, and it barely raises its voice.",
                 "accent_word": "barely raises its voice",
@@ -492,7 +374,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 310131,  # The Witch (2015) — Robert Eggers
+                "tmdb_id": 310131,  # The Witch (2015) - Robert Eggers
                 "expected_title": "The Witch",
                 "hook": "A Puritan family is banished to the edge of a New England forest in 1630. Something is wrong with the woods. Something is wrong with the goat.",
                 "accent_word": "wrong with the goat",
@@ -502,7 +384,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 419430,  # Get Out (2017) — Jordan Peele
+                "tmdb_id": 419430,  # Get Out (2017) - Jordan Peele
                 "expected_title": "Get Out",
                 "hook": "A Black man visits his white girlfriend's family for the weekend. Jordan Peele's debut is a horror film about a horror that already exists.",
                 "accent_word": "already exists",
@@ -512,7 +394,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 272841,  # It Follows (2014) — David Robert Mitchell
+                "tmdb_id": 272841,  # It Follows (2014) - David Robert Mitchell
                 "expected_title": "It Follows",
                 "hook": "After a sexual encounter, something starts following you. It walks. It never stops. The concept is simple and relentless.",
                 "accent_word": "walks. It never stops",
@@ -522,7 +404,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 447332,  # A Quiet Place (2018) — John Krasinski
+                "tmdb_id": 447332,  # A Quiet Place (2018) - John Krasinski
                 "expected_title": "A Quiet Place",
                 "hook": "Creatures hunt by sound. A family with a deaf daughter has a slight advantage. A horror film with almost no dialogue.",
                 "accent_word": "almost no dialogue",
@@ -550,7 +432,7 @@ LIST_PACKS: dict[str, dict] = {
         "items": [
             {
                 "kind": "movie",
-                "tmdb_id": 207,  # No Country for Old Men (2007) — Coen Brothers
+                "tmdb_id": 207,  # No Country for Old Men (2007) - Coen Brothers
                 "expected_title": "No Country for Old Men",
                 "hook": "A hunter stumbles onto a drug deal gone wrong and takes the money. What follows him is not a man in any normal sense.",
                 "accent_word": "not a man in any normal sense",
@@ -560,7 +442,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 769,  # Chinatown (1974) — Roman Polanski
+                "tmdb_id": 769,  # Chinatown (1974) - Roman Polanski
                 "expected_title": "Chinatown",
                 "hook": "A private detective in 1930s Los Angeles takes a simple adultery case. It leads somewhere no detective ever comes back from clean.",
                 "accent_word": "no detective ever comes back from clean",
@@ -570,7 +452,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 745,  # Se7en (1995) — David Fincher
+                "tmdb_id": 745,  # Se7en (1995) - David Fincher
                 "expected_title": "Se7en",
                 "hook": "Two detectives hunt a killer using the seven deadly sins as a template. The ending is one of cinema's most unflinching.",
                 "accent_word": "most unflinching",
@@ -580,7 +462,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 497,  # The Departed (2006) — Martin Scorsese
+                "tmdb_id": 497,  # The Departed (2006) - Martin Scorsese
                 "expected_title": "The Departed",
                 "hook": "An undercover cop inside the mob. A mob mole inside the police. Each is hunting the other without knowing who they are.",
                 "accent_word": "hunting the other",
@@ -590,7 +472,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 274,  # The Silence of the Lambs (1991) — Jonathan Demme
+                "tmdb_id": 274,  # The Silence of the Lambs (1991) - Jonathan Demme
                 "expected_title": "The Silence of the Lambs",
                 "hook": "An FBI trainee asks a cannibal psychiatrist to help catch a serial killer. He agrees. The price is a conversation.",
                 "accent_word": "price is a conversation",
@@ -618,7 +500,7 @@ LIST_PACKS: dict[str, dict] = {
         "items": [
             {
                 "kind": "movie",
-                "tmdb_id": 346648,  # Paddington 2 (2017) — Paul King
+                "tmdb_id": 346648,  # Paddington 2 (2017) - Paul King
                 "expected_title": "Paddington 2",
                 "hook": "Paddington goes to prison. Somehow it is the warmest film of the decade. Critics called it one of the best sequels ever made.",
                 "accent_word": "warmest film of the decade",
@@ -628,7 +510,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 409,  # Amelie (2001) — Jean-Pierre Jeunet
+                "tmdb_id": 409,  # Amelie (2001) - Jean-Pierre Jeunet
                 "expected_title": "Amelie",
                 "hook": "A Parisian woman quietly improves the lives of strangers while avoiding her own happiness. Visually unlike anything else from 2001.",
                 "accent_word": "quietly improves",
@@ -638,7 +520,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 140607,  # Sing Street (2016) — John Carney
+                "tmdb_id": 140607,  # Sing Street (2016) - John Carney
                 "expected_title": "Sing Street",
                 "hook": "A Dublin teenager starts a band to impress a girl in 1985. Every song is good. Every scene is kind.",
                 "accent_word": "every scene is kind",
@@ -648,7 +530,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 245891,  # John Wick (2014) — Chad Stahelski
+                "tmdb_id": 245891,  # John Wick (2014) - Chad Stahelski
                 "expected_title": "John Wick",
                 "hook": "A retired hitman's dog is killed. What follows is two hours of extremely cathartic precision violence. Exactly what some days need.",
                 "accent_word": "extremely cathartic",
@@ -658,7 +540,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 72105,  # Chef (2014) — Jon Favreau
+                "tmdb_id": 72105,  # Chef (2014) - Jon Favreau
                 "expected_title": "Chef",
                 "hook": "A chef quits his restaurant job, buys a food truck, and drives it across America with his son. Nobody is a villain.",
                 "accent_word": "nobody is a villain",
@@ -686,7 +568,7 @@ LIST_PACKS: dict[str, dict] = {
         "items": [
             {
                 "kind": "movie",
-                "tmdb_id": 11134,  # Following (1998) — Christopher Nolan
+                "tmdb_id": 11134,  # Following (1998) - Christopher Nolan
                 "expected_title": "Following",
                 "hook": "Nolan's debut, shot on weekends for 6,000 dollars in black and white. A neo-noir about a writer who follows strangers. It works completely.",
                 "accent_word": "6,000 dollars",
@@ -696,7 +578,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 500,  # Reservoir Dogs (1992) — Quentin Tarantino
+                "tmdb_id": 500,  # Reservoir Dogs (1992) - Quentin Tarantino
                 "expected_title": "Reservoir Dogs",
                 "hook": "A diamond heist that the film never shows. Just the aftermath, a warehouse, and a cast of criminals who don't trust each other.",
                 "accent_word": "never shows",
@@ -706,7 +588,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 10929,  # Pi (1998) — Darren Aronofsky
+                "tmdb_id": 10929,  # Pi (1998) - Darren Aronofsky
                 "expected_title": "Pi",
                 "hook": "A mathematician believes a 216-digit number holds the key to everything. Shot in paranoid black and white for 60,000 dollars.",
                 "accent_word": "key to everything",
@@ -716,7 +598,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 40096,  # Bottle Rocket (1996) — Wes Anderson
+                "tmdb_id": 40096,  # Bottle Rocket (1996) - Wes Anderson
                 "expected_title": "Bottle Rocket",
                 "hook": "Three friends with no criminal talent attempt to become criminals. Wes Anderson's first film, before the symmetry fully locked in.",
                 "accent_word": "no criminal talent",
@@ -726,7 +608,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 666,  # Eraserhead (1977) — David Lynch
+                "tmdb_id": 666,  # Eraserhead (1977) - David Lynch
                 "expected_title": "Eraserhead",
                 "hook": "Lynch's first feature took five years to make and was shot mostly at night. Nobody agreed on what it meant, including Lynch.",
                 "accent_word": "five years to make",
@@ -749,7 +631,7 @@ LIST_PACKS: dict[str, dict] = {
 
 
 # ---------------------------------------------------------------------------
-# Pack backlog — seeded stubs for the next few Saturdays.
+# Pack backlog - seeded stubs for the next few Saturdays.
 # Each stub has slug + title + subtitle + intent; items are TODO.
 # Keep at least 4 stubs in flight so we never default to repeating a theme.
 # Variety dimensions to rotate: TONE (shocking / wholesome / cult / prestige
@@ -780,7 +662,7 @@ PACK_BACKLOG_STUBS: dict[str, dict] = {
         "category": "DOC LIST",
         "tone": "weighty",
         "angle": "form",
-        "intent": "Docs that change how you think — not just inform. The Act of Killing, Stop Making Sense, Grizzly Man, Man on Wire, Threads.",
+        "intent": "Docs that change how you think - not just inform. The Act of Killing, Stop Making Sense, Grizzly Man, Man on Wire, Threads.",
     },
     "non_english_masterpieces": {
         "title": "Five non-English films you'd be wrong to skip",

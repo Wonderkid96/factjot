@@ -375,12 +375,12 @@ class CarouselDraftGenerator:
     @staticmethod
     def _caption(facts: list[VerifiedFact]) -> str:
         # Lead with the first (most quirky-scored) fact as the hook sentence.
-        # IG shows ~125 chars before "more" — those chars need to earn a tap,
+        # IG shows ~125 chars before "more" - those chars need to earn a tap,
         # not waste themselves on a generic CTA. The CTA follows after.
         hook = ""
         if facts:
             claim = re.sub(r"\[/?[ih]\]", "", facts[0].claim).strip()
-            # Take the first sentence only — punchy, not the full paragraph.
+            # Take the first sentence only - punchy, not the full paragraph.
             first_sentence = claim.split(". ")[0].strip().rstrip(".")
             if len(first_sentence) > 200:
                 first_sentence = first_sentence[:200].rstrip()

@@ -5,7 +5,7 @@ random unused themes weekly, fetches films, and writes complete packs to
 data/ledgers/generated_list_packs.jsonl.
 
 With 80+ themes covering genres, eras, countries, moods, directors, and
-styles, the system runs for over a year before cycling — and even then the
+styles, the system runs for over a year before cycling - and even then the
 films will be different (posted_ids dedup ensures no film repeats).
 
 TMDB genre IDs reference:
@@ -249,7 +249,7 @@ THEMES: list[dict] = [
         "title": "Five films from the 70s that defined a decade",
         "subtitle": "Hollywood's greatest era.",
         "category": "FILM LIST",
-        "caption": "Five films from the 1970s — arguably the richest decade in American cinema. Sources via TMDB.",
+        "caption": "Five films from the 1970s - arguably the richest decade in American cinema. Sources via TMDB.",
         "closing_headline": "Nothing before or since.",
         "year_gte": 1970, "year_lte": 1979, "vote_avg_gte": 7.5, "vote_count_gte": 1000,
     },
@@ -316,7 +316,7 @@ THEMES: list[dict] = [
         "title": "Five films for when you need comfort",
         "subtitle": "genuinely restorative.",
         "category": "FILM LIST",
-        "caption": "Five films that actually make you feel better. Not because they are shallow — because they are kind. Sources via TMDB.",
+        "caption": "Five films that actually make you feel better. Not because they are shallow - because they are kind. Sources via TMDB.",
         "closing_headline": "Sometimes you just need this.",
         "genre_ids": [35, 10751], "vote_avg_gte": 7.2, "vote_count_gte": 2000,
     },
@@ -478,7 +478,7 @@ THEMES: list[dict] = [
         "title": "Five survival films where the human element is the point",
         "subtitle": "not action. endurance.",
         "category": "FILM LIST",
-        "caption": "Five survival films where the question is not whether they survive — it is who they become. Sources via TMDB.",
+        "caption": "Five survival films where the question is not whether they survive - it is who they become. Sources via TMDB.",
         "closing_headline": "Survival is a choice.",
         "genre_ids": [12, 18, 53], "vote_avg_gte": 7.2, "vote_count_gte": 1000,
     },

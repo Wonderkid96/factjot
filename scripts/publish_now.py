@@ -60,7 +60,7 @@ def main() -> int:
     configure_logging()
 
     # Rule 13: refuse to publish if brain is stale.
-    import subprocess, sys
+    import subprocess
     rc = subprocess.call([
         sys.executable,
         str(Path(__file__).parent / "check_brain_fresh.py"),

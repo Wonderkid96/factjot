@@ -5,19 +5,19 @@ so scripts work regardless of cwd.
 
 Structure:
   data/
-    ledgers/   — append-only .jsonl truth stores
-    cache/     — regeneratable downloads (images, renders, reels)
-    db/        — .json databases
+    ledgers/   - append-only .jsonl truth stores
+    cache/     - regeneratable downloads (images, renders, reels)
+    db/        - .json databases
 
-  logs/        — launchd + heartbeat logs
+  logs/        - launchd + heartbeat logs
 
   assets/
-    avatars/   — brand avatar images
-    fonts/     — typography
-    music/     — Reel music tracks
-    video/     — safety-pool footage
+    avatars/   - brand avatar images
+    fonts/     - typography
+    music/     - Reel music tracks
+    video/     - safety-pool footage
 
-  insta-brain/data/  — brain-owned ledgers (posted, quotes, reels, etc.)
+  insta-brain/data/  - brain-owned ledgers (posted, quotes, reels, etc.)
 """
 from pathlib import Path
 
@@ -27,7 +27,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 # ------------------------------------------------------------------ #
-# data/ledgers/  — append-only truth stores
+# data/ledgers/  - append-only truth stores
 # ------------------------------------------------------------------ #
 LEDGERS         = ROOT / "data" / "ledgers"
 APPROVAL_QUEUE  = LEDGERS / "approval_queue.jsonl"
@@ -42,7 +42,7 @@ ALERTS          = LEDGERS / "alerts.jsonl"
 PUBLISH_FAILURES = LEDGERS / "publish_failures.jsonl"
 
 # ------------------------------------------------------------------ #
-# data/cache/  — regeneratable, safe to delete
+# data/cache/  - regeneratable, safe to delete
 # ------------------------------------------------------------------ #
 CACHE           = ROOT / "data" / "cache"
 IMAGES_CACHE    = CACHE / "images"
@@ -51,12 +51,12 @@ LIST_ASSETS_CACHE = CACHE / "list_assets"
 REELS_CACHE     = CACHE / "reels"
 
 # ------------------------------------------------------------------ #
-# data/db/  — json databases
+# data/db/  - json databases
 # ------------------------------------------------------------------ #
 DB              = ROOT / "data" / "db"
-FACTS_DB        = DB / "facts_db.json"
-POSTS_DB        = DB / "posts_db.json"
 METRICS_DB      = DB / "metrics_db.json"
+# FACTS_DB, POSTS_DB, WEEKLY_STATE removed -- legacy of an older analytics design,
+# never imported by any current consumer.
 
 # ------------------------------------------------------------------ #
 # logs/
@@ -71,16 +71,21 @@ ASSETS          = ROOT / "assets"
 AVATARS         = ASSETS / "avatars"
 
 # ------------------------------------------------------------------ #
-# insta-brain/data/  — brain-owned ledgers
+# insta-brain/  - brain root, ledgers, rules, bank, logs
 # ------------------------------------------------------------------ #
-BRAIN_DATA      = ROOT / "insta-brain" / "data"
+REPO_ROOT       = ROOT
+BRAIN_DIR       = ROOT / "insta-brain"
+BRAIN_DATA      = BRAIN_DIR / "data"
+BRAIN_RULES     = BRAIN_DIR / "rules"
+BRAIN_BANK      = BRAIN_DIR / "bank"
+BRAIN_LOG       = BRAIN_DIR / "log.md"
+BRAIN_INBOX     = BRAIN_DIR / "inbox.md"
 POSTED          = BRAIN_DATA / "posted.jsonl"
 POSTED_QUOTES   = BRAIN_DATA / "posted_quotes.jsonl"
 REELS_LEDGER    = BRAIN_DATA / "reels.jsonl"
 BRAIN_QUEUE     = BRAIN_DATA / "queue.jsonl"
 STATS           = BRAIN_DATA / "stats.jsonl"
 TRENDS          = BRAIN_DATA / "trends.jsonl"
-WEEKLY_STATE    = BRAIN_DATA / "weekly_state.json"
 
 
 def ensure_dirs() -> None:

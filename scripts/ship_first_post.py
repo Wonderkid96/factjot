@@ -8,9 +8,9 @@ End to end:
     5. Publish carousel via Instagram Graph API.
     6. Record in insta-brain/data/posted.jsonl + log.md.
 
-Usage:
-    python3 scripts/ship_first_post.py --topic space
-    python3 scripts/ship_first_post.py --topic nature --dry-run   # everything but the final publish
+Usage (local Mac):
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/ship_first_post.py --topic space
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/ship_first_post.py --topic nature --dry-run
 """
 from __future__ import annotations
 

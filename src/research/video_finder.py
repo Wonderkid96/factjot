@@ -1,18 +1,18 @@
 """Multi-source portrait video finder for Reels composition.
 
-Selection strategy (5 layers — tried in order, first hit wins):
-  0. Entity sources      — Wikipedia lead image, Wikimedia Commons files,
+Selection strategy (5 layers - tried in order, first hit wins):
+  0. Entity sources      - Wikipedia lead image, Wikimedia Commons files,
                            Internet Archive exact-phrase search (entity-specific)
-  1. Curated image_hint  — manually written, most specific
-  2. Derived queries     — auto-extracted subjects from the fact claim
-  3. Topic-generic       — atmospheric fallback for the topic category
-  4. Safety pool         — pre-downloaded local clips in assets/video/{topic}/
+  1. Curated image_hint  - manually written, most specific
+  2. Derived queries     - auto-extracted subjects from the fact claim
+  3. Topic-generic       - atmospheric fallback for the topic category
+  4. Safety pool         - pre-downloaded local clips in assets/video/{topic}/
 
 Sources tried per query (in priority order):
-  • Pexels Video          — portrait HD, already-keyed
-  • NASA media API        — real footage for space facts (free, no key)
-  • Internet Archive      — public-domain newsreels for history facts
-  • Pixabay Video         — CC0 fallback (PIXABAY_API_KEY in .env)
+  • Pexels Video          - portrait HD, already-keyed
+  • NASA media API        - real footage for space facts (free, no key)
+  • Internet Archive      - public-domain newsreels for history facts
+  • Pixabay Video         - CC0 fallback (PIXABAY_API_KEY in .env)
 
 Usage:
     from src.research.video_finder import find_video
@@ -30,7 +30,7 @@ import os
 import re
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import requests
 from dotenv import load_dotenv
@@ -39,7 +39,7 @@ load_dotenv()
 
 _HTTP_TIMEOUT = 20
 _MAX_BYTES = 15 * 1024 * 1024   # 15 MB ceiling per clip
-_MIN_BYTES_HD  = 2_000_000      # 2 MB floor — filters out sub-3s clips at typical bitrates
+_MIN_BYTES_HD  = 2_000_000      # 2 MB floor - filters out sub-3s clips at typical bitrates
 _MIN_BYTES_ARK = 50_000         # 50 KB floor for archival/historical content
 _MIN_CLIP_DURATION_S = 4.0      # hard minimum: clips shorter than this loop and jolt
 
@@ -59,7 +59,7 @@ _TOPIC_GENERIC: dict[str, list[str]] = {
 }
 
 # Topic routing for specialist sources
-# NASA: space only — earth observation footage is scientific visualisation, not cinematic b-roll
+# NASA: space only - earth observation footage is scientific visualisation, not cinematic b-roll
 _NASA_TOPICS = {"space"}
 # Archive.org: archival/historical content only (allow_archival=True facts)
 # For most facts it returns old SD footage that fails the quality floor.
@@ -286,8 +286,8 @@ def _try_all_sources(
 ) -> Optional[Path]:
     """Try each source in priority order and return the first usable clip.
 
-    exclude_paths:    set of already-used local file paths — never return these.
-    used_source_urls: set of already-downloaded remote URLs — sources skip these
+    exclude_paths:    set of already-used local file paths - never return these.
+    used_source_urls: set of already-downloaded remote URLs - sources skip these
                       so we never download the same content for different queries.
     """
     slug = hashlib.sha1(query.encode()).hexdigest()[:10]
@@ -317,7 +317,7 @@ def _try_all_sources(
     return None
 
 
-def _build_source_list(topic: str, *, allow_archival: bool = False) -> list[tuple[str, callable]]:
+def _build_source_list(topic: str, *, allow_archival: bool = False) -> list[tuple[str, Callable]]:
     """Build ordered source list.
 
     Non-archival (default): Pexels → Coverr → Pixabay → Wikimedia.
@@ -327,7 +327,7 @@ def _build_source_list(topic: str, *, allow_archival: bool = False) -> list[tupl
 
     Archival mode: Archive.org → NASA (space only) → Wikimedia → Pexels → Coverr → Pixabay.
     """
-    sources: list[tuple[str, callable]] = []
+    sources: list[tuple[str, Callable]] = []
 
     if allow_archival:
         sources.append(("archive.org", _archive_video_url))
@@ -368,7 +368,7 @@ def _pexels_video_url(query: str, topic: str, skip_urls: set[str] | None = None)
     candidates: list[tuple[int, str, int]] = []
     for vid in videos:
         vid_id = vid.get("id", 0)
-        # Block by video ID — prevents same video appearing twice at different resolutions
+        # Block by video ID - prevents same video appearing twice at different resolutions
         if skip_urls and f"pexels:{vid_id}" in skip_urls:
             continue
         mp4 = _best_pexels_file(vid.get("video_files", []))
@@ -481,7 +481,7 @@ def _archive_video_url(query: str, topic: str, skip_urls: set[str] | None = None
 # ------------------------------------------------------------------ #
 # Source 3b: Wikimedia Commons
 # Excellent for specific species, historical footage, scientific subjects.
-# CC-licensed. Returns OGV/WebM — converted to MP4 via stream download.
+# CC-licensed. Returns OGV/WebM - converted to MP4 via stream download.
 # ------------------------------------------------------------------ #
 
 def _wikimedia_video_url(query: str, topic: str, skip_urls: set[str] | None = None) -> Optional[str]:
@@ -543,7 +543,7 @@ def _relevance_score(query: str, text: str) -> int:
     """Score how well `text` matches the query.
 
     Each query word that appears in text contributes its character-length
-    as a score — longer/rarer words count more than short common ones.
+    as a score - longer/rarer words count more than short common ones.
     Words under 3 chars are skipped. Returns 0 if text is empty.
     """
     if not text:
@@ -557,7 +557,7 @@ def _relevance_score(query: str, text: str) -> int:
 
 
 # ------------------------------------------------------------------ #
-# Source 4: Coverr — cinematic CC0, non-stock aesthetic
+# Source 4: Coverr - cinematic CC0, non-stock aesthetic
 # COVERR_API_KEY in .env (optional; omit to use public unauthenticated tier)
 # ------------------------------------------------------------------ #
 
@@ -640,7 +640,7 @@ def _pixabay_video_url(query: str, topic: str, skip_urls: set[str] | None = None
 
 
 # ------------------------------------------------------------------ #
-# Entity-specific sources — run BEFORE generic B-roll queries
+# Entity-specific sources - run BEFORE generic B-roll queries
 # These target the named entity directly (via image_hint) using free
 # encyclopaedic APIs.  No API keys required.
 # ------------------------------------------------------------------ #

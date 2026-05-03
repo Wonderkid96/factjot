@@ -14,7 +14,7 @@ Pipeline:
 When the curated bank runs low, this script triggers `discover_facts.py`
 in-process to top up before generation.
 
-Run weekly via launchd (Sundays 04:00).
+Run weekly via GitHub Actions (weekly-plan.yml, Sundays).
 """
 from __future__ import annotations
 

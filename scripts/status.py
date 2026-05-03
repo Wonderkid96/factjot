@@ -139,18 +139,18 @@ def main() -> int:
 
     # 7. Recent comments on the latest post — reply window reminder
     try:
-        posted = _read_jsonl(Path("insta-brain/data/posted.jsonl"))
-        if posted:
-            latest = posted[-1]
+        posted_rows = _read_jsonl(Path("insta-brain/data/posted.jsonl"))
+        if posted_rows:
+            latest = posted_rows[-1]
             ig_id = latest.get("ig_media_id")
-            token = os.environ.get("META_ACCESS_TOKEN", "")
-            if ig_id and token:
+            comment_token = os.environ.get("META_ACCESS_TOKEN", "")
+            if ig_id and comment_token:
                 import requests as _req
                 r = _req.get(
                     f"https://graph.instagram.com/v21.0/{ig_id}/comments",
                     params={
                         "fields": "text,timestamp,username",
-                        "access_token": token,
+                        "access_token": comment_token,
                     },
                     timeout=8,
                 ).json()
@@ -172,10 +172,10 @@ def main() -> int:
     # 8. Recent log
     log = Path("insta-brain/log.md")
     if log.exists():
-        lines = [l for l in log.read_text(encoding="utf-8").splitlines() if l.startswith("- ")][:5]
+        lines = [ln for ln in log.read_text(encoding="utf-8").splitlines() if ln.startswith("- ")][:5]
         print(f"\nRecent log:")
-        for l in lines:
-            print(f"  {l[:120]}")
+        for ln in lines:
+            print(f"  {ln[:120]}")
 
     print()
     if red_flags:

@@ -55,7 +55,7 @@ TIERS = (SAFE, EDGY, CONTROVERSIAL)
 #   are tagged as `edgy` (informational) but do NOT block autonomous publish.
 #   Trust the bank curators (and the truth gate for discovered facts) to
 #   handle framing. Stay within Instagram's published Community Standards
-#   regardless of what the classifier says — the operator is the final filter.
+#   regardless of what the classifier says - the operator is the final filter.
 TRIGGER_PATTERNS: list[tuple[str, str, list[str]]] = [
     # --- CONTROVERSIAL (the only auto-blocked tier) ---------------------
     (
@@ -80,7 +80,7 @@ TRIGGER_PATTERNS: list[tuple[str, str, list[str]]] = [
     # These get classified as `edgy` so we know the fact has an intense
     # framing element, but the autonomous queue ships them. Operators can
     # still manually mark a specific row as `controversial` if they think
-    # the framing is too much for our audience — author override wins.
+    # the framing is too much for our audience - author override wins.
     (
         "graphic_medical",
         EDGY,

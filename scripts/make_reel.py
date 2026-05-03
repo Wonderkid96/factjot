@@ -3,18 +3,18 @@
 End-to-end pipeline:
     1.  Select a quirky_score=3 fact not yet used as a Reel.
     2.  Find portrait footage via multi-source video_finder.
-    3.  Synthesise voice-over via Edge TTS (en-GB-SoniaNeural).
+    3.  Synthesise voice-over via ElevenLabs (edge-tts fallback).
     4.  Render PNG overlay frames (category label, hook text, fact chunks, CTA, logo).
     5.  Compose final 1080x1920 MP4 via FFmpeg.
-    6.  Upload MP4 to Cloudinary (public HTTPS URL for IG).
+    6.  Upload MP4 to tmpfiles.org (1-hr public URL, Meta fetches within polling window).
     7.  Publish as IG Reel via Graph API.
     8.  Record in brain + log.
 
 Usage:
-    python3 scripts/make_reel.py
-    python3 scripts/make_reel.py --topic space
-    python3 scripts/make_reel.py --topic history --dry-run
-    python3 scripts/make_reel.py --list-facts          # preview available facts
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/make_reel.py
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/make_reel.py --topic space
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/make_reel.py --topic history --dry-run
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/make_reel.py --list-facts
 """
 from __future__ import annotations
 
@@ -40,6 +40,7 @@ from src.render.reel_composer import (
     OverlayFrame,
     compose,
     FADE_TO_BLACK_S,
+    INTRO_S,
     n_clips_for_duration,
 )
 from src.render.reel_text_renderer import (
@@ -47,7 +48,7 @@ from src.render.reel_text_renderer import (
     TextFrame,
 )
 from src.content.reel_title import make_title
-from src.render.tts_engine import audio_duration, group_into_chunks, synthesise
+from src.render.tts_engine import group_into_chunks, synthesise
 from src.research.rare_fact_bank import load_all_facts
 from src.research.video_finder import find_videos
 from src.utils.logging_utils import configure_logging
@@ -296,14 +297,12 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         print("ERROR: TTS returned no word timing. Check edge-tts is installed.")
         return 4
 
-    # Silent intro — hook title shows here, voice starts AFTER it fades.
-    INTRO_S = 3.5
-
+    # Silent intro - hook title shows here, voice starts AFTER it fades.
     padded_mp3 = out_dir / "voice_padded.mp3"
     import subprocess as _sp
     _sp.run([
         "ffmpeg", "-y",
-        "-f", "lavfi", "-t", str(INTRO_S), "-i", "anullsrc=r=44100:cl=stereo",
+        "-f", "lavfi", "-t", str(INTRO_S), "-i", "anullsrc=r=48000:cl=stereo",
         "-i", str(mp3_path),
         "-filter_complex", "[0:a][1:a]concat=n=2:v=0:a=1[a]",
         "-map", "[a]",
@@ -376,7 +375,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
     )
     if not footage_clips:
         print("ERROR: could not find any footage. Pre-download safety pool clips with:")
-        print("  python3 scripts/setup_reel_assets.py")
+        print("  /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/setup_reel_assets.py")
         brain.append_log(f"reel FAILED no footage — fact={claim[:60]!r} hint={hint!r}")
         return 3
 
@@ -726,13 +725,23 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.list_facts:
+        from src.research.sensitivity_guide import CONTROVERSIAL
         all_q3 = [r for r in load_all_facts() if r.get("quirky_score", 0) == 3]
         if args.topic:
             all_q3 = [r for r in all_q3 if r["topic"] == args.topic]
         print(f"\n{len(all_q3)} quirky_score=3 facts:")
         for r in all_q3:
-            used = "(used)" if brain.is_fact_posted(r["claim"]) else ""
-            print(f"  [{r['topic']}] {r['claim'][:90]} {used}")
+            if brain.is_fact_posted(r["claim"]):
+                tag = "(used)"
+            elif r.get("sensitivity") == CONTROVERSIAL:
+                flags = ", ".join(r.get("sensitivity_flags") or [])
+                tag = f"(BLOCKED: controversial [{flags}])"
+            else:
+                tag = ""
+            print(f"  [{r['topic']}] {r['claim'][:90]} {tag}")
+        blocked = sum(1 for r in all_q3 if r.get("sensitivity") == CONTROVERSIAL)
+        used = sum(1 for r in all_q3 if brain.is_fact_posted(r["claim"]))
+        print(f"\n  {used} used, {blocked} blocked (controversial), {len(all_q3) - used - blocked} available")
         return 0
 
     return make_reel(topic=args.topic, dry_run=args.dry_run, voice=args.voice)

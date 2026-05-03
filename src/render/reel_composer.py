@@ -18,7 +18,7 @@ import subprocess
 
 # Module-level reference to the active FFmpeg process.
 # Lets signal handlers kill FFmpeg cleanly when the parent Python process
-# is interrupted — prevents orphan FFmpeg processes eating CPU in the background.
+# is interrupted - prevents orphan FFmpeg processes eating CPU in the background.
 _active_proc: "subprocess.Popen | None" = None
 
 
@@ -39,20 +39,21 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-# Timing constants (seconds) — locked by Rule 19 (Reels Strategy)
+# Timing constants (seconds) - locked by Rule 19 (Reels Strategy)
+INTRO_S            = 3.5    # silent intro window - hook title shows, voice starts after
 HOOK_LABEL_START   = 0.0
 HOOK_TEXT_START    = 0.0    # hook hits immediately (front-loaded novelty)
 HOOK_TEXT_END      = 1.5    # 0-1.5s = hook beat
 MUSIC_FADEIN_DUR   = 1.0
-MUSIC_VOLUME       = 0.24   # slightly louder — audible atmosphere without drowning VO
+MUSIC_VOLUME       = 0.24   # slightly louder - audible atmosphere without drowning VO
 # CTA shows for 2s after voice ends, then video fades to black.
 # CTA_BEFORE_END_S = CTA display (2.0) + fade overlap (1.5) = 3.5
-# VIDEO_TAIL_S = 0 — total = voice_end + 0.4 + 3.5 (no extra dead air)
+# VIDEO_TAIL_S = 0 - total = voice_end + 0.4 + 3.5 (no extra dead air)
 CTA_BEFORE_END_S   = 3.5    # CTA visible for 2s, then 1.5s fade-to-black overlaps
-VIDEO_TAIL_S       = 0.0    # no dead air after CTA — total is tight to voice + outro
+VIDEO_TAIL_S       = 0.0    # no dead air after CTA - total is tight to voice + outro
 FADE_TO_BLACK_S    = 1.5    # video fades to black in the last N seconds
 
-# Total reel length band — see rule 19
+# Total reel length band - see rule 19
 TARGET_DURATION_MIN_S = 18
 TARGET_DURATION_MAX_S = 28
 MAX_DURATION_S        = 90
@@ -60,7 +61,7 @@ MIN_DURATION_S        = 5
 
 # Clip cut targeting (rule 19: 1.0-2.2s band)
 TARGET_CLIP_LEN_S  = 1.8    # mid of allowed band
-KEN_BURNS_ZOOM     = 0.10   # 10% overscan — subtle travel, not shaky
+KEN_BURNS_ZOOM     = 0.10   # 10% overscan - subtle travel, not shaky
 KEN_BURNS_FRAMES   = 90     # frames over which zoompan computes
 
 
@@ -115,6 +116,7 @@ def compose(
         "-pix_fmt", "yuv420p",
         "-r", "30",
         "-c:a", "aac",
+        "-ar", "48000",
         "-b:a", "128k",
         "-movflags", "+faststart",
         "-t", str(total_duration_s),
@@ -189,7 +191,7 @@ def _build_filter_graph(
     inputs: list[str] = []
     filter_lines: list[str] = []
 
-    # Branded intro overlay — ProRes 4444 with alpha channel.
+    # Branded intro overlay - ProRes 4444 with alpha channel.
     # The circle cutout reveals footage through it; the red frame sits on top.
     # Played as a transparent overlay over the final composite, not a footage clip.
     intro_path = Path(__file__).resolve().parents[2] / "assets" / "intros" / "factjot_intro.mov"
@@ -223,7 +225,7 @@ def _build_filter_graph(
 
     # ------------------------------------------------------------------ #
     # Per-clip processing: scale to oversized, trim to window, then
-    # animated crop (slow pan) — keeps the video PLAYING as real footage.
+    # animated crop (slow pan) - keeps the video PLAYING as real footage.
     #
     # Why not zoompan: zoompan is designed for still images; on video it
     # extracts one frame and zooms that, producing a static image effect.
@@ -272,7 +274,7 @@ def _build_filter_graph(
         filter_lines.append(f"{clip_labels[0]}copy[footage_concat]")
 
     # Light brightness pull-down so text reads.
-    # Note: noise filter removed — temporal noise (allf=t+u) maximises per-frame
+    # Note: noise filter removed - temporal noise (allf=t+u) maximises per-frame
     # entropy, causing Instagram's transcoder to time out on processing.
     filter_lines.append(
         "[footage_concat]"
@@ -281,7 +283,7 @@ def _build_filter_graph(
     )
 
     # Apply PNG overlays with simple show/hide via overlay enable expression.
-    # Static PNG inputs work cleanly with the `enable` window — no looping needed.
+    # Static PNG inputs work cleanly with the `enable` window - no looping needed.
     # (Fades disabled: the fade filter requires a multi-frame stream which
     # forces -loop on every input and creates 80+ stream deadlocks at scale.)
     prev = "footage_dark"
@@ -296,7 +298,7 @@ def _build_filter_graph(
         )
         prev = cur
 
-    # Apply branded intro overlay (alpha — circle reveals footage, red wraps it)
+    # Apply branded intro overlay (alpha - circle reveals footage, red wraps it)
     if has_intro:
         intro_dur = 1.37  # known duration of factjot_intro.mov
         filter_lines.append(

@@ -51,14 +51,14 @@ class InstagramGraphPublisher:
     def _wait_for_finished(self, creation_id: str, timeout_seconds: int = 300) -> dict:
         """Poll the container until status_code == FINISHED.
 
-        Polls every 15 seconds — not every 3. At 3s polling and 300s timeout
+        Polls every 15 seconds - not every 3. At 3s polling and 300s timeout
         that's 100 API calls per container. With multiple containers per session
         this burns through Instagram's Graph API rate limit (code 4 / 1349210).
         At 15s polling the same 300s window costs only 20 calls.
         """
         url = f"{self.base_url}/{creation_id}"
         params = {"fields": "status_code,status,error_message", "access_token": self.access_token}
-        # Initial wait — Instagram needs at least 10s to start processing
+        # Initial wait - Instagram needs at least 10s to start processing
         time.sleep(10)
         deadline = time.time() + timeout_seconds
         last = {}
@@ -67,7 +67,7 @@ class InstagramGraphPublisher:
                 last = requests.get(url, params=params, timeout=10).json()
             except requests.RequestException as exc:
                 return {"ok": False, "error": f"poll error: {exc}"}
-            # Handle rate limit gracefully — back off and retry rather than fail
+            # Handle rate limit gracefully - back off and retry rather than fail
             if last.get("error", {}).get("code") == 4:
                 time.sleep(30)
                 continue
@@ -117,7 +117,7 @@ class InstagramGraphPublisher:
             data = {"error": str(exc)}
         if "id" in data:
             return data
-        # Response lacked an id — but IG may have committed the post anyway.
+        # Response lacked an id - but IG may have committed the post anyway.
         # Probe with a tight window starting AFTER this publish began.
         time.sleep(4)
         recovered = self._find_recently_published(

@@ -91,7 +91,7 @@ class BrandKitRenderer:
                         )
                     except NoImageFound:
                         log.warning(
-                            "no fresh image for slide %d of %s — holding post for review",
+                            "no fresh image for slide %d of %s - holding post for review",
                             i, post.post_id,
                         )
                         missing.append(i)

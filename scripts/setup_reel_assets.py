@@ -1,7 +1,7 @@
 """One-time setup: download music tracks and safety-pool video clips for Reels.
 
-Run this once before using make_reel.py:
-    python3 scripts/setup_reel_assets.py
+Run this once before using make_reel.py (local Mac):
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/setup_reel_assets.py
 
 What it does:
   1. Downloads 6 royalty-free Pixabay Music tracks (one per topic category)
@@ -163,7 +163,7 @@ def setup_safety_pool() -> None:
 def main() -> None:
     setup_music()
     setup_safety_pool()
-    print("\nDone. Run 'python3 scripts/make_reel.py --dry-run' to test.")
+    print("\nDone. Run make_reel.py --dry-run to test.")
 
 
 if __name__ == "__main__":

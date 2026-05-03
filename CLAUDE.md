@@ -253,12 +253,24 @@ Shadow style: hard drop `2px 2px 0 rgba(0,0,0,0.5)` — matches carousels, no bl
 | Key | Service | Notes |
 |---|---|---|
 | `META_ACCESS_TOKEN` | Instagram Graph API | 60-day rolling. Refresh weekly via `refresh_token.py`. |
-| `ELEVENLABS_API_KEY` | Voice | Paid. Voice ID: `3WqHLnw80rOZqJzW9YRB`. ~500 chars/reel. |
+| `META_APP_ID` | Meta app identifier | factjot-publisher app. Used by token refresh flow. |
+| `META_APP_SECRET` | Meta app secret | Required to long-lived-token-exchange. |
+| `META_GRAPH_VERSION` | Graph API version | e.g. `v25.0`. Pinned in workflow secrets. |
+| `META_GRAPH_HOST` | Graph API host | `graph.facebook.com` |
+| `META_LOGIN_FLOW` | Token refresh login flow | Used by Sunday weekly-plan token refresh. |
+| `INSTAGRAM_ACCOUNT_ID` | IG business account id | The numeric id of @factjot. |
+| `FACEBOOK_PAGE_ID` | Facebook page id | Linked page id for the IG account. |
+| `ELEVENLABS_API_KEY` | Voice | Paid. ~500 chars/reel. |
+| `ELEVENLABS_VOICE` | ElevenLabs voice id | Default `3WqHLnw80rOZqJzW9YRB`. |
 | `PEXELS_API_KEY` | Primary footage | Free, 200 req/hr |
 | `COVERR_API_KEY` | Secondary footage | Demo, 1,000 calls/month |
 | `PIXABAY_API_KEY` | Tertiary footage | Free |
-| `IMGBB_API_KEY` | Thumbnail + story hosting | Free |
+| `IMGBB_API_KEY` | Thumbnail + story + carousel image hosting | Free |
+| `IMAGE_HOST` | Image-host backend selector | `imgbb` (default) or `cloudinary,imgbb,tmpfiles` for fallback chain |
 | `CLOUDINARY_*` | Video hosting (disabled) | cloud=dmzer6hgv, preset=factjot. Kept in secrets, not used. |
+| `TMDB_API_KEY` | TMDB v3 API key | Used by list pack TMDB resolver. |
+| `TMDB_READ_TOKEN` | TMDB v4 read token | Used by some TMDB endpoints. |
+| `OMDB_API_KEY` | OMDB fallback for film metadata | Used when TMDB lacks a field. |
 | `CRON_TRIGGER_PAT` | GitHub fine-grained PAT | cron-job.org uses this to dispatch workflows via GitHub API |
 | `MUSIC_CREDIT` | Caption credit line | Set to "Track · Artist" for background music |
 

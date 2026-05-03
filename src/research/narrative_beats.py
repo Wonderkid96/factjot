@@ -8,14 +8,14 @@ narrative beat:
 Instead of running 6 variations of one query (which produces 6 visually
 similar clips), we generate one search query per beat. Each beat is
 deliberately distinct so the resulting clips cut between different
-subjects, scales, and angles — the visual rhythm of a documentary.
+subjects, scales, and angles - the visual rhythm of a documentary.
 
 Approach:
   1. Detect topic + extract entities from the claim (proper nouns,
      numbers/years, key verbs and nouns).
   2. Apply a topic-specific narrative template that maps entities into
      5 distinct visual queries.
-  3. Return as an ordered list — clip 0 plays first, etc.
+  3. Return as an ordered list - clip 0 plays first, etc.
 
 No LLM, no API. Pure regex + topic templates. Cheap, fast, deterministic.
 """
@@ -166,12 +166,12 @@ def _t_nature(e: Entities, image_hint: str) -> list[str]:
 
 
 def _t_ocean(e: Entities, image_hint: str) -> list[str]:
-    # Pull the most specific noun — e.g. "anglerfish", "shark", "whale"
+    # Pull the most specific noun - e.g. "anglerfish", "shark", "whale"
     subject = (e.nouns[0] if e.nouns else None) or (e.proper_nouns[0] if e.proper_nouns else "fish")
     return [
-        f"{image_hint or subject + ' deep sea'}",               # establishing — use hint directly
-        f"{subject} underwater footage close up",               # subject — force specific name
-        f"{subject} bioluminescent dark ocean",                  # detail — species-specific
+        f"{image_hint or subject + ' deep sea'}",               # establishing - use hint directly
+        f"{subject} underwater footage close up",               # subject - force specific name
+        f"{subject} bioluminescent dark ocean",                  # detail - species-specific
         f"deep sea fish creature dark",                          # consequence
         f"ocean underwater light rays atmospheric",              # atmosphere
     ]
@@ -243,7 +243,7 @@ def _core_subject(hint: str) -> str:
 def _expand_hint(hint: str, topic: str) -> list[str]:
     """Expand image_hint into 5 coverage queries, all anchored to the same subject.
 
-    Query 1 (ESTABLISHING) = full hint verbatim — most specific, best for keyword search.
+    Query 1 (ESTABLISHING) = full hint verbatim - most specific, best for keyword search.
     Queries 2-5 = core subject words + topic-appropriate coverage modifier.
     Every query is about the same thing. None drift to generic topic b-roll.
     """
@@ -268,7 +268,7 @@ def _expand_hint(hint: str, topic: str) -> list[str]:
 # ------------------------------------------------------------------ #
 
 def shot_list(claim: str, topic: str, image_hint: str = "") -> list[str]:
-    """Return an ordered list of 5 search queries — one per narrative beat.
+    """Return an ordered list of 5 search queries - one per narrative beat.
 
     Primary path (image_hint present):
       All 5 queries are derived from the image_hint. The ESTABLISHING beat
@@ -277,7 +277,7 @@ def shot_list(claim: str, topic: str, image_hint: str = "") -> list[str]:
 
     Fallback (no image_hint):
       Entity extraction from the claim + topic-specific templates.
-      Less reliable — fact bank entries should always have an image_hint.
+      Less reliable - fact bank entries should always have an image_hint.
     """
     hint = image_hint.strip()
 

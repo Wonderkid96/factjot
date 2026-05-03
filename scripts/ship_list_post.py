@@ -10,9 +10,9 @@ Different pipeline from ship_first_post.py:
     7. Optional Instagram publish (default: dry-run, prints imgbb URLs).
     8. Record in brain on real publish.
 
-Usage:
-    python3 scripts/ship_list_post.py --pack mind_bending_scifi --dry-run
-    python3 scripts/ship_list_post.py --pack mind_bending_scifi          # live
+Usage (local Mac):
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/ship_list_post.py --pack mind_bending_scifi --dry-run
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/ship_list_post.py --pack mind_bending_scifi
 
 The --dry-run path is the same as a real publish up to the IG call. That
 means imgbb hosts the PNGs publicly so you can preview the layout in a
@@ -49,14 +49,6 @@ HASHTAGS_FILM = [
     "underratedfilms", "filmcommunity", "movierecommendations",
     "filmsofinstagram", "watchlist",
 ]
-
-
-def _slug_post_id(slug: str) -> str:
-    return slug_post_id(slug)
-
-
-def _list_dedupe_claim(slug: str) -> str:
-    return list_dedupe_claim(slug)
 
 
 def _load_pack_cache(slug: str) -> dict | None:
@@ -135,7 +127,7 @@ def _pick_next_unposted_pack() -> str | None:
     Priority: curated packs → generated themed packs → TMDB trending fallback.
     """
     for slug in LIST_PACKS:
-        if not brain.is_fact_posted(_list_dedupe_claim(slug)):
+        if not brain.is_fact_posted(list_dedupe_claim(slug)):
             return slug
     # All known packs posted — generate a trending pack from TMDB as last resort
     print("All packs posted. Generating auto pack from TMDB trending...")
@@ -184,10 +176,10 @@ def main() -> int:
         args.pack = chosen_slug
 
     pack = get_pack(args.pack)
-    post_id = _slug_post_id(args.pack)
+    post_id = slug_post_id(args.pack)
 
     # Rule 01 spirit: each list pack ships ONCE, ever. New packs, not re-runs.
-    if brain.is_fact_posted(_list_dedupe_claim(args.pack)):
+    if brain.is_fact_posted(list_dedupe_claim(args.pack)):
         print(f"List pack {args.pack!r} has already been shipped. Add a new pack rather than reposting.")
         return 2
 
@@ -203,7 +195,7 @@ def main() -> int:
         # Jump straight to publish
         from src.brain import DuplicatePostError
         try:
-            brain.assert_no_duplicate([_list_dedupe_claim(args.pack)])
+            brain.assert_no_duplicate([list_dedupe_claim(args.pack)])
         except DuplicatePostError as e:
             print(f"\nABORTED — duplicate blocked:\n{e}")
             brain.append_log(f"list carousel BLOCKED — duplicate: {args.pack}")
@@ -265,7 +257,7 @@ def main() -> int:
 
         from src.brain import DuplicatePostError
         try:
-            brain.assert_no_duplicate([_list_dedupe_claim(args.pack)])
+            brain.assert_no_duplicate([list_dedupe_claim(args.pack)])
         except DuplicatePostError as e:
             print(f"\nABORTED — duplicate blocked:\n{e}")
             brain.append_log(f"list carousel BLOCKED — duplicate: {args.pack}")
@@ -362,7 +354,7 @@ def main() -> int:
     # Record in brain. Slides for posted.jsonl carry list metadata so the
     # autonomous queue / weekly planner can see this is a list, not a fact.
     slides_for_brain = [{
-        "claim": _list_dedupe_claim(args.pack),
+        "claim": list_dedupe_claim(args.pack),
         "topic": "film",
         "category": pack["category"],
         "kind": "list",

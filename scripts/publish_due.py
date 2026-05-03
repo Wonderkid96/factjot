@@ -1,8 +1,16 @@
+"""Publish all carousel posts that are due right now from the approval queue.
+
+Called by GitHub Actions (carousel-morning.yml and list-carousel.yml are NOT
+this script -- this is for the older queue-based pipeline). Reads approval_queue.jsonl,
+finds posts whose publish_at is in the past and status is "scheduled", then
+uploads images and publishes via the Instagram Graph API.
+"""
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
+import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -37,7 +45,6 @@ def _host_local_paths(local_paths: list[str], host) -> list[str]:
 
 def main() -> None:
     # Rule 13: refuse to publish if brain is stale.
-    import subprocess, sys
     rc = subprocess.call([
         sys.executable,
         str(Path(__file__).parent / "check_brain_fresh.py"),

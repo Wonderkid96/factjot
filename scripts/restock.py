@@ -113,7 +113,7 @@ def main() -> int:
         st = "OK" if count >= CAROUSEL_RUNWAY_WARN else ("WARN" if count >= 7 else "LOW")
         print(f"  {topic:<14} {count:>3} facts  [{st}]")
 
-    print("\nRUNNING FACT DISCOVERY (r/todayilearned)...")
+    print("\nRUNNING FACT DISCOVERY (r/morbidreality, r/Damnthatsinteresting, Wikipedia)...")
     result = subprocess.run(
         [sys.executable, str(Path(__file__).parent / "discover_facts.py")],
     )

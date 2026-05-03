@@ -12,7 +12,7 @@ Fetches two signals every Sunday:
    the first carousel slot and which q3 fact runs as that day's Reel.
 
 No API keys beyond TMDB_READ_TOKEN (already in .env).
-Reddit's JSON endpoint is public — no key needed.
+Reddit's JSON endpoint is public - no key needed.
 
 Usage:
     from src.research.trend_scout import fetch_weekly_trends
@@ -33,7 +33,7 @@ _TIMEOUT = 12
 _TMDB_BASE = "https://api.themoviedb.org/3"
 
 # ------------------------------------------------------------------ #
-# Topic keyword map — used to score Reddit TIL headlines
+# Topic keyword map - used to score Reddit TIL headlines
 # ------------------------------------------------------------------ #
 _TOPIC_KEYWORDS: dict[str, list[str]] = {
     "space":      ["space", "galaxy", "universe", "planet", "star ", "asteroid",
@@ -143,8 +143,8 @@ def fetch_weekly_trends() -> dict:
         {
             'movies':        list of TMDB movie dicts (top trending, with backdrop),
             'tv':            list of TMDB TV dicts (top trending, with backdrop),
-            'topic_weights': dict[topic, int] — Reddit TIL signal scores,
-            'top_topic':     str — highest-weighted factjot topic this week,
+            'topic_weights': dict[topic, int] - Reddit TIL signal scores,
+            'top_topic':     str - highest-weighted factjot topic this week,
             'fetched_at':    ISO timestamp,
         }
     """

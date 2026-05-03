@@ -1,14 +1,14 @@
 """Single source of truth for factjot brand constants.
 
 Any module that renders visual content must import from here.
-Never hardcode colours, fonts, or sizes — read from brand_kit.json
+Never hardcode colours, fonts, or sizes. Read from brand_kit.json
 via this module so the brand can't drift across carousel, list, Reel,
 or story renderers.
 
 Typography (from TJCreate Visual Style Guide):
-  Display / headlines  → Instrument Serif  Regular + Italic
-  Body / subtitles     → Space Grotesk     SemiBold 600
-  Labels / tags        → JetBrains Mono    Bold 700
+  Display / headlines  -> Instrument Serif  Regular + Italic
+  Body / subtitles     -> Space Grotesk     SemiBold 600
+  Labels / tags        -> JetBrains Mono    Bold 700
 
 Wordmark rule (hardwired):
   fact[normal]  jot[italic]  .[accent-red]  colour=off-white
@@ -46,7 +46,7 @@ INK        = _c("ink")          # #0A0A0A
 NEAR_BLACK = _c("near_black")   # #0B0B0C
 MUTED      = _c("muted")        # #9A938A
 OFF_WHITE  = _c("off_white")    # #EDE8DD
-ACCENT     = _c("accent")       # #E6352A  — key words, dots, CTA
+ACCENT     = _c("accent")       # #E6352A  - key words, dots, CTA
 LIME       = _c("lime")         # #C8DB45
 LILAC      = _c("lilac")        # #C4A9D0
 WHITE      = _c("white")        # #FFFFFF
@@ -61,21 +61,20 @@ FONT_SERIF_ITALIC   = _F / "InstrumentSerif-Italic.ttf"
 FONT_SANS_SEMIBOLD  = _F / "SpaceGrotesk-SemiBold.ttf"
 FONT_SANS_MEDIUM    = _F / "SpaceGrotesk-Medium.ttf"
 FONT_MONO_BOLD      = _F / "JetBrainsMono-Bold.ttf"
-FONT_MONO_REGULAR   = _F / "JetBrainsMono-Regular.ttf"
 
 def font_url(path: Path) -> str:
     """Return a file:// URI for a font path (for HTML/CSS use)."""
     return path.absolute().as_uri()
 
 # ------------------------------------------------------------------ #
-# Font role constants — use these, never hardcode font names
+# Font role constants - use these, never hardcode font names
 # ------------------------------------------------------------------ #
 ROLE_DISPLAY = "Instrument Serif"  # headlines, title cards, CTA wordmark
 ROLE_BODY    = "Space Grotesk"     # subtitles, body copy
 ROLE_LABEL   = "JetBrains Mono"   # category tags, metadata, counters
 
 # ------------------------------------------------------------------ #
-# Wordmark spec (matches make_avatar.py — the canonical renderer)
+# Wordmark spec (matches make_avatar.py - the canonical renderer)
 # NEVER diverge from this. fact=normal, jot=italic, .=accent
 # ------------------------------------------------------------------ #
 WORDMARK_LETTER_SPACING = "-0.02em"
@@ -101,11 +100,11 @@ def wordmark_html(prefix: str = "") -> str:
 # Type scale (from style guide, adapted to 1080x1920 Reel canvas)
 # ------------------------------------------------------------------ #
 TYPE = {
-    "hero":     160,   # Instrument Serif — CTA wordmark
-    "h1":        90,   # Instrument Serif — title cards
-    "subtitle":  72,   # Space Grotesk SemiBold — kinetic subtitles
-    "label":     24,   # JetBrains Mono Bold — category pill
-    "logo":      36,   # Instrument Serif — watermark (50% opacity)
+    "hero":     160,   # Instrument Serif - CTA wordmark
+    "h1":        90,   # Instrument Serif - title cards
+    "subtitle":  72,   # Space Grotesk SemiBold - kinetic subtitles
+    "label":     24,   # JetBrains Mono Bold - category pill
+    "logo":      36,   # Instrument Serif - watermark (50% opacity)
 }
 
 # ------------------------------------------------------------------ #
@@ -115,8 +114,8 @@ REEL_W = 1080
 REEL_H = 1920
 
 LABEL_TOP_PX     = 96     # Category label Y position
-HOOK_TOP_PX      = 220    # Title card top — always below label
-SUBTITLE_TOP_PX  = 1200   # Subtitle anchor — safe from IG UI chrome
+HOOK_TOP_PX      = 220    # Title card top - always below label
+SUBTITLE_TOP_PX  = 1200   # Subtitle anchor - safe from IG UI chrome
 LOGO_BOTTOM_PX   = 120    # Wordmark watermark from bottom
 LOGO_RIGHT_PX    = 56     # Wordmark watermark from right
 
@@ -135,6 +134,6 @@ def assert_fonts_present() -> None:
     missing = [str(f) for f in required if not f.exists()]
     if missing:
         raise FileNotFoundError(
-            f"Missing brand fonts — run setup or check assets/fonts/:\n"
+            f"Missing brand fonts - run setup or check assets/fonts/:\n"
             + "\n".join(missing)
         )

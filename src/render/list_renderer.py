@@ -6,7 +6,7 @@ Different from BrandKitRenderer because:
     - Layout is poster-card + text-column, not full-bleed-text-overlay
     - Three templates (hook / item / closing) instead of two
 
-Inputs are pre-built `ListSlideSpec` records — the ship script does the TMDB
+Inputs are pre-built `ListSlideSpec` records - the ship script does the TMDB
 lookups and asset downloads BEFORE calling render(), so this class is a
 pure HTML+Playwright stage.
 """
