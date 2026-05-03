@@ -33,6 +33,114 @@ from __future__ import annotations
 
 # slug -> pack
 LIST_PACKS: dict[str, dict] = {
+    "top_war_films": {
+        "slug": "top_war_films",
+        "title": "Ten war films worth your time",
+        "subtitle": "ranked by staying power, not box office.",
+        "category": "FILM LIST",
+        "series": "factjot",
+        "items": [
+            {
+                "kind": "movie",
+                "tmdb_id": 28,  # Apocalypse Now (1979) — Francis Ford Coppola
+                "hook": "A US captain travels upriver through Vietnam to find a rogue colonel who has declared himself a god. Coppola lost his mind making it. The film is better for it.",
+                "accent_word": "declared himself a god",
+                "imdb_score": "8.4",
+                "rotten_score": "98%",
+                "genre": "WAR",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 857,  # Saving Private Ryan (1998) — Steven Spielberg
+                "hook": "The Omaha Beach sequence runs 27 unbroken minutes and has never been equalled. Everything that follows is quieter and just as devastating.",
+                "accent_word": "27 unbroken minutes",
+                "imdb_score": "8.6",
+                "rotten_score": "93%",
+                "genre": "WAR",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 975,  # Paths of Glory (1957) — Stanley Kubrick
+                "hook": "Three French soldiers are court-martialled for cowardice after a suicidal attack their commanders ordered knowing it would fail. Kubrick at 29. Banned in France for 18 years.",
+                "accent_word": "banned in France for 18 years",
+                "imdb_score": "8.4",
+                "rotten_score": "96%",
+                "genre": "WAR",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 600,  # Full Metal Jacket (1987) — Stanley Kubrick
+                "hook": "Two films stitched together: a boot camp that ends in murder, and a war that ends in nothing. Kubrick shot the entire Vietnam sequence in a derelict gasworks in East London.",
+                "accent_word": "East London",
+                "imdb_score": "8.0",
+                "rotten_score": "91%",
+                "genre": "WAR",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 387,  # Das Boot (1981) — Wolfgang Petersen
+                "hook": "A German submarine crew in 1941. Months of claustrophobia and creeping dread, then sudden violent death. The most uncomfortable two and a half hours in cinema.",
+                "accent_word": "creeping dread",
+                "imdb_score": "8.4",
+                "rotten_score": "99%",
+                "genre": "WAR",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 11778,  # The Deer Hunter (1978) — Michael Cimino
+                "hook": "Three friends go to Vietnam. What it does to them is shown slowly, obliquely, without mercy. Won five Oscars. The Russian roulette sequences are not a metaphor.",
+                "accent_word": "not a metaphor",
+                "imdb_score": "8.1",
+                "rotten_score": "93%",
+                "genre": "WAR",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 530385,  # 1917 (2019) — Sam Mendes
+                "hook": "Two soldiers have six hours to deliver a message that could save 1,600 lives. Shot to appear as a single continuous take. It is not — but you will never find the cut.",
+                "accent_word": "you will never find the cut",
+                "imdb_score": "8.3",
+                "rotten_score": "89%",
+                "genre": "WAR",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 792,  # Platoon (1986) — Oliver Stone
+                "hook": "Oliver Stone served two tours in Vietnam. This is what he saw. Not a reconstruction. Won Best Picture.",
+                "accent_word": "not a reconstruction",
+                "imdb_score": "7.8",
+                "rotten_score": "87%",
+                "genre": "WAR",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 374720,  # Dunkirk (2017) — Christopher Nolan
+                "hook": "338,000 men evacuated from a beach with no plan and nowhere near enough boats. Three timelines that converge at the same moment. No score, just sound design.",
+                "accent_word": "no plan",
+                "imdb_score": "7.8",
+                "rotten_score": "92%",
+                "genre": "WAR",
+            },
+            {
+                "kind": "movie",
+                "tmdb_id": 324786,  # Hacksaw Ridge (2016) — Mel Gibson
+                "hook": "Desmond Doss refused to carry a weapon. He was mocked, beaten, court-martialled. Then he saved 75 men at Okinawa and became the only conscientious objector to receive the Medal of Honor.",
+                "accent_word": "only conscientious objector",
+                "imdb_score": "8.1",
+                "rotten_score": "84%",
+                "genre": "WAR",
+            },
+        ],
+        "closing": {
+            "headline": "Save this list.",
+            "cta": "Follow @factjot for more.",
+        },
+        "caption": (
+            "Ten war films. Ranked by staying power. "
+            "Every one of these will change how you think about the genre. "
+            "Sources via TMDB."
+        ),
+    },
     "series_worth_your_weekend": {
         "slug": "series_worth_your_weekend",
         "title": "Five sci-fi series worth your weekend",
