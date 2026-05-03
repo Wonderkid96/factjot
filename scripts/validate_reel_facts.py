@@ -32,6 +32,7 @@ from src.research.sensitivity_guide import CONTROVERSIAL
 
 
 MIN_REEL_SCRIPT_WORDS = 70
+MAX_REEL_SCRIPT_WORDS = 100  # above 100 words = 50s+ reel = CI timeout risk
 
 
 def main() -> int:
@@ -54,12 +55,14 @@ def main() -> int:
         wc = len(f["reel_script"].split())
         if wc < MIN_REEL_SCRIPT_WORDS:
             failures.append((claim_short, f"reel_script {wc} words < floor {MIN_REEL_SCRIPT_WORDS}"))
+        elif wc > MAX_REEL_SCRIPT_WORDS:
+            failures.append((claim_short, f"reel_script {wc} words > ceiling {MAX_REEL_SCRIPT_WORDS} (reel too long for CI)"))
 
         if "—" in f["reel_script"] or "–" in f["reel_script"]:
             failures.append((claim_short, "reel_script contains em-dash (brand rule)"))
 
     print(f"q3 total: {len(q3)} | eligible (non-controversial): {len(eligible)}")
-    print(f"checks: reel_title, reel_script, word_count >= {MIN_REEL_SCRIPT_WORDS}, no em-dashes")
+    print(f"checks: reel_title, reel_script, word_count {MIN_REEL_SCRIPT_WORDS}-{MAX_REEL_SCRIPT_WORDS}, no em-dashes")
     print()
 
     if not failures:

@@ -127,10 +127,13 @@ def _pick_music(topic: str) -> Path | None:
 # Fact selection
 # ------------------------------------------------------------------ #
 
-# Hard floor on the curated reel_script length. Below this, the auto-generator
-# would have produced a 22-second reel (the bug we're fixing). 70 words at
-# ~140 wpm = ~30s of voice + 3.5s intro + ~2.3s tail ≈ 36s final reel.
+# Reel script length bounds.
+# Floor: 70 words minimum -- below this, reels feel too short (22s incident).
+# Ceiling: 90 words maximum -- above this, reel exceeds 45s and render times
+# spike on 2-core CI runners. At ~140 WPM: 70w=30s, 90w=39s, 130w=56s.
+# All curated reel_scripts MUST stay within 70-90 words.
 MIN_REEL_SCRIPT_WORDS = 70
+MAX_REEL_SCRIPT_WORDS = 100
 
 
 class ReelFactInvariantError(RuntimeError):
@@ -175,7 +178,11 @@ def _pick_fact(topic: str | None) -> dict | None:
     fresh = candidates
     # Sort: curated scripts first, then by quirky_score descending
     fresh.sort(key=lambda r: (
-        bool(r.get("reel_title") and r.get("reel_script") and len(r.get("reel_script","").split()) >= MIN_REEL_SCRIPT_WORDS),
+        bool(
+            r.get("reel_title")
+            and r.get("reel_script")
+            and MIN_REEL_SCRIPT_WORDS <= len(r.get("reel_script", "").split()) <= MAX_REEL_SCRIPT_WORDS
+        ),
         r.get("quirky_score", 0),
     ), reverse=True)
     if not fresh:

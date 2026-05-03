@@ -183,7 +183,7 @@ def compose(
         "-filter_complex", _join_filters(filter_parts),
         *map_args,
         "-c:v", "libx264",
-        "-preset", "veryfast",
+        "-preset", "ultrafast",   # CI: speed over compression, Instagram recompresses anyway
         "-crf", "23",
         "-pix_fmt", "yuv420p",
         "-r", "30",
@@ -191,6 +191,8 @@ def compose(
         "-ar", "48000",
         "-b:a", "128k",
         "-movflags", "+faststart",
+        "-shortest",              # stop at shortest stream, prevents overrun
+        "-stats",                 # print frame= fps= speed= progress to stderr
         "-t", str(total_duration_s),
         str(out_path),
     ]

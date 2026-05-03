@@ -808,23 +808,17 @@ RARE_FACT_BANK = [
         "tone": "shocking",
         "reel_title": "The Priest Who Died in the Lions' Den",
         "reel_script": (
-            "In 1932, a Church of England priest named Harold Davidson was defrocked. "
-            "A scandal had stripped him of his church. "
+            "In 1932, a Church of England priest was defrocked in a scandal. "
             "He swore he was innocent. "
-            "And he spent the next five years trying to prove it. "
-            "He exhibited himself in a barrel on Blackpool seafront. "
-            "He performed in seaside sideshows up and down the coast. "
-            "All to raise money for his reinstatement. "
-            "By 1937, he had a new act. "
-            "He would re-enact the Bible story of Daniel in the Lions' Den. "
-            "Live. "
-            "In a cage. "
-            "With two real lions. "
-            "At a seaside spectacular in Skegness. "
-            "The lions did not play along. "
-            "They mauled him. He died two days later. "
-            "He was 62 years old. "
-            "The man who built his life around proving his innocence... "
+            "To fund his appeal, he performed in seaside sideshows across Britain. "
+            "By 1937 his act was this: "
+            "re-enacting Daniel in the Lions' Den. "
+            "Live. In a cage. With two real lions. "
+            "In Skegness. "
+            "The lions were not familiar with the story. "
+            "They mauled him. "
+            "He died two days later. "
+            "The man who spent five years fighting to prove his innocence... "
             "ended it inside a lion's cage."
         ),
         "discovered_via": "wikipedia:unusual_deaths",
