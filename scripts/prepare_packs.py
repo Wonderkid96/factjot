@@ -103,19 +103,18 @@ def prepare_pack(slug: str, pack: dict, cfg, brand: dict) -> dict | None:
         return None
     print(f"  uploaded {len(imgbb_urls)} images to imgbb")
 
-    from src.content.description_builder import build_instagram_description
-    # Inlined — same value as HASHTAGS_FILM in ship_list_post.py
     _HASHTAGS_FILM = [
         "factjot", "filmrecs", "moviestowatch", "scifi", "filmtwitter",
         "movienight", "cinephile", "indiefilm", "filmlovers", "filmlist",
         "underratedfilms", "filmcommunity", "movierecommendations",
         "filmsofinstagram", "watchlist",
     ]
-    caption = build_instagram_description(
-        base_caption=pack["caption"],
-        hashtags=_HASHTAGS_FILM,
-        image_credits=[{"source": "TMDB", "url": s} for s in sources],
-    )
+    titles = [item["title"] for item in recap if item.get("title")]
+    credits_line = "Credits: " + ", ".join(titles) if titles else ""
+    hashtag_block = " ".join(_HASHTAGS_FILM)
+    caption = "\n\n".join(p for p in [
+        pack["caption"].strip(), credits_line, hashtag_block
+    ] if p).strip()
 
     now = datetime.now(timezone.utc)
     return {

@@ -271,11 +271,12 @@ def main() -> int:
             brain.append_log(f"list carousel BLOCKED — duplicate: {args.pack}")
             return 3
 
-        full_caption = build_instagram_description(
-            base_caption=pack["caption"],
-            hashtags=HASHTAGS_FILM,
-            image_credits=[{"source": "TMDB", "url": s} for s in sources],
-        )
+        titles = [item["title"] for item in recap if item.get("title")]
+        credits_line = "Credits: " + ", ".join(titles) if titles else ""
+        hashtag_block = " ".join(HASHTAGS_FILM)
+        full_caption = "\n\n".join(p for p in [
+            pack["caption"].strip(), credits_line, hashtag_block
+        ] if p).strip()
 
     print("\nPublishing carousel to Instagram...")
     publisher = InstagramGraphPublisher(
