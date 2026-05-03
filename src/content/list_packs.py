@@ -33,8 +33,8 @@ from __future__ import annotations
 
 # slug -> pack
 LIST_PACKS: dict[str, dict] = {
-    "top_war_films_corrected": {
-        "slug": "top_war_films_corrected",
+    "war_films_definitive": {
+        "slug": "war_films_definitive",
         "title": "Eight war films worth your time",
         "subtitle": "ranked by staying power, not box office.",
         "category": "FILM LIST",
