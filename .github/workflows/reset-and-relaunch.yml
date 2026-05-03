@@ -172,7 +172,9 @@ jobs:
           python3 scripts/refresh_token.py || echo "WARNING: token refresh failed"
 
       - name: Post reel
-        run: python3 scripts/make_reel.py
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python3 -u scripts/make_reel.py
 
       - name: Capture failure to brain log
         if: failure()

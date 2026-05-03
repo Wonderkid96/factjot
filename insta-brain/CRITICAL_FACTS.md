@@ -45,11 +45,12 @@ Never call the wrong script for the wrong format. Never mix terminology in log e
 ## What an agent MUST do at session start
 1. Read `insta-brain/CLAUDE.md`
 2. Read this file
-3. Read `insta-brain/rules/index.md`
-4. Read `insta-brain/MEMORY_INDEX.md` (for recent verified changes)
-5. Read `insta-brain/data/posted.jsonl` (for repost check)
-6. Read `insta-brain/inbox.md` (for any human-dropped notes)
-7. Append one terse startup line to `insta-brain/log.md` before any edits or runs:
+3. Read **[[gotchas]]** (or `gotchas.md`) before any pipeline / render / publish change
+4. Read `insta-brain/rules/index.md`
+5. Read `insta-brain/MEMORY_INDEX.md` (for recent verified changes)
+6. Read `insta-brain/data/posted.jsonl` (for repost check)
+7. Read `insta-brain/inbox.md` (for any human-dropped notes)
+8. Append one terse startup line to `insta-brain/log.md` before any edits or runs:
    `- YYYY-MM-DD HH:MM session start: read-order complete, working on <task>`
 
 ## What an agent MUST do at session end (if any non-trivial action ran)
@@ -74,4 +75,4 @@ Direct, dry, plain. No "did you know" preamble. No corporate fluff. No "I'm exci
 Ask Toby. Do not silently break a rule to make a task easier.
 
 ## Related
-[[CLAUDE]] · [[MEMORY_INDEX]] · [[PUBLISH_PLAN]] · [[rules/index]] · [[rules/01-no-repost]] · [[rules/02-no-image-reuse]] · [[rules/10-truth]] · [[rules/11-no-naked-slides]] · [[log]] · [[inbox]]
+[[CLAUDE]] · [[gotchas]] · [[MEMORY_INDEX]] · [[PUBLISH_PLAN]] · [[rules/index]] · [[rules/01-no-repost]] · [[rules/02-no-image-reuse]] · [[rules/10-truth]] · [[rules/11-no-naked-slides]] · [[log]] · [[inbox]]

@@ -54,6 +54,7 @@ _TOPIC_TAGS: dict[str, str] = {
     "history":    "#history #historyfacts #truecrime #historical #archive",
     "technology": "#technology #tech #innovation #engineering #science",
     "tech":       "#technology #tech #innovation #engineering #science",
+    "science":    "#science #neuroscience #psychology #brain #learning",
 }
 _DEFAULT_TOPIC = "#science #nature #history #facts #learning"
 

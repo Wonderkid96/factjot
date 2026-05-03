@@ -63,6 +63,7 @@ METRICS_DB      = DB / "metrics_db.json"
 # ------------------------------------------------------------------ #
 LOGS            = ROOT / "logs"
 HEARTBEAT_LOG   = LOGS / "heartbeat.log"
+REEL_RUN_LOGS   = LOGS / "reel_runs"
 
 # ------------------------------------------------------------------ #
 # assets/
@@ -91,5 +92,5 @@ TRENDS          = BRAIN_DATA / "trends.jsonl"
 def ensure_dirs() -> None:
     """Create all required directories if they don't exist."""
     for d in (LEDGERS, CACHE, IMAGES_CACHE, RENDERS_CACHE,
-              LIST_ASSETS_CACHE, REELS_CACHE, DB, LOGS, AVATARS):
+              LIST_ASSETS_CACHE, REELS_CACHE, DB, LOGS, REEL_RUN_LOGS, AVATARS):
         d.mkdir(parents=True, exist_ok=True)

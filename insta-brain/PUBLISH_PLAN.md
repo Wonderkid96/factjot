@@ -97,4 +97,4 @@ Toby never logs into Instagram to post.
 ---
 
 ## Related
-[[CLAUDE]] · [[CRITICAL_FACTS]] · [[MEMORY_INDEX]] · [[rules/index]] · [[log]]
+[[CLAUDE]] · [[gotchas]] · [[CRITICAL_FACTS]] · [[MEMORY_INDEX]] · [[rules/index]] · [[log]]

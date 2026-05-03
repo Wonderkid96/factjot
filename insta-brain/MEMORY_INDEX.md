@@ -2,7 +2,33 @@
 
 Quick handover ledger. Newest entry first. Older entries summarised or removed once superseded.
 
-Related: [[CLAUDE]] · [[CRITICAL_FACTS]] · [[PUBLISH_PLAN]] · [[log]] · [[rules/13-memory-index]]
+Related: [[CLAUDE]] · [[gotchas]] · [[CRITICAL_FACTS]] · [[PUBLISH_PLAN]] · [[log]] · [[rules/13-memory-index]]
+
+---
+
+## 2026-05-04 — Reel ops: logging, single-flight lock, brain graph, Actions
+
+### Local `make_reel.py` (stacked encodes + observability)
+- **`fcntl` advisory lock** on `data/cache/reels/.make_reel.lock`: second local run exits **10** with a clear message (prevents multiple FFmpeg composes pegging CPU). Released in **`finally`**.
+- **`ReelRunLogger`**: `src/utils/reel_run_logger.py` writes **`data/cache/reels/<id>/pipeline.log`** and **`logs/reel_runs/<UTC>_<id>.log`**; milestones also **`print(..., flush=True)`**.
+- **`scripts/kill_local_reel_jobs.sh`**: kills only this repo’s **`make_reel.py`** + FFmpeg jobs that reference **`assets/intros/factjot_intro.mov`**.
+- **`src/core/paths.py`**: **`REEL_RUN_LOGS`**, **`ensure_dirs()`** creates **`logs/reel_runs/`**.
+
+### FFmpeg compose (stderr)
+- **`reel_composer.py`**: compose stderr goes to **`ffmpeg_compose_stderr.log`** in the reel cache dir (no pipe backpressure). **`ffmpeg_debug.txt`** keeps command + filter graph.
+
+### Brain / Obsidian
+- **`[[gotchas]]`** wikilink added to **[[MEMORY_INDEX]]**, **[[PUBLISH_PLAN]]**, **[[CRITICAL_FACTS]]**, **[[rules/index]]**, **[[rules/06-data-capture]]**, **[[rules/09-prompt-read-order]]** (gotchas is step 5), and **Related** header on **`gotchas.md`**. Root **`CLAUDE.md`** explains opening **`insta-brain/`** as the vault for graph edges.
+
+### New reel content
+- **`rare_fact_bank.py`**: new topic **`science`** (blindsight / visual cortex). **`reel_caption.py`**: **`science`** hashtag tier. **`make_reel.py`**: **`--topic`** help lists **`science`**.
+
+### GitHub Actions
+- **`reel.yml`**: job **`timeout-minutes: 45`** (was 20); job-level **`PYTHONUNBUFFERED: "1"`**; Post reel still **`python3 -u scripts/make_reel.py`**.
+- **`reset-and-relaunch.yml`**: Post reel uses **`PYTHONUNBUFFERED=1`** and **`python3 -u scripts/make_reel.py`**.
+
+### Local full publish attempt (science reel, 2026-05-04)
+- **`make_reel.py --topic science`** completed TTS + footage + overlays, then entered **`compose()`**. **`ffmpeg_compose_stderr.log`** showed **speed ~0.005x** with **output time frozen ~9s / frame ~275** while wall clock passed **30+ min** (not the old stderr pipe stall: the log file grew). Run was **stopped** to avoid burning the Mac for hours. **Treat as open local performance investigation** (filter cost, `loudnorm`, or single-thread FFmpeg on Apple Silicon). **Canonical full encode + publish:** let **`reel.yml`** on **ubuntu-latest** ship until this is profiled.
 
 ---
 

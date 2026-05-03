@@ -1,5 +1,18 @@
 # factjot brain log
 
+- 2026-05-03 23:04 reel FAILED ffmpeg — fact='Some people with damage to the primary visual cortex insist ' error=FFmpeg failed (exit 255). See ffmpeg_debug.txt (command) and ffmpeg_compose_stderr.log (stderr tail below).
+e= 457.6kbits/s speed=0.00464x elapsed=0:32:56.40    
+frame=  275 fps=0.1 q=20.0 size=     512KiB time=00:00:09.16 bitrate= 457.6kbits/s speed=0.00464x elapsed=0:32:56.91    
+frame=  275 fps=0
+- 2026-05-04 session: MEMORY_INDEX + log + gotchas graph links + reel.yml / reset-and-relaunch.yml (unbuffered, 45m timeout); local pipeline logging + `make_reel` lock + kill script landed in repo.
+- 2026-05-04 local `make_reel.py --topic science` (reel 1520bbd8d4e0a2): stopped during FFmpeg compose; stderr showed ~0.005x speed and frame counter stuck ~275 / 9s output time after 33+ min wall (see MEMORY_INDEX). Use Actions for full encode until profiled.
+- 2026-05-03 22:21 reel FAILED ffmpeg — fact='Some people with damage to the primary visual cortex insist ' error=FFmpeg failed (exit 255). See ffmpeg_debug.txt (command) and ffmpeg_compose_stderr.log (stderr tail below).
+0174x elapsed=0:07:49.69    
+frame=  245 fps=0.5 q=20.0 size=     256KiB time=00:00:08.16 bitrate= 256.8kbits/s speed=0.0174x elapsed=0:07:50.20    
+frame=  245 fps=0.5 q=20.0 size=     256KiB
+- 2026-05-03 22:21 reel FAILED ffmpeg — fact='In 1937 a defrocked English priest named Harold Davidson was' error=FFmpeg failed (exit 255). Check ffmpeg_debug.txt for the full command.
+- 2026-05-03 22:21 reel FAILED ffmpeg — fact='In 1937 a defrocked English priest named Harold Davidson was' error=FFmpeg failed (exit 255). Check ffmpeg_debug.txt for the full command.
+- 2026-05-03 21:41 reel FAILED ffmpeg — fact='In 1937 a defrocked English priest named Harold Davidson was' error=FFmpeg failed (exit 8). Check ffmpeg_debug.txt for the full command.
 - 2026-05-03 20:51 WORKFLOW FAILED: .github/workflows/reel.yml | run=25290444457 | trigger=workflow_dispatch | ref=main
 - 2026-05-03 19:31 discovery: appended 185 fresh facts from r/Damnthatsinteresting, wikipedia:unusual_deaths (rejected 104)
 - 2026-05-03 18:03 published f72844db634f10 (LIST FILM LIST, 10 slides, pack=war_films_definitive, ig_media=18461261920106958)

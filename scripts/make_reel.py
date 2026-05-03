@@ -11,10 +11,14 @@ End-to-end pipeline:
     8.  Record in brain + log.
 
 Usage:
-    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/make_reel.py
-    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/make_reel.py --topic space
-    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/make_reel.py --topic history --dry-run
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 -u scripts/make_reel.py
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 -u scripts/make_reel.py --topic space
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 -u scripts/make_reel.py --topic history --dry-run
     /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/make_reel.py --list-facts
+
+Logs (each full run): data/cache/reels/<reel_id>/pipeline.log and logs/reel_runs/<UTC>_<reel_id>.log
+Stale local jobs: scripts/kill_local_reel_jobs.sh
+Only one local encoder at a time: second run exits 10 (fcntl lock on data/cache/reels/.make_reel.lock).
 """
 from __future__ import annotations
 
@@ -239,438 +243,479 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
     configure_logging()
     cfg = load_config()
 
-    from src.core.ffmpeg_bin import assert_reel_ffmpeg_ready
+    from src.core.paths import REELS_CACHE, REEL_RUN_LOGS, ensure_dirs
+    from src.utils.reel_run_logger import (
+        ReelRunLogger,
+        acquire_local_make_reel_lock,
+        release_local_make_reel_lock,
+    )
 
+    _locked = False
+    rlog = None
     try:
-        ff_bin = assert_reel_ffmpeg_ready()
-    except RuntimeError as exc:
-        print(f"\n{exc}")
-        return 5
-    print(f"  [ffmpeg] binary: {ff_bin}")
+        try:
+            acquire_local_make_reel_lock(REELS_CACHE)
+        except RuntimeError as exc:
+            print(f"\n{exc}")
+            return 10
+        _locked = True
 
-    # Step 1: Select fact
-    fact = _pick_fact(topic)
-    if not fact:
-        msg = f"No reel-eligible fact found"
-        if topic:
-            msg += f" for topic={topic!r}"
-        print(msg + ".")
-        _log_pick_diagnostics(topic)
-        print("\nFix: add curated reel_title + reel_script (>= "
-              f"{MIN_REEL_SCRIPT_WORDS} words) to a q3 fact in rare_fact_bank.py, "
-              "or run scripts/validate_reel_facts.py for the full audit.")
-        return 2
+        from src.core.ffmpeg_bin import assert_reel_ffmpeg_ready
 
-    claim    = fact["claim"]
-    ftopic   = fact["topic"]
-    hint     = fact.get("image_hint", "")
-    reel_id  = hashlib.sha1(f"reel:{ftopic}:{claim}".encode()).hexdigest()[:14]
-    from src.core.paths import REELS_CACHE
-    out_dir  = REELS_CACHE / reel_id
-    out_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            ff_bin = assert_reel_ffmpeg_ready()
+        except RuntimeError as exc:
+            print(f"\n{exc}")
+            return 5
+        print(f"  [ffmpeg] binary: {ff_bin}")
 
-    print(f"\nReel {reel_id}")
-    print(f"  topic   : {ftopic}")
-    print(f"  claim   : {claim[:100]}")
-    print(f"  hint    : {hint}")
+        # Step 1: Select fact
+        fact = _pick_fact(topic)
+        if not fact:
+            msg = f"No reel-eligible fact found"
+            if topic:
+                msg += f" for topic={topic!r}"
+            print(msg + ".")
+            _log_pick_diagnostics(topic)
+            print("\nFix: add curated reel_title + reel_script (>= "
+                  f"{MIN_REEL_SCRIPT_WORDS} words) to a q3 fact in rare_fact_bank.py, "
+                  "or run scripts/validate_reel_facts.py for the full audit.")
+            return 2
 
-    # Early duplicate gate — abort BEFORE we spend 2-5 minutes on TTS + FFmpeg
-    # if another process has already published this claim.
-    from src.brain import DuplicatePostError
-    try:
-        brain.assert_no_duplicate([claim])
-    except DuplicatePostError as e:
-        print(f"\nABORTED — duplicate block (early gate):\n{e}")
-        brain.append_log(f"reel BLOCKED early — duplicate claim: {claim[:80]}")
-        return 8
+        claim    = fact["claim"]
+        ftopic   = fact["topic"]
+        hint     = fact.get("image_hint", "")
+        reel_id  = hashlib.sha1(f"reel:{ftopic}:{claim}".encode()).hexdigest()[:14]
+        out_dir  = REELS_CACHE / reel_id
+        out_dir.mkdir(parents=True, exist_ok=True)
+        ensure_dirs()
+        rlog = ReelRunLogger(reel_id=reel_id, out_dir=out_dir, run_logs_dir=REEL_RUN_LOGS)
+        rlog.emit(f"dry_run={dry_run} voice={voice!r}")
+        rlog.emit(f"topic={ftopic} claim={claim[:200]!r}")
+        rlog.emit(f"cache_dir={out_dir}")
+        rlog.emit("FFmpeg compose logs: ffmpeg_debug.txt + ffmpeg_compose_stderr.log in cache dir")
 
-    # Step 2: Voice-over
-    # Use curated reel_script if available (preferred — hand-crafted quality).
-    # If missing, auto-generate from the claim using reel_script.py.
-    # The 22-second bug (2026-05-01) was caused by auto-generation running on a
-    # claim that was too short. Guard: abort if result < MIN_REEL_SCRIPT_WORDS.
-    from src.content.reel_script import to_voice_script as build_reel_script
-    curated = fact.get("reel_script", "")
-    if curated and len(curated.split()) >= MIN_REEL_SCRIPT_WORDS:
-        vo_body = curated
-        print(f"\nUsing curated reel_script ({len(vo_body.split())} words)")
-    else:
-        vo_body = build_reel_script(claim, fact.get("reel_title") or "")
-        word_count = len(vo_body.split())
-        print(f"\nAuto-generated reel_script ({word_count} words)")
-        if word_count < MIN_REEL_SCRIPT_WORDS:
-            raise ReelFactInvariantError(
-                f"Auto-generated script for {claim[:60]!r} is only {word_count} words "
-                f"(floor: {MIN_REEL_SCRIPT_WORDS}). Claim may be too short to script."
-            )
+        print(f"\nReel {reel_id}")
+        print(f"  topic   : {ftopic}")
+        print(f"  claim   : {claim[:100]}")
+        print(f"  hint    : {hint}")
 
-    # Append a randomised outro. Each variation contains "factjot" so the
-    # compositor can sync the CTA card to the exact moment it is spoken.
-    vo_script = _append_outro(vo_body)
-    print(f"  outro appended — total {len(vo_script.split())} words")
+        # Early duplicate gate — abort BEFORE we spend 2-5 minutes on TTS + FFmpeg
+        # if another process has already published this claim.
+        from src.brain import DuplicatePostError
+        try:
+            brain.assert_no_duplicate([claim])
+        except DuplicatePostError as e:
+            print(f"\nABORTED — duplicate block (early gate):\n{e}")
+            brain.append_log(f"reel BLOCKED early — duplicate claim: {claim[:80]}")
+            return 8
 
-    print(f"Synthesising voice-over (voice={voice})...")
-    tts_backend = os.getenv("TTS_BACKEND", "elevenlabs")
-    el_key = os.getenv("ELEVENLABS_API_KEY", "")
-    el_voice = os.getenv("ELEVENLABS_VOICE", "george")
-    tts_voice = el_voice if (tts_backend == "elevenlabs" and el_key) else voice
-    mp3_path, word_beats = synthesise(vo_script, out_dir, voice=tts_voice, backend=tts_backend)
-    if not word_beats:
-        print("ERROR: TTS returned no word timing. Check edge-tts is installed.")
-        return 4
+        # Step 2: Voice-over
+        # Use curated reel_script if available (preferred — hand-crafted quality).
+        # If missing, auto-generate from the claim using reel_script.py.
+        # The 22-second bug (2026-05-01) was caused by auto-generation running on a
+        # claim that was too short. Guard: abort if result < MIN_REEL_SCRIPT_WORDS.
+        from src.content.reel_script import to_voice_script as build_reel_script
+        curated = fact.get("reel_script", "")
+        if curated and len(curated.split()) >= MIN_REEL_SCRIPT_WORDS:
+            vo_body = curated
+            print(f"\nUsing curated reel_script ({len(vo_body.split())} words)")
+        else:
+            vo_body = build_reel_script(claim, fact.get("reel_title") or "")
+            word_count = len(vo_body.split())
+            print(f"\nAuto-generated reel_script ({word_count} words)")
+            if word_count < MIN_REEL_SCRIPT_WORDS:
+                raise ReelFactInvariantError(
+                    f"Auto-generated script for {claim[:60]!r} is only {word_count} words "
+                    f"(floor: {MIN_REEL_SCRIPT_WORDS}). Claim may be too short to script."
+                )
 
-    # Silent intro - hook title shows here, voice starts AFTER it fades.
-    padded_mp3 = out_dir / "voice_padded.mp3"
-    import subprocess as _sp
-    # ElevenLabs (and many MP3 paths) are 44.1 kHz; anullsrc is 48 kHz. Raw concat
-    # keeps 44.1 kHz on the muxed file (see gotchas: Meta rejects 44.1). Resample
-    # both legs to 48 kHz mono before concat so voice_padded.mp3 is safe end-to-end.
-    _pad_filter = (
-        "[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono[sil];"
-        "[1:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono[vo];"
-        "[sil][vo]concat=n=2:v=0:a=1[a]"
-    )
-    _sp.run([
-        ff_bin, "-y",
-        "-f", "lavfi", "-t", str(INTRO_S), "-i", "anullsrc=r=48000:cl=mono",
-        "-i", str(mp3_path),
-        "-filter_complex", _pad_filter,
-        "-map", "[a]",
-        "-c:a", "libmp3lame", "-b:a", "192k", "-ar", "48000",
-        str(padded_mp3),
-    ], check=True, capture_output=True)
-    mp3_path = padded_mp3
-    print(f"  pre-padded voice with {INTRO_S}s intro silence -> {padded_mp3.name}")
+        # Append a randomised outro. Each variation contains "factjot" so the
+        # compositor can sync the CTA card to the exact moment it is spoken.
+        vo_script = _append_outro(vo_body)
+        print(f"  outro appended — total {len(vo_script.split())} words")
 
-    voice_end_s = word_beats[-1].end_s + INTRO_S
+        print(f"Synthesising voice-over (voice={voice})...")
+        tts_backend = os.getenv("TTS_BACKEND", "elevenlabs")
+        el_key = os.getenv("ELEVENLABS_API_KEY", "")
+        el_voice = os.getenv("ELEVENLABS_VOICE", "george")
+        tts_voice = el_voice if (tts_backend == "elevenlabs" and el_key) else voice
+        mp3_path, word_beats = synthesise(vo_script, out_dir, voice=tts_voice, backend=tts_backend)
+        if not word_beats:
+            print("ERROR: TTS returned no word timing. Check edge-tts is installed.")
+            return 4
+        rlog.emit(f"TTS ok -> {mp3_path.name} ({mp3_path.stat().st_size // 1024} KB)")
 
-    # Sync CTA to the moment the narrator says "factjot" in the outro.
-    # ElevenLabs sometimes renders "factjot" as two tokens: "fact" + "jot".
-    # Check for both: single word containing "factjot", or consecutive "fact"+"jot".
-    _fj_beats = [b for b in word_beats if "factjot" in b.word.lower()]
-    if not _fj_beats:
-        for _i, _b in enumerate(word_beats[:-1]):
-            _nxt = word_beats[_i + 1]
-            if _b.word.lower().startswith("fact") and _nxt.word.lower().startswith("jot"):
-                _fj_beats = [_b]
-                break
-    if _fj_beats:
-        cta_s = _fj_beats[-1].start_s + INTRO_S
-        print(f"  CTA locked to 'factjot' word beat at {cta_s:.1f}s")
-    else:
-        cta_s = max(0.0, voice_end_s - 3.5)
-        print(f"  CTA fallback (no 'factjot' beat found): {cta_s:.1f}s")
-
-    # Total: voice ends + brief pause + fade to black
-    total_dur = round(voice_end_s + 0.8 + FADE_TO_BLACK_S, 2)
-    n_clips   = n_clips_for_duration(total_dur)
-
-    print(f"  voice duration: {voice_end_s:.1f}s | total reel: {total_dur:.1f}s | CTA at {cta_s:.1f}s | clips: {n_clips}")
-
-    # Hard duration gate — never publish a reel shorter than 35s.
-    # Direct response to the 2026-05-01 incident where an auto-generated
-    # script produced a 22.7s reel. With curated scripts this should never
-    # trigger, but if TTS truncates or a future edit shortens a script
-    # below the floor, fail loudly rather than ship a stub.
-    MIN_REEL_TOTAL_S = 35.0
-    if total_dur < MIN_REEL_TOTAL_S:
-        msg = (f"Reel total duration {total_dur:.1f}s is below floor of "
-               f"{MIN_REEL_TOTAL_S}s. ABORTING. Curated reel_script may have "
-               f"been truncated by TTS, or word floor needs raising.")
-        print(f"\nABORTED — {msg}")
-        brain.append_log(f"reel ABORTED — short duration {total_dur:.1f}s for {claim[:60]}")
-        return 9
-
-    # Step 3: Find N pieces of footage (multi-clip storytelling)
-    allow_archival = bool(fact.get("allow_archival", False))
-    print(f"\nFinding {n_clips} footage clips (allow_archival={allow_archival})...")
-
-    # Load global footage registry — prevents the same clip appearing in two different reels
-    from src.core.paths import USED_FOOTAGE
-    global_footage_registry: set[str] = set()
-    if USED_FOOTAGE.exists():
-        for line in USED_FOOTAGE.read_text().splitlines():
-            line = line.strip()
-            if line:
-                try:
-                    global_footage_registry.add(json.loads(line)["url"])
-                except Exception:
-                    pass
-
-    footage_clips = find_videos(
-        image_hint=hint, claim=claim, topic=ftopic,
-        out_dir=out_dir, count=n_clips,
-        allow_archival=allow_archival,
-        used_source_registry=global_footage_registry,
-    )
-    if not footage_clips:
-        print("ERROR: could not find any footage. Pre-download safety pool clips with:")
-        print("  /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/setup_reel_assets.py")
-        brain.append_log(f"reel FAILED no footage — fact={claim[:60]!r} hint={hint!r}")
-        return 3
-
-    # Step 4: Group words into 5-6 word chunks. FFmpeg segfaults beyond ~50
-    # input streams on this build, so keep total inputs (footage + overlays)
-    # comfortably under that limit. Larger chunks = fewer overlay PNGs.
-    chunks = group_into_chunks(
-        word_beats,
-        words_per_line=8,
-        max_chars=52,
-        original_text=vo_script,
-    )
-
-    # Step 5: Render overlay frames via Playwright (brand-consistent typography)
-    print("\nRendering overlay frames (Playwright + Instrument Serif)...")
-    overlay_dir = out_dir / "overlays"
-    overlay_dir.mkdir(exist_ok=True)
-
-    overlays: list[OverlayFrame] = []
-    text_frames: list[TextFrame] = []
-
-    # 5a: Shadow overlay — persistent cinematic framing (top darken + bottom gradient + vignette)
-    shadow_path = overlay_dir / "shadow.png"
-    text_frames.append(TextFrame(style="overlay", text="", out_path=shadow_path))
-    overlays.append(OverlayFrame(png=shadow_path, start_s=0.0, end_s=total_dur, fade_in_s=0.0, fade_out_s=0.0))
-
-    # 5b: Category label (persistent, top-centre)
-    label_path = overlay_dir / "label.png"
-    text_frames.append(TextFrame(style="label", text=ftopic, out_path=label_path))
-    overlays.append(OverlayFrame(png=label_path, start_s=0.0, end_s=total_dur, fade_in_s=0.6, fade_out_s=0.0))
-
-    # 5c: Story title card — fades in during silence, fades out as voice begins.
-    # Title occupies the INTRO_S window: fades in at 0, holds, then fades out
-    # just as the VO starts so there's a clean handoff to subtitles.
-    story_title = make_title(claim, ftopic, reel_title=fact.get("reel_title"))
-    if story_title:
-        print(f"  title: '{story_title}'")
-        TITLE_FADE_IN  = 0.6
-        TITLE_FADE_OUT = 0.8   # completes fading just before voice starts
-        TITLE_HOLD     = INTRO_S - TITLE_FADE_IN - TITLE_FADE_OUT  # 3.5 - 0.6 - 0.8 = 2.1s
-
-        title_png = overlay_dir / "title.png"
-        text_frames.append(TextFrame(style="hook", text=story_title, out_path=title_png))
-        overlays.append(OverlayFrame(
-            png=title_png,
-            start_s=0.0,
-            end_s=INTRO_S,
-            fade_in_s=TITLE_FADE_IN,
-            fade_out_s=TITLE_FADE_OUT,
-        ))
-        subtitle_start_gate = INTRO_S
-    else:
-        subtitle_start_gate = 0.0
-
-    # 5d: KINETIC SUBTITLES via .ass file — one FFmpeg filter pass.
-    # Previously used 20+ sequential PNG overlay stages; now a single
-    # native libass render. generate_ass_file() handles timing offsets.
-    ass_path = out_dir / "subtitles.ass"
-    generate_ass_file(
-        chunks,
-        ass_path,
-        voice_delay_s=INTRO_S,
-        cta_start_s=cta_s,
-        subtitle_start_gate=subtitle_start_gate,
-    )
-    print(f"  kinetic subtitles: {len(chunks)} chunks -> {ass_path.name}")
-
-    # 5d: CTA frame
-    cta_path = overlay_dir / "cta.png"
-    text_frames.append(TextFrame(style="cta", text="@factjot", out_path=cta_path))
-    overlays.append(OverlayFrame(png=cta_path, start_s=cta_s, end_s=total_dur, fade_in_s=0.4, fade_out_s=0.0))
-
-    # Single Playwright session renders everything
-    print(f"  rendering {len(text_frames)} text frames via Playwright...")
-    renderer = ReelTextRenderer()
-    renderer.render_all(text_frames)
-
-    # Step 6: Music — random start point so every Reel sounds different
-    music_path = _pick_music(ftopic)
-    if music_path:
-        print(f"  music: {music_path.name}")
-    else:
-        print("  music: none found")
-
-    # Step 7: Compose
-    print("\nComposing video (FFmpeg)...")
-    final_mp4 = out_dir / "final.mp4"
-    try:
-        compose(
-            footage_paths=footage_clips,
-            voice_path=mp3_path,
-            music_path=music_path,
-            overlays=overlays,
-            out_path=final_mp4,
-            total_duration_s=total_dur,
-            voice_delay_s=INTRO_S,
-            ffmpeg_bin=ff_bin,
-            subtitle_ass_path=ass_path,
-            # Pass only the one font .ass needs - loading all 14 fonts twice
-            # was adding ~20s of fontconfig overhead before encoding started.
-            fonts_dir=Path(__file__).resolve().parents[1] / "assets" / "fonts" / "subtitle_fonts",
+        # Silent intro - hook title shows here, voice starts AFTER it fades.
+        padded_mp3 = out_dir / "voice_padded.mp3"
+        import subprocess as _sp
+        # ElevenLabs (and many MP3 paths) are 44.1 kHz; anullsrc is 48 kHz. Raw concat
+        # keeps 44.1 kHz on the muxed file (see gotchas: Meta rejects 44.1). Resample
+        # both legs to 48 kHz mono before concat so voice_padded.mp3 is safe end-to-end.
+        _pad_filter = (
+            "[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono[sil];"
+            "[1:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono[vo];"
+            "[sil][vo]concat=n=2:v=0:a=1[a]"
         )
-    except RuntimeError as exc:
-        print(f"\nFFmpeg error:\n{exc}")
-        brain.append_log(f"reel FAILED ffmpeg — fact={claim[:60]!r} error={str(exc)[:300]}")
-        return 5
+        _sp.run([
+            ff_bin, "-y",
+            "-f", "lavfi", "-t", str(INTRO_S), "-i", "anullsrc=r=48000:cl=mono",
+            "-i", str(mp3_path),
+            "-filter_complex", _pad_filter,
+            "-map", "[a]",
+            "-c:a", "libmp3lame", "-b:a", "192k", "-ar", "48000",
+            str(padded_mp3),
+        ], check=True, capture_output=True)
+        mp3_path = padded_mp3
+        print(f"  pre-padded voice with {INTRO_S}s intro silence -> {padded_mp3.name}")
 
-    # Persist global footage registry — append any newly used URLs so future reels skip them
-    USED_FOOTAGE.parent.mkdir(parents=True, exist_ok=True)
-    with USED_FOOTAGE.open("a") as _reg_f:
-        for _url in sorted(global_footage_registry):
-            _reg_f.write(json.dumps({"url": _url, "reel_id": reel_id}) + "\n")
+        voice_end_s = word_beats[-1].end_s + INTRO_S
 
-    print(f"\nReel composed: {final_mp4}")
-    print(f"  size: {final_mp4.stat().st_size / 1024 / 1024:.1f} MB")
+        # Sync CTA to the moment the narrator says "factjot" in the outro.
+        # ElevenLabs sometimes renders "factjot" as two tokens: "fact" + "jot".
+        # Check for both: single word containing "factjot", or consecutive "fact"+"jot".
+        _fj_beats = [b for b in word_beats if "factjot" in b.word.lower()]
+        if not _fj_beats:
+            for _i, _b in enumerate(word_beats[:-1]):
+                _nxt = word_beats[_i + 1]
+                if _b.word.lower().startswith("fact") and _nxt.word.lower().startswith("jot"):
+                    _fj_beats = [_b]
+                    break
+        if _fj_beats:
+            cta_s = _fj_beats[-1].start_s + INTRO_S
+            print(f"  CTA locked to 'factjot' word beat at {cta_s:.1f}s")
+        else:
+            cta_s = max(0.0, voice_end_s - 3.5)
+            print(f"  CTA fallback (no 'factjot' beat found): {cta_s:.1f}s")
 
-    # Step 8: Generate thumbnail (footage frame + branded overlay) and story
-    from src.render.reel_thumbnail import render_thumbnail
-    from src.render.reel_story import render_story
-    from src.content.reel_caption import build_reel_caption
+        # Total: voice ends + brief pause + fade to black
+        total_dur = round(voice_end_s + 0.8 + FADE_TO_BLACK_S, 2)
+        n_clips   = n_clips_for_duration(total_dur)
 
-    story_title = make_title(claim, ftopic, reel_title=fact.get("reel_title"))
+        print(f"  voice duration: {voice_end_s:.1f}s | total reel: {total_dur:.1f}s | CTA at {cta_s:.1f}s | clips: {n_clips}")
 
-    frame_jpg     = out_dir / "thumbnail_frame.jpg"
-    thumbnail_png = out_dir / "thumbnail.png"
-    story_png     = out_dir / "story.png"
+        # Hard duration gate — never publish a reel shorter than 35s.
+        # Direct response to the 2026-05-01 incident where an auto-generated
+        # script produced a 22.7s reel. With curated scripts this should never
+        # trigger, but if TTS truncates or a future edit shortens a script
+        # below the floor, fail loudly rather than ship a stub.
+        MIN_REEL_TOTAL_S = 35.0
+        if total_dur < MIN_REEL_TOTAL_S:
+            msg = (f"Reel total duration {total_dur:.1f}s is below floor of "
+                   f"{MIN_REEL_TOTAL_S}s. ABORTING. Curated reel_script may have "
+                   f"been truncated by TTS, or word floor needs raising.")
+            print(f"\nABORTED — {msg}")
+            brain.append_log(f"reel ABORTED — short duration {total_dur:.1f}s for {claim[:60]}")
+            return 9
 
-    print("\nExtracting footage frame for thumbnail...")
-    # Pull a frame from the ESTABLISHING clip at 1.0s — clean, on-subject still.
-    _sp.run([
-        ff_bin, "-y",
-        "-ss", "1.0",
-        "-i", str(footage_clips[0]),
-        "-vframes", "1",
-        "-q:v", "2",
-        "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920",
-        str(frame_jpg),
-    ], check=True, capture_output=True)
-    print(f"  [frame] {frame_jpg.name} ({frame_jpg.stat().st_size // 1024}KB)")
+        # Step 3: Find N pieces of footage (multi-clip storytelling)
+        allow_archival = bool(fact.get("allow_archival", False))
+        print(f"\nFinding {n_clips} footage clips (allow_archival={allow_archival})...")
 
-    print("Compositing thumbnail (footage frame + branded overlay)...")
-    render_thumbnail(
-        title=story_title or claim.split(".")[0],
-        topic=ftopic,
-        out_path=thumbnail_png,
-        frame_path=frame_jpg,
-    )
+        # Load global footage registry — prevents the same clip appearing in two different reels
+        from src.core.paths import USED_FOOTAGE
+        global_footage_registry: set[str] = set()
+        if USED_FOOTAGE.exists():
+            for line in USED_FOOTAGE.read_text().splitlines():
+                line = line.strip()
+                if line:
+                    try:
+                        global_footage_registry.add(json.loads(line)["url"])
+                    except Exception:
+                        pass
 
-    print("Rendering story asset...")
-    render_story(
-        title=story_title or claim.split(".")[0],
-        topic=ftopic,
-        out_path=story_png,
-        frame_path=frame_jpg,
-    )
+        footage_clips = find_videos(
+            image_hint=hint, claim=claim, topic=ftopic,
+            out_dir=out_dir, count=n_clips,
+            allow_archival=allow_archival,
+            used_source_registry=global_footage_registry,
+        )
+        if not footage_clips:
+            print("ERROR: could not find any footage. Pre-download safety pool clips with:")
+            print("  /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/setup_reel_assets.py")
+            brain.append_log(f"reel FAILED no footage — fact={claim[:60]!r} hint={hint!r}")
+            return 3
 
-    caption = build_reel_caption(
-        claim, ftopic,
-        reel_title=story_title,
-        sources=fact.get("sources", []),
-    )
-    print(f"  caption: {len(caption)} chars")
+        rlog.emit(f"footage ok: {len(footage_clips)} clips -> {[p.name for p in footage_clips]}")
 
-    if dry_run:
-        print("\nDRY-RUN — skipping upload and publish.")
-        print(f"  Video:     open {final_mp4}")
-        print(f"  Thumbnail: open {thumbnail_png}")
-        print(f"  Story:     open {story_png}")
-        print(f"  Caption preview:\n---\n{caption}\n---")
+        # Step 4: Group words into 5-6 word chunks. FFmpeg segfaults beyond ~50
+        # input streams on this build, so keep total inputs (footage + overlays)
+        # comfortably under that limit. Larger chunks = fewer overlay PNGs.
+        chunks = group_into_chunks(
+            word_beats,
+            words_per_line=8,
+            max_chars=52,
+            original_text=vo_script,
+        )
+
+        # Step 5: Render overlay frames via Playwright (brand-consistent typography)
+        print("\nRendering overlay frames (Playwright + Instrument Serif)...")
+        overlay_dir = out_dir / "overlays"
+        overlay_dir.mkdir(exist_ok=True)
+
+        overlays: list[OverlayFrame] = []
+        text_frames: list[TextFrame] = []
+
+        # 5a: Shadow overlay — persistent cinematic framing (top darken + bottom gradient + vignette)
+        shadow_path = overlay_dir / "shadow.png"
+        text_frames.append(TextFrame(style="overlay", text="", out_path=shadow_path))
+        overlays.append(OverlayFrame(png=shadow_path, start_s=0.0, end_s=total_dur, fade_in_s=0.0, fade_out_s=0.0))
+
+        # 5b: Category label (persistent, top-centre)
+        label_path = overlay_dir / "label.png"
+        text_frames.append(TextFrame(style="label", text=ftopic, out_path=label_path))
+        overlays.append(OverlayFrame(png=label_path, start_s=0.0, end_s=total_dur, fade_in_s=0.6, fade_out_s=0.0))
+
+        # 5c: Story title card — fades in during silence, fades out as voice begins.
+        # Title occupies the INTRO_S window: fades in at 0, holds, then fades out
+        # just as the VO starts so there's a clean handoff to subtitles.
+        story_title = make_title(claim, ftopic, reel_title=fact.get("reel_title"))
+        if story_title:
+            print(f"  title: '{story_title}'")
+            TITLE_FADE_IN  = 0.6
+            TITLE_FADE_OUT = 0.8   # completes fading just before voice starts
+            TITLE_HOLD     = INTRO_S - TITLE_FADE_IN - TITLE_FADE_OUT  # 3.5 - 0.6 - 0.8 = 2.1s
+
+            title_png = overlay_dir / "title.png"
+            text_frames.append(TextFrame(style="hook", text=story_title, out_path=title_png))
+            overlays.append(OverlayFrame(
+                png=title_png,
+                start_s=0.0,
+                end_s=INTRO_S,
+                fade_in_s=TITLE_FADE_IN,
+                fade_out_s=TITLE_FADE_OUT,
+            ))
+            subtitle_start_gate = INTRO_S
+        else:
+            subtitle_start_gate = 0.0
+
+        # 5d: KINETIC SUBTITLES via .ass file — one FFmpeg filter pass.
+        # Previously used 20+ sequential PNG overlay stages; now a single
+        # native libass render. generate_ass_file() handles timing offsets.
+        ass_path = out_dir / "subtitles.ass"
+        generate_ass_file(
+            chunks,
+            ass_path,
+            voice_delay_s=INTRO_S,
+            cta_start_s=cta_s,
+            subtitle_start_gate=subtitle_start_gate,
+        )
+        print(f"  kinetic subtitles: {len(chunks)} chunks -> {ass_path.name}")
+
+        # 5d: CTA frame
+        cta_path = overlay_dir / "cta.png"
+        text_frames.append(TextFrame(style="cta", text="@factjot", out_path=cta_path))
+        overlays.append(OverlayFrame(png=cta_path, start_s=cta_s, end_s=total_dur, fade_in_s=0.4, fade_out_s=0.0))
+
+        # Single Playwright session renders everything
+        print(f"  rendering {len(text_frames)} text frames via Playwright...")
+        renderer = ReelTextRenderer()
+        renderer.render_all(text_frames)
+
+        # Step 6: Music — random start point so every Reel sounds different
+        music_path = _pick_music(ftopic)
+        if music_path:
+            print(f"  music: {music_path.name}")
+        else:
+            print("  music: none found")
+
+        # Step 7: Compose
+        print("\nComposing video (FFmpeg)...")
+        rlog.emit("starting FFmpeg compose (see ffmpeg_compose_stderr.log in cache dir)")
+        final_mp4 = out_dir / "final.mp4"
+        try:
+            compose(
+                footage_paths=footage_clips,
+                voice_path=mp3_path,
+                music_path=music_path,
+                overlays=overlays,
+                out_path=final_mp4,
+                total_duration_s=total_dur,
+                voice_delay_s=INTRO_S,
+                ffmpeg_bin=ff_bin,
+                subtitle_ass_path=ass_path,
+                # Pass only the one font .ass needs - loading all 14 fonts twice
+                # was adding ~20s of fontconfig overhead before encoding started.
+                fonts_dir=Path(__file__).resolve().parents[1] / "assets" / "fonts" / "subtitle_fonts",
+            )
+        except RuntimeError as exc:
+            print(f"\nFFmpeg error:\n{exc}")
+            brain.append_log(f"reel FAILED ffmpeg — fact={claim[:60]!r} error={str(exc)[:300]}")
+            return 5
+
+        # Persist global footage registry — append any newly used URLs so future reels skip them
+        USED_FOOTAGE.parent.mkdir(parents=True, exist_ok=True)
+        with USED_FOOTAGE.open("a") as _reg_f:
+            for _url in sorted(global_footage_registry):
+                _reg_f.write(json.dumps({"url": _url, "reel_id": reel_id}) + "\n")
+
+        print(f"\nReel composed: {final_mp4}")
+        print(f"  size: {final_mp4.stat().st_size / 1024 / 1024:.1f} MB")
+        rlog.emit(
+            f"compose done -> {final_mp4.name} {final_mp4.stat().st_size / 1024 / 1024:.1f} MB"
+        )
+
+        # Step 8: Generate thumbnail (footage frame + branded overlay) and story
+        from src.render.reel_thumbnail import render_thumbnail
+        from src.render.reel_story import render_story
+        from src.content.reel_caption import build_reel_caption
+
+        story_title = make_title(claim, ftopic, reel_title=fact.get("reel_title"))
+
+        frame_jpg     = out_dir / "thumbnail_frame.jpg"
+        thumbnail_png = out_dir / "thumbnail.png"
+        story_png     = out_dir / "story.png"
+
+        print("\nExtracting footage frame for thumbnail...")
+        # Pull a frame from the ESTABLISHING clip at 1.0s — clean, on-subject still.
+        _sp.run([
+            ff_bin, "-y",
+            "-ss", "1.0",
+            "-i", str(footage_clips[0]),
+            "-vframes", "1",
+            "-q:v", "2",
+            "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920",
+            str(frame_jpg),
+        ], check=True, capture_output=True)
+        print(f"  [frame] {frame_jpg.name} ({frame_jpg.stat().st_size // 1024}KB)")
+
+        print("Compositing thumbnail (footage frame + branded overlay)...")
+        render_thumbnail(
+            title=story_title or claim.split(".")[0],
+            topic=ftopic,
+            out_path=thumbnail_png,
+            frame_path=frame_jpg,
+        )
+
+        print("Rendering story asset...")
+        render_story(
+            title=story_title or claim.split(".")[0],
+            topic=ftopic,
+            out_path=story_png,
+            frame_path=frame_jpg,
+        )
+
+        caption = build_reel_caption(
+            claim, ftopic,
+            reel_title=story_title,
+            sources=fact.get("sources", []),
+        )
+        print(f"  caption: {len(caption)} chars")
+
+        if dry_run:
+            print("\nDRY-RUN — skipping upload and publish.")
+            print(f"  Video:     open {final_mp4}")
+            print(f"  Thumbnail: open {thumbnail_png}")
+            print(f"  Story:     open {story_png}")
+            print(f"  Caption preview:\n---\n{caption}\n---")
+            rlog.emit("DRY-RUN finished (no upload/publish)")
+            return 0
+
+        # Final duplicate re-check just before publish — closes the race window
+        # between the early gate and now (in case a parallel publish_due ran).
+        from src.brain import DuplicatePostError
+        try:
+            brain.assert_no_duplicate([claim])
+        except DuplicatePostError as e:
+            print(f"\nABORTED at publish-time — duplicate block:\n{e}")
+            brain.append_log(f"reel BLOCKED at publish — duplicate claim: {claim[:80]}")
+            return 8
+
+        # Step 9: Upload video + thumbnail
+        from src.publish.image_host import make_image_host
+        from src.publish.instagram_publisher import InstagramGraphPublisher
+
+        print("\nUploading video...")
+        try:
+            video_url = _upload_video(final_mp4)
+        except RuntimeError as exc:
+            print(f"\nVideo upload failed: {exc}")
+            brain.append_log(f"reel FAILED video upload — fact={claim[:60]!r} error={exc}")
+            return 6
+
+        print("Uploading thumbnail...")
+        try:
+            img_host = make_image_host()
+            thumbnail_result = img_host.upload(thumbnail_png)
+            cover_url = thumbnail_result.public_url
+            print(f"  [thumbnail] {cover_url[:80]}")
+        except Exception as exc:
+            print(f"  [thumbnail] upload failed ({exc}) — publishing without cover")
+            cover_url = None
+
+        # Step 10: Publish Reel — adaptive quality: if Meta 413s, recompress and retry
+        print("\nPublishing Reel to Instagram...")
+        publisher = InstagramGraphPublisher(
+            account_id=cfg.env["INSTAGRAM_ACCOUNT_ID"],
+            access_token=cfg.env["META_ACCESS_TOKEN"],
+            graph_version=cfg.env["META_GRAPH_VERSION"],
+            host=cfg.env["META_GRAPH_HOST"],
+        )
+
+        result = None
+        # Primary encode is already crf 30 / 800k maxrate; on 413, step down (gotchas.md).
+        for _attempt, (_crf, _rate) in enumerate([(None, None), (33, "600k"), (35, "500k")]):
+            if _attempt > 0:
+                print(f"  [adaptive] 413 on attempt {_attempt} — recompressing at crf={_crf}...")
+                _compressed = _recompress(final_mp4, crf=_crf, maxrate=_rate, ffmpeg_bin=ff_bin)
+                try:
+                    video_url = _upload_video(_compressed)
+                except RuntimeError as _exc:
+                    print(f"  [adaptive] re-upload failed: {_exc}")
+                    break
+            result = publisher.publish_reel(
+                video_url=video_url,
+                caption=caption,
+                cover_url=cover_url,
+            )
+            if result.get("ok"):
+                break
+            if not result.get("size_error"):
+                break  # non-size error — recompressing won't help
+
+        if not result or not result.get("ok"):
+            err = (result or {}).get("error", "unknown")
+            print(f"\nReel publish failed: {err}")
+            brain.append_log(
+                f"reel FAILED publish — fact={claim[:60]!r} topic={ftopic} "
+                f"video_url={video_url[:60]} error={str(err)[:200]}"
+            )
+            return 7
+
+        ig_media_id = result["ig_media_id"]
+        print(f"\nREEL PUBLISHED — ig_media_id: {ig_media_id}")
+        rlog.emit(f"REEL PUBLISHED ig_media_id={ig_media_id}")
+
+        # Step 11: Post Story
+        print("\nUploading story image...")
+        try:
+            story_result = img_host.upload(story_png)
+            story_url = story_result.public_url
+            print(f"  [story] {story_url[:80]}")
+            story_pub = publisher.post_to_stories(image_url=story_url)
+            if story_pub.get("ok"):
+                print(f"  [story] published ig_media_id={story_pub['ig_media_id']}")
+                if story_pub.get("warning"):
+                    print(f"  [story] note: {story_pub['warning']}")
+            else:
+                print(f"  [story] publish failed: {story_pub.get('error')} (Reel is still live)")
+        except Exception as exc:
+            print(f"  [story] failed ({exc}) — Reel is still live")
+
+        # Step 12: Record
+        _record(reel_id, ig_media_id, claim, ftopic, out_dir,
+                thumbnail_png=thumbnail_png, story_png=story_png)
         return 0
 
-    # Final duplicate re-check just before publish — closes the race window
-    # between the early gate and now (in case a parallel publish_due ran).
-    from src.brain import DuplicatePostError
-    try:
-        brain.assert_no_duplicate([claim])
-    except DuplicatePostError as e:
-        print(f"\nABORTED at publish-time — duplicate block:\n{e}")
-        brain.append_log(f"reel BLOCKED at publish — duplicate claim: {claim[:80]}")
-        return 8
-
-    # Step 9: Upload video + thumbnail
-    from src.publish.image_host import make_image_host
-    from src.publish.instagram_publisher import InstagramGraphPublisher
-
-    print("\nUploading video...")
-    try:
-        video_url = _upload_video(final_mp4)
-    except RuntimeError as exc:
-        print(f"\nVideo upload failed: {exc}")
-        brain.append_log(f"reel FAILED video upload — fact={claim[:60]!r} error={exc}")
-        return 6
-
-    print("Uploading thumbnail...")
-    try:
-        img_host = make_image_host()
-        thumbnail_result = img_host.upload(thumbnail_png)
-        cover_url = thumbnail_result.public_url
-        print(f"  [thumbnail] {cover_url[:80]}")
-    except Exception as exc:
-        print(f"  [thumbnail] upload failed ({exc}) — publishing without cover")
-        cover_url = None
-
-    # Step 10: Publish Reel — adaptive quality: if Meta 413s, recompress and retry
-    print("\nPublishing Reel to Instagram...")
-    publisher = InstagramGraphPublisher(
-        account_id=cfg.env["INSTAGRAM_ACCOUNT_ID"],
-        access_token=cfg.env["META_ACCESS_TOKEN"],
-        graph_version=cfg.env["META_GRAPH_VERSION"],
-        host=cfg.env["META_GRAPH_HOST"],
-    )
-
-    result = None
-    # Primary encode is already crf 30 / 800k maxrate; on 413, step down (gotchas.md).
-    for _attempt, (_crf, _rate) in enumerate([(None, None), (33, "600k"), (35, "500k")]):
-        if _attempt > 0:
-            print(f"  [adaptive] 413 on attempt {_attempt} — recompressing at crf={_crf}...")
-            _compressed = _recompress(final_mp4, crf=_crf, maxrate=_rate, ffmpeg_bin=ff_bin)
+    finally:
+        if rlog is not None:
             try:
-                video_url = _upload_video(_compressed)
-            except RuntimeError as _exc:
-                print(f"  [adaptive] re-upload failed: {_exc}")
-                break
-        result = publisher.publish_reel(
-            video_url=video_url,
-            caption=caption,
-            cover_url=cover_url,
-        )
-        if result.get("ok"):
-            break
-        if not result.get("size_error"):
-            break  # non-size error — recompressing won't help
-
-    if not result or not result.get("ok"):
-        err = (result or {}).get("error", "unknown")
-        print(f"\nReel publish failed: {err}")
-        brain.append_log(
-            f"reel FAILED publish — fact={claim[:60]!r} topic={ftopic} "
-            f"video_url={video_url[:60]} error={str(err)[:200]}"
-        )
-        return 7
-
-    ig_media_id = result["ig_media_id"]
-    print(f"\nREEL PUBLISHED — ig_media_id: {ig_media_id}")
-
-    # Step 11: Post Story
-    print("\nUploading story image...")
-    try:
-        story_result = img_host.upload(story_png)
-        story_url = story_result.public_url
-        print(f"  [story] {story_url[:80]}")
-        story_pub = publisher.post_to_stories(image_url=story_url)
-        if story_pub.get("ok"):
-            print(f"  [story] published ig_media_id={story_pub['ig_media_id']}")
-            if story_pub.get("warning"):
-                print(f"  [story] note: {story_pub['warning']}")
-        else:
-            print(f"  [story] publish failed: {story_pub.get('error')} (Reel is still live)")
-    except Exception as exc:
-        print(f"  [story] failed ({exc}) — Reel is still live")
-
-    # Step 12: Record
-    _record(reel_id, ig_media_id, claim, ftopic, out_dir,
-            thumbnail_png=thumbnail_png, story_png=story_png)
-    return 0
+                rlog.emit("=== pipeline: end (finally) ===")
+            except Exception:
+                pass
+            rlog.close()
+        if _locked:
+            release_local_make_reel_lock()
 
 
 def _record(

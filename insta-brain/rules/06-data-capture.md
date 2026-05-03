@@ -26,11 +26,12 @@ None of the `.jsonl` files is rewritten in place. New row, every time. The only 
 ## Read order at the start of every run
 1. `insta-brain/CLAUDE.md`
 2. `insta-brain/CRITICAL_FACTS.md`
-3. `insta-brain/rules/index.md`
-4. `insta-brain/MEMORY_INDEX.md`
-5. `insta-brain/data/posted.jsonl` → in-memory set of `claim_hash`
-6. `data/used_images.jsonl` → in-memory sets of `url` and `sha256`
-7. `insta-brain/inbox.md`
+3. **[[gotchas]]** (`gotchas.md`) — incident log; same content as rule 09 step 5
+4. `insta-brain/rules/index.md`
+5. `insta-brain/MEMORY_INDEX.md`
+6. `insta-brain/data/posted.jsonl` → in-memory set of `claim_hash`
+7. `data/used_images.jsonl` → in-memory sets of `url` and `sha256`
+8. `insta-brain/inbox.md`
 
 ## When the data file is missing
 Create empty. Do not skip the read. An empty file means "we have not posted anything yet" — that is fine.

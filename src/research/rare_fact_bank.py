@@ -2359,6 +2359,33 @@ RARE_FACT_BANK = [
             "And decided whether it liked you."
         ),
     },
+    # ---------- SCIENCE (new topic for reels, 2026-05-04) ----------
+    {
+        "topic": "science",
+        "claim": "Some people with damage to the primary visual cortex insist they see nothing, yet can guess the location or orientation of objects on a screen far better than chance. This dissociation between visual processing and conscious sight is called blindsight.",
+        "sources": [
+            "https://plato.stanford.edu/entries/blindsight/",
+            "https://www.britannica.com/science/blindsight",
+        ],
+        "image_hint": "brain MRI neuroscience laboratory vision",
+        "quirky_score": 3,
+        "intensity": "medium",
+        "tone": "shocking",
+        "reel_title": "The Eyes That Deny They See",
+        "reel_script": (
+            "You assume cortical blindness means nothing useful enters the brain. "
+            "Researchers flash shapes to patients who swear the screen is empty. "
+            "Guesses still beat chance. "
+            "Ask them to reach toward a flash they insist they never saw "
+            "and the hand lands on target. "
+            "The lesion blocked conscious vision. "
+            "Other pathways still carry location, motion, even mood "
+            "from faces you say you cannot see. "
+            "The world keeps being modelled while the inner voice insists on darkness. "
+            "Scientists call that blindsight. "
+            "It proves processing and awareness are not the same thing."
+        ),
+    },
 ]
 
 

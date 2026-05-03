@@ -320,6 +320,8 @@ Every fix must be a long-term structural fix, not a temporary patch. A patch tha
 
 `insta-brain/gotchas.md` — read this before touching anything. It documents everything that has broken, been tried, and failed. Keep it current. If you hit a new wall, add it before closing the session.
 
+**Obsidian:** open the `insta-brain/` folder as a vault (or use the repo’s brain notes there). Hub notes use wikilinks so **[[gotchas]]** appears in the graph: start from **[[MEMORY_INDEX]]** in the same vault, or link **[[gotchas]]** from any note you edit. Plain paths alone do not create graph edges.
+
 ---
 
 ## Invariants — never break

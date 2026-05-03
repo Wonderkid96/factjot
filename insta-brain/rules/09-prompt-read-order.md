@@ -8,11 +8,12 @@ Every agent that touches this codebase or this brain reads the following files, 
 2. /Users/Music/Documents/Insta-bot/CLAUDE.md — repo-level rules
 3. insta-brain/CLAUDE.md                      — brain operating manual
 4. insta-brain/CRITICAL_FACTS.md              — top-level invariants
-5. insta-brain/rules/index.md                 — every rule's one-liner
-6. insta-brain/MEMORY_INDEX.md                — latest handover context + verified changes
-7. insta-brain/data/posted.jsonl              — already-shared facts (for dedupe)
-8. data/used_images.jsonl                     — already-shipped images (for dedupe)
-9. insta-brain/inbox.md                       — Toby's drop-ins, if any
+5. insta-brain/gotchas.md                     — incident log (same as note [[gotchas]]); read before pipeline changes
+6. insta-brain/rules/index.md                 — every rule's one-liner
+7. insta-brain/MEMORY_INDEX.md                — latest handover context + verified changes
+8. insta-brain/data/posted.jsonl              — already-shared facts (for dedupe)
+9. data/used_images.jsonl                     — already-shipped images (for dedupe)
+10. insta-brain/inbox.md                      — Toby's drop-ins, if any
 ```
 
 If a file does not exist, create it empty and continue. Do not skip the read.

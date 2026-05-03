@@ -2,6 +2,8 @@
 
 Things that have been tried, broken, or caused hard-to-trace problems. Every agent must read this before touching the pipeline. Keep it current. If you hit a new wall, add it here.
 
+Related (Obsidian graph hub): [[CLAUDE]] · [[CRITICAL_FACTS]] · [[MEMORY_INDEX]] · [[PUBLISH_PLAN]] · [[rules/index]] · [[rules/09-prompt-read-order]] · [[log]]
+
 ---
 
 ## YAML / GitHub Actions
@@ -148,6 +150,8 @@ For facts where Archive has no relevant footage (most modern facts), every query
 ## Local macOS (FFmpeg)
 
 **Default Homebrew `ffmpeg` often has no `ass` filter (no libass).** `make_reel.py` probes on startup via `ffmpeg -h filter=ass`. If it fails: `brew install ffmpeg-full` then put that binary first on `PATH`, or set **`FFMPEG_BIN`** to the full path (for example `export FFMPEG_BIN="$(brew --prefix ffmpeg-full)/bin/ffmpeg"`). CI static FFmpeg already includes libass.
+
+**Only one local `make_reel.py` at a time (2026-05-04).** Several terminals or agents each starting a full reel left **multiple FFmpeg composes** at ~170% CPU each (fans pegged). **`fcntl` advisory lock** on `data/cache/reels/.make_reel.lock` makes a second run exit **10** with a clear message. **`scripts/kill_local_reel_jobs.sh`** kills matching FFmpeg + `make_reel.py` under this repo only. **Logs:** each run writes **`data/cache/reels/<id>/pipeline.log`** and **`logs/reel_runs/<UTC>_<id>.log`** (timestamped milestones plus anything sent through `ReelRunLogger.emit`).
 
 ---
 

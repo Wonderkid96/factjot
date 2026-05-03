@@ -1,5 +1,5 @@
 name: Daily Reel (12:00 BST)
-# v2
+# v3 — longer timeout; PYTHONUNBUFFERED on job; make_reel -u
 
 on:
   schedule:
@@ -23,7 +23,9 @@ permissions:
 jobs:
   post:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
+    env:
+      PYTHONUNBUFFERED: "1"
 
     steps:
       - name: Checkout
@@ -122,8 +124,6 @@ jobs:
 
       - name: Post reel
         if: steps.check.outputs.skip != 'true'
-        env:
-          PYTHONUNBUFFERED: "1"
         run: python3 -u scripts/make_reel.py
 
       - name: Capture failure to brain log

@@ -9,9 +9,9 @@ If anything below contradicts a CLAUDE.md higher up the tree, the higher-level f
 ## CRITICAL: read this before touching anything
 
 1. `CLAUDE.md` (project root) — full technical docs, pipeline, timing, file map
-2. `insta-brain/gotchas.md` — everything that has broken or failed. Read before every change.
-3. `insta-brain/CRITICAL_FACTS.md` — invariants you must never break
-4. `insta-brain/MEMORY_INDEX.md` — latest handover context
+2. **[[gotchas]]** (`gotchas.md`) — incident log: everything that has broken or failed. Read before every change; append when you find a new failure mode.
+3. **[[CRITICAL_FACTS]]** — invariants you must never break
+4. **[[MEMORY_INDEX]]** — latest handover context
 
 ---
 
@@ -121,7 +121,7 @@ Wordmark: `fact`*`jot*`.` — "jot" italic, "." in `#E6352A`, base off-white `#E
 
 ## When brain disagrees with code
 
-Fix the code. Do not weaken the rule. Add to `gotchas.md` if a new failure mode is discovered.
+Fix the code. Do not weaken the rule. Add to **[[gotchas]]** if a new failure mode is discovered.
 
 ## When uncertain
 

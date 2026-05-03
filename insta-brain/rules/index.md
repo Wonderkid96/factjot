@@ -2,6 +2,8 @@
 
 Every rule below is mandatory. Click each link for full reasoning and edge cases. New rules go here first, then a file in this folder.
 
+**Incident log (not a numbered rule):** [[gotchas]] — pipeline failures and fixes. Read before changing `scripts/`, `src/render/`, `src/publish/`, or workflows; append when something new breaks.
+
 | # | Rule | Summary |
 |---|---|---|
 | [01](01-no-repost.md) | **No repost** | Never publish a fact already in `data/posted.jsonl`. Hash before generate. |
