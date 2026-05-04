@@ -883,13 +883,13 @@ def _record(
     fact is still pickable next run; crash between writes = at worst a dup
     block, never a lost reel.)
     """
-    import hashlib as _h
-    claim_hash = _h.sha1(claim.lower().strip().encode()).hexdigest()
+    from src.brain import claim_hash as _claim_hash
+    claim_hash_val = _claim_hash(claim)
     reel_record = {
         "reel_id":       reel_id,
         "ig_media_id":   ig_media_id,
         "claim":         claim,
-        "claim_hash":    claim_hash,
+        "claim_hash":    claim_hash_val,
         "topic":         topic,
         "published_at":  datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "out_dir":       str(out_dir),
