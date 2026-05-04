@@ -580,57 +580,97 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
 
         # 5e: Documentary photo inserts — archival/entity images appear over footage
         # timed to when the narrator first mentions the subject's name.
-        # Style: photograph-on-surface (ivory border, shadow, brand accent, film grain).
-        # Rendered as transparent PNGs via Playwright, composited as OverlayFrames.
-        from src.render.reel_text_renderer import render_photo_insert
+        # 5e: Casefile documents — text card (always) + photo inserts (when images available).
+        #
+        # Text card: always rendered. Extracts entity name and year from the claim.
+        # Appears as a physical paper document overlaid on the footage shortly after
+        # the intro ends. Never fails — no external API needed.
+        #
+        # Photo inserts: use any entity images in footage_clips (wiki_lead_* or
+        # wiki_article_*). Timed to appear during B-roll (not while the entity image
+        # itself is the background clip) by anchoring to the voice beat where the
+        # subject is first named.
+        from src.render.reel_text_renderer import render_photo_insert, render_case_doc
         from src.research.narrative_beats import extract_entities as _ext_ents
+        import re as _re
 
-        # Photo inserts use ONLY wikipedia article images (wiki_article_*) --
-        # extra images fetched from the article body beyond the lead image.
-        # wiki_lead_* and wm_entity_* are already full-screen footage clips;
-        # using them as overlays too would show the same image twice in the reel.
-        _entity_images = [p for p in footage_clips if p.name.startswith("wiki_article_")]
+        _claim_ents = _ext_ents(claim)
+        _entity_name = " ".join(_claim_ents.proper_nouns[:2]) if _claim_ents.proper_nouns else ftopic.title()
+        _year_m = _re.search(r'\b(1[0-9]{3}|20[0-9]{2})\b', claim)
+        _year_str = _year_m.group(0) if _year_m else ""
+
+        # Text casefile card — always present
+        _case_doc_png = overlay_dir / "case_doc_00.png"
+        _case_doc_start = INTRO_S + 0.4
+        _case_doc_end   = cta_s - 0.5
+        if _case_doc_end > _case_doc_start + 2.0:
+            print(f"  [casefile] text card: {_entity_name!r} / {_year_str or 'no year'}")
+            try:
+                render_case_doc(
+                    out_path=_case_doc_png,
+                    label="subject" if _claim_ents.proper_nouns else "topic",
+                    value=_entity_name,
+                    body=_year_str,
+                    x=55, y=440, rotation=-2.0, width=460,
+                )
+                overlays.append(OverlayFrame(
+                    png=_case_doc_png,
+                    start_s=_case_doc_start,
+                    end_s=_case_doc_end,
+                    fade_in_s=0.0, fade_out_s=0.0,
+                    rgba=True,
+                ))
+            except Exception as _cde:
+                print(f"  [casefile] text card failed ({_cde})")
+
+        # Photo inserts — any entity images in footage_clips
+        # Anchor to the first word beat where the subject's name is spoken,
+        # so the photo appears exactly when the narrator mentions them.
+        _entity_images = [
+            p for p in footage_clips
+            if p.name.startswith(("wiki_article_", "wiki_lead_"))
+        ]
 
         if _entity_images and word_beats:
-            # Find first word beat where a proper noun from the claim is spoken
-            _claim_ents = _ext_ents(claim)
             _subject_words = {w.lower() for w in _claim_ents.proper_nouns[:3]} or {""}
-            _anchor_t = INTRO_S + 0.3  # default: just after intro
+            _anchor_t = INTRO_S + 1.0  # fallback: 1s after intro
             for _wb in word_beats:
                 if any(s in _wb.word.lower() for s in _subject_words if len(s) > 3):
-                    _anchor_t = INTRO_S + _wb.start_s + 0.3
+                    # Give the narrator a beat before the photo slides in
+                    _anchor_t = INTRO_S + _wb.start_s + 0.5
                     break
 
-            _INSERT_HOLD   = 4.5   # seconds each photo is visible
-            _INSERT_FADEIN = 0.35
-            _INSERT_FADEOUT= 0.30
-            _INSERT_GAP    = 0.6   # gap between consecutive inserts
-            _MAX_INSERTS   = min(len(_entity_images), 2)  # max 2 inserts per reel
+            # Don't insert during the first clip window (entity image IS the bg there).
+            # Rough window: first clip gets ~18% of total duration.
+            _first_window_end = INTRO_S + total_dur * 0.18
+            _anchor_t = max(_anchor_t, _first_window_end + 0.3)
+
+            _INSERT_HOLD     = 4.5
+            _INSERT_GAP      = 0.7
             _INSERT_ZONE_END = cta_s - 1.5
+            _MAX_INSERTS     = min(len(_entity_images), 2)
 
             _t = _anchor_t
+            _cap = (fact.get("reel_title") or " ".join(_claim_ents.proper_nouns[:2]) or "").split(" — ")[0][:35]
             for _idx, _img in enumerate(_entity_images[:_MAX_INSERTS]):
-                if _t >= _INSERT_ZONE_END:  # boundary check before each insert
+                if _t >= _INSERT_ZONE_END:
                     break
                 _end_t = min(_t + _INSERT_HOLD, _INSERT_ZONE_END)
                 if _end_t - _t < 1.5:
                     break
                 _insert_png = overlay_dir / f"photo_insert_{_idx:02d}.png"
-                # Caption: first proper noun or reel title shortened
-                _cap = (fact.get("reel_title") or " ".join(_claim_ents.proper_nouns[:2]) or "").split(" — ")[0][:35]
-                print(f"  [photo-insert] {_img.name} @ {_t:.1f}s–{_end_t:.1f}s")
+                print(f"  [casefile] photo insert {_img.name} @ {_t:.1f}s–{_end_t:.1f}s")
                 try:
                     render_photo_insert(image_path=_img, out_path=_insert_png, caption=_cap)
                     overlays.append(OverlayFrame(
                         png=_insert_png,
                         start_s=_t,
                         end_s=_end_t,
-                        fade_in_s=_INSERT_FADEIN,
-                        fade_out_s=_INSERT_FADEOUT,
-                        rgba=True,  # transparent background — footage shows through sides
+                        fade_in_s=0.0, fade_out_s=0.0,
+                        rgba=True,
                     ))
                 except Exception as _pie:
-                    print(f"  [photo-insert] skipped ({_pie})")
+                    print(f"  [casefile] photo insert skipped ({_pie})")
                 _t = _end_t + _INSERT_GAP
 
         # 5f: CTA frame

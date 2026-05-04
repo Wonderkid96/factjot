@@ -328,3 +328,68 @@ def render_photo_insert(
         finally:
             browser.close()
     return out_path
+
+
+def render_case_doc(
+    out_path: Path,
+    label: str,
+    value: str,
+    body: str = "",
+    x: int = 60,
+    y: int = 440,
+    rotation: float = -2.0,
+    width: int = 480,
+) -> Path:
+    """Render a casefile text document as a transparent PNG overlay.
+
+    Styled as a physical paper document: ivory background, brand red left
+    accent, JetBrains Mono. Positioned absolutely within the 1080x1920 canvas.
+    Composited into the reel as an OverlayFrame with rgba=True.
+
+    Args:
+        label:    Small uppercase header (e.g. "SUBJECT", "DATE", "LOCATION").
+        value:    Main text displayed large (entity name, year, etc.).
+        body:     Optional secondary line in smaller muted type.
+        x/y:      Document position within the 1080x1920 frame.
+        rotation: Slight tilt in degrees (negative = lean left).
+        width:    Document width in pixels.
+    """
+    from jinja2 import Environment, FileSystemLoader
+
+    value_size = 22 if len(value) > 18 else (26 if len(value) > 12 else 30)
+
+    template_dir = Path(__file__).parent / "templates"
+    env = Environment(loader=FileSystemLoader(str(template_dir)), autoescape=False)
+    tmpl = env.get_template("reel_case_doc.html.j2")
+    html = tmpl.render(
+        width=_W, height=_H,
+        font_mono_bold=FONT_MONO_BOLD.as_uri(),
+        label=label.upper(),
+        value=value,
+        body=body,
+        x=x, y=y,
+        w=width,
+        rotation=rotation,
+        value_size=value_size,
+    )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        try:
+            ctx = browser.new_context(
+                viewport={"width": _W, "height": _H},
+                device_scale_factor=1,
+            )
+            page = ctx.new_page()
+            page.set_content(html, wait_until="networkidle")
+            page.screenshot(
+                path=str(out_path),
+                omit_background=True,
+                full_page=False,
+                clip={"x": 0, "y": 0, "width": _W, "height": _H},
+            )
+            page.close()
+        finally:
+            browser.close()
+    return out_path

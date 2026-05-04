@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  @font-face {
+    font-family: "JetBrains Mono";
+    src: url("{{ font_mono_bold }}") format("truetype");
+    font-weight: 700;
+    font-style: normal;
+  }
+
+  :root {
+    --accent: #E6352A;
+    --ink:    #0A0A0A;
+    --paper:  #F2EDE3;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 1080px;
+    height: 1920px;
+    background: transparent;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .doc {
+    position: absolute;
+    left: {{ x }}px;
+    top: {{ y }}px;
+    width: {{ w }}px;
+    background: var(--paper);
+    transform: rotate({{ rotation }}deg);
+    transform-origin: center top;
+    box-shadow:
+      0  2px  6px  rgba(0,0,0,0.30),
+      0  8px  28px rgba(0,0,0,0.50),
+      0 18px  50px rgba(0,0,0,0.20);
+    padding: 18px 20px 20px 24px;
+    border-left: 4px solid var(--accent);
+  }
+
+  .label {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: rgba(10,10,10,0.38);
+    margin-bottom: 8px;
+  }
+
+  .value {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-weight: 700;
+    font-size: {{ value_size }}px;
+    color: var(--ink);
+    line-height: 1.15;
+    letter-spacing: 0.02em;
+    margin-bottom: {{ "9px" if body else "0" }};
+  }
+
+  .body {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-weight: 700;
+    font-size: 12px;
+    color: rgba(10,10,10,0.48);
+    letter-spacing: 0.06em;
+    line-height: 1.6;
+    white-space: pre-wrap;
+  }
+</style>
+</head>
+<body>
+<div class="doc">
+  <div class="label">{{ label }}</div>
+  <div class="value">{{ value }}</div>
+  {% if body %}<div class="body">{{ body }}</div>{% endif %}
+</div>
+</body>
+</html>
