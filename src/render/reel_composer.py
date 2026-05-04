@@ -570,13 +570,13 @@ def _build_filter_graph(
         png_idx = png_start_idx + i
         cur = f"v{i}"
         enable = f"between(t,{ov.start_s:.3f},{ov.end_s:.3f})"
-        # Photo inserts have a transparent background — use format=rgba so
-        # the alpha channel is respected and footage shows through the sides.
-        # Regular overlays (text, shadow, label) use yuv420 as before.
-        fmt = "rgba" if ov.rgba else "yuv420"
+        # yuv420 is used for all overlays. FFmpeg's overlay filter uses the
+        # alpha channel from the input PNG regardless of the output format —
+        # transparent regions correctly show the background through them.
+        # format=rgba is invalid in FFmpeg 4.x (Ubuntu APT package on CI).
         filter_lines.append(
             f"[{prev}][{png_idx}:v]"
-            f"overlay=0:0:enable='{enable}':format={fmt}"
+            f"overlay=0:0:enable='{enable}':format=yuv420"
             f"[{cur}]"
         )
         prev = cur
@@ -597,7 +597,7 @@ def _build_filter_graph(
         )
         filter_lines.append(
             f"[{prev}][intro_alpha]"
-            f"overlay=0:0:enable='between(t,0,{intro_dur})':format=rgba:eof_action=pass"
+            f"overlay=0:0:enable='between(t,0,{intro_dur})':format=yuv420:eof_action=pass"
             f"[after_intro]"
         )
         prev = "after_intro"
