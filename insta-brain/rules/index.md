@@ -2,7 +2,7 @@
 
 Every rule below is mandatory. Click each link for full reasoning and edge cases. New rules go here first, then a file in this folder.
 
-**Incident log (not a numbered rule):** [[gotchas]] — pipeline failures and fixes. Read before changing `scripts/`, `src/render/`, `src/publish/`, or workflows; append when something new breaks.
+**Incident log (not a numbered rule):** [[gotchas]] — pipeline failures and fixes (includes local Mac FFmpeg: **255** vs **SIGTERM**, `make_reel` **exit 5**). Read before changing `scripts/`, `src/render/`, `src/publish/`, or workflows; append when something new breaks.
 
 | # | Rule | Summary |
 |---|---|---|

@@ -114,6 +114,8 @@ cd /Users/Music/Documents/Insta-bot
 /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/make_reel.py --list-facts
 ```
 
+**Local notes:** only one **`make_reel.py`** at a time (lock, exit **10** if contested). Per-run logs: **`data/cache/reels/<id>/pipeline.log`** and **`logs/reel_runs/`**; compose stderr: **`ffmpeg_compose_stderr.log`** in the same cache dir. If a run is killed, remove a stale **`.make_reel.lock`** if it remains. Prefer **`reel.yml`** on GitHub for a full encode when the Mac graph runs at fractional real-time speed.
+
 ---
 
 ## Key source files
@@ -121,6 +123,8 @@ cd /Users/Music/Documents/Insta-bot
 | File | Purpose |
 |---|---|
 | `scripts/make_reel.py` | Main Reel pipeline entry point |
+| `scripts/kill_local_reel_jobs.sh` | Stops this repo's `make_reel.py` + FFmpeg jobs using `factjot_intro.mov` |
+| `src/utils/reel_run_logger.py` | `ReelRunLogger`: `pipeline.log` + `logs/reel_runs/` copies |
 | `scripts/ship_first_post.py` | Morning carousel (topic-based, quirky_score >= 2 floor) |
 | `scripts/ship_list_post.py` | Evening list carousel (cache-first, then TMDB fallback) |
 | `scripts/prepare_packs.py` | Sunday: pre-resolves all unposted list packs, writes cache |

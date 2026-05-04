@@ -6,6 +6,25 @@ Related: [[CLAUDE]] · [[gotchas]] · [[CRITICAL_FACTS]] · [[PUBLISH_PLAN]] · 
 
 ---
 
+## 2026-05-05 — Agent handover: commits, background tasks, Actions behaviour
+
+### Repo state (answered "commit the rest?")
+- **`main` at `origin`:** **`0eba2a4`** already includes **`rare_fact_bank.py`** ( **`science`** topic / blindsight fact), **`reel_caption.py`**, root **`CLAUDE.md`**, **`make_reel.py`**, **`paths.py`**, **`reel.yml`** / **`reset-and-relaunch.yml`**, brain Obsidian link pass, **`kill_local_reel_jobs.sh`**, **`src/utils/reel_run_logger.py`**. No extra unpushed edits were pending after that push.
+
+### Background shell tasks (Cursor long jobs, all **`exit_code: 5`**)
+- **`778842`:** `make_reel.py` (no `--topic`) reached FFmpeg compose for reel **`21f827c2754169`** (Harold Davidson / lions). **`FFmpeg failed (exit 255)`** before publish. Debug: **`data/cache/reels/21f827c2754169/ffmpeg_compose_stderr.log`** (if present) + **`ffmpeg_debug.txt`**.
+- **`726712`:** `make_reel.py --topic science` ( **`1520bbd8d4e0a2`** ). Compose at **~0.017x** speed; then **`Exiting normally, received signal 15`** (SIGTERM). No Instagram publish.
+- **`53633`:** Same science reel after **`kill_local_reel_jobs.sh`**; compose **~0.0046x**, long stall around **frame ~275 / ~9s** output time, then **signal 15**. No publish.
+- **Interpretation:** **5** is the script failure path after FFmpeg error or interrupted compose. **255** = real FFmpeg failure; **15** = external kill / timeout, not "Meta broke".
+
+### Hygiene after killed locals
+- If Python or FFmpeg is killed hard, remove stale **`data/cache/reels/.make_reel.lock`** if it remains ( **`finally`** normally clears it).
+
+### `reel.yml` manual dispatch (no `force`)
+- **`workflow_dispatch`** without **`force: true`** runs **`check_posted_today.py reel`**; if a reel is already logged for that day, **Post reel** is **skipped** (green run, no second feed reel). Example triage: run **25293427059**. Use **`force`** only when Toby explicitly accepts a **second reel the same day** (bypasses idempotency).
+
+---
+
 ## 2026-05-04 — Reel ops: logging, single-flight lock, brain graph, Actions
 
 ### Local `make_reel.py` (stacked encodes + observability)

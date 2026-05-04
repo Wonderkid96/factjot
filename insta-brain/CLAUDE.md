@@ -57,6 +57,7 @@ Backup crons fire at +45 min. Idempotency check (git pull then check_posted_toda
 - ElevenLabs TTS, FFmpeg composition, branded thumbnail + story PNG
 - Posts reel to Instagram, then immediately posts story
 - Commits `reels.jsonl` + `used_footage_urls.jsonl` to git
+- **Local:** advisory lock on **`data/cache/reels/.make_reel.lock`** (second run exits **10**). **`scripts/kill_local_reel_jobs.sh`** stops this repo's compose jobs. Full encode on a Mac can be very slow; production posting is **`reel.yml`** on Linux.
 
 ### Evening list carousel (`ship_list_post.py --next`)
 - Picks next unposted pack from `src/content/list_packs.py`
@@ -89,6 +90,9 @@ Backup crons fire at +45 min. Idempotency check (git pull then check_posted_toda
 | `data/ledgers/discovered_facts.jsonl` | discover_facts.py | load_all_facts() | YES — weekly-plan workflow |
 | `data/ledgers/list_pack_cache.jsonl` | prepare_packs.py | ship_list_post.py | YES — weekly-plan + list-carousel |
 | `insta-brain/log.md` | all scripts | agents | YES — all workflows |
+| `data/cache/reels/<id>/pipeline.log` | `ReelRunLogger` in `make_reel.py` | agents debugging reel runs | NO — local/CI cache only (not required in git) |
+| `logs/reel_runs/<UTC>_<id>.log` | same | agents | NO — created under `paths.REEL_RUN_LOGS` |
+| `data/cache/reels/.make_reel.lock` | `make_reel.py` (fcntl) | second concurrent local process | NO — transient; delete if left after a crash |
 
 **Git is the database.** Every important state file is committed to git after every workflow run. The runner is destroyed after each run — nothing persists except what's in git and on imgbb/tmpfiles servers.
 

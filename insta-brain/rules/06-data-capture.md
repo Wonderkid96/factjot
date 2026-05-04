@@ -15,6 +15,8 @@ After every meaningful action, the brain gets updated. No action is "done" until
 | A weekly trends scrape runs | `insta-brain/data/trends.jsonl` | `{snapshot_at, source, topic, score}` |
 | Any non-trivial agent action | `insta-brain/log.md` | one line, prefixed with date+time, newest at top |
 | Any non-trivial behaviour/rules/schema change | `insta-brain/MEMORY_INDEX.md` | dated block with what, why, affected files, verification |
+| Local or CI **`make_reel.py`** run (milestones) | `data/cache/reels/<reel_id>/pipeline.log` | human-readable trace; also **`logs/reel_runs/<UTC>_<id>.log`** (copy via `ReelRunLogger`) |
+| FFmpeg compose diagnostics | `data/cache/reels/<reel_id>/ffmpeg_compose_stderr.log` + `ffmpeg_debug.txt` | stderr tail on failure; full command + filter graph in debug file |
 
 ## Append-only invariant
 None of the `.jsonl` files is rewritten in place. New row, every time. The only exception: `queue.jsonl` rows are mutable in status only (draft → approved → scheduled → published / failed). Even then, we don't delete; we mark.

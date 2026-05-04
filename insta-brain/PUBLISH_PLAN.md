@@ -1,6 +1,6 @@
 # Publish plan — factjot
 
-How content gets from idea to live on @factjot. Updated 2026-05-03.
+How content gets from idea to live on @factjot. Updated 2026-05-05.
 
 ---
 
@@ -16,6 +16,8 @@ All posting runs on GitHub Actions (repo: Wonderkid96/factjot). The Mac is not r
 | `weekly-plan.yml` | 03:00 Sunday | `refresh_token.py`, `restock.py`, `generate_list_packs.py`, `prepare_packs.py`, `validate_reel_facts.py`, `cleanup_caches.py` | Weekly prep |
 
 Topics rotate by weekday (morning and evening use offset sets so the same category never posts twice in one day).
+
+**Manual `reel.yml` dispatch:** **`workflow_dispatch`** accepts **`force`** (boolean). Default **`false`**: `check_posted_today.py reel` still runs; if a reel is already logged for that calendar day, the **Post reel** step is **skipped** (expected, green workflow). **`force: true`** bypasses that check for emergencies only (can ship a **second** reel the same day if the rest of the pipeline succeeds).
 
 ---
 

@@ -153,6 +153,12 @@ For facts where Archive has no relevant footage (most modern facts), every query
 
 **Only one local `make_reel.py` at a time (2026-05-04).** Several terminals or agents each starting a full reel left **multiple FFmpeg composes** at ~170% CPU each (fans pegged). **`fcntl` advisory lock** on `data/cache/reels/.make_reel.lock` makes a second run exit **10** with a clear message. **`scripts/kill_local_reel_jobs.sh`** kills matching FFmpeg + `make_reel.py` under this repo only. **Logs:** each run writes **`data/cache/reels/<id>/pipeline.log`** and **`logs/reel_runs/<UTC>_<id>.log`** (timestamped milestones plus anything sent through `ReelRunLogger.emit`).
 
+**FFmpeg compose exit 255 on Mac:** treat as a real filter / encode failure, not "slow init". Read **`ffmpeg_compose_stderr.log`** and **`ffmpeg_debug.txt`** under **`data/cache/reels/<id>/`**. Do not confuse with SIGTERM (below).
+
+**Local encode "frozen" at low frame count but stderr still growing:** on **Apple Silicon** + **`ffmpeg-full`**, full graphs (ass + many inputs + x264) have been observed at **~0.005x–0.02x** real-time (tens of minutes for tens of seconds of output). That is **not** the old stderr pipe deadlock if **`ffmpeg_compose_stderr.log`** keeps growing. For a reliable full encode + publish, use **`reel.yml`** on **ubuntu-latest** until the Mac path is profiled.
+
+**`Exiting normally, received signal 15`:** FFmpeg received **SIGTERM** ( **`kill_local_reel_jobs.sh`**, Cursor task timeout, manual **Stop**, or OS). Python often ends with **`exit 5`** after compose failure handling. Not a token or Meta error.
+
 ---
 
 ## Fix philosophy (mandatory)
