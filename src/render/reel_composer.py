@@ -311,7 +311,7 @@ def compose(
         *map_args,
         "-c:v", "libx264",
         "-preset", "medium",
-        "-crf", "26",
+        "-crf", "23",          # highest practical quality for delivery
         "-pix_fmt", "yuv420p",
         "-r", "30",
         "-c:a", "aac",
@@ -353,6 +353,61 @@ def compose(
         )
     size_mb = out_path.stat().st_size / 1024 / 1024
     print(f"  [ffmpeg] done -> {out_path.name} ({size_mb:.1f} MB)")
+
+    # Two-pass size fit: if the draft exceeds Meta's URL download limit (~4.8MB),
+    # re-encode the already-composed draft at a calculated target bitrate.
+    # Two-pass VBR allocates bits optimally across the video -- complex frames
+    # (transitions, motion) get more bits, static frames fewer -- so average
+    # bitrate hits the target without uniformly degrading every frame.
+    # Re-encoding from the draft (not the filter graph) is fast: no overlay
+    # compositing, no clip scaling -- just video decode + encode.
+    _META_LIMIT_MB = 4.7
+    _AUDIO_KBPS    = 128
+    if size_mb > _META_LIMIT_MB:
+        audio_bits    = _AUDIO_KBPS * 1000 * total_duration_s
+        target_bits   = _META_LIMIT_MB * 8 * 1024 * 1024
+        video_kbps    = max(350, int((target_bits - audio_bits) / total_duration_s / 1000))
+        print(f"  [ffmpeg] {size_mb:.1f}MB > {_META_LIMIT_MB}MB — two-pass VBR @ {video_kbps}k ...")
+        passlog = out_dir / "x264_2pass"
+        sized   = out_path.with_suffix(".sized.mp4")
+
+        def _run(cmd: list[str]) -> None:
+            with err_log.open("ab") as ef:
+                proc = subprocess.Popen(
+                    cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=ef
+                )
+                _register_active(proc)
+                proc.wait()
+                _register_active(None)
+            if proc.returncode != 0:
+                raw = err_log.read_bytes()[-4000:]
+                raise RuntimeError(
+                    f"Two-pass encode failed (exit {proc.returncode}).\n"
+                    + raw.decode("utf-8", errors="replace")
+                )
+
+        _run([
+            ffmpeg_bin, "-nostdin", "-y", "-i", str(out_path),
+            "-c:v", "libx264", "-preset", "medium",
+            "-b:v", f"{video_kbps}k", "-pass", "1",
+            "-passlogfile", str(passlog),
+            "-an", "-f", "null", "/dev/null",
+        ])
+        _run([
+            ffmpeg_bin, "-nostdin", "-y", "-i", str(out_path),
+            "-c:v", "libx264", "-preset", "medium",
+            "-b:v", f"{video_kbps}k", "-pass", "2",
+            "-passlogfile", str(passlog),
+            "-c:a", "copy",
+            "-movflags", "+faststart",
+            str(sized),
+        ])
+        sized.replace(out_path)
+        for f in out_dir.glob("x264_2pass*"):
+            f.unlink(missing_ok=True)
+        size_mb = out_path.stat().st_size / 1024 / 1024
+        print(f"  [ffmpeg] two-pass done -> {out_path.name} ({size_mb:.1f} MB)")
+
     return out_path
 
 

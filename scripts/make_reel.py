@@ -694,7 +694,9 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
             print(f"  [thumbnail] upload failed ({exc}) — publishing without cover")
             cover_url = None
 
-        # Step 10: Publish Reel — adaptive quality: if Meta 413s, recompress and retry
+        # Step 10: Publish Reel
+        # compose() already handles size: crf 23 first pass, two-pass VBR if >4.7MB.
+        # The 413 retry loop below is a last-resort safety net only.
         print("\nPublishing Reel to Instagram...")
         publisher = InstagramGraphPublisher(
             account_id=cfg.env["INSTAGRAM_ACCOUNT_ID"],
@@ -702,19 +704,6 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
             graph_version=cfg.env["META_GRAPH_VERSION"],
             host=cfg.env["META_GRAPH_HOST"],
         )
-
-        # Pre-upload size check: primary encode targets quality (crf 26, no maxrate).
-        # If the file is over Meta's ~5MB limit, recompress before the first upload
-        # attempt so we don't waste the round-trip + polling window on a guaranteed 413.
-        _SIZE_LIMIT_MB = 4.8
-        if final_mp4.stat().st_size / 1024 / 1024 > _SIZE_LIMIT_MB:
-            print(f"  [adaptive] primary encode {final_mp4.stat().st_size // 1024}KB > {_SIZE_LIMIT_MB}MB — pre-compressing...")
-            _presized = _recompress(final_mp4, crf=30, maxrate="800k", ffmpeg_bin=ff_bin)
-            if _presized.stat().st_size / 1024 / 1024 <= _SIZE_LIMIT_MB:
-                final_mp4 = _presized
-                video_url = _upload_video(final_mp4)
-            else:
-                print("  [adaptive] still over limit after crf 30 — will retry via 413 path")
 
         result = None
         for _attempt, (_crf, _rate) in enumerate([(None, None), (33, "600k"), (35, "500k")]):
