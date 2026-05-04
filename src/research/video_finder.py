@@ -383,10 +383,13 @@ def _pexels_video_url(query: str, topic: str, skip_urls: set[str] | None = None)
         return None
     candidates.sort(key=lambda x: -x[0])
     best_score, best_url, best_vid_id = candidates[0]
+    print(f"  [pexels] best match score={best_score} from {len(candidates)} results")
+    if best_score == 0:
+        print(f"  [pexels] score=0 — skipping (no relevant match)")
+        return None
     # Mark both the file URL and video ID so all quality variants are blocked
     if skip_urls is not None:
         skip_urls.add(f"pexels:{best_vid_id}")
-    print(f"  [pexels] best match score={best_score} from {len(candidates)} results")
     return best_url
 
 
@@ -588,9 +591,12 @@ def _coverr_video_url(query: str, topic: str, skip_urls: set[str] | None = None)
         if candidates:
             candidates.sort(key=lambda x: -x[0])
             best_score, best_url, best_id = candidates[0]
+            print(f"  [coverr] best match score={best_score} from {len(candidates)} results")
+            if best_score == 0:
+                print(f"  [coverr] score=0 — skipping (no relevant match)")
+                return None
             if skip_urls is not None:
                 skip_urls.add(f"coverr:{best_id}")
-            print(f"  [coverr] best match score={best_score} from {len(candidates)} results")
             return best_url
     except Exception:
         pass
@@ -633,9 +639,12 @@ def _pixabay_video_url(query: str, topic: str, skip_urls: set[str] | None = None
         return None
     candidates.sort(key=lambda x: -x[0])
     best_score, best_url, best_id = candidates[0]
+    print(f"  [pixabay] best match score={best_score} from {len(candidates)} results")
+    if best_score == 0:
+        print(f"  [pixabay] score=0 — skipping (no relevant match)")
+        return None
     if skip_urls is not None:
         skip_urls.add(f"pixabay:{best_id}")
-    print(f"  [pixabay] best match score={best_score} from {len(candidates)} results")
     return best_url
 
 
