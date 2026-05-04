@@ -102,6 +102,32 @@ def _pump_ffmpeg_stderr(
 _STILL_IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg", ".png", ".webp"})
 
 
+_STILL_MAX_PX = 1920
+
+
+def _normalise_still(still_path: Path, out_dir: Path) -> Path:
+    """Normalise a still image so FFmpeg's PNG/JPEG decoder never crashes.
+
+    Wikimedia images arrive in any format: RGBA, P (palette), 16-bit, CMYK,
+    extremely high-res (8640x5760 seen in the wild). FFmpeg's dec:png crashes
+    on unusual pixel formats with error -1145393733. Pillow handles all of
+    them; we convert to clean RGB JPEG capped at _STILL_MAX_PX on the long
+    edge, then FFmpeg receives a perfectly standard input.
+    """
+    from PIL import Image  # noqa: import inside fn keeps startup fast
+
+    img = Image.open(still_path)
+    if img.mode not in ("RGB", "L"):
+        img = img.convert("RGB")
+    w, h = img.size
+    if max(w, h) > _STILL_MAX_PX:
+        scale = _STILL_MAX_PX / max(w, h)
+        img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+    norm_path = out_dir / f"_norm_{still_path.stem}.jpg"
+    img.save(norm_path, "JPEG", quality=95)
+    return norm_path
+
+
 def _still_to_mp4(
     still_path: Path,
     duration_s: float,
@@ -109,6 +135,10 @@ def _still_to_mp4(
     ffmpeg_bin: str = "ffmpeg",
 ) -> Path:
     """Convert a still image to a fixed-duration 30 fps H264 MP4.
+
+    Normalises the image through Pillow first (converts any pixel mode to RGB,
+    caps resolution at _STILL_MAX_PX). This prevents FFmpeg's dec:png from
+    crashing on RGBA, 16-bit, CMYK, or extremely large images.
 
     Applies a cinematic grade so archival photos feel documentary rather
     than PowerPoint:
@@ -127,6 +157,7 @@ def _still_to_mp4(
     clip in the main compose -- no special-casing, no deadlock.
     Works identically on CI and local Mac.
     """
+    norm = _normalise_still(still_path, out_path.parent)
     vf = ",".join([
         "scale=trunc(iw/2)*2:trunc(ih/2)*2",
         "hue=s=0.82",                        # subtle desaturation
@@ -135,7 +166,7 @@ def _still_to_mp4(
     ])
     cmd = [
         ffmpeg_bin, "-y",
-        "-loop", "1", "-framerate", "30", "-i", str(still_path),
+        "-loop", "1", "-framerate", "30", "-i", str(norm),
         "-t", f"{duration_s:.3f}",
         "-vf", vf,
         "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
@@ -147,25 +178,12 @@ def _still_to_mp4(
     if proc.returncode != 0 or size == 0:
         err = proc.stderr.decode("utf-8", errors="replace")[-600:]
         out_path.unlink(missing_ok=True)
+        norm.unlink(missing_ok=True)
         raise RuntimeError(
             f"Still pre-render failed for {still_path.name} "
             f"(exit={proc.returncode}, size={size}): {err}"
         )
-    return out_path
-
-
-def _black_fill_mp4(duration_s: float, out_path: Path, ffmpeg_bin: str = "ffmpeg") -> Path:
-    """Generate a solid black H264 clip as a fallback when a still pre-render fails."""
-    cmd = [
-        ffmpeg_bin, "-y",
-        "-f", "lavfi", "-i", f"color=c=black:s=1080x1920:r=30:d={duration_s:.3f}",
-        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
-        "-pix_fmt", "yuv420p",
-        str(out_path),
-    ]
-    proc = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True)
-    if proc.returncode != 0 or not out_path.exists():
-        raise RuntimeError("black fill fallback also failed — check FFmpeg installation")
+    norm.unlink(missing_ok=True)
     return out_path
 
 
@@ -308,11 +326,7 @@ def compose(
             rendered = out_path.parent / f"still_rendered_{fp.stem}.mp4"
             if not rendered.exists():
                 print(f"  [ffmpeg] pre-rendering still {fp.name} -> {rendered.name} ({dur:.1f}s)")
-                try:
-                    _still_to_mp4(fp, dur, rendered, ffmpeg_bin)
-                except RuntimeError as _pre_err:
-                    print(f"  [ffmpeg] WARNING: still {fp.name} failed pre-render, using black fill — {_pre_err!s:.100}")
-                    _black_fill_mp4(dur, rendered, ffmpeg_bin)
+                _still_to_mp4(fp, dur, rendered, ffmpeg_bin)
             rendered_footage.append(rendered)
         else:
             rendered_footage.append(fp)
