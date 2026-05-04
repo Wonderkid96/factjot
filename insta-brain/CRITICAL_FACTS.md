@@ -28,7 +28,7 @@ Never call the wrong script for the wrong format. Never mix terminology in log e
   - Sunday 04:00 UTC — weekly plan + token refresh + fact discovery
   - List posts: manual, shipped via `ship_list_post.py` when a pack is ready
 - **Scheduler:** GitHub Actions (repo: Wonderkid96/factjot). Mac launchd ALL DISABLED.
-- **Repo root:** `/Users/Music/Documents/Insta-bot`
+- **Repo root:** `/Users/Music/Developer/Insta-bot`
 
 ## Hard rules (non-negotiable)
 1. **Never repost a fact.** Hash check `data/posted.jsonl` before generation.

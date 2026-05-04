@@ -105,7 +105,7 @@ make_reel.py
 
 **Run commands (local, Mac):**
 ```bash
-cd /Users/Music/Documents/Insta-bot
+cd /Users/Music/Developer/Insta-bot
 # If `ffmpeg -h filter=ass` fails, install libass-capable FFmpeg (e.g. brew ffmpeg-full) then:
 # export FFMPEG_BIN="$(brew --prefix ffmpeg-full)/bin/ffmpeg"
 /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/make_reel.py

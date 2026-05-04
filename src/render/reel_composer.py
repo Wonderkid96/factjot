@@ -242,12 +242,23 @@ def compose(
         fonts_dir=fonts_dir,
     )
 
-    # Do NOT use `-progress pipe:2` here. That streams high-volume progress to stderr.
-    # When stderr is inherited from a parent whose stderr is a pipe (Cursor agent capture,
-    # some CI wrappers), the pipe buffer fills, FFmpeg blocks on write(), and the job
-    # looks hung for hours. Progress for humans belongs in a file (below) or nowhere.
+    # Progress reporting:
+    #   -stats (forced) emits the once-per-second `frame=… time=… speed=` line
+    #     even when stderr is redirected to a file (FFmpeg suppresses by default
+    #     when stderr is not a TTY).
+    #   -progress <file> writes structured key=value progress to a dedicated file
+    #     for easy parsing / live-tail.
+    # Do NOT use `-progress pipe:2` (or pipe:1). When stderr is inherited from a
+    # parent whose stderr is a pipe (Cursor agent capture, some CI wrappers), the
+    # pipe buffer fills, FFmpeg blocks on write(), and the job looks hung for hours.
+    # Both signals go to files on disk -- never to a pipe.
+    out_dir = out_path.parent
+    err_log = out_dir / "ffmpeg_compose_stderr.log"
+    progress_log = out_dir / "ffmpeg_progress.txt"
     cmd = [
         ffmpeg_bin, "-nostdin", "-y",
+        "-stats",
+        "-progress", str(progress_log),
         *inputs,
         "-filter_complex", _join_filters(filter_parts),
         *map_args,
@@ -269,9 +280,8 @@ def compose(
     ]
 
     print(f"  [ffmpeg] composing {len(overlays)} overlays, duration={total_duration_s:.1f}s")
-    out_dir = out_path.parent
-    err_log = out_dir / "ffmpeg_compose_stderr.log"
     print(f"  [ffmpeg] stderr -> {err_log.name} (avoids pipe deadlock; tail on failure)")
+    print(f"  [ffmpeg] progress -> {progress_log.name} (tail for frame/time/speed)")
     debug_path = out_dir / "ffmpeg_debug.txt"
     debug_path.write_text(
         "FFmpeg command:\n" + " ".join(cmd) + "\n\n"

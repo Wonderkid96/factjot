@@ -5,7 +5,7 @@ Every agent that touches this codebase or this brain reads the following files, 
 
 ```
 1. /Users/Music/.claude/CLAUDE.md            — Toby's universal rules
-2. /Users/Music/Documents/Insta-bot/CLAUDE.md — repo-level rules
+2. /Users/Music/Developer/Insta-bot/CLAUDE.md — repo-level rules
 3. insta-brain/CLAUDE.md                      — brain operating manual
 4. insta-brain/CRITICAL_FACTS.md              — top-level invariants
 5. insta-brain/gotchas.md                     — incident log (same as note [[gotchas]]); read before pipeline changes
