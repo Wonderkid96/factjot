@@ -394,7 +394,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 272841,  # It Follows (2014) - David Robert Mitchell
+                "tmdb_id": 270303,  # It Follows (2015) - David Robert Mitchell
                 "expected_title": "It Follows",
                 "hook": "After a sexual encounter, something starts following you. It walks. It never stops. The concept is simple and relentless.",
                 "accent_word": "walks. It never stops",
