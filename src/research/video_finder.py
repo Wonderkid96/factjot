@@ -45,24 +45,33 @@ _MIN_BYTES_ARK = 50_000         # 50 KB floor for archival/historical content
 _MIN_CLIP_DURATION_S = 4.0      # hard minimum: clips shorter than this loop and jolt
 
 
+_IMAGE_MAGIC = {
+    b"\xff\xd8\xff":       "jpeg",  # JPEG
+    b"\x89PNG\r\n\x1a\n":  "png",   # PNG
+    b"RIFF":               "webp",  # WebP (followed by ....WEBP)
+    b"GIF87a":             "gif",   # GIF87
+    b"GIF89a":             "gif",   # GIF89
+}
+
+
 def _valid_image(path: Path) -> bool:
-    """Return True if path is a decodable image with a video stream.
+    """Return True if path starts with a known image magic-byte signature.
 
-    Rejects DjVu-as-PNG, truncated downloads, and 0x0 placeholders before
-    they reach the compose step.
-
-    Uses -show_streams (not -show_entries stream=width,height) because the
-    latter returns no output for JPEG/PNG stills on some FFmpeg builds,
-    causing valid images to be incorrectly rejected. Presence of
-    codec_type=video is sufficient to confirm the file is decodable.
+    Pure-Python, no external binary. Rejects DjVu-as-PNG (starts with
+    'AT&T' or 'FORM'), truncated files, and any non-image content that
+    has been given a .jpg/.png extension by Wikimedia/Wikipedia.
     """
     try:
-        result = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_streams", str(path)],
-            capture_output=True, timeout=5,
-        )
-        out = result.stdout.decode("utf-8", errors="replace")
-        return "codec_type=video" in out
+        with open(path, "rb") as f:
+            header = f.read(12)
+        if not header:
+            return False
+        for magic, fmt in _IMAGE_MAGIC.items():
+            if header.startswith(magic):
+                if fmt == "webp":
+                    return header[8:12] == b"WEBP"
+                return True
+        return False
     except Exception:
         return False
 
