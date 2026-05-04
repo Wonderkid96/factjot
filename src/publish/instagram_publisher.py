@@ -247,9 +247,23 @@ class InstagramGraphPublisher:
         if "id" not in publish_result:
             return {"ok": False, "error": f"Reel publish failed: {publish_result}"}
 
-        ig_media_id = publish_result["id"]
         recovered = publish_result.get("_recovered", False)
-        print(f"  [reels] published ig_media_id={ig_media_id}" + (" (recovered)" if recovered else ""))
+
+        # The ID returned by media_publish is an internal container-publish ID that
+        # does not always match the public media ID visible in /{account}/media.
+        # Verify by fetching the most recently published REELS post -- that gives the
+        # canonical media ID needed for insights, permalinks, and dedup ledgers.
+        time.sleep(5)
+        real_id = self._find_recently_published(
+            since_ts=publish_started_at - 5,
+            expected_media_type="REELS",
+            within_seconds=120,
+        )
+        ig_media_id = real_id or publish_result["id"]
+        if real_id:
+            print(f"  [reels] published ig_media_id={ig_media_id} (verified via /media)")
+        else:
+            print(f"  [reels] published ig_media_id={ig_media_id} (unverified — not yet in /media)")
         return {"ok": True, "ig_media_id": ig_media_id}
 
     def _find_recently_published(
