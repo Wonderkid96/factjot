@@ -42,7 +42,7 @@ _HTTP_TIMEOUT = 10   # was 20 - trimmed to cut Archive.org timeout loops on miss
 _MAX_BYTES = 15 * 1024 * 1024   # 15 MB ceiling per clip
 _MIN_BYTES_HD  = 2_000_000      # 2 MB floor - filters out sub-3s clips at typical bitrates
 _MIN_BYTES_ARK = 50_000         # 50 KB floor for archival/historical content
-_MIN_CLIP_DURATION_S = 4.0      # hard minimum: clips shorter than this loop and jolt
+_MIN_CLIP_DURATION_S = 8.0      # minimum: clips shorter than this need significant freeze-frame padding
 
 
 _IMAGE_MAGIC = {

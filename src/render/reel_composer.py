@@ -528,11 +528,12 @@ def _build_filter_graph(
         intro_input_idx = -1
         footage_offset = 0
 
-    # Inputs: each footage clip with stream_loop -1 so short clips can stretch.
-    # Stills are pre-rendered to MP4 by compose() before this point, so all
-    # footage_paths here are proper video files -- no special-casing needed.
+    # Inputs: footage clips without stream_loop. Short clips are padded with
+    # a freeze-frame of the last frame inside the filter graph (tpad), which
+    # is far less jarring than the visible content-loop that stream_loop -1
+    # causes when a clip is shorter than its assigned window.
     for fp in footage_paths:
-        inputs += ["-stream_loop", "-1", "-i", str(fp)]
+        inputs += ["-i", str(fp)]
     voice_idx = len(footage_paths) + footage_offset
     inputs += ["-i", str(voice_path)]
 
@@ -582,6 +583,8 @@ def _build_filter_graph(
             f"scale={ow}:{oh}:force_original_aspect_ratio=increase:flags=bicubic,"
             f"crop={ow}:{oh}:(iw-{ow})/2:(ih-{oh})/2,"
             f"setsar=1,"
+            f"setpts=PTS-STARTPTS,"
+            f"tpad=stop=-1:stop_mode=clone,"
             f"trim=duration={dur:.3f},"
             f"setpts=PTS-STARTPTS,"
             f"crop=1080:1920:x='{pan_x}':y={pan_y_mid}"
@@ -656,7 +659,7 @@ def _build_filter_graph(
         )
         filter_lines.append(
             f"[{prev}][intro_alpha]"
-            f"overlay=0:0:enable='between(t,0,{intro_dur})':format=yuv420:eof_action=pass"
+            f"overlay=0:0:enable='between(t,0,{intro_dur})':format=rgba:eof_action=pass"
             f"[after_intro]"
         )
         prev = "after_intro"
