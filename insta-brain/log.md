@@ -1,6 +1,11 @@
 # factjot brain log
 
-- 2026-05-04 09:01 WORKFLOW FAILED: .github/workflows/carousel-morning.yml | run=25310310892 | trigger=workflow_dispatch | ref=main
+- 2026-05-04 09:12 reel 483c2486f009c7 published (history, ig_media=18086655002617788)
+- 2026-05-04 08:21 discovery: appended 1 fresh facts from r/Damnthatsinteresting, r/interestingasfuck, r/UnresolvedMysteries, r/AskHistorians, r/history, wikipedia:unusual_deaths (rejected 418)
+- 2026-05-04 07:57 reel 21f827c2754169 published (history, ig_media=18103983716497930)
+- 2026-05-04 07:53 reel FAILED ffmpeg — fact='In 1937 a defrocked English priest named Harold Davidson was' error=Still pre-render failed for wm_entity_69acc28626.jpg: ffmpeg version 8.1 Copyright (c) 2000-2026 the FFmpeg developers
+  built with Apple clang version 21.0.0 (clang-2100.0.123.102)
+  configuration: --prefix=/opt/homebrew/Cellar/ffmpeg-full/8.1_1 --enable-shared --enable-pthreads --enable-version3 -
 - 2026-05-05 agent: MEMORY_INDEX, gotchas, rules/06, PUBLISH_PLAN, root CLAUDE + insta-brain CLAUDE updated (commit hygiene 0eba2a4; background tasks exit 5 triage: FFmpeg 255 vs SIGTERM 15; reel.yml dispatch skip vs force).
 - 2026-05-03 23:04 reel FAILED ffmpeg — fact='Some people with damage to the primary visual cortex insist ' error=FFmpeg failed (exit 255). See ffmpeg_debug.txt (command) and ffmpeg_compose_stderr.log (stderr tail below).
 e= 457.6kbits/s speed=0.00464x elapsed=0:32:56.40    
