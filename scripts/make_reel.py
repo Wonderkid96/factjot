@@ -322,7 +322,13 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         claim    = fact["claim"]
         ftopic   = fact["topic"]
         hint     = fact.get("image_hint", "")
-        reel_id  = hashlib.sha1(f"reel:{ftopic}:{claim}".encode()).hexdigest()[:14]
+        # Include a timestamp so every run gets a unique cache directory.
+        # Without this, re-running the same fact reuses the same cache dir
+        # and serves stale footage from a previous test or deleted reel.
+        import time as _t
+        reel_id  = hashlib.sha1(
+            f"reel:{ftopic}:{claim}:{int(_t.time())}".encode()
+        ).hexdigest()[:14]
         out_dir  = REELS_CACHE / reel_id
         out_dir.mkdir(parents=True, exist_ok=True)
         ensure_dirs()
@@ -449,8 +455,15 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         allow_archival = bool(fact.get("allow_archival", False))
         print(f"\nFinding {n_clips} footage clips (allow_archival={allow_archival})...")
 
-        # Load global footage registry — prevents the same clip appearing in two different reels
+        # Load global footage registry — prevents the same clip appearing in two different reels.
+        # Auto-reset: if reels.jsonl is empty (all reels deleted/fresh start), the dedup
+        # ledger would only block footage from deleted reels. Clear it automatically.
         from src.core.paths import USED_FOOTAGE
+        _reels_log = ROOT / "insta-brain" / "data" / "reels.jsonl"
+        _reels_empty = not _reels_log.exists() or _reels_log.stat().st_size == 0
+        if _reels_empty and USED_FOOTAGE.exists() and USED_FOOTAGE.stat().st_size > 0:
+            print("  [footage] reels.jsonl is empty — resetting footage dedup ledger for fresh start")
+            USED_FOOTAGE.write_text("")
         global_footage_registry: set[str] = set()
         if USED_FOOTAGE.exists():
             for line in USED_FOOTAGE.read_text().splitlines():
