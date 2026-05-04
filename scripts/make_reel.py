@@ -330,11 +330,18 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
             f"reel:{ftopic}:{claim}:{int(_t.time())}".encode()
         ).hexdigest()[:14]
         out_dir  = REELS_CACHE / reel_id
-        # Wipe any existing directory before creating — guarantees no
-        # leftover footage from a previous run bleeds into this one.
-        if out_dir.exists():
-            import shutil as _sh
-            _sh.rmtree(out_dir)
+        # Wipe ALL previous reel cache directories before starting.
+        # Each run gets a unique ID so out_dir never existed before,
+        # but old run directories accumulate on disk and their footage
+        # filenames could interfere with dedup logic. Deleting them all
+        # is the only complete guarantee of zero cross-run contamination.
+        # The URL/Pexels-ID ledger (used_footage_urls.jsonl) still
+        # prevents the same stock clip appearing in two posted reels.
+        import shutil as _sh
+        if REELS_CACHE.exists():
+            for _old in list(REELS_CACHE.iterdir()):
+                if _old.is_dir():
+                    _sh.rmtree(_old, ignore_errors=True)
         out_dir.mkdir(parents=True, exist_ok=True)
         ensure_dirs()
         rlog = ReelRunLogger(reel_id=reel_id, out_dir=out_dir, run_logs_dir=REEL_RUN_LOGS)
@@ -487,19 +494,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
                 except Exception:
                     pass
 
-        # Safety net: scan ALL existing reel cache dirs and block every
-        # footage/entity filename found there. This catches files from runs
-        # that completed before the filename-logging fix, ensuring zero
-        # cross-reel footage reuse regardless of ledger state.
-        _footage_exts = frozenset({".mp4", ".jpg", ".jpeg", ".png", ".webp"})
-        _footage_pfxs = ("footage_", "wm_entity_", "wiki_lead_", "wiki_article_", "still_rendered_")
-        for _prev_dir in REELS_CACHE.iterdir():
-            if not _prev_dir.is_dir() or _prev_dir == out_dir:
-                continue
-            for _pf in _prev_dir.iterdir():
-                if _pf.suffix.lower() in _footage_exts and any(_pf.name.startswith(pfx) for pfx in _footage_pfxs):
-                    blocked_footage_filenames.add(_pf.stem)
-        print(f"  [footage] blocking {len(blocked_footage_filenames)} known footage files from previous reels")
+        print(f"  [footage] blocking {len(blocked_footage_filenames)} URLs/IDs from previous reels (ledger)")
 
         footage_clips = find_videos(
             image_hint=hint, claim=claim, topic=ftopic,
