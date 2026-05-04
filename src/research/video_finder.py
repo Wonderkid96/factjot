@@ -29,6 +29,7 @@ import hashlib
 import os
 import re
 import subprocess
+import time
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -45,23 +46,23 @@ _MIN_CLIP_DURATION_S = 4.0      # hard minimum: clips shorter than this loop and
 
 
 def _valid_image(path: Path) -> bool:
-    """Return True if path is a decodable image with non-zero dimensions.
+    """Return True if path is a decodable image with a video stream.
 
-    Rejects corrupt files returned by Wikimedia/Wikipedia that have a valid
-    image extension but are actually DjVu documents, truncated downloads, or
-    0x0 placeholders — catching them here avoids a silent 0-byte still_rendered.mp4.
+    Rejects DjVu-as-PNG, truncated downloads, and 0x0 placeholders before
+    they reach the compose step.
+
+    Uses -show_streams (not -show_entries stream=width,height) because the
+    latter returns no output for JPEG/PNG stills on some FFmpeg builds,
+    causing valid images to be incorrectly rejected. Presence of
+    codec_type=video is sufficient to confirm the file is decodable.
     """
     try:
         result = subprocess.run(
-            ["ffprobe", "-v", "quiet",
-             "-show_entries", "stream=width,height",
-             "-of", "default=noprint_wrappers=1", str(path)],
+            ["ffprobe", "-v", "error", "-show_streams", str(path)],
             capture_output=True, timeout=5,
         )
         out = result.stdout.decode("utf-8", errors="replace")
-        width  = next((int(l.split("=")[1]) for l in out.splitlines() if l.startswith("width=")),  0)
-        height = next((int(l.split("=")[1]) for l in out.splitlines() if l.startswith("height=")), 0)
-        return width > 0 and height > 0
+        return "codec_type=video" in out
     except Exception:
         return False
 
