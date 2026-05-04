@@ -330,6 +330,11 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
             f"reel:{ftopic}:{claim}:{int(_t.time())}".encode()
         ).hexdigest()[:14]
         out_dir  = REELS_CACHE / reel_id
+        # Wipe any existing directory before creating — guarantees no
+        # leftover footage from a previous run bleeds into this one.
+        if out_dir.exists():
+            import shutil as _sh
+            _sh.rmtree(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         ensure_dirs()
         rlog = ReelRunLogger(reel_id=reel_id, out_dir=out_dir, run_logs_dir=REEL_RUN_LOGS)
@@ -464,21 +469,28 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         if _reels_empty and USED_FOOTAGE.exists() and USED_FOOTAGE.stat().st_size > 0:
             print("  [footage] reels.jsonl is empty — resetting footage dedup ledger for fresh start")
             USED_FOOTAGE.write_text("")
-        global_footage_registry: set[str] = set()
+        global_footage_registry: set[str] = set()   # blocked URLs + video IDs
+        blocked_footage_filenames: set[str] = set() # blocked filename stems
         if USED_FOOTAGE.exists():
             for line in USED_FOOTAGE.read_text().splitlines():
                 line = line.strip()
-                if line:
-                    try:
-                        global_footage_registry.add(json.loads(line)["url"])
-                    except Exception:
-                        pass
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                    if "url" in entry:
+                        global_footage_registry.add(entry["url"])
+                    if "filename" in entry:
+                        blocked_footage_filenames.add(entry["filename"])
+                except Exception:
+                    pass
 
         footage_clips = find_videos(
             image_hint=hint, claim=claim, topic=ftopic,
             out_dir=out_dir, count=n_clips,
             allow_archival=allow_archival,
             used_source_registry=global_footage_registry,
+            blocked_filenames=blocked_footage_filenames,
         )
         if not footage_clips:
             print("ERROR: could not find any footage. Pre-download safety pool clips with:")
@@ -597,11 +609,14 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
             brain.append_log(f"reel FAILED ffmpeg — fact={claim[:60]!r} error={str(exc)[:300]}")
             return 5
 
-        # Persist global footage registry — append any newly used URLs so future reels skip them
+        # Persist footage dedup ledger — log both URLs and filenames so future
+        # reels can block by content (filename) not just by source URL.
         USED_FOOTAGE.parent.mkdir(parents=True, exist_ok=True)
         with USED_FOOTAGE.open("a") as _reg_f:
             for _url in sorted(global_footage_registry):
                 _reg_f.write(json.dumps({"url": _url, "reel_id": reel_id}) + "\n")
+            for _clip in footage_clips:
+                _reg_f.write(json.dumps({"filename": _clip.stem, "reel_id": reel_id}) + "\n")
 
         print(f"\nReel composed: {final_mp4}")
         print(f"  size: {final_mp4.stat().st_size / 1024 / 1024:.1f} MB")

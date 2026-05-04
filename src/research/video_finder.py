@@ -150,6 +150,7 @@ def find_videos(
     use_narrative_beats: bool = True,
     allow_archival: bool = False,
     used_source_registry: set[str] | None = None,
+    blocked_filenames: set[str] | None = None,
 ) -> list[Path]:
     """Find `count` distinct portrait videos for this fact.
 
@@ -189,6 +190,9 @@ def find_videos(
     used_paths: set[str] = set()       # local file paths already in this batch
     # Seed from global registry so clips used in previous reels are skipped
     used_source_urls: set[str] = set(used_source_registry or ())
+    # Filename-level dedup: blocks clips whose content appeared in a previous
+    # reel even if the download URL has changed (e.g. different resolution).
+    _blocked_stems: set[str] = set(blocked_filenames or ())
     safety = _safety_pool_pick(topic) or []
     safety_idx = 0
 
@@ -231,8 +235,13 @@ def find_videos(
             used_source_urls=used_source_urls,
         )
         if path and str(path) not in used_paths:
+            if _blocked_stems and path.stem in _blocked_stems:
+                print(f"  [video] {label} SKIP {path.name} (filename used in a previous reel)")
+                path.unlink(missing_ok=True)
+                continue
             clips.append(path)
             used_paths.add(str(path))
+            _blocked_stems.add(path.stem)   # block within this run too
             print(f"  [video] {label} ✓ {path.name}")
 
     # Top up from safety pool
