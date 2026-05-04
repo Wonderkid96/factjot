@@ -52,7 +52,7 @@ from src.render.reel_text_renderer import (
     TextFrame,
 )
 from src.content.reel_title import make_title
-from src.render.tts_engine import generate_ass_file, group_into_chunks, synthesise
+from src.render.tts_engine import group_into_chunks, synthesise
 from src.research.rare_fact_bank import load_all_facts
 from src.research.video_finder import find_videos
 from src.utils.logging_utils import configure_logging
@@ -489,18 +489,26 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         else:
             subtitle_start_gate = 0.0
 
-        # 5d: KINETIC SUBTITLES via .ass file — one FFmpeg filter pass.
-        # Previously used 20+ sequential PNG overlay stages; now a single
-        # native libass render. generate_ass_file() handles timing offsets.
-        ass_path = out_dir / "subtitles.ass"
-        generate_ass_file(
-            chunks,
-            ass_path,
-            voice_delay_s=INTRO_S,
-            cta_start_s=cta_s,
-            subtitle_start_gate=subtitle_start_gate,
-        )
-        print(f"  kinetic subtitles: {len(chunks)} chunks -> {ass_path.name}")
+        # 5d: KINETIC SUBTITLES via PNG overlays — one PNG per subtitle chunk.
+        # Each chunk is a static image shown during its word-beat window.
+        # Simpler than libass and avoids the ass filter deadlock on macOS ffmpeg-full.
+        _sub_count = 0
+        for _ci, _chunk in enumerate(chunks):
+            _raw_start = _chunk[0].start_s + INTRO_S
+            if _ci + 1 < len(chunks):
+                _raw_end = chunks[_ci + 1][0].start_s + INTRO_S
+            else:
+                _raw_end = _chunk[-1].end_s + INTRO_S + 0.35
+            _start = max(_raw_start, subtitle_start_gate)
+            _end = min(_raw_end, cta_s - 0.05)
+            if _start >= _end:
+                continue
+            _text = " ".join(b.word for b in _chunk)
+            _chunk_path = overlay_dir / f"chunk_{_ci:02d}.png"
+            text_frames.append(TextFrame(style="subtitle", text=_text, out_path=_chunk_path))
+            overlays.append(OverlayFrame(png=_chunk_path, start_s=_start, end_s=_end, fade_in_s=0.0, fade_out_s=0.0))
+            _sub_count += 1
+        print(f"  kinetic subtitles: {len(chunks)} chunks -> {_sub_count} subtitle PNGs")
 
         # 5d: CTA frame
         cta_path = overlay_dir / "cta.png"
@@ -533,10 +541,6 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
                 total_duration_s=total_dur,
                 voice_delay_s=INTRO_S,
                 ffmpeg_bin=ff_bin,
-                subtitle_ass_path=ass_path,
-                # Pass only the one font .ass needs - loading all 14 fonts twice
-                # was adding ~20s of fontconfig overhead before encoding started.
-                fonts_dir=Path(__file__).resolve().parents[1] / "assets" / "fonts" / "subtitle_fonts",
             )
         except RuntimeError as exc:
             print(f"\nFFmpeg error:\n{exc}")

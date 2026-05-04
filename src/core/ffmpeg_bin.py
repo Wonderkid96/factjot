@@ -1,8 +1,8 @@
-"""Resolve the FFmpeg binary and validate features required for Reel compose.
+"""Resolve the FFmpeg binary and validate it works for Reel compose.
 
-Default Homebrew `ffmpeg` bottles often omit libass, so the `ass` filter is
-missing and local `make_reel.py` fails while CI (static FFmpeg) succeeds.
-Set FFMPEG_BIN to a full path (e.g. brew ffmpeg-full) when needed.
+Set FFMPEG_BIN to override the binary (e.g. brew ffmpeg-full when system ffmpeg
+has broken dependencies). On macOS the default Homebrew ffmpeg may have stale
+dynamic library references after upgrades.
 """
 from __future__ import annotations
 
@@ -32,39 +32,39 @@ def resolve_ffmpeg_bin() -> str:
     return "ffmpeg"
 
 
-def assert_ffmpeg_has_ass(ffmpeg_bin: str) -> None:
-    """Raise RuntimeError if this build cannot run the native subtitles filter."""
+def assert_ffmpeg_runs(ffmpeg_bin: str) -> None:
+    """Raise RuntimeError if the binary cannot execute at all."""
     try:
         proc = subprocess.run(
-            [ffmpeg_bin, "-loglevel", "quiet", "-h", "filter=ass"],
+            [ffmpeg_bin, "-version"],
             capture_output=True,
             timeout=20,
         )
     except FileNotFoundError as exc:
         raise RuntimeError(
             "ffmpeg not found. Install FFmpeg or set FFMPEG_BIN to the full path "
-            "of an ffmpeg binary (see gotchas: Local macOS FFmpeg)."
+            "of a working ffmpeg binary.\n"
+            "On macOS: brew install ffmpeg-full && "
+            "export FFMPEG_BIN=\"$(brew --prefix ffmpeg-full)/bin/ffmpeg\""
         ) from exc
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(
-            f"ffmpeg {ffmpeg_bin!r} timed out while probing filters."
+            f"ffmpeg {ffmpeg_bin!r} timed out on -version probe."
         ) from exc
 
     if proc.returncode != 0:
+        stderr = proc.stderr.decode("utf-8", errors="replace")[:500]
         raise RuntimeError(
-            f"The ffmpeg at {ffmpeg_bin!r} does not provide the `ass` filter "
-            "(libass). Kinetic subtitles require it.\n\n"
-            "Fix (Homebrew example):\n"
-            "  brew install ffmpeg-full\n"
-            "  export PATH=\"$(brew --prefix ffmpeg-full)/bin:$PATH\"\n"
-            "or once per shell:\n"
-            "  export FFMPEG_BIN=\"$(brew --prefix ffmpeg-full)/bin/ffmpeg\"\n"
-            "Then re-run make_reel.py."
+            f"ffmpeg at {ffmpeg_bin!r} failed to run (exit {proc.returncode}).\n"
+            f"Stderr: {stderr}\n"
+            "On macOS this usually means a broken dynamic library (e.g. libvpx updated).\n"
+            "Fix: brew install ffmpeg-full && "
+            "export FFMPEG_BIN=\"$(brew --prefix ffmpeg-full)/bin/ffmpeg\""
         )
 
 
 def assert_reel_ffmpeg_ready() -> str:
-    """Resolve ffmpeg and verify ASS works. Returns the path for subprocess calls."""
+    """Resolve ffmpeg and verify it runs. Returns the path for subprocess calls."""
     fb = resolve_ffmpeg_bin()
-    assert_ffmpeg_has_ass(fb)
+    assert_ffmpeg_runs(fb)
     return fb

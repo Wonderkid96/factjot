@@ -149,7 +149,9 @@ For facts where Archive has no relevant footage (most modern facts), every query
 
 ## Local macOS (FFmpeg)
 
-**Default Homebrew `ffmpeg` often has no `ass` filter (no libass).** `make_reel.py` probes on startup via `ffmpeg -h filter=ass`. If it fails: `brew install ffmpeg-full` then put that binary first on `PATH`, or set **`FFMPEG_BIN`** to the full path (for example `export FFMPEG_BIN="$(brew --prefix ffmpeg-full)/bin/ffmpeg"`). CI static FFmpeg already includes libass.
+**Subtitles use PNG overlays, not the `.ass` filter.** The ass filter was tried (commit 6ba92ce) but caused a hard deadlock at frame ~275 on ffmpeg-full/macOS -- the frame counter froze completely (not just slow; zero progress for 33 minutes) before receiving SIGTERM and exiting 255. Root cause was not fully isolated but the deadlock was reproducible. Reverted to per-chunk PNG overlays with `enable='between(t,...)'` windows. PNG overlays are proven to work on CI and are simple to debug.
+
+**Default Homebrew `ffmpeg` (8.0.1_2) is broken after libvpx upgrade.** After Homebrew updated libvpx from v11 to 1.16.0, `ffmpeg 8.0.1_2` crashes with `dyld: Library not loaded: libvpx.11.dylib`. Use `ffmpeg-full` instead: `brew install ffmpeg-full` then `export FFMPEG_BIN="$(brew --prefix ffmpeg-full)/bin/ffmpeg"`. The `assert_reel_ffmpeg_ready()` probe now checks `-version` (not `-h filter=ass`) so it catches this broken-binary case correctly.
 
 **Only one local `make_reel.py` at a time (2026-05-04).** Several terminals or agents each starting a full reel left **multiple FFmpeg composes** at ~170% CPU each (fans pegged). **`fcntl` advisory lock** on `data/cache/reels/.make_reel.lock` makes a second run exit **10** with a clear message. **`scripts/kill_local_reel_jobs.sh`** kills matching FFmpeg + `make_reel.py` under this repo only. **Logs:** each run writes **`data/cache/reels/<id>/pipeline.log`** and **`logs/reel_runs/<UTC>_<id>.log`** (timestamped milestones plus anything sent through `ReelRunLogger.emit`).
 
