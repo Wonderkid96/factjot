@@ -187,8 +187,8 @@ def find_videos(
     # this finds the actual photo of Phineas Gage, the portrait of Arkhipov,
     # the historical photo of the Radium Girls, etc. Fall back to image_hint
     # if the claim has no extractable named entity.
-    from src.research.narrative_beats import extract_entities as _extract_ents
-    _claim_ents = _extract_ents(claim)
+    from src.research.narrative_beats import extract_entities
+    _claim_ents = extract_entities(claim)
     _entity_terms: list[str] = []
     if _claim_ents.proper_nouns:
         # Primary: first named person/place (e.g. "Phineas Gage")
@@ -987,17 +987,17 @@ def _archive_entity_search(
 
 
 def _entity_sources(
-    image_hint: str,
+    entity_term: str,
     out_dir: Path,
     *,
     used_source_urls: set[str] | None = None,
     used_paths: set[str] | None = None,
     max_clips: int = 2,
 ) -> list[Path]:
-    """Try entity-specific sources in order for the given image_hint.
+    """Try entity-specific sources for a named entity or image_hint term.
 
-    Attempts the full hint first, then a shortened 2-word version if the
-    full hint yields nothing.  Returns up to `max_clips` paths.
+    Attempts the full term first, then shortened variants if the full
+    term yields nothing.  Returns up to `max_clips` paths.
 
     Order:
       1. Wikipedia lead image
@@ -1007,8 +1007,8 @@ def _entity_sources(
     clips: list[Path] = []
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Build entity strings to try: full hint, then first 2-3 words
-    hint = image_hint.strip()
+    # Build entity strings to try: full term, then shortened variants
+    hint = entity_term.strip()
     words = hint.split()
     entities = [hint]
     if len(words) > 2:

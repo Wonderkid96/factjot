@@ -128,13 +128,13 @@ def _still_to_mp4(
         str(out_path),
     ]
     proc = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True)
-    if proc.returncode != 0 or not out_path.exists() or out_path.stat().st_size == 0:
+    size = out_path.stat().st_size if out_path.exists() else 0
+    if proc.returncode != 0 or size == 0:
         err = proc.stderr.decode("utf-8", errors="replace")[-600:]
-        if out_path.exists():
-            out_path.unlink(missing_ok=True)
+        out_path.unlink(missing_ok=True)
         raise RuntimeError(
             f"Still pre-render failed for {still_path.name} "
-            f"(exit={proc.returncode}, size={out_path.stat().st_size if out_path.exists() else 0}): {err}"
+            f"(exit={proc.returncode}, size={size}): {err}"
         )
     return out_path
 

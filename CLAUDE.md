@@ -356,7 +356,7 @@ Every fix must be a long-term structural fix, not a temporary patch. A patch tha
 3. Every fact must be 100% true — 2+ reputable sources, confidence >= 0.65.
 4. No em dashes — anywhere, ever. Including YAML workflow comments.
 5. British English throughout all copy.
-6. Append-only ledgers — never edit historical lines.
+6. Append-only ledgers — never edit historical lines. **Exception:** `data/ledgers/reel_performance.jsonl` is a mutable metrics store — it is fully rewritten on each `fetch_reel_metrics.py` run to update engagement numbers as they accumulate. Do not convert it to append-only.
 7. Three fonts only — brand-locked.
 8. Reels use `quirky_score=3` facts only (fallback to q2 only when q3 exhausted).
 9. All q3 facts must have curated `reel_script` (>=70 words) and `reel_title`.

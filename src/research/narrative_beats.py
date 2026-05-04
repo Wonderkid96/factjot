@@ -39,6 +39,18 @@ _STOP = frozenset({
     "so", "more", "than", "also", "just", "only", "own", "same",
 })
 
+# Nationality adjectives and other capitalised non-names that appear mid-sentence.
+# These would produce bad Wikipedia entity searches ("Soviet Vasili" instead of
+# "Vasili Arkhipov") if included in proper_nouns.
+_DEMONYMS = frozenset({
+    "Soviet", "French", "English", "German", "American", "Japanese", "Russian",
+    "British", "Chinese", "Italian", "Spanish", "Dutch", "Swedish", "Norwegian",
+    "Danish", "Swiss", "Austrian", "Polish", "Hungarian", "Czech", "Greek",
+    "Turkish", "Indian", "Australian", "Canadian", "Brazilian", "Mexican",
+    "African", "European", "Asian", "Middle", "Eastern", "Western", "Northern",
+    "Southern", "New", "Old", "Church",
+})
+
 _NUMBER_RE = re.compile(r"^\$?[\d,]+(?:\.\d+)?(?:%|st|nd|rd|th|s)?$")
 _YEAR_RE   = re.compile(r"^(?:1[0-9]|20)\d{2}s?$")
 
@@ -74,7 +86,8 @@ def extract_entities(claim: str) -> Entities:
             continue
         if low in _STOP:
             continue
-        if i > 0 and t[0].isupper() and len(t) > 2 and t.isalpha():
+        if (i > 0 and t[0].isupper() and len(t) > 3 and t.isalpha()
+                and t not in _DEMONYMS):
             proper.append(t)
             continue
         # Crude verb sniffer: -ed, -ing, -ate, common action words
@@ -132,21 +145,18 @@ def _t_history(e: Entities, image_hint: str) -> list[str]:
     period  = e.period_label or "vintage"
     person  = " ".join(e.proper_nouns[:2]) if e.proper_nouns else ""
     subject = person or " ".join(e.nouns[:2]) or "historical figure"
-    action  = e.verbs_present[0] if e.verbs_present else "archival"
-    # DETAIL: prefer image_hint (curated B-roll) over generic noun
     detail  = image_hint or (e.nouns[0] if e.nouns else "historical")
-    location = (e.nouns[-1] if len(e.nouns) > 1 else "") or "archival footage"
     return [
-        f"{period} {location} {action}".strip(),                 # establishing: time + setting + action
-        f"{subject} {period} portrait close up".strip(),         # subject: named person if known
-        f"{detail} close up {period}".strip(),                   # detail: curated image_hint B-roll
-        f"{period} medical surgery hospital archival",           # consequence: aftermath/medical
-        f"{period} landscape light dust atmospheric",            # atmosphere: period mood
+        f"{period} {image_hint or 'archival footage'} establishing wide",  # establishing: curated B-roll + period
+        f"{subject} {period} portrait close up".strip(),                    # subject: named person if known
+        f"{detail} close up {period}".strip(),                              # detail: image_hint B-roll anchor
+        f"{period} medical surgery hospital archival",                      # consequence: aftermath
+        f"{period} landscape light dust atmospheric",                       # atmosphere: period mood
     ]
 
 
 def _t_space(e: Entities, image_hint: str) -> list[str]:
-    subject = " ".join(e.proper_nouns[:2]) or e.nouns[0] if e.nouns else "planet"
+    subject = " ".join(e.proper_nouns[:2]) or (e.nouns[0] if e.nouns else "planet")
     return [
         f"{image_hint or 'galaxy stars wide'}",                  # establishing
         f"{subject} space close up",                             # subject
