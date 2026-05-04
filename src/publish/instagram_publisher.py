@@ -236,6 +236,8 @@ class InstagramGraphPublisher:
         if not creation_id:
             return {"ok": False, "error": f"Reel container creation failed: {r}"}
 
+        publish_started_at = time.time()
+
         # Step 2: Poll until FINISHED (video encoding takes 1-5 minutes)
         print(f"  [reels] container={creation_id}, polling up to {poll_timeout_s}s...")
         ready = self._wait_for_finished(creation_id, timeout_seconds=poll_timeout_s)
