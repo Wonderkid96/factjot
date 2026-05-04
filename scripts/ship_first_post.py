@@ -99,6 +99,12 @@ def main() -> int:
     # Quality floor — never post score=1 (mildly interesting) facts while
     # better ones exist anywhere in the bank.
     MIN_CAROUSEL_SCORE = 2
+    # Reserve reel-eligible facts (reel_script + reel_title) for the reel pipeline.
+    # Using them as carousels wastes the curated video script and reduces reel runway.
+    # Only use reel-eligible facts as carousel if NO other facts remain (bank empty).
+    non_reel = [r for r in fresh_rows if not (r.get("reel_script") and r.get("reel_title"))]
+    if non_reel:
+        fresh_rows = non_reel
     quality_rows = [r for r in fresh_rows if r.get("quirky_score", 1) >= MIN_CAROUSEL_SCORE]
     quality_skipped = len(fresh_rows) - len(quality_rows)
     if quality_skipped:
