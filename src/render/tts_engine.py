@@ -73,6 +73,137 @@ class WordBeat:
 
 
 # ------------------------------------------------------------------ #
+# Number normalisation — convert digits to spoken words before TTS.
+# TTS engines stumble on raw numerals: "2,150" → "two comma one fifty",
+# "1,000" → garbled, "1908" → "one thousand nine hundred and eight".
+# ------------------------------------------------------------------ #
+
+_ORDINAL_MAP = {
+    '1st': 'first', '2nd': 'second', '3rd': 'third', '4th': 'fourth',
+    '5th': 'fifth', '6th': 'sixth', '7th': 'seventh', '8th': 'eighth',
+    '9th': 'ninth', '10th': 'tenth', '11th': 'eleventh', '12th': 'twelfth',
+    '13th': 'thirteenth', '14th': 'fourteenth', '15th': 'fifteenth',
+    '16th': 'sixteenth', '17th': 'seventeenth', '18th': 'eighteenth',
+    '19th': 'nineteenth', '20th': 'twentieth', '21st': 'twenty-first',
+    '22nd': 'twenty-second', '23rd': 'twenty-third', '24th': 'twenty-fourth',
+    '25th': 'twenty-fifth', '30th': 'thirtieth', '40th': 'fortieth',
+    '50th': 'fiftieth', '100th': 'hundredth',
+}
+
+_ONES = [
+    '', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
+    'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen',
+    'seventeen', 'eighteen', 'nineteen',
+]
+_TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety']
+
+
+def _int_to_words(n: int) -> str:
+    if n < 0:
+        return 'negative ' + _int_to_words(-n)
+    if n == 0:
+        return 'zero'
+    if n < 20:
+        return _ONES[n]
+    if n < 100:
+        return _TENS[n // 10] + (('-' + _ONES[n % 10]) if n % 10 else '')
+    if n < 1_000:
+        rest = n % 100
+        return _ONES[n // 100] + ' hundred' + (' and ' + _int_to_words(rest) if rest else '')
+    if n < 1_000_000:
+        rest = n % 1_000
+        return _int_to_words(n // 1_000) + ' thousand' + (' ' + _int_to_words(rest) if rest else '')
+    if n < 1_000_000_000:
+        rest = n % 1_000_000
+        return _int_to_words(n // 1_000_000) + ' million' + (' ' + _int_to_words(rest) if rest else '')
+    rest = n % 1_000_000_000
+    return _int_to_words(n // 1_000_000_000) + ' billion' + (' ' + _int_to_words(rest) if rest else '')
+
+
+def _year_to_words(y: int) -> str:
+    """Render a year as a native English year-reading (e.g. 1919 → 'nineteen nineteen')."""
+    if 1100 <= y <= 1999:
+        hi, lo = y // 100, y % 100
+        hi_w = _int_to_words(hi)
+        if lo == 0:
+            return hi_w + ' hundred'
+        if lo < 10:
+            return hi_w + ' oh ' + _int_to_words(lo)
+        return hi_w + ' ' + _int_to_words(lo)
+    if 2000 <= y <= 2009:
+        return 'two thousand' + (' and ' + _int_to_words(y % 100) if y % 100 else '')
+    if 2010 <= y <= 2099:
+        return 'twenty ' + _int_to_words(y % 100)
+    return _int_to_words(y)
+
+
+def normalise_for_tts(text: str) -> str:
+    """Convert numerals and symbols to their spoken-word equivalents.
+
+    Applied to every script before synthesis so the narrator reads
+    '2,150 square kilometres' as 'two thousand one hundred and fifty
+    square kilometres', not 'two comma one fifty square kilometres'.
+    """
+    # Ordinals first (before general number handling)
+    text = re.sub(
+        r'\b(\d+(?:st|nd|rd|th))\b',
+        lambda m: _ORDINAL_MAP.get(m.group(0).lower(), m.group(0)),
+        text, flags=re.IGNORECASE,
+    )
+
+    # Percentages: 80% → eighty percent
+    text = re.sub(
+        r'\b(\d+(?:\.\d+)?)\s*%',
+        lambda m: _int_to_words(round(float(m.group(1)))) + ' percent',
+        text,
+    )
+
+    # Decimal numbers NOT followed by a scale word (handle before integers)
+    # e.g. 2.3 → two point three  (but leave "2.3 million" for scale handler)
+    text = re.sub(
+        r'\b(\d+)\.(\d+)\b(?!\s*(?:million|billion|trillion))',
+        lambda m: _int_to_words(int(m.group(1))) + ' point ' + ' '.join(_ONES[int(d)] or 'zero' for d in m.group(2)),
+        text,
+    )
+
+    # Numbers with scale words: 2.3 million → two point three million
+    text = re.sub(
+        r'\b(\d+(?:\.\d+)?)\s*(million|billion|trillion)\b',
+        lambda m: (
+            (_int_to_words(int(float(m.group(1)))) if float(m.group(1)) == int(float(m.group(1)))
+             else _int_to_words(int(float(m.group(1)))) + ' point ' + ' '.join(
+                 _ONES[int(d)] or 'zero' for d in str(m.group(1)).split('.')[-1]
+             ))
+            + ' ' + m.group(2)
+        ),
+        text, flags=re.IGNORECASE,
+    )
+
+    # 4-digit years (1000–2099) as standalone tokens → year reading
+    text = re.sub(
+        r'(?<!\d)([12]\d{3})(?!\d)',
+        lambda m: _year_to_words(int(m.group(1))),
+        text,
+    )
+
+    # Integers with commas: 2,150 → two thousand one hundred and fifty
+    text = re.sub(
+        r'\b(\d{1,3}(?:,\d{3})+)\b',
+        lambda m: _int_to_words(int(m.group(0).replace(',', ''))),
+        text,
+    )
+
+    # Remaining plain integers ≥ 100 (skip single/double digits — narrator handles fine)
+    text = re.sub(
+        r'(?<!\d)(\d{3,})\b',
+        lambda m: _int_to_words(int(m.group(1))),
+        text,
+    )
+
+    return text
+
+
+# ------------------------------------------------------------------ #
 # Public API
 # ------------------------------------------------------------------ #
 
@@ -92,6 +223,7 @@ def synthesise(
     Both backends return identical output types. Swap freely.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
+    text = normalise_for_tts(text)
 
     resolved = (backend or os.getenv("TTS_BACKEND", "elevenlabs")).lower()
 
