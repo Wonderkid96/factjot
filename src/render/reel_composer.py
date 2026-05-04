@@ -187,6 +187,7 @@ class OverlayFrame:
     fade_in_s: float = 0.3
     fade_out_s: float = 0.2
     is_subtitle: bool = False  # subtitle chunks are pre-composited into a single track
+    rgba: bool = False         # True for photo inserts — preserves transparent background
 
 
 def _pre_compose_subtitles(
@@ -580,9 +581,13 @@ def _build_filter_graph(
         png_idx = png_start_idx + i
         cur = f"v{i}"
         enable = f"between(t,{ov.start_s:.3f},{ov.end_s:.3f})"
+        # Photo inserts have a transparent background — use format=rgba so
+        # the alpha channel is respected and footage shows through the sides.
+        # Regular overlays (text, shadow, label) use yuv420 as before.
+        fmt = "rgba" if ov.rgba else "yuv420"
         filter_lines.append(
             f"[{prev}][{png_idx}:v]"
-            f"overlay=0:0:enable='{enable}':format=yuv420"
+            f"overlay=0:0:enable='{enable}':format={fmt}"
             f"[{cur}]"
         )
         prev = cur

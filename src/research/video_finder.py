@@ -210,14 +210,17 @@ def find_videos(
     if image_hint and (not _entity_terms or image_hint != _entity_terms[0]):
         _entity_terms.append(image_hint)
 
+    # Hard cap: max 2 entity images total across ALL search terms.
+    # More than 2 consecutive stills = slideshow feel. B-roll fills the rest.
+    _ENTITY_CAP = 2
     for _et in _entity_terms:
-        if len(clips) >= min(2, count):
+        if len(clips) >= _ENTITY_CAP:
             break
         _ec = _entity_sources(
             _et, out_dir,
             used_source_urls=used_source_urls,
             used_paths=used_paths,
-            max_clips=min(3, count) - len(clips),  # up to 3 authentic images per fact
+            max_clips=_ENTITY_CAP - len(clips),
         )
         for ec in _ec:
             if len(clips) < count and str(ec) not in used_paths:

@@ -471,6 +471,8 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
             USED_FOOTAGE.write_text("")
         global_footage_registry: set[str] = set()   # blocked URLs + video IDs
         blocked_footage_filenames: set[str] = set() # blocked filename stems
+
+        # Primary source: ledger
         if USED_FOOTAGE.exists():
             for line in USED_FOOTAGE.read_text().splitlines():
                 line = line.strip()
@@ -484,6 +486,20 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
                         blocked_footage_filenames.add(entry["filename"])
                 except Exception:
                     pass
+
+        # Safety net: scan ALL existing reel cache dirs and block every
+        # footage/entity filename found there. This catches files from runs
+        # that completed before the filename-logging fix, ensuring zero
+        # cross-reel footage reuse regardless of ledger state.
+        _footage_exts = frozenset({".mp4", ".jpg", ".jpeg", ".png", ".webp"})
+        _footage_pfxs = ("footage_", "wm_entity_", "wiki_lead_", "wiki_article_", "still_rendered_")
+        for _prev_dir in REELS_CACHE.iterdir():
+            if not _prev_dir.is_dir() or _prev_dir == out_dir:
+                continue
+            for _pf in _prev_dir.iterdir():
+                if _pf.suffix.lower() in _footage_exts and any(_pf.name.startswith(pfx) for pfx in _footage_pfxs):
+                    blocked_footage_filenames.add(_pf.stem)
+        print(f"  [footage] blocking {len(blocked_footage_filenames)} known footage files from previous reels")
 
         footage_clips = find_videos(
             image_hint=hint, claim=claim, topic=ftopic,
@@ -579,8 +595,11 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         from src.render.reel_text_renderer import render_photo_insert
         from src.research.narrative_beats import extract_entities as _ext_ents
 
-        _ENTITY_PREFIXES = ("wiki_lead_", "wiki_article_", "wm_entity_")
-        _entity_images = [p for p in footage_clips if any(p.name.startswith(pfx) for pfx in _ENTITY_PREFIXES)]
+        # Photo inserts use ONLY wikipedia article images (wiki_article_*) --
+        # extra images fetched from the article body beyond the lead image.
+        # wiki_lead_* and wm_entity_* are already full-screen footage clips;
+        # using them as overlays too would show the same image twice in the reel.
+        _entity_images = [p for p in footage_clips if p.name.startswith("wiki_article_")]
 
         if _entity_images and word_beats:
             # Find first word beat where a proper noun from the claim is spoken
@@ -596,11 +615,13 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
             _INSERT_FADEIN = 0.35
             _INSERT_FADEOUT= 0.30
             _INSERT_GAP    = 0.6   # gap between consecutive inserts
-            _MAX_INSERTS   = min(len(_entity_images), 3)
+            _MAX_INSERTS   = min(len(_entity_images), 2)  # max 2 inserts per reel
             _INSERT_ZONE_END = cta_s - 1.5
 
             _t = _anchor_t
             for _idx, _img in enumerate(_entity_images[:_MAX_INSERTS]):
+                if _t >= _INSERT_ZONE_END:  # boundary check before each insert
+                    break
                 _end_t = min(_t + _INSERT_HOLD, _INSERT_ZONE_END)
                 if _end_t - _t < 1.5:
                     break
@@ -616,6 +637,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
                         end_s=_end_t,
                         fade_in_s=_INSERT_FADEIN,
                         fade_out_s=_INSERT_FADEOUT,
+                        rgba=True,  # transparent background — footage shows through sides
                     ))
                 except Exception as _pie:
                     print(f"  [photo-insert] skipped ({_pie})")
