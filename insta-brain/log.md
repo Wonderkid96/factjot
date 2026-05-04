@@ -1,5 +1,6 @@
 # factjot brain log
 
+- 2026-05-04 09:56 WORKFLOW FAILED: .github/workflows/carousel-morning.yml | run=25312558567 | trigger=schedule | ref=main
 - 2026-05-04 09:12 reel 483c2486f009c7 published (history, ig_media=18086655002617788)
 - 2026-05-04 08:21 discovery: appended 1 fresh facts from r/Damnthatsinteresting, r/interestingasfuck, r/UnresolvedMysteries, r/AskHistorians, r/history, wikipedia:unusual_deaths (rejected 418)
 - 2026-05-04 07:57 reel 21f827c2754169 published (history, ig_media=18103983716497930)
