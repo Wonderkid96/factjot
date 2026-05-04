@@ -1,5 +1,10 @@
 # factjot brain log
 
+- 2026-05-04 19:53 WORKFLOW FAILED: .github/workflows/reel.yml | run=25340017945 | trigger=workflow_dispatch | ref=main
+- 2026-05-04 19:53 reel FAILED ffmpeg — fact='In 1908 something exploded above remote Siberia with the for' error=FFmpeg failed (exit 234). See ffmpeg_debug.txt (command) and ffmpeg_compose_stderr.log (stderr tail below).
+ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers
+  built with gcc 8 (Debian 8.3.0-6)
+  configuration: --enable-gpl --enable-version3
 - 2026-05-04 10:30 published 0ea1a97ab42a28 (HISTORY, 7 slides, ig_media=17914390167365751)
 - 2026-05-04 09:56 WORKFLOW FAILED: .github/workflows/carousel-morning.yml | run=25312558567 | trigger=schedule | ref=main
 - 2026-05-04 09:12 reel 483c2486f009c7 published (history, ig_media=18086655002617788)
