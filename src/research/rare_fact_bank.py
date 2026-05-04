@@ -128,7 +128,7 @@ RARE_FACT_BANK = [
               'the only reason World War 3 did not begin that day.',
      'sources': ['https://www.bbc.com/news/world-europe-39707294',
                  'https://nsarchive2.gwu.edu/nukevault/ebb399/'],
-     'image_hint': 'Soviet submarine cold war',
+     'image_hint': 'nuclear submarine military underwater',
      'quirky_score': 3,
      'intensity': 'heavy',
      'tone': 'sober',
