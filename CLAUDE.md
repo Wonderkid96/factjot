@@ -84,11 +84,16 @@ make_reel.py
   pick fact        → quirky_score=3 (fallback q2 when q3 exhausted), unused, sensitivity-safe
   build VO script  → curated reel_script field REQUIRED (>=70 words); no auto-fallback
   ElevenLabs TTS   → word-level beat timestamps (edge-tts fallback if key missing)
+                     stability=0.60, style=0.12 (natural documentary delivery)
   find 8 clips     → Pexels → Coverr → Pixabay → Wikimedia (all anchored to image_hint)
+                     score=0 clips rejected — never use footage with zero tag relevance
+  pre-render stills→ JPEG/PNG/WebP footage pre-rendered to 30fps MP4 before main compose
+                     (avoids FFmpeg scheduler deadlock from image2 + fps filter on macOS)
   render overlays  → Playwright: label bar, hook title, kinetic subtitles, CTA card
   FFmpeg compose   → 8 clips, animated pan-crop, alpha intro, sidechain music, fade-to-black
-  thumbnail        → FFmpeg freeze frame at 1.0s + Playwright branded overlay (base64 composited)
-  story PNG        → Playwright: "NEW REEL" card with same footage frame behind
+  thumbnail        → FFmpeg freeze frame at 1.0s (or final.mp4 if clip[0] is a still)
+                     + Playwright branded overlay (base64 composited)
+  story PNG        → Playwright: "NEW REEL" header card with footage frame behind
   caption          → title + body + CTA + source credits + 3-tier hashtags
   upload MP4       → tmpfiles.org (1-hr URL, Meta fetches within polling window) [PRIMARY]
   upload thumbnail → imgbb → passed as cover_url to Instagram
@@ -97,7 +102,7 @@ make_reel.py
   ledger           → insta-brain/data/reels.jsonl + data/ledgers/used_footage_urls.jsonl
 ```
 
-**Video size limit:** Meta's URL downloader rejects files over ~5MB. Encode at crf 30, maxrate 800k. Adaptive retry: if 413, recompress at crf 33 + maxrate 600k and retry once.
+**Video encoding:** Primary encode at **crf 26, preset medium, bicubic scale** (no maxrate). Pre-upload size check: if >4.8MB, recompress at crf 30 / maxrate 800k before upload attempt. Adaptive retry on Meta 413: crf 33 / 600k, then crf 35 / 500k.
 
 **Cloudinary is DISABLED as primary** (Meta 413'd it 2026-05-02 because URLs don't expire before Meta fetches). Could re-enable if needed for non-expiring URLs, but tmpfiles works fine within the polling window.
 
@@ -106,15 +111,17 @@ make_reel.py
 **Run commands (local, Mac):**
 ```bash
 cd /Users/Music/Developer/Insta-bot
-# If `ffmpeg -h filter=ass` fails, install libass-capable FFmpeg (e.g. brew ffmpeg-full) then:
-# export FFMPEG_BIN="$(brew --prefix ffmpeg-full)/bin/ffmpeg"
+# No FFMPEG_BIN export needed -- ffmpeg_bin.py auto-falls-back to brew ffmpeg-full
+# if the default Homebrew ffmpeg fails its -version probe (e.g. after libvpx upgrade).
 /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/make_reel.py
 /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/make_reel.py --dry-run
 /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/make_reel.py --topic earth
 /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/make_reel.py --list-facts
 ```
 
-**Local notes:** only one **`make_reel.py`** at a time (lock, exit **10** if contested). Per-run logs: **`data/cache/reels/<id>/pipeline.log`** and **`logs/reel_runs/`**; compose stderr: **`ffmpeg_compose_stderr.log`** in the same cache dir. If a run is killed, remove a stale **`.make_reel.lock`** if it remains. Prefer **`reel.yml`** on GitHub for a full encode when the Mac graph runs at fractional real-time speed.
+**Local notes:** only one **`make_reel.py`** at a time (lock, exit **10** if contested). Per-run logs: **`data/cache/reels/<id>/pipeline.log`** and **`logs/reel_runs/`**; compose stderr: **`ffmpeg_compose_stderr.log`**; FFmpeg live progress: **`ffmpeg_progress.txt`** (tail for `frame=/time=/speed=`) — all in the reel cache dir. If a run is killed, remove a stale **`.make_reel.lock`** if it remains.
+
+**Project location:** `~/Developer/Insta-bot` (NOT ~/Documents — iCloud in Documents intercepts FFmpeg output writes, causing silent 14-min encode hangs). Do not move back into any iCloud-synced folder.
 
 ---
 
@@ -155,17 +162,18 @@ cd /Users/Music/Developer/Insta-bot
 | `src/publish/image_host.py` | imgbb + tmpfiles with PNG salting for fresh URLs |
 | `src/core/brand.py` | Brand constants — fonts, colours, dimensions |
 | `src/core/paths.py` | All file paths — single source of truth |
-| `src/core/ffmpeg_bin.py` | `FFMPEG_BIN` + startup check that `ass` filter exists (local Mac vs CI) |
+| `src/core/ffmpeg_bin.py` | `FFMPEG_BIN` + startup check; auto-falls-back to brew ffmpeg-full if default fails |
+| `scripts/download_music.py` | Helper to populate assets/music/ from Pixabay or flag missing tracks |
 
 ---
 
 ## Fact bank
 
-- **152 total facts** across space, earth, ocean, biology, history, technology
-- **~43 quirky_score=3** (shock/viral tier — the only ones used for Reels by default)
+- **65 q3 facts** — shock tier only. All q1/q2 (boring internet trivia + Wikipedia unusual deaths) removed 2026-05-04.
 - All q3 facts **must** have curated `reel_script` (>=70 words) and `reel_title` — hard gate enforced
+- Sources: BBC, Smithsonian, NASA, National Geographic, NOAA. No Wikipedia-sourced facts.
 - `allow_archival=True` set on facts where low-quality archival footage is appropriate (Voynich Manuscript, First Photograph)
-- `discover_facts.py` requires MIN_UPVOTES=10,000. Scores: 10k-15k=1, 15k-30k=2, 30k+=3. Viral signal words give +1 bonus. Generic openers with no specificity signals score 0 (rejected, never written to bank).
+- `discover_facts.py` is **Reddit-only**: r/Damnthatsinteresting, r/interestingasfuck, r/UnresolvedMysteries, r/AskHistorians, r/history. Wikipedia unusual deaths scraper removed. MIN_UPVOTES=10,000 for main subs. Scores: 1-3. score=0 = rejected.
 
 **Runway rule:** keep at least 14 unused q3 facts (2 weeks buffer). Reel workflow checks runway before posting — if below 14, runs `discover_facts.py` automatically. Run `scripts/check_reel_runway.py` to see current count.
 
@@ -200,6 +208,7 @@ Tier 0 fills the first 1-2 clip slots with fact-specific content. B-roll fills t
 - Non-archival: 2MB minimum file size, 4s minimum duration (probed via ffprobe)
 - Archival (`allow_archival=True`): 50KB minimum, all sources enabled
 - NSFW block: filenames/descriptions containing "nsfw", "explicit", "nude", "porn", etc. are skipped
+- **Relevance gate:** score=0 clips are rejected from all stock sources (Pexels, Coverr, Pixabay). A score=0 means zero query words matched the video tags — that's a random clip. Falls through to the next source or safety pool.
 
 **Dedup:**
 - `used_source_urls` set prevents same video appearing twice within a single Reel
@@ -218,7 +227,9 @@ Tier 0 fills the first 1-2 clip slots with fact-specific content. B-roll fills t
 | `KEN_BURNS_ZOOM` | 0.10 | 10% overscan — subtle pan, not shaky |
 | CTA timing | dynamic | Card appears when narrator says "factjot" (word-beat sync) |
 | Total duration | `voice_end + 0.8 + 1.5s` | Tight — no dead air after voice |
-| FFmpeg crf | 30 | Quality/size balance — keeps output under ~5MB for Meta |
+| FFmpeg crf | 26 | High quality — pre-upload size check handles the 5MB cap |
+| FFmpeg preset | medium | Better motion estimation than ultrafast — sharper transitions |
+| FFmpeg scale | bicubic | Sharper upscale of 1080p source footage |
 | FFmpeg audio | 48kHz, 128k | Meta requires 48kHz (not 44.1k, not 96k) |
 
 ---
@@ -375,7 +386,9 @@ src/render/         Playwright renderers, FFmpeg composer, thumbnail, story
 src/publish/        Instagram Graph API, image hosting
 src/core/           Brand, paths, config, models
 assets/fonts/       Brand fonts
-assets/music/       default.mp3 — Reel background music
+assets/music/       default.mp3 (universal fallback). Add {topic}.mp3 or mood stems
+                    (dark/sober/investigations/ambient_space/ambient_ocean/ambient_earth)
+                    for automatic mood-matched selection via _pick_music(topic, tone).
 assets/intros/      factjot_intro.mov — ProRes 4444 alpha intro overlay
 assets/video/       Safety footage pool (fallback)
 data/cache/reels/   Per-reel output — final.mp4, thumbnail.png, story.png, footage
