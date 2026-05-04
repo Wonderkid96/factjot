@@ -310,10 +310,8 @@ def compose(
         "-filter_complex", _join_filters(filter_parts),
         *map_args,
         "-c:v", "libx264",
-        "-preset", "ultrafast",   # CI: wall-clock; tune size via crf + maxrate (Meta ~5MB cap)
-        "-crf", "30",
-        "-maxrate", "800k",
-        "-bufsize", "1600k",
+        "-preset", "medium",
+        "-crf", "26",
         "-pix_fmt", "yuv420p",
         "-r", "30",
         "-c:a", "aac",
@@ -471,7 +469,7 @@ def _build_filter_graph(
 
         filter_lines.append(
             f"[{inp_idx}:v]"
-            f"scale={ow}:{oh}:force_original_aspect_ratio=increase,"
+            f"scale={ow}:{oh}:force_original_aspect_ratio=increase:flags=bicubic,"
             f"crop={ow}:{oh}:(iw-{ow})/2:(ih-{oh})/2,"
             f"setsar=1,"
             f"trim=duration={dur:.3f},"
