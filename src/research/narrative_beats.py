@@ -129,16 +129,19 @@ def _detect_period(years: list[str], tokens: list[str]) -> str:
 # ------------------------------------------------------------------ #
 
 def _t_history(e: Entities, image_hint: str) -> list[str]:
-    period = e.period_label or "vintage"
-    subject = " ".join(e.proper_nouns[:2]) or " ".join(e.nouns[:2]) or "people"
-    action  = e.verbs_present[0] if e.verbs_present else "working"
-    detail  = e.nouns[0] if e.nouns else "hands"
+    period  = e.period_label or "vintage"
+    person  = " ".join(e.proper_nouns[:2]) if e.proper_nouns else ""
+    subject = person or " ".join(e.nouns[:2]) or "historical figure"
+    action  = e.verbs_present[0] if e.verbs_present else "archival"
+    # DETAIL: prefer image_hint (curated B-roll) over generic noun
+    detail  = image_hint or (e.nouns[0] if e.nouns else "historical")
+    location = (e.nouns[-1] if len(e.nouns) > 1 else "") or "archival footage"
     return [
-        f"{period} {image_hint or 'archival footage'}",          # establishing
-        f"{subject} {period} portrait",                          # subject
-        f"{detail} close up vintage {action}",                   # detail
-        f"{period} hospital medical archival",                   # consequence
-        f"{period} empty room atmospheric dust light",           # atmosphere
+        f"{period} {location} {action}".strip(),                 # establishing: time + setting + action
+        f"{subject} {period} portrait close up".strip(),         # subject: named person if known
+        f"{detail} close up {period}".strip(),                   # detail: curated image_hint B-roll
+        f"{period} medical surgery hospital archival",           # consequence: aftermath/medical
+        f"{period} landscape light dust atmospheric",            # atmosphere: period mood
     ]
 
 
@@ -270,24 +273,28 @@ def _expand_hint(hint: str, topic: str) -> list[str]:
 def shot_list(claim: str, topic: str, image_hint: str = "") -> list[str]:
     """Return an ordered list of 5 search queries - one per narrative beat.
 
-    Primary path (image_hint present):
-      All 5 queries are derived from the image_hint. The ESTABLISHING beat
-      uses the full hint; the other 4 use the core subject + coverage
-      modifiers. Every query targets the same visual theme.
+    Always extracts named entities from the claim so the SUBJECT beat
+    targets the actual person/event (e.g. "Phineas Gage 1848 portrait")
+    rather than generic B-roll.
 
-    Fallback (no image_hint):
-      Entity extraction from the claim + topic-specific templates.
-      Less reliable - fact bank entries should always have an image_hint.
+    When the claim has no named entities (animals, phenomena, places)
+    and image_hint is present, falls back to hint-expansion which
+    produces 5 tightly-anchored B-roll queries.
     """
     hint = image_hint.strip()
-
-    if hint:
-        return _expand_hint(hint, topic)
-
-    # Fallback: entity extraction + templates
     e = extract_entities(claim)
     fn = _TEMPLATES.get(topic, _t_history)
-    queries = fn(e, "")
+
+    # Always use entity-aware template when the claim names a real person
+    # or specific event -- image_hint is passed to fill the detail beat.
+    if e.proper_nouns or e.years:
+        queries = fn(e, hint)
+    elif hint:
+        # No named entities: pure hint-expansion anchors all beats to B-roll theme
+        return _expand_hint(hint, topic)
+    else:
+        queries = fn(e, "")
+
     seen: set[str] = set()
     out: list[str] = []
     for q in queries:

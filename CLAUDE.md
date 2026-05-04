@@ -197,12 +197,22 @@ After editing `rare_fact_bank.py`, always run `scripts/validate_reel_facts.py`.
 ## Footage quality rules
 
 **Source priority (Tier 0 runs first):**
-1. **Wikipedia lead image** — fetches the actual article image for the named entity (no auth)
-2. **Wikimedia Commons** — entity-name search, video preferred over stills, rights-cleared only
-3. **Internet Archive** — exact-phrase entity search, scored by relevance
-4. **Pexels / Coverr / Pixabay** — B-roll fill from `image_hint`-derived queries
+1. **Named entity from claim** — proper nouns extracted from the claim text are used as the entity search term for Wikipedia/Wikimedia (e.g. "Phineas Gage" not "vintage skull diagram"). Falls back to `image_hint` if no named person/event found.
+2. **Wikipedia lead image** — fetches the actual article image for the named entity (no auth)
+3. **Wikimedia Commons** — entity-name search, video preferred over stills, rights-cleared only
+4. **Internet Archive** — exact-phrase entity search, scored by relevance
+5. **Pexels / Coverr / Pixabay** — B-roll fill from `image_hint`-derived narrative beats
 
-Tier 0 fills the first 1-2 clip slots with fact-specific content. B-roll fills the rest.
+Tier 0 fills the first 1-2 clip slots with the actual person/event. B-roll fills the rest.
+
+**Narrative beats** — the 5 stock-footage queries come from claim entities, not just `image_hint`:
+- ESTABLISHING: period + location + action from claim
+- SUBJECT: named person + period (e.g. "Phineas Gage 1848 portrait close up")
+- DETAIL: `image_hint` as B-roll anchor
+- CONSEQUENCE: period + medical/aftermath
+- ATMOSPHERE: period mood/setting
+
+`image_hint` is a B-roll guide only. Named people and years are extracted from the claim and drive the specific beats. Facts without named entities (animals, phenomena) fall back to `image_hint`-expansion.
 
 **Quality floors (do not lower):**
 - Non-archival: 2MB minimum file size, 4s minimum duration (probed via ffprobe)

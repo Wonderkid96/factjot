@@ -107,6 +107,14 @@ Both `ship_list_post.py` and `prepare_packs.py` import from it. Do not add TMDB 
 
 ---
 
+## Footage sourcing — named entity extraction (2026-05-04)
+
+**Entity search must use the named person from the claim, not `image_hint`.** Before this fix, `_entity_sources()` in `video_finder.py` received `image_hint` as the entity term (e.g. "vintage skull anatomy diagram" for Phineas Gage) and found nothing useful. Now `find_videos()` extracts proper nouns from the claim text first ("Phineas Gage") and passes those to Wikipedia/Wikimedia. `image_hint` becomes B-roll guidance only.
+
+**Narrative beats now use claim entities.** `shot_list()` in `narrative_beats.py` previously expanded all 5 beats from `image_hint` alone. Now, when the claim contains named persons or years, the SUBJECT beat targets the actual person (e.g. "Phineas Gage 1848 portrait close up") and the DETAIL beat uses `image_hint` as B-roll. Pure `image_hint`-expansion only runs when the claim has no named entity (animals, phenomena).
+
+**`image_hint` role:** B-roll context only. Should describe the visual setting/object for the DETAIL beat, not the person's name. The entity search handles person-finding automatically.
+
 ## Entity-first footage sourcing
 
 **Tier 0 (Wikipedia/Wikimedia/Archive) runs before all Pexels B-roll.**

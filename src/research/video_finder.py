@@ -183,18 +183,32 @@ def find_videos(
     safety_idx = 0
 
     # Tier 0: entity-specific sources (Wikipedia, Wikimedia Commons, Archive.org)
-    # Run before the narrative-beat B-roll queries to anchor the reel with
-    # accurate visuals of the actual subject rather than generic stock footage.
-    if image_hint:
-        entity_clips = _entity_sources(
-            image_hint, out_dir,
+    # Search using the named person/event extracted from the claim first --
+    # this finds the actual photo of Phineas Gage, the portrait of Arkhipov,
+    # the historical photo of the Radium Girls, etc. Fall back to image_hint
+    # if the claim has no extractable named entity.
+    from src.research.narrative_beats import extract_entities as _extract_ents
+    _claim_ents = _extract_ents(claim)
+    _entity_terms: list[str] = []
+    if _claim_ents.proper_nouns:
+        # Primary: first named person/place (e.g. "Phineas Gage")
+        _entity_terms.append(" ".join(_claim_ents.proper_nouns[:2]))
+    if image_hint and (not _entity_terms or image_hint != _entity_terms[0]):
+        _entity_terms.append(image_hint)
+
+    for _et in _entity_terms:
+        if len(clips) >= min(2, count):
+            break
+        _ec = _entity_sources(
+            _et, out_dir,
             used_source_urls=used_source_urls,
             used_paths=used_paths,
-            max_clips=min(2, count),
+            max_clips=min(2, count) - len(clips),
         )
-        for ec in entity_clips:
-            if len(clips) < count:
+        for ec in _ec:
+            if len(clips) < count and str(ec) not in used_paths:
                 clips.append(ec)
+                used_paths.add(str(ec))
                 print(f"  [video] ENTITY-0  ✓ {ec.name}")
 
     for label, query in queries:
