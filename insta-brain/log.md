@@ -1,10 +1,16 @@
 # factjot brain log
 
-- 2026-05-04 19:53 WORKFLOW FAILED: .github/workflows/reel.yml | run=25340017945 | trigger=workflow_dispatch | ref=main
-- 2026-05-04 19:53 reel FAILED ffmpeg — fact='In 1908 something exploded above remote Siberia with the for' error=FFmpeg failed (exit 234). See ffmpeg_debug.txt (command) and ffmpeg_compose_stderr.log (stderr tail below).
-ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers
-  built with gcc 8 (Debian 8.3.0-6)
-  configuration: --enable-gpl --enable-version3
+- 2026-05-04 13:05 reel 607ad06dd06390 published (biology, ig_media=17882823708553112)
+- 2026-05-04 12:41 reel d9a726c111bcfc published (history, ig_media=18050701073753312)
+- 2026-05-04 12:21 reel 8e50a5ee33e629 published (history, ig_media=18062847377422867)
+- 2026-05-04 12:07 reel e822dcb60d0e2e published (history, ig_media=18108516542496813)
+- 2026-05-04 11:58 reel 483c2486f009c7 published (history, ig_media=18131550814501359)
+- 2026-05-04 11:55 reel 21f827c2754169 published (history, ig_media=17855622657643618)
+- 2026-05-04 11:20 reel c153a5d92f0303 published (history, ig_media=18155182795461036)
+- 2026-05-04 10:55 reel FAILED ffmpeg — fact='In 1848 a railroad foreman named Phineas Gage had a 3-foot i' error=Still pre-render failed for wm_entity_333f573376.png: 
+[vost#0:0/libx264 @ 0xa96c74000] Terminating thread with return code -22 (Invalid argument)
+[vist#0:0/png @ 0xa97044300] [dec:png @ 0xa96c4c500] Task finished with error code: -1145393733 (Error number -1145393733 occurred)
+[vist#0:0/png @ 0xa97
 - 2026-05-04 10:30 published 0ea1a97ab42a28 (HISTORY, 7 slides, ig_media=17914390167365751)
 - 2026-05-04 09:56 WORKFLOW FAILED: .github/workflows/carousel-morning.yml | run=25312558567 | trigger=schedule | ref=main
 - 2026-05-04 09:12 reel 483c2486f009c7 published (history, ig_media=18086655002617788)

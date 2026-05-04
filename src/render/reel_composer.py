@@ -480,12 +480,13 @@ def _build_filter_graph(
         intro_input_idx = -1
         footage_offset = 0
 
-    # Inputs: footage clips without stream_loop. Short clips are padded with
-    # a freeze-frame of the last frame inside the filter graph (tpad), which
-    # is far less jarring than the visible content-loop that stream_loop -1
-    # causes when a clip is shorter than its assigned window.
+    # Inputs: footage clips with stream_loop -1 so any clip shorter than its
+    # window is extended by looping. _MIN_CLIP_DURATION_S=8s ensures clips
+    # are always longer than the longest window (~8s), so the loop content
+    # never actually repeats in practice. tpad=stop=-1 was tried here but
+    # caused FFmpeg's scheduler to run indefinitely on CI (44m timeout).
     for fp in footage_paths:
-        inputs += ["-i", str(fp)]
+        inputs += ["-stream_loop", "-1", "-i", str(fp)]
     voice_idx = len(footage_paths) + footage_offset
     inputs += ["-i", str(voice_path)]
 
@@ -535,8 +536,6 @@ def _build_filter_graph(
             f"scale={ow}:{oh}:force_original_aspect_ratio=increase:flags=bicubic,"
             f"crop={ow}:{oh}:(iw-{ow})/2:(ih-{oh})/2,"
             f"setsar=1,"
-            f"setpts=PTS-STARTPTS,"
-            f"tpad=stop=-1:stop_mode=clone,"
             f"trim=duration={dur:.3f},"
             f"setpts=PTS-STARTPTS,"
             f"crop=1080:1920:x='{pan_x}':y={pan_y_mid}"
