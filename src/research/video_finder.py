@@ -203,7 +203,7 @@ def find_videos(
             _et, out_dir,
             used_source_urls=used_source_urls,
             used_paths=used_paths,
-            max_clips=min(2, count) - len(clips),
+            max_clips=min(3, count) - len(clips),  # up to 3 authentic images per fact
         )
         for ec in _ec:
             if len(clips) < count and str(ec) not in used_paths:
@@ -765,6 +765,123 @@ def _wikipedia_lead_image(entity: str, out_dir: Path, *, used_source_urls: set[s
         return None
 
 
+_WIKI_IMAGE_SKIP = frozenset({
+    "flag", "icon", "logo", "banner", "symbol", "map", "button",
+    "blank", "arrow", "stub", "signature", "badge", "seal", "coat",
+    "emblem", "edit", "question", "portal", "commons", "wikimedia",
+})
+
+
+def _wikipedia_article_images(
+    entity: str,
+    out_dir: Path,
+    *,
+    used_source_urls: set[str] | None = None,
+    max_images: int = 3,
+) -> list[Path]:
+    """Fetch up to max_images images from a Wikipedia article (beyond the lead).
+
+    Uses MediaWiki `prop=images` to list all image titles in the article,
+    then resolves their download URLs via `prop=imageinfo`. Skips icons,
+    flags, logos, SVGs, and images smaller than 300px on either side.
+    Returns validated paths (non-zero dimensions, non-corrupt).
+    """
+    title = entity.strip().replace(" ", "_")
+    results: list[Path] = []
+    try:
+        # Step 1: list all image titles referenced in the article
+        r = requests.get(
+            "https://en.wikipedia.org/w/api.php",
+            params={
+                "action": "query", "titles": title,
+                "prop": "images", "imlimit": "15",
+                "format": "json",
+            },
+            headers={"User-Agent": "factjot-bot/1.0 (tobyjohnsonemail@gmail.com)"},
+            timeout=_HTTP_TIMEOUT,
+        )
+        if not r.ok:
+            return results
+        pages = r.json().get("query", {}).get("pages", {})
+        img_titles: list[str] = []
+        for page in pages.values():
+            for img in page.get("images", []):
+                t = img.get("title", "")
+                lower = t.lower()
+                # Keep only jpg/png, skip utility images
+                if not any(lower.endswith(ext) for ext in (".jpg", ".jpeg", ".png")):
+                    continue
+                if any(skip in lower for skip in _WIKI_IMAGE_SKIP):
+                    continue
+                img_titles.append(t)
+
+        # Step 2: resolve actual download URLs and download each
+        for img_title in img_titles:
+            if len(results) >= max_images:
+                break
+            try:
+                r2 = requests.get(
+                    "https://en.wikipedia.org/w/api.php",
+                    params={
+                        "action": "query", "titles": img_title,
+                        "prop": "imageinfo", "iiprop": "url|size|mime",
+                        "format": "json",
+                    },
+                    headers={"User-Agent": "factjot-bot/1.0 (tobyjohnsonemail@gmail.com)"},
+                    timeout=_HTTP_TIMEOUT,
+                )
+                if not r2.ok:
+                    continue
+                for pg in r2.json().get("query", {}).get("pages", {}).values():
+                    info = pg.get("imageinfo", [{}])[0]
+                    url  = info.get("url", "")
+                    if not url:
+                        continue
+                    if info.get("width", 0) < 300 or info.get("height", 0) < 300:
+                        continue
+                    if used_source_urls and url in used_source_urls:
+                        continue
+                    if not _nsfw_safe(url):
+                        continue
+                    ext  = "png" if url.lower().split("?")[0].endswith(".png") else "jpg"
+                    slug = hashlib.sha1(url.encode()).hexdigest()[:10]
+                    out_path = out_dir / f"wiki_article_{slug}.{ext}"
+                    if out_path.exists() and out_path.stat().st_size > _MIN_BYTES_ARK:
+                        if _valid_image(out_path):
+                            print(f"  [wikipedia] cached article image -> {out_path.name}")
+                            if used_source_urls is not None:
+                                used_source_urls.add(url)
+                            results.append(out_path)
+                            break
+                    r3 = requests.get(
+                        url,
+                        headers={"User-Agent": "factjot-bot/1.0 (tobyjohnsonemail@gmail.com)"},
+                        stream=True, timeout=60,
+                    )
+                    r3.raise_for_status()
+                    with open(out_path, "wb") as f:
+                        for chunk in r3.iter_content(65536):
+                            f.write(chunk)
+                    size = out_path.stat().st_size if out_path.exists() else 0
+                    if size < _MIN_BYTES_ARK:
+                        out_path.unlink(missing_ok=True)
+                        continue
+                    if not _valid_image(out_path):
+                        out_path.unlink(missing_ok=True)
+                        continue
+                    print(f"  [wikipedia] article image {size//1024}KB -> {out_path.name}")
+                    if used_source_urls is not None:
+                        used_source_urls.add(url)
+                    results.append(out_path)
+                    break
+            except Exception:
+                continue
+        time.sleep(0.3)
+    except Exception as exc:
+        print(f"  [wikipedia-article] error: {exc}")
+    return results
+
+
 def _wikimedia_entity_files(
     entity: str, out_dir: Path, *, used_source_urls: set[str] | None = None
 ) -> Optional[Path]:
@@ -1021,7 +1138,7 @@ def _entity_sources(
             break
         print(f"  [entity-sources] trying entity: {entity!r}")
 
-        # 1. Wikipedia lead image
+        # 1a. Wikipedia lead image (fastest, most relevant single image)
         path = _wikipedia_lead_image(entity, out_dir, used_source_urls=used_source_urls)
         if path and (used_paths is None or str(path) not in used_paths):
             clips.append(path)
@@ -1029,6 +1146,23 @@ def _entity_sources(
                 used_paths.add(str(path))
             if len(clips) >= max_clips:
                 break
+
+        # 1b. Additional Wikipedia article images (daguerreotypes, artefact photos,
+        # medical illustrations etc. that live in the article body, not just the lead).
+        # Fetched sparingly (max 2 extra) so the reel isn't a slideshow.
+        if len(clips) < max_clips:
+            extra = _wikipedia_article_images(
+                entity, out_dir,
+                used_source_urls=used_source_urls,
+                max_images=min(2, max_clips - len(clips)),
+            )
+            for ep in extra:
+                if len(clips) >= max_clips:
+                    break
+                if used_paths is None or str(ep) not in used_paths:
+                    clips.append(ep)
+                    if used_paths is not None:
+                        used_paths.add(str(ep))
 
         # 2. Wikimedia Commons entity search
         path = _wikimedia_entity_files(entity, out_dir, used_source_urls=used_source_urls)

@@ -110,6 +110,15 @@ def _still_to_mp4(
 ) -> Path:
     """Convert a still image to a fixed-duration 30 fps H264 MP4.
 
+    Applies a cinematic grade so archival photos feel documentary rather
+    than PowerPoint:
+      - Subtle desaturation (s=0.82): mutes oversaturated colours without
+        going full B&W. Archival photos gain a period feel; modern photos
+        are barely affected.
+      - Temporal film grain (c0s=7:c0f=t): luma-only noise that changes
+        each frame. Distinguishable from digital stillness; reads as film.
+      - Slight contrast lift (contrast=1.04): compensates for grain wash.
+
     Stills fed directly into the main filter graph via -framerate 1 +
     stream_loop -1 + fps=30 deadlock the FFmpeg scheduler on macOS
     (image2 demuxer + fps filter creates a 1->30 frame imbalance that
@@ -118,11 +127,17 @@ def _still_to_mp4(
     clip in the main compose -- no special-casing, no deadlock.
     Works identically on CI and local Mac.
     """
+    vf = ",".join([
+        "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+        "hue=s=0.82",                        # subtle desaturation
+        "eq=contrast=1.04:brightness=-0.01", # slight contrast lift
+        "noise=c0s=7:c0f=t",                 # temporal film grain (luma only)
+    ])
     cmd = [
         ffmpeg_bin, "-y",
         "-loop", "1", "-framerate", "30", "-i", str(still_path),
         "-t", f"{duration_s:.3f}",
-        "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+        "-vf", vf,
         "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
         "-pix_fmt", "yuv420p", "-r", "30",
         str(out_path),
