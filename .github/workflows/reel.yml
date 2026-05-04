@@ -17,6 +17,10 @@ on:
         type: boolean
         default: false
         required: false
+      topic:
+        description: "Restrict fact selection to a topic (space, history, biology, ocean, earth, technology, science)"
+        required: false
+        default: ""
 
 concurrency:
   group: factjot-publish
@@ -130,10 +134,12 @@ jobs:
       - name: Post reel
         if: steps.check.outputs.skip != 'true'
         run: |
+          TOPIC_ARG=""
+          if [ -n "${{ inputs.topic }}" ]; then TOPIC_ARG="--topic ${{ inputs.topic }}"; fi
           if [ "${{ inputs.dry_run }}" = "true" ]; then
-            python3 -u scripts/make_reel.py --dry-run
+            python3 -u scripts/make_reel.py --dry-run $TOPIC_ARG
           else
-            python3 -u scripts/make_reel.py
+            python3 -u scripts/make_reel.py $TOPIC_ARG
           fi
 
       - name: Capture failure to brain log
