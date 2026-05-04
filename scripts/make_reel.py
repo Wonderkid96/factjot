@@ -580,98 +580,116 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
 
         # 5e: Documentary photo inserts — archival/entity images appear over footage
         # timed to when the narrator first mentions the subject's name.
-        # 5e: Casefile documents — text card (always) + photo inserts (when images available).
+        # 5e: Casefile documents — sequential reveal rhythm.
         #
-        # Text card: always rendered. Extracts entity name and year from the claim.
-        # Appears as a physical paper document overlaid on the footage shortly after
-        # the intro ends. Never fails — no external API needed.
+        # Documents appear, hold for a beat, then disappear. Nothing sits for
+        # the full video. The rhythm:
         #
-        # Photo inserts: use any entity images in footage_clips (wiki_lead_* or
-        # wiki_article_*). Timed to appear during B-roll (not while the entity image
-        # itself is the background clip) by anchoring to the voice beat where the
-        # subject is first named.
+        #   [INTRO ends]
+        #   → Subject card appears (4.5s) → clears
+        #   → 2-3s of clean footage
+        #   → Photo insert appears when narrator says the name (4.5s) → clears
+        #   → clean footage
+        #   → Date/location card appears mid-reel (4.5s) → clears
+        #   → clean footage until CTA
+        #
         from src.render.reel_text_renderer import render_photo_insert, render_case_doc
         from src.research.narrative_beats import extract_entities as _ext_ents
         import re as _re
+
+        _DOC_HOLD_S = 4.5   # how long each casefile document is visible
+        _DOC_GAP_S  = 2.5   # clean footage gap between consecutive documents
 
         _claim_ents = _ext_ents(claim)
         _entity_name = " ".join(_claim_ents.proper_nouns[:2]) if _claim_ents.proper_nouns else ftopic.title()
         _year_m = _re.search(r'\b(1[0-9]{3}|20[0-9]{2})\b', claim)
         _year_str = _year_m.group(0) if _year_m else ""
+        _insert_zone_end = cta_s - 1.5
 
-        # Text casefile card — always present
-        _case_doc_png = overlay_dir / "case_doc_00.png"
-        _case_doc_start = INTRO_S + 0.4
-        _case_doc_end   = cta_s - 0.5
-        if _case_doc_end > _case_doc_start + 2.0:
-            print(f"  [casefile] text card: {_entity_name!r} / {_year_str or 'no year'}")
+        # Track where the next casefile document can appear (avoid overlapping)
+        _next_doc_t = INTRO_S + 0.4
+
+        # --- Doc 1: Subject name card (always rendered) ---
+        _d1_start = _next_doc_t
+        _d1_end   = _d1_start + _DOC_HOLD_S
+        if _d1_end < _insert_zone_end:
+            print(f"  [casefile] doc1 subject: {_entity_name!r} / {_year_str or 'no year'} @ {_d1_start:.1f}–{_d1_end:.1f}s")
+            _d1_png = overlay_dir / "case_doc_00.png"
             try:
                 render_case_doc(
-                    out_path=_case_doc_png,
+                    out_path=_d1_png,
                     label="subject" if _claim_ents.proper_nouns else "topic",
                     value=_entity_name,
                     body=_year_str,
                     x=55, y=440, rotation=-2.0, width=460,
                 )
-                overlays.append(OverlayFrame(
-                    png=_case_doc_png,
-                    start_s=_case_doc_start,
-                    end_s=_case_doc_end,
-                    fade_in_s=0.0, fade_out_s=0.0,
-                    rgba=True,
-                ))
-            except Exception as _cde:
-                print(f"  [casefile] text card failed ({_cde})")
+                overlays.append(OverlayFrame(png=_d1_png, start_s=_d1_start, end_s=_d1_end, rgba=True))
+                _next_doc_t = _d1_end + _DOC_GAP_S
+            except Exception as _e:
+                print(f"  [casefile] doc1 failed ({_e})")
 
-        # Photo inserts — any entity images in footage_clips
-        # Anchor to the first word beat where the subject's name is spoken,
-        # so the photo appears exactly when the narrator mentions them.
+        # --- Doc 2: Photo insert — anchored to the word beat where the name is spoken ---
         _entity_images = [
             p for p in footage_clips
             if p.name.startswith(("wiki_article_", "wiki_lead_"))
         ]
-
         if _entity_images and word_beats:
             _subject_words = {w.lower() for w in _claim_ents.proper_nouns[:3]} or {""}
-            _anchor_t = INTRO_S + 1.0  # fallback: 1s after intro
+            _d2_start = _next_doc_t  # fallback: after doc1 gap
             for _wb in word_beats:
                 if any(s in _wb.word.lower() for s in _subject_words if len(s) > 3):
-                    # Give the narrator a beat before the photo slides in
-                    _anchor_t = INTRO_S + _wb.start_s + 0.5
+                    _candidate = INTRO_S + _wb.start_s + 0.4
+                    if _candidate >= _next_doc_t:
+                        _d2_start = _candidate
                     break
-
-            # Don't insert during the first clip window (entity image IS the bg there).
-            # Rough window: first clip gets ~18% of total duration.
+            # Stay out of the first clip window (entity image may be the background)
             _first_window_end = INTRO_S + total_dur * 0.18
-            _anchor_t = max(_anchor_t, _first_window_end + 0.3)
+            _d2_start = max(_d2_start, _first_window_end + 0.3)
+            _d2_end = _d2_start + _DOC_HOLD_S
 
-            _INSERT_HOLD     = 4.5
-            _INSERT_GAP      = 0.7
-            _INSERT_ZONE_END = cta_s - 1.5
-            _MAX_INSERTS     = min(len(_entity_images), 2)
-
-            _t = _anchor_t
-            _cap = (fact.get("reel_title") or " ".join(_claim_ents.proper_nouns[:2]) or "").split(" — ")[0][:35]
-            for _idx, _img in enumerate(_entity_images[:_MAX_INSERTS]):
-                if _t >= _INSERT_ZONE_END:
-                    break
-                _end_t = min(_t + _INSERT_HOLD, _INSERT_ZONE_END)
-                if _end_t - _t < 1.5:
-                    break
-                _insert_png = overlay_dir / f"photo_insert_{_idx:02d}.png"
-                print(f"  [casefile] photo insert {_img.name} @ {_t:.1f}s–{_end_t:.1f}s")
+            if _d2_end < _insert_zone_end:
+                _img = _entity_images[0]
+                _cap = (fact.get("reel_title") or " ".join(_claim_ents.proper_nouns[:2]) or "").split(" — ")[0][:35]
+                _d2_png = overlay_dir / "photo_insert_00.png"
+                print(f"  [casefile] doc2 photo: {_img.name} @ {_d2_start:.1f}–{_d2_end:.1f}s")
                 try:
-                    render_photo_insert(image_path=_img, out_path=_insert_png, caption=_cap)
-                    overlays.append(OverlayFrame(
-                        png=_insert_png,
-                        start_s=_t,
-                        end_s=_end_t,
-                        fade_in_s=0.0, fade_out_s=0.0,
-                        rgba=True,
-                    ))
-                except Exception as _pie:
-                    print(f"  [casefile] photo insert skipped ({_pie})")
-                _t = _end_t + _INSERT_GAP
+                    render_photo_insert(image_path=_img, out_path=_d2_png, caption=_cap)
+                    overlays.append(OverlayFrame(png=_d2_png, start_s=_d2_start, end_s=_d2_end, rgba=True))
+                    _next_doc_t = _d2_end + _DOC_GAP_S
+
+                    # Second photo insert if another image exists
+                    if len(_entity_images) > 1:
+                        _d2b_start = _next_doc_t
+                        _d2b_end   = _d2b_start + _DOC_HOLD_S
+                        if _d2b_end < _insert_zone_end:
+                            _d2b_png = overlay_dir / "photo_insert_01.png"
+                            try:
+                                render_photo_insert(image_path=_entity_images[1], out_path=_d2b_png, caption=_cap)
+                                overlays.append(OverlayFrame(png=_d2b_png, start_s=_d2b_start, end_s=_d2b_end, rgba=True))
+                                _next_doc_t = _d2b_end + _DOC_GAP_S
+                            except Exception:
+                                pass
+                except Exception as _e:
+                    print(f"  [casefile] doc2 photo skipped ({_e})")
+
+        # --- Doc 3: Date / topic card — mid-reel reveal (only if year known and time available) ---
+        if _year_str:
+            _d3_start = max(_next_doc_t, total_dur * 0.50)
+            _d3_end   = _d3_start + _DOC_HOLD_S
+            if _d3_end < _insert_zone_end - 1.0:
+                _d3_png = overlay_dir / "case_doc_01.png"
+                print(f"  [casefile] doc3 date: {_year_str} / {ftopic} @ {_d3_start:.1f}–{_d3_end:.1f}s")
+                try:
+                    render_case_doc(
+                        out_path=_d3_png,
+                        label="date",
+                        value=_year_str,
+                        body=ftopic.upper(),
+                        x=500, y=520, rotation=2.5, width=420,
+                    )
+                    overlays.append(OverlayFrame(png=_d3_png, start_s=_d3_start, end_s=_d3_end, rgba=True))
+                except Exception as _e:
+                    print(f"  [casefile] doc3 failed ({_e})")
 
         # 5f: CTA frame
         cta_path = overlay_dir / "cta.png"
