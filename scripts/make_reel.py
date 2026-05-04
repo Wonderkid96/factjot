@@ -222,18 +222,16 @@ def _pick_fact(topic: str | None) -> dict | None:
         ]
         if candidates:
             break
-    fresh = candidates
-    # Sort: curated scripts first, then by quirky_score descending
-    fresh.sort(key=lambda r: (
-        bool(
-            r.get("reel_title")
-            and r.get("reel_script")
-            and MIN_REEL_SCRIPT_WORDS <= len(r.get("reel_script", "").split()) <= MAX_REEL_SCRIPT_WORDS
-        ),
-        r.get("quirky_score", 0),
-    ), reverse=True)
+    # Require curation for both q3 and q2 fallback — no auto-generated scripts.
+    fresh = [
+        r for r in candidates
+        if r.get("reel_title")
+        and r.get("reel_script")
+        and MIN_REEL_SCRIPT_WORDS <= len(r.get("reel_script", "").split()) <= MAX_REEL_SCRIPT_WORDS
+    ]
     if not fresh:
         return None
+    # Sort: quirky_score descending (curation already gated above)
     fresh.sort(key=lambda r: r.get("quirky_score", 0), reverse=True)
     return fresh[0]
 
@@ -325,22 +323,19 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         # Include a timestamp so every run gets a unique cache directory.
         # Without this, re-running the same fact reuses the same cache dir
         # and serves stale footage from a previous test or deleted reel.
-        import time as _t
+        import time as _t, os as _os
         reel_id  = hashlib.sha1(
-            f"reel:{ftopic}:{claim}:{int(_t.time())}".encode()
+            f"reel:{ftopic}:{claim}:{_t.time_ns()}:{_os.urandom(4).hex()}".encode()
         ).hexdigest()[:14]
         out_dir  = REELS_CACHE / reel_id
-        # Wipe ALL previous reel cache directories before starting.
-        # Each run gets a unique ID so out_dir never existed before,
-        # but old run directories accumulate on disk and their footage
-        # filenames could interfere with dedup logic. Deleting them all
-        # is the only complete guarantee of zero cross-run contamination.
-        # The URL/Pexels-ID ledger (used_footage_urls.jsonl) still
-        # prevents the same stock clip appearing in two posted reels.
+        # Wipe stale reel cache directories (older than 2 hours).
+        # Directories from the current run or a concurrently running job
+        # are left alone — only accumulated stale dirs are removed.
         import shutil as _sh
+        _stale_cutoff = _t.time() - 7200
         if REELS_CACHE.exists():
             for _old in list(REELS_CACHE.iterdir()):
-                if _old.is_dir():
+                if _old.is_dir() and _old.stat().st_mtime < _stale_cutoff:
                     _sh.rmtree(_old, ignore_errors=True)
         out_dir.mkdir(parents=True, exist_ok=True)
         ensure_dirs()

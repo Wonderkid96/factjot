@@ -101,6 +101,33 @@ def _pump_ffmpeg_stderr(
 
 _STILL_IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg", ".png", ".webp"})
 
+_INTRO_PATH = Path(__file__).resolve().parents[2] / "assets" / "intros" / "factjot_intro.mov"
+
+
+def _probe_intro_duration(path: Path, fallback: float = 1.37) -> float:
+    """Return the duration of the intro .mov by probing it with ffprobe.
+
+    Falls back to the known duration if the file is missing or ffprobe fails,
+    so a missing ffprobe binary does not break the compose pipeline.
+    """
+    if not path.exists():
+        return fallback
+    for ffprobe in ("ffprobe", "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe"):
+        try:
+            r = subprocess.run(
+                [ffprobe, "-v", "quiet", "-show_entries", "format=duration",
+                 "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
+                capture_output=True, text=True, timeout=10,
+            )
+            if r.returncode == 0 and r.stdout.strip():
+                return round(float(r.stdout.strip()), 3)
+        except Exception:
+            continue
+    return fallback
+
+
+_INTRO_DURATION: float = _probe_intro_duration(_INTRO_PATH)
+
 
 _STILL_MAX_PX = 1920
 
@@ -220,70 +247,7 @@ class OverlayFrame:
     end_s: float
     fade_in_s: float = 0.3
     fade_out_s: float = 0.2
-    is_subtitle: bool = False  # subtitle chunks are pre-composited into a single track
     rgba: bool = False         # True for photo inserts — preserves transparent background
-
-
-def _pre_compose_subtitles(
-    subtitle_overlays: list[OverlayFrame],
-    total_duration_s: float,
-    out_dir: Path,
-    ffmpeg_bin: str = "ffmpeg",
-) -> Path:
-    """Pre-render all subtitle PNGs into a single alpha video track.
-
-    Runs as a fast, lightweight FFmpeg pass on a transparent source.
-    The result is a single WebM/VP9 file with alpha that the main compose
-    uses as one overlay instead of N sequential overlays -- cutting the
-    main filter graph from 30+ stages down to a handful.
-    """
-    import sys as _sys
-    out_path = out_dir / "subtitle_track.webm"
-    dur = f"{total_duration_s:.3f}"
-
-    inputs: list[str] = [
-        "-f", "lavfi", "-i",
-        f"color=c=0x00000000:s=1080x1920:r=30:d={dur}",
-    ]
-    filter_lines: list[str] = []
-    prev = "0:v"
-
-    for i, ov in enumerate(subtitle_overlays):
-        inputs += ["-i", str(ov.png)]
-        cur = f"sv{i}"
-        enable = f"between(t,{ov.start_s:.3f},{ov.end_s:.3f})"
-        filter_lines.append(
-            f"[{prev}][{i + 1}:v]overlay=0:0:enable='{enable}':format=rgba[{cur}]"
-        )
-        prev = cur
-
-    cmd = [
-        ffmpeg_bin, "-y",
-        *inputs,
-        "-filter_complex", ";".join(filter_lines),
-        "-map", f"[{prev}]",
-        "-c:v", "libvpx-vp9",
-        "-auto-alt-ref", "0",  # required for alpha in VP9
-        "-pix_fmt", "yuva420p",
-        "-deadline", "realtime",  # fastest VP9 mode
-        "-cpu-used", "8",
-        "-r", "30",
-        "-t", dur,
-        str(out_path),
-    ]
-    print(f"  [ffmpeg] pre-compositing {len(subtitle_overlays)} subtitles -> single track...")
-    proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    _register_active(proc)
-    assert proc.stderr is not None
-    for raw in proc.stderr:
-        _sys.stderr.buffer.write(raw)
-        _sys.stderr.buffer.flush()
-    proc.wait()
-    _register_active(None)
-    if proc.returncode != 0:
-        raise RuntimeError("Subtitle pre-composition failed")
-    print(f"  [ffmpeg] subtitle track ready: {out_path.name}")
-    return out_path
 
 
 def compose(
@@ -296,15 +260,8 @@ def compose(
     total_duration_s: float,
     voice_delay_s: float = 0.0,
     ffmpeg_bin: str = "ffmpeg",
-    subtitle_ass_path: Optional[Path] = None,
-    fonts_dir: Optional[Path] = None,
 ) -> Path:
-    """Compose the final Reel MP4 from multiple footage clips.
-
-    subtitle_ass_path: if provided, subtitles are rendered via FFmpeg's
-    native 'ass' filter (one filter pass) instead of chained PNG overlays.
-    This is the fast path -- 20+ overlay stages collapse to 1.
-    """
+    """Compose the final Reel MP4 from multiple footage clips."""
     if not footage_paths:
         raise RuntimeError("compose() requires at least one footage clip")
 
@@ -340,8 +297,6 @@ def compose(
         overlays=overlays,
         total_duration_s=total_duration_s,
         voice_delay_s=voice_delay_s,
-        subtitle_ass_path=subtitle_ass_path,
-        fonts_dir=fonts_dir,
     )
 
     # Progress reporting:
@@ -508,8 +463,6 @@ def _build_filter_graph(
     overlays: list[OverlayFrame],
     total_duration_s: float,
     voice_delay_s: float = 0.0,
-    subtitle_ass_path: Optional[Path] = None,
-    fonts_dir: Optional[Path] = None,
 ) -> tuple[list[str], list[str], list[str]]:
     inputs: list[str] = []
     filter_lines: list[str] = []
@@ -517,13 +470,12 @@ def _build_filter_graph(
     # Branded intro overlay - ProRes 4444 with alpha channel.
     # The circle cutout reveals footage through it; the red frame sits on top.
     # Played as a transparent overlay over the final composite, not a footage clip.
-    intro_path = Path(__file__).resolve().parents[2] / "assets" / "intros" / "factjot_intro.mov"
-    has_intro = intro_path.exists()
+    has_intro = _INTRO_PATH.exists()
     if has_intro:
-        inputs += ["-i", str(intro_path)]
+        inputs += ["-i", str(_INTRO_PATH)]
         intro_input_idx = 0
         footage_offset = 1
-        print(f"  [intro] {intro_path.name} (alpha overlay)")
+        print(f"  [intro] {_INTRO_PATH.name} ({_INTRO_DURATION:.3f}s alpha overlay)")
     else:
         intro_input_idx = -1
         footage_offset = 0
@@ -629,20 +581,6 @@ def _build_filter_graph(
         )
         prev = cur
 
-    # Native .ass subtitle render -- one filter pass for ALL subtitle text.
-    # Replaces the 20+ sequential PNG overlay stages when subtitle_ass_path
-    # is provided. libass is compiled into the GitHub Actions static FFmpeg.
-    if subtitle_ass_path and subtitle_ass_path.exists():
-        ass_arg = str(subtitle_ass_path).replace("\\", "/").replace(":", "\\:")
-        fd_arg = ""
-        if fonts_dir and fonts_dir.exists():
-            fd = str(fonts_dir).replace("\\", "/").replace(":", "\\:")
-            fd_arg = f":fontsdir={fd}"
-        filter_lines.append(
-            f"[{prev}]ass=filename={ass_arg}{fd_arg}[after_subs]"
-        )
-        prev = "after_subs"
-
     # Apply branded intro overlay (alpha - circle reveals footage, red wraps it).
     # eof_action=pass: when the 1.37s intro stream ends, the overlay passes
     # through the background instead of stalling FFmpeg for the remaining
@@ -651,7 +589,7 @@ def _build_filter_graph(
     # bilinear scaler: lanczos is high quality but ~5x slower; imperceptible
     # difference on a 1.37s branded overlay at Instagram quality.
     if has_intro:
-        intro_dur = 1.37  # known duration of factjot_intro.mov
+        intro_dur = _INTRO_DURATION  # probed at module load from factjot_intro.mov
         filter_lines.append(
             f"[{intro_input_idx}:v]"
             f"scale=1080:1920:flags=bilinear,setsar=1,setpts=PTS-STARTPTS"

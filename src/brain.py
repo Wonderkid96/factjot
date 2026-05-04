@@ -43,6 +43,7 @@ from src.core.paths import (
     POSTED as POSTED_PATH,
     POSTED_QUOTES as POSTED_QUOTES_PATH,
     REELS_LEDGER as REELS_PATH,
+    LIST_POSTS as LIST_POSTS_PATH,
     BRAIN_QUEUE as QUEUE_PATH,
     STATS as STATS_PATH,
     TRENDS as TRENDS_PATH,
@@ -119,7 +120,7 @@ class Brain:
         """
         # Fresh read from disk - bypasses the in-memory cache
         posted_on_disk: set[str] = set()
-        for path in (POSTED_PATH, REELS_PATH):
+        for path in (POSTED_PATH, REELS_PATH, LIST_POSTS_PATH):
             if not path.exists():
                 continue
             with path.open("r", encoding="utf-8") as fh:

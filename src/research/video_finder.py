@@ -87,6 +87,7 @@ _TOPIC_GENERIC: dict[str, list[str]] = {
     "history":    ["vintage film archive black white", "old city streets historical", "aerial city smoke fog"],
     "tech":       ["computer code screen technology", "circuit board technology close up", "data center server lights"],
     "technology": ["computer code screen technology", "circuit board technology close up", "data center server lights"],
+    "science":    ["laboratory experiment science", "microscope cells research", "scientific discovery visualization"],
     "earth":      ["aerial landscape drone nature", "mountain clouds time lapse", "volcano lava flowing"],
 }
 

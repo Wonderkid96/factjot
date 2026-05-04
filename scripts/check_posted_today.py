@@ -54,7 +54,10 @@ def main() -> int:
                         row = json.loads(line)
                     except json.JSONDecodeError:
                         continue
-                    if row.get("published_at", "").startswith(today):
+                    if (
+                        row.get("published_at", "").startswith(today)
+                        and row.get("ig_media_id") != "skip"
+                    ):
                         print("already_posted")
                         return 1
             except Exception:

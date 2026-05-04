@@ -138,14 +138,32 @@ def _is_list_posted(slug: str) -> bool:
     return False
 
 
+def _recent_posted_categories(n: int = 3) -> list[str]:
+    """Return categories of the last N real list posts (skips sentinel entries)."""
+    if not LIST_POSTS.exists():
+        return []
+    rows = []
+    for line in LIST_POSTS.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+            if row.get("ig_media_id") != "skip":
+                rows.append(row)
+        except json.JSONDecodeError:
+            pass
+    return [r.get("category", "") for r in rows[-n:]]
+
+
 def _record_list_post(slug: str, post_id: str, ig_media_id: str,
                       category: str, sources: list) -> None:
     """Append to list_posts.jsonl — permanent, never wiped by reset."""
-    import hashlib
+    from src.brain import claim_hash as _claim_hash
     from datetime import timezone
     claim = list_dedupe_claim(slug)
     row = {
-        "claim_hash": hashlib.sha256(claim.encode()).hexdigest(),
+        "claim_hash": _claim_hash(claim),
         "claim": claim,
         "topic": "film",
         "category": category,
@@ -164,9 +182,26 @@ def _pick_next_unposted_pack() -> str | None:
 
     Priority: curated packs → generated themed packs → TMDB trending fallback.
     Checks list_posts.jsonl (permanent) AND posted.jsonl (resets periodically).
+
+    Category cooldown: prefers packs whose category has not appeared in the
+    last 3 posts. If all remaining packs share a recent category, falls back
+    to any available pack — this keeps variety without hard-blocking topics.
     """
+    recent_cats = _recent_posted_categories(3)
+
+    def _is_available(slug: str) -> bool:
+        return not _is_list_posted(slug) and not brain.is_fact_posted(list_dedupe_claim(slug))
+
+    # First pass: packs whose category is not in the recent 3
     for slug in LIST_PACKS:
-        if not _is_list_posted(slug) and not brain.is_fact_posted(list_dedupe_claim(slug)):
+        if _is_available(slug):
+            pack_cat = LIST_PACKS[slug].get("category", "")
+            if pack_cat not in recent_cats:
+                return slug
+
+    # Second pass: any available pack (all remaining are recent-category repeats)
+    for slug in LIST_PACKS:
+        if _is_available(slug):
             return slug
     # All known packs posted — generate a trending pack from TMDB as last resort
     print("All packs posted. Generating auto pack from TMDB trending...")
