@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  @font-face {
+    font-family: "JetBrains Mono";
+    src: url("{{ font_mono_bold }}") format("truetype");
+    font-weight: 700;
+    font-style: normal;
+  }
+
+  :root {
+    --off-white: #EDE8DD;
+    --accent:    #E6352A;
+    --ink:       #0A0A0A;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: {{ width }}px;
+    height: {{ height }}px;
+    overflow: hidden;
+    background: transparent;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Outer wrapper — positions the print on the frame */
+  .insert {
+    position: absolute;
+    left: {{ x }}px;
+    top: {{ y }}px;
+    width: {{ frame_w }}px;
+  }
+
+  /* The print frame itself — ivory border like a developed photograph */
+  .print {
+    position: relative;
+    background: var(--off-white);
+    padding: {{ border }}px {{ border }}px {{ caption_pad }}px {{ border }}px;
+    box-shadow:
+      0  2px  6px  rgba(0,0,0,0.35),
+      0  8px  24px rgba(0,0,0,0.55),
+      0  20px 48px rgba(0,0,0,0.25);
+  }
+
+  /* Brand red left accent line — grounds it in the factjot visual language */
+  .accent {
+    position: absolute;
+    left: 0;
+    top: {{ border }}px;
+    bottom: {{ caption_pad }}px;
+    width: 3px;
+    background: var(--accent);
+    opacity: 0.85;
+  }
+
+  /* The photograph */
+  img.photo {
+    display: block;
+    width: 100%;
+    /* Cinematic grade baked in: subtle desaturation + slight contrast lift */
+    filter: saturate(0.80) contrast(1.05) brightness(0.97);
+  }
+
+  /* Film grain overlay — very subtle, reads as scanned archival material */
+  .grain {
+    position: absolute;
+    inset: {{ border }}px {{ border }}px {{ caption_pad }}px {{ border }}px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='200' height='200' filter='url(%23n)' opacity='0.08'/></svg>");
+    background-size: 200px 200px;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+    opacity: 0.55;
+  }
+
+  /* Vignette on the photo edges — draws eye to centre */
+  .vignette {
+    position: absolute;
+    inset: {{ border }}px {{ border }}px {{ caption_pad }}px {{ border }}px;
+    background: radial-gradient(
+      ellipse 110% 110% at 50% 50%,
+      transparent 55%,
+      rgba(0,0,0,0.28) 100%
+    );
+    pointer-events: none;
+  }
+
+  /* Caption below the image — entity name, monospace, muted */
+  .caption {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(10,10,10,0.45);
+    text-align: center;
+    padding-top: 10px;
+    padding-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+</style>
+</head>
+<body>
+<div class="insert">
+  <div class="print">
+    <div class="accent"></div>
+    <img class="photo" src="{{ photo_url }}" />
+    <div class="grain"></div>
+    <div class="vignette"></div>
+    {% if caption %}<div class="caption">{{ caption }}</div>{% endif %}
+  </div>
+</div>
+</body>
+</html>

@@ -256,3 +256,75 @@ def pick_hook_words(claim: str, max_words: int = 5) -> str:
     while len(candidate) > 2 and candidate[-1].lower().strip(",.;:") in _WEAK_ENDINGS:
         candidate = candidate[:-1]
     return " ".join(candidate).rstrip(",.;:")
+
+
+# ------------------------------------------------------------------ #
+# Photo insert renderer
+# ------------------------------------------------------------------ #
+
+def render_photo_insert(
+    image_path: Path,
+    out_path: Path,
+    caption: str = "",
+) -> Path:
+    """Render a documentary-style photograph insert as a transparent PNG.
+
+    The insert is a print photograph placed over the footage frame:
+    - 65% frame width (footage visible on left/right sides)
+    - Ivory border (like a developed photo print)
+    - Soft drop shadow (grounds it physically)
+    - Brand red left accent line
+    - Film grain + vignette overlaid on the photo
+    - Optional caption in JetBrains Mono below the image
+
+    The PNG is 1080x1920 with transparent background -- composited
+    into the reel as a regular OverlayFrame at the chosen time window.
+    """
+    from jinja2 import Environment, FileSystemLoader
+    from playwright.sync_api import sync_playwright
+
+    _W, _H = 1080, 1920
+    border   = 14   # ivory border thickness px
+    cap_pad  = 42   # bottom padding if caption present, else same as border
+    frame_w  = 700  # 65% of 1080
+
+    template_dir = Path(__file__).parent / "templates"
+    env = Environment(loader=FileSystemLoader(str(template_dir)), autoescape=False)
+    tmpl = env.get_template("reel_photo_insert.html.j2")
+
+    x = (_W - frame_w) // 2        # centred horizontally
+    y = int(_H * 0.28)              # roughly upper-third so caption stays above CTA zone
+
+    html = tmpl.render(
+        width=_W,
+        height=_H,
+        photo_url=image_path.as_uri(),
+        caption=caption.upper()[:40] if caption else "",
+        x=x,
+        y=y,
+        frame_w=frame_w,
+        border=border,
+        caption_pad=cap_pad if caption else border,
+        font_mono_bold=FONT_MONO_BOLD.as_uri(),
+    )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        try:
+            ctx = browser.new_context(
+                viewport={"width": _W, "height": _H},
+                device_scale_factor=1,
+            )
+            page = ctx.new_page()
+            page.set_content(html, wait_until="networkidle")
+            page.screenshot(
+                path=str(out_path),
+                omit_background=True,
+                full_page=False,
+                clip={"x": 0, "y": 0, "width": _W, "height": _H},
+            )
+            page.close()
+        finally:
+            browser.close()
+    return out_path

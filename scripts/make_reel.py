@@ -572,7 +572,56 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
             _sub_count += 1
         print(f"  kinetic subtitles: {len(chunks)} chunks -> {_sub_count} subtitle PNGs")
 
-        # 5d: CTA frame
+        # 5e: Documentary photo inserts — archival/entity images appear over footage
+        # timed to when the narrator first mentions the subject's name.
+        # Style: photograph-on-surface (ivory border, shadow, brand accent, film grain).
+        # Rendered as transparent PNGs via Playwright, composited as OverlayFrames.
+        from src.render.reel_text_renderer import render_photo_insert
+        from src.research.narrative_beats import extract_entities as _ext_ents
+
+        _ENTITY_PREFIXES = ("wiki_lead_", "wiki_article_", "wm_entity_")
+        _entity_images = [p for p in footage_clips if any(p.name.startswith(pfx) for pfx in _ENTITY_PREFIXES)]
+
+        if _entity_images and word_beats:
+            # Find first word beat where a proper noun from the claim is spoken
+            _claim_ents = _ext_ents(claim)
+            _subject_words = {w.lower() for w in _claim_ents.proper_nouns[:3]} or {""}
+            _anchor_t = INTRO_S + 0.3  # default: just after intro
+            for _wb in word_beats:
+                if any(s in _wb.word.lower() for s in _subject_words if len(s) > 3):
+                    _anchor_t = INTRO_S + _wb.start_s + 0.3
+                    break
+
+            _INSERT_HOLD   = 4.5   # seconds each photo is visible
+            _INSERT_FADEIN = 0.35
+            _INSERT_FADEOUT= 0.30
+            _INSERT_GAP    = 0.6   # gap between consecutive inserts
+            _MAX_INSERTS   = min(len(_entity_images), 3)
+            _INSERT_ZONE_END = cta_s - 1.5
+
+            _t = _anchor_t
+            for _idx, _img in enumerate(_entity_images[:_MAX_INSERTS]):
+                _end_t = min(_t + _INSERT_HOLD, _INSERT_ZONE_END)
+                if _end_t - _t < 1.5:
+                    break
+                _insert_png = overlay_dir / f"photo_insert_{_idx:02d}.png"
+                # Caption: first proper noun or reel title shortened
+                _cap = (fact.get("reel_title") or " ".join(_claim_ents.proper_nouns[:2]) or "").split(" — ")[0][:35]
+                print(f"  [photo-insert] {_img.name} @ {_t:.1f}s–{_end_t:.1f}s")
+                try:
+                    render_photo_insert(image_path=_img, out_path=_insert_png, caption=_cap)
+                    overlays.append(OverlayFrame(
+                        png=_insert_png,
+                        start_s=_t,
+                        end_s=_end_t,
+                        fade_in_s=_INSERT_FADEIN,
+                        fade_out_s=_INSERT_FADEOUT,
+                    ))
+                except Exception as _pie:
+                    print(f"  [photo-insert] skipped ({_pie})")
+                _t = _end_t + _INSERT_GAP
+
+        # 5f: CTA frame
         cta_path = overlay_dir / "cta.png"
         text_frames.append(TextFrame(style="cta", text="@factjot", out_path=cta_path))
         overlays.append(OverlayFrame(png=cta_path, start_s=cta_s, end_s=total_dur, fade_in_s=0.4, fade_out_s=0.0))
