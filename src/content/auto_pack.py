@@ -102,8 +102,8 @@ def build_trending_pack(
 
     pack = {
         "slug":     slug,
-        "title":    f"Five films everyone is watching right now",
-        "subtitle": f"week of {now.strftime('%d %B %Y')}.",
+        "title":    f"Five films worth watching this week",
+        "subtitle": f"picked {now.strftime('%d %B %Y')} — not by an algorithm.",
         "category": "TRENDING",
         "series":   "factjot",
         "auto_generated": True,
