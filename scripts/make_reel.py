@@ -608,14 +608,17 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         story_png     = out_dir / "story.png"
 
         print("\nExtracting footage frame for thumbnail...")
-        # Pull a frame at 1.0s. If the first clip is a still image (JPEG/PNG),
-        # fall back to the composed final.mp4 so the seek always finds a frame.
+        # Pull a frame at 1.0s from clean footage only (no overlays baked in).
+        # If footage_clips[0] is a still image, use the pre-rendered
+        # still_rendered_{stem}.mp4 from the compose step -- that file has no
+        # text overlays. Do NOT use final.mp4 (all overlays baked in = double text
+        # on thumbnail and story).
         _STILL_EXTS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
-        thumb_src = (
-            final_mp4
-            if footage_clips[0].suffix.lower() in _STILL_EXTS
-            else footage_clips[0]
-        )
+        if footage_clips[0].suffix.lower() in _STILL_EXTS:
+            _still_rendered = out_dir / f"still_rendered_{footage_clips[0].stem}.mp4"
+            thumb_src = _still_rendered if _still_rendered.exists() else footage_clips[0]
+        else:
+            thumb_src = footage_clips[0]
         _sp.run([
             ff_bin, "-y",
             "-ss", "1.0",
