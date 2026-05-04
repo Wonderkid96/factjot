@@ -2,7 +2,6 @@
 
 Sources:
     - r/Damnthatsinteresting (upvotes >= 10,000) -- public Reddit JSON API
-    - r/morbidreality (upvotes >= 3,000) -- requires Reddit OAuth (NSFW-gated)
     - Wikipedia "List of unusual deaths" (per-century children, 1800 onwards)
 
 Pipeline per candidate:
@@ -419,128 +418,9 @@ def _score_fact(claim: str, upvotes: int) -> int:
     return score
 
 
-# ---------------------------------------------------------------------------
-# Wikipedia unusual deaths scraper
-# ---------------------------------------------------------------------------
-
-# Wikipedia split the "List of unusual deaths" page into per-century children.
-# The original combined page is now a stub redirect, so we fetch each child.
-_WIKI_API_BASE = "https://en.wikipedia.org/w/api.php"
-_WIKI_PAGES = [
-    # Spontaneous combustion, unidentified sounds, unexplained phenomena
-    "List_of_unidentified_sounds",
-    "List_of_reportedly_haunted_locations",
-    "List_of_unexplained_phenomena",
-    # Mass-event and disaster lists
-    "List_of_industrial_disasters",
-    "List_of_explosion_disasters",
-]
-_WIKI_SOURCE_URL_BASE = "https://en.wikipedia.org/wiki/"
+# (Wikipedia unusual deaths scraper removed -- sourced off-brand content)
 
 
-def _strip_wiki_markup(text: str) -> str:
-    """Remove wikitext markup, leaving plain readable text."""
-    # Resolve [[Link|Display]] -> Display, [[Display]] -> Display
-    text = re.sub(r"\[\[(?:[^\]|]+\|)?([^\]]+)\]\]", r"\1", text)
-    # Remove {{templates}}
-    text = re.sub(r"\{\{[^}]*\}\}", "", text)
-    # Remove <ref> tags and their content
-    text = re.sub(r"<ref[^/]*/?>", "", text)
-    text = re.sub(r"<ref[^>]*>.*?</ref>", "", text, flags=re.DOTALL)
-    # Remove bold/italic markers
-    text = re.sub(r"'{2,3}", "", text)
-    # Remove any leftover HTML tags
-    text = re.sub(r"<[^>]+>", "", text)
-    # Tidy whitespace
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
-
-
-def _parse_wiki_death_table(wikitext: str, page_url: str) -> list[dict]:
-    """Extract death-row Details cells from Wikipedia's table-formatted lists.
-
-    Each row in these tables looks like:
-        |-
-        !Name of person
-        |[[File:image.jpg|...]]
-        |{{dts|3 January 1804}}
-        |The actual details about the death go here...
-
-    We split on `|-` row separators and extract the last cell of each row
-    (which is consistently the Details column). Header rows are skipped
-    because their cells are introduced with `!` instead of `|`.
-    """
-    out: list[dict] = []
-    rows = re.split(r"\n\|-\s*\n", wikitext)
-    for row in rows:
-        # Each row has cells separated by `\n|`. Take the last `|`-prefixed cell.
-        cells = re.split(r"\n\|", row)
-        if len(cells) < 2:
-            continue
-        details_raw = cells[-1].strip()
-        # Skip image-only or date-only cells that lack prose.
-        if details_raw.startswith("[[File:") or details_raw.startswith("{{dts"):
-            continue
-        # Drop trailing pipes / closing braces.
-        details_raw = details_raw.rstrip("|}").strip()
-        claim = _strip_wiki_markup(details_raw)
-        # Drop leading date if it survived markup removal.
-        claim = re.sub(r"^\d{1,2}\s+\w+\s+\d{4}\s*", "", claim).strip()
-        claim = _normalise_claim(claim)
-        if len(claim) < 60 or len(claim) > 320:
-            continue
-        out.append({"claim": claim, "source_url": page_url})
-    return out
-
-
-def _fetch_wikipedia_unusual_deaths() -> list[dict]:
-    """Fetch and parse Wikipedia's per-century "List of unusual deaths" pages.
-
-    Wikipedia split the original combined article into per-century children
-    that use wikitext tables, not bullet lists. Each row maps a person to
-    a Details cell containing the unusual circumstances of death.
-
-    Returns a list of dicts with keys:
-        claim       -- cleaned plain-text Details cell
-        source_url  -- canonical Wikipedia URL for the page it came from
-    Entries shorter than 60 chars or longer than 320 chars are skipped.
-    """
-    results: list[dict] = []
-    for page in _WIKI_PAGES:
-        page_url = _WIKI_SOURCE_URL_BASE + page
-        try:
-            resp = session.get(
-                _WIKI_API_BASE,
-                params={
-                    "action":   "parse",
-                    "page":     page,
-                    "prop":     "wikitext",
-                    "format":   "json",
-                },
-                timeout=20,
-            )
-        except requests.RequestException:
-            print(f"  Wikipedia fetch failed for {page} (network error).")
-            continue
-        if not resp.ok:
-            print(f"  Wikipedia fetch failed for {page}: HTTP {resp.status_code}.")
-            continue
-
-        try:
-            data = resp.json()
-        except Exception:
-            continue
-
-        wikitext = data.get("parse", {}).get("wikitext", {}).get("*", "")
-        if not wikitext:
-            continue
-
-        page_results = _parse_wiki_death_table(wikitext, page_url)
-        results.extend(page_results)
-        print(f"  {page}: {len(page_results)} entries")
-        time.sleep(0.5)  # Polite to Wikipedia API
-
-    return results
 
 
 # ---------------------------------------------------------------------------
@@ -661,69 +541,6 @@ def main() -> int:
                 out_fh.write(json.dumps(row, ensure_ascii=True) + "\n")
                 counters["appended"] += 1
 
-        # ------------------------------------------------------------------
-        # Wikipedia unusual deaths
-        # ------------------------------------------------------------------
-        print("\nFetching Wikipedia: List of unusual deaths ...")
-        wiki_entries = _fetch_wikipedia_unusual_deaths()
-        print(f"  Parsed {len(wiki_entries)} candidate entries.")
-
-        # The Wikipedia article itself is the source; it is trusted by domain.
-        # Skip upvotes, age, and comment gates -- none apply to Wikipedia.
-        for entry in wiki_entries:
-            claim      = entry["claim"]
-            source_url = entry["source_url"]
-
-            # Synthetic ID so we can dedup across runs.
-            synthetic_id = "wiki:ud:" + str(abs(hash(claim)) % (10 ** 12))
-
-            if synthetic_id in seen:
-                counters["dup"] += 1
-                continue
-
-            # Gate 0: already posted under @factjot
-            if claim_hash(claim) in posted:
-                counters["already_posted"] += 1
-                _record_reject("already_posted", synthetic_id, claim)
-                continue
-
-            # Gate 1 (adapted): domain trust check (Wikipedia is already in TRUSTED_DOMAINS)
-            if not _is_trusted(source_url):
-                counters["untrusted"] += 1
-                _record_reject(f"untrusted({_hostname(source_url)})", synthetic_id, claim)
-                continue
-
-            # Gate 2: source-content cross-check against the full Wikipedia article.
-            source_text = _fetch_source_text(source_url)
-            if not _claim_supported_by_source(claim, source_text):
-                counters["unsupported"] += 1
-                _record_reject("source_unsupported", synthetic_id, claim)
-                continue
-
-            topic = route_to_topic(claim)
-            # Wikipedia entries have no upvote signal; pass 0 so base=1,
-            # viral signals can still push to 2.
-            score = _score_fact(claim, upvotes=0)
-            if score == 0:
-                counters["boring"] += 1
-                _record_reject("boring_generic", synthetic_id, claim)
-                continue
-
-            seen.add(synthetic_id)
-            row = {
-                "topic":        topic,
-                "claim":        claim,
-                "sources":      [source_url],
-                "image_hint":   suggest_image_hint(claim, topic),
-                "quirky_score": score,
-                "discovered_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-                "source_kind":  "wikipedia:unusual_deaths",
-                "reddit_id":    synthetic_id,  # kept for dedup compatibility with existing schema
-                "upvotes":      0,
-                "verified_by":  "auto:multi_check",
-            }
-            out_fh.write(json.dumps(row, ensure_ascii=True) + "\n")
-            counters["appended"] += 1
 
     # ------------------------------------------------------------------
     # Summary
@@ -735,7 +552,7 @@ def main() -> int:
     print(f"  reject log:       {LOG_PATH}")
 
     if counters["appended"] > 0:
-        source_labels = [f"r/{s['subreddit']}" for s in SOURCES] + ["wikipedia:unusual_deaths"]
+        source_labels = [f"r/{s['subreddit']}" for s in SOURCES]
         brain.append_log(
             f"discovery: appended {counters['appended']} fresh facts from "
             f"{', '.join(source_labels)} "
