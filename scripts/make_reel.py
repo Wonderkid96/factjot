@@ -945,9 +945,10 @@ def main() -> int:
         all_q3 = [r for r in load_all_facts() if r.get("quirky_score", 0) == 3]
         if args.topic:
             all_q3 = [r for r in all_q3 if r["topic"] == args.topic]
+        used_as_reel = brain.list_reel_claims()
         print(f"\n{len(all_q3)} quirky_score=3 facts:")
         for r in all_q3:
-            if brain.is_fact_posted(r["claim"]):
+            if brain.is_fact_posted(r["claim"]) or r["claim"] in used_as_reel:
                 tag = "(used)"
             elif r.get("sensitivity") == CONTROVERSIAL:
                 flags = ", ".join(r.get("sensitivity_flags") or [])
@@ -956,7 +957,7 @@ def main() -> int:
                 tag = ""
             print(f"  [{r['topic']}] {r['claim'][:90]} {tag}")
         blocked = sum(1 for r in all_q3 if r.get("sensitivity") == CONTROVERSIAL)
-        used = sum(1 for r in all_q3 if brain.is_fact_posted(r["claim"]))
+        used = sum(1 for r in all_q3 if brain.is_fact_posted(r["claim"]) or r["claim"] in used_as_reel)
         print(f"\n  {used} used, {blocked} blocked (controversial), {len(all_q3) - used - blocked} available")
         return 0
 
