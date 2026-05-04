@@ -47,4 +47,21 @@ build/
 
 # ── macOS ──────────────────────────────────────────────────────────
 .DS_Store
+**/.DS_Store
 .AppleDouble
+.LSOverride
+
+# ── Windows ────────────────────────────────────────────────────────
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ── Env variants ───────────────────────────────────────────────────
+.env.local
+.env.*.local
+
+# ── Loose log / temp files ─────────────────────────────────────────
+*.log
+*.tmp
+*.swp
+*.swo
