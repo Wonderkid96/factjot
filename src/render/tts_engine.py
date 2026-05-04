@@ -214,6 +214,7 @@ def synthesise(
     rate: str = "+0%",
     volume: str = "+0%",
     backend: str | None = None,
+    tone: str = "curious",
 ) -> tuple[Path, list[WordBeat]]:
     """Synthesise `text` to MP3 and return (mp3_path, word_beats).
 
@@ -235,7 +236,7 @@ def synthesise(
             _alert_tts_fallback(msg)
         else:
             try:
-                result = _synthesise_elevenlabs(text, out_dir, voice)
+                result = _synthesise_elevenlabs(text, out_dir, voice, tone=tone)
                 return result
             except Exception as exc:
                 msg = f"ElevenLabs failed ({exc.__class__.__name__}: {exc}) - falling back to edge-tts"
@@ -540,6 +541,7 @@ def _synthesise_elevenlabs(
     text: str,
     out_dir: Path,
     voice: str,
+    tone: str = "curious",
 ) -> tuple[Path, list[WordBeat]]:
     """Call ElevenLabs /with-timestamps endpoint.
 
@@ -582,9 +584,10 @@ def _synthesise_elevenlabs(
             "text": text,
             "model_id": EL_MODEL,
             "voice_settings": {
-                "stability": 0.60,        # measured, documentary pacing (0.40 sounded theatrical)
+                # Tune by tone: shocking facts need more drama, sober facts stay measured.
+                "stability":       {"shocking": 0.38, "sober": 0.65, "wholesome": 0.55}.get(tone, 0.52),
                 "similarity_boost": 0.82,
-                "style": 0.12,            # near-natural delivery, minimal performance
+                "style":           {"shocking": 0.42, "sober": 0.10, "wholesome": 0.20}.get(tone, 0.22),
                 "use_speaker_boost": True,
             },
         },

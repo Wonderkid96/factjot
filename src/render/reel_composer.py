@@ -215,7 +215,7 @@ def _still_to_mp4(
 
 
 # Timing constants (seconds) - locked by Rule 19 (Reels Strategy)
-INTRO_S            = 3.5    # silent intro window - hook title shows, voice starts after
+INTRO_S            = 1.5    # silent intro window - voice starts fast, hook title overlaps
 HOOK_LABEL_START   = 0.0
 HOOK_TEXT_START    = 0.0    # hook hits immediately (front-loaded novelty)
 HOOK_TEXT_END      = 1.5    # 0-1.5s = hook beat
@@ -236,7 +236,7 @@ MIN_DURATION_S        = 5
 
 # Clip cut targeting (rule 19: 1.0-2.2s band)
 TARGET_CLIP_LEN_S  = 1.8    # mid of allowed band
-KEN_BURNS_ZOOM     = 0.10   # 10% overscan - subtle travel, not shaky
+KEN_BURNS_ZOOM     = 0.20   # 20% overscan - visible motion, not drift
 KEN_BURNS_FRAMES   = 90     # frames over which zoompan computes
 
 
@@ -526,10 +526,10 @@ def _build_filter_graph(
             pan_x = f"{pan_x_range}*t/{dur:.3f}"
         elif i % 4 == 1: # pan left
             pan_x = f"{pan_x_range}*(1-t/{dur:.3f})"
-        elif i % 4 == 2: # pan right but starting mid-frame
-            pan_x = f"{pan_x_range//2}+{pan_x_range//4}*t/{dur:.3f}"
-        else:             # static centre (subtle rest between moves)
-            pan_x = f"{pan_x_range//2}"
+        elif i % 4 == 2: # pan right from mid-frame
+            pan_x = f"{pan_x_range//2}+{pan_x_range//2}*t/{dur:.3f}"
+        else:             # pan left from mid-frame (keeps all clips in motion)
+            pan_x = f"{pan_x_range//2}*(1-t/{dur:.3f})"
 
         filter_lines.append(
             f"[{inp_idx}:v]"

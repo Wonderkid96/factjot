@@ -390,7 +390,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         el_key = os.getenv("ELEVENLABS_API_KEY", "")
         el_voice = os.getenv("ELEVENLABS_VOICE", "george")
         tts_voice = el_voice if (tts_backend == "elevenlabs" and el_key) else voice
-        mp3_path, word_beats = synthesise(vo_script, out_dir, voice=tts_voice, backend=tts_backend)
+        mp3_path, word_beats = synthesise(vo_script, out_dir, voice=tts_voice, backend=tts_backend, tone=fact.get("tone", "curious"))
         if not word_beats:
             print("ERROR: TTS returned no word timing. Check edge-tts is installed.")
             return 4
@@ -511,8 +511,8 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         # comfortably under that limit. Larger chunks = fewer overlay PNGs.
         chunks = group_into_chunks(
             word_beats,
-            words_per_line=8,
-            max_chars=52,
+            words_per_line=4,
+            max_chars=28,
             original_text=vo_script,
         )
 
