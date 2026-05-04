@@ -153,6 +153,22 @@ def _still_to_mp4(
         )
     return out_path
 
+
+def _black_fill_mp4(duration_s: float, out_path: Path, ffmpeg_bin: str = "ffmpeg") -> Path:
+    """Generate a solid black H264 clip as a fallback when a still pre-render fails."""
+    cmd = [
+        ffmpeg_bin, "-y",
+        "-f", "lavfi", "-i", f"color=c=black:s=1080x1920:r=30:d={duration_s:.3f}",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
+        "-pix_fmt", "yuv420p",
+        str(out_path),
+    ]
+    proc = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True)
+    if proc.returncode != 0 or not out_path.exists():
+        raise RuntimeError("black fill fallback also failed — check FFmpeg installation")
+    return out_path
+
+
 # Timing constants (seconds) - locked by Rule 19 (Reels Strategy)
 INTRO_S            = 3.5    # silent intro window - hook title shows, voice starts after
 HOOK_LABEL_START   = 0.0
@@ -292,7 +308,11 @@ def compose(
             rendered = out_path.parent / f"still_rendered_{fp.stem}.mp4"
             if not rendered.exists():
                 print(f"  [ffmpeg] pre-rendering still {fp.name} -> {rendered.name} ({dur:.1f}s)")
-                _still_to_mp4(fp, dur, rendered, ffmpeg_bin)
+                try:
+                    _still_to_mp4(fp, dur, rendered, ffmpeg_bin)
+                except RuntimeError as _pre_err:
+                    print(f"  [ffmpeg] WARNING: still {fp.name} failed pre-render, using black fill — {_pre_err!s:.100}")
+                    _black_fill_mp4(dur, rendered, ffmpeg_bin)
             rendered_footage.append(rendered)
         else:
             rendered_footage.append(fp)
