@@ -450,9 +450,9 @@ def _synthesise_elevenlabs(
             "text": text,
             "model_id": EL_MODEL,
             "voice_settings": {
-                "stability": 0.40,        # consistent pacing - 0.25 caused erratic long pauses
+                "stability": 0.60,        # measured, documentary pacing (0.40 sounded theatrical)
                 "similarity_boost": 0.82,
-                "style": 0.35,            # energy without over-performing
+                "style": 0.12,            # near-natural delivery, minimal performance
                 "use_speaker_boost": True,
             },
         },

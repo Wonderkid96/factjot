@@ -122,13 +122,50 @@ def _recompress(
 # Music selection
 # ------------------------------------------------------------------ #
 
-def _pick_music(topic: str) -> Path | None:
+def _pick_music(topic: str, tone: str = "curious") -> Path | None:
     music_dir = Path(__file__).resolve().parents[1] / "assets" / "music"
-    # Try topic-specific, then any track
-    for candidate in [music_dir / f"{topic}.mp3", music_dir / "default.mp3"]:
-        if candidate.exists():
-            return candidate
-    # Any .mp3 in the directory
+
+    # Mood map: (topic, tone) -> preferred filename stem, then fallbacks.
+    # Tracks live in assets/music/ as {stem}.mp3.
+    # Priority: exact topic+tone > topic-only > tone-only > default.
+    _MOOD_MAP: dict[tuple[str, str], str] = {
+        ("history",    "shocking"): "dark",
+        ("history",    "sober"):    "sober",
+        ("history",    "curious"):  "investigations",
+        ("space",      "curious"):  "ambient_space",
+        ("space",      "shocking"): "dark",
+        ("ocean",      "curious"):  "ambient_ocean",
+        ("ocean",      "shocking"): "dark",
+        ("biology",    "curious"):  "investigations",
+        ("biology",    "shocking"): "dark",
+        ("earth",      "curious"):  "ambient_earth",
+        ("earth",      "shocking"): "dark",
+        ("technology", "curious"):  "investigations",
+        ("technology", "shocking"): "dark",
+        ("science",    "curious"):  "investigations",
+        ("science",    "shocking"): "dark",
+    }
+    _TONE_FALLBACK: dict[str, str] = {
+        "shocking":   "dark",
+        "sober":      "sober",
+        "curious":    "investigations",
+        "wholesome":  "ambient_earth",
+    }
+
+    candidates = []
+    exact = _MOOD_MAP.get((topic, tone))
+    if exact:
+        candidates.append(music_dir / f"{exact}.mp3")
+    tone_fb = _TONE_FALLBACK.get(tone)
+    if tone_fb:
+        candidates.append(music_dir / f"{tone_fb}.mp3")
+    candidates += [
+        music_dir / f"{topic}.mp3",
+        music_dir / "default.mp3",
+    ]
+    for c in candidates:
+        if c.exists():
+            return c
     tracks = list(music_dir.glob("*.mp3"))
     return tracks[0] if tracks else None
 
@@ -521,7 +558,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         renderer.render_all(text_frames)
 
         # Step 6: Music — random start point so every Reel sounds different
-        music_path = _pick_music(ftopic)
+        music_path = _pick_music(ftopic, tone=fact.get("tone", "curious"))
         if music_path:
             print(f"  music: {music_path.name}")
         else:
