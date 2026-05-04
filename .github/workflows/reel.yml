@@ -12,6 +12,11 @@ on:
         type: boolean
         default: false
         required: false
+      dry_run:
+        description: "Compose video but skip upload and publish (safe preview)"
+        type: boolean
+        default: false
+        required: false
 
 concurrency:
   group: factjot-publish
@@ -124,7 +129,12 @@ jobs:
 
       - name: Post reel
         if: steps.check.outputs.skip != 'true'
-        run: python3 -u scripts/make_reel.py
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            python3 -u scripts/make_reel.py --dry-run
+          else
+            python3 -u scripts/make_reel.py
+          fi
 
       - name: Capture failure to brain log
         if: failure()
