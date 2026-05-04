@@ -99,10 +99,39 @@ def _pump_ffmpeg_stderr(
         _sys.stderr.buffer.flush()
 
 
-# image2 default is 25 fps; stream_loop + multi-second trims decode the same
-# 4K JPEG hundreds of times (first-frame stall for hours). Use -framerate 1
-# on still inputs, then fps=30 after each clip so concat matches output -r 30.
 _STILL_IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg", ".png", ".webp"})
+
+
+def _still_to_mp4(
+    still_path: Path,
+    duration_s: float,
+    out_path: Path,
+    ffmpeg_bin: str = "ffmpeg",
+) -> Path:
+    """Convert a still image to a fixed-duration 30 fps H264 MP4.
+
+    Stills fed directly into the main filter graph via -framerate 1 +
+    stream_loop -1 + fps=30 deadlock the FFmpeg scheduler on macOS
+    (image2 demuxer + fps filter creates a 1->30 frame imbalance that
+    backs up the entire concat/overlay pipeline). Pre-rendering to a
+    proper MP4 makes the still indistinguishable from any other footage
+    clip in the main compose -- no special-casing, no deadlock.
+    Works identically on CI and local Mac.
+    """
+    cmd = [
+        ffmpeg_bin, "-y",
+        "-loop", "1", "-framerate", "30", "-i", str(still_path),
+        "-t", f"{duration_s:.3f}",
+        "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
+        "-pix_fmt", "yuv420p", "-r", "30",
+        str(out_path),
+    ]
+    proc = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True)
+    if proc.returncode != 0:
+        err = proc.stderr.decode("utf-8", errors="replace")[-600:]
+        raise RuntimeError(f"Still pre-render failed for {still_path.name}: {err}")
+    return out_path
 
 # Timing constants (seconds) - locked by Rule 19 (Reels Strategy)
 INTRO_S            = 3.5    # silent intro window - hook title shows, voice starts after
@@ -229,6 +258,24 @@ def compose(
     # Plan: divide total duration across the clips
     clip_windows = _plan_clip_windows(len(footage_paths), total_duration_s)
     print(f"  [ffmpeg] {len(footage_paths)} clips, windows: {[(f'{a:.1f}', f'{b:.1f}') for a,b in clip_windows]}")
+
+    # Pre-render still images to MP4 before the main compose.
+    # Stills (JPEG/PNG/WebP) fed via -framerate 1 + stream_loop -1 + fps=30
+    # deadlock the FFmpeg scheduler on macOS (see gotchas). A quick one-input
+    # FFmpeg pass produces a proper 30fps H264 clip the main compose treats
+    # identically to any other footage input -- no special-casing, no deadlock.
+    rendered_footage: list[Path] = []
+    for fp, (win_start, win_end) in zip(footage_paths, clip_windows):
+        if fp.suffix.lower() in _STILL_IMAGE_SUFFIXES:
+            dur = max(0.5, win_end - win_start)
+            rendered = out_path.parent / f"still_rendered_{fp.stem}.mp4"
+            if not rendered.exists():
+                print(f"  [ffmpeg] pre-rendering still {fp.name} -> {rendered.name} ({dur:.1f}s)")
+                _still_to_mp4(fp, dur, rendered, ffmpeg_bin)
+            rendered_footage.append(rendered)
+        else:
+            rendered_footage.append(fp)
+    footage_paths = rendered_footage
 
     inputs, filter_parts, map_args = _build_filter_graph(
         footage_paths=footage_paths,
@@ -374,14 +421,10 @@ def _build_filter_graph(
         footage_offset = 0
 
     # Inputs: each footage clip with stream_loop -1 so short clips can stretch.
-    # Stills must use a low demux framerate (see _STILL_IMAGE_SUFFIXES) or FFmpeg
-    # decodes every nominal frame at default 25 fps (catastrophic for 4K JPEGs).
+    # Stills are pre-rendered to MP4 by compose() before this point, so all
+    # footage_paths here are proper video files -- no special-casing needed.
     for fp in footage_paths:
-        suf = fp.suffix.lower()
-        if suf in _STILL_IMAGE_SUFFIXES:
-            inputs += ["-framerate", "1", "-stream_loop", "-1", "-i", str(fp)]
-        else:
-            inputs += ["-stream_loop", "-1", "-i", str(fp)]
+        inputs += ["-stream_loop", "-1", "-i", str(fp)]
     voice_idx = len(footage_paths) + footage_offset
     inputs += ["-i", str(voice_path)]
 
@@ -426,8 +469,6 @@ def _build_filter_graph(
         else:             # static centre (subtle rest between moves)
             pan_x = f"{pan_x_range//2}"
 
-        # Scale → trim → pan crop → fps=30 so concat sees uniform 30 fps (mix of
-        # 1 fps stills, 29.97/60 mp4, and image2 defaults otherwise breaks concat).
         filter_lines.append(
             f"[{inp_idx}:v]"
             f"scale={ow}:{oh}:force_original_aspect_ratio=increase,"
@@ -435,8 +476,7 @@ def _build_filter_graph(
             f"setsar=1,"
             f"trim=duration={dur:.3f},"
             f"setpts=PTS-STARTPTS,"
-            f"crop=1080:1920:x='{pan_x}':y={pan_y_mid},"
-            f"fps=30"
+            f"crop=1080:1920:x='{pan_x}':y={pan_y_mid}"
             f"[clip{inp_idx}]"
         )
         clip_labels.append(f"[clip{inp_idx}]")

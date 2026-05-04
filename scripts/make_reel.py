@@ -571,11 +571,18 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         story_png     = out_dir / "story.png"
 
         print("\nExtracting footage frame for thumbnail...")
-        # Pull a frame from the ESTABLISHING clip at 1.0s — clean, on-subject still.
+        # Pull a frame at 1.0s. If the first clip is a still image (JPEG/PNG),
+        # fall back to the composed final.mp4 so the seek always finds a frame.
+        _STILL_EXTS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
+        thumb_src = (
+            final_mp4
+            if footage_clips[0].suffix.lower() in _STILL_EXTS
+            else footage_clips[0]
+        )
         _sp.run([
             ff_bin, "-y",
             "-ss", "1.0",
-            "-i", str(footage_clips[0]),
+            "-i", str(thumb_src),
             "-vframes", "1",
             "-q:v", "2",
             "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920",
