@@ -43,6 +43,28 @@ _MIN_BYTES_HD  = 2_000_000      # 2 MB floor - filters out sub-3s clips at typic
 _MIN_BYTES_ARK = 50_000         # 50 KB floor for archival/historical content
 _MIN_CLIP_DURATION_S = 4.0      # hard minimum: clips shorter than this loop and jolt
 
+
+def _valid_image(path: Path) -> bool:
+    """Return True if path is a decodable image with non-zero dimensions.
+
+    Rejects corrupt files returned by Wikimedia/Wikipedia that have a valid
+    image extension but are actually DjVu documents, truncated downloads, or
+    0x0 placeholders — catching them here avoids a silent 0-byte still_rendered.mp4.
+    """
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "quiet",
+             "-show_entries", "stream=width,height",
+             "-of", "default=noprint_wrappers=1", str(path)],
+            capture_output=True, timeout=5,
+        )
+        out = result.stdout.decode("utf-8", errors="replace")
+        width  = next((int(l.split("=")[1]) for l in out.splitlines() if l.startswith("width=")),  0)
+        height = next((int(l.split("=")[1]) for l in out.splitlines() if l.startswith("height=")), 0)
+        return width > 0 and height > 0
+    except Exception:
+        return False
+
 # ------------------------------------------------------------------ #
 # Topic-generic atmospheric fallback queries
 # (used when specific searches return nothing usable)
@@ -717,6 +739,10 @@ def _wikipedia_lead_image(entity: str, out_dir: Path, *, used_source_urls: set[s
             print(f"  [wikipedia] image too small ({size//1024}KB), skipping")
             return None
         print(f"  [wikipedia] downloaded lead image {size//1024}KB -> {out_path.name}")
+        if not _valid_image(out_path):
+            out_path.unlink(missing_ok=True)
+            print(f"  [wikipedia] image corrupt or 0x0 dimensions — skipping")
+            return None
         if used_source_urls is not None:
             used_source_urls.add(img_url)
         return out_path
@@ -853,6 +879,11 @@ def _wikimedia_entity_files(
                     print(f"  [wikimedia-entity] clip too short ({dur:.1f}s), skipping")
                     continue
 
+            # For still images, validate dimensions before accepting
+            if kind != "video" and not _valid_image(out_path):
+                out_path.unlink(missing_ok=True)
+                print(f"  [wikimedia-entity] image corrupt or 0x0 — skipping")
+                continue
             print(f"  [wikimedia-entity] downloaded {size_dl//1024}KB -> {out_path.name}")
             if used_source_urls is not None:
                 used_source_urls.add(url)
