@@ -115,6 +115,7 @@ jobs:
           git add \
             insta-brain/data/posted.jsonl \
             insta-brain/data/posted_quotes.jsonl \
+            insta-brain/data/list_posts.jsonl \
             insta-brain/log.md \
             insta-brain/MEMORY_INDEX.md \
             data/ledgers/approval_queue.jsonl \

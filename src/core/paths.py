@@ -84,6 +84,9 @@ BRAIN_INBOX     = BRAIN_DIR / "inbox.md"
 POSTED          = BRAIN_DATA / "posted.jsonl"
 POSTED_QUOTES   = BRAIN_DATA / "posted_quotes.jsonl"
 REELS_LEDGER    = BRAIN_DATA / "reels.jsonl"
+# Permanent list-carousel ledger — never wiped by reset-and-relaunch.
+# ship_list_post.py is the only writer. Dedup checks here first.
+LIST_POSTS      = BRAIN_DATA / "list_posts.jsonl"
 BRAIN_QUEUE     = BRAIN_DATA / "queue.jsonl"
 STATS           = BRAIN_DATA / "stats.jsonl"
 TRENDS          = BRAIN_DATA / "trends.jsonl"

@@ -32,7 +32,7 @@ from src.brain import brain
 from src.content.description_builder import build_instagram_description
 from src.content.list_packs import LIST_PACKS, get_pack, list_packs
 from src.content.pack_resolver import resolve_pack, slug_post_id, list_dedupe_claim
-from src.core.paths import GENERATED_LIST_PACKS
+from src.core.paths import GENERATED_LIST_PACKS, LIST_POSTS
 from src.core.config import load_config
 from src.core.models import CarouselPost
 from src.core.paths import LIST_PACK_CACHE
@@ -121,13 +121,52 @@ def _load_generated_packs_into_runtime() -> None:
 _load_generated_packs_into_runtime()
 
 
+def _is_list_posted(slug: str) -> bool:
+    """Hard check against list_posts.jsonl — survives resets of posted.jsonl."""
+    if not LIST_POSTS.exists():
+        return False
+    target = list_dedupe_claim(slug)
+    for line in LIST_POSTS.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            if json.loads(line).get("claim") == target:
+                return True
+        except json.JSONDecodeError:
+            pass
+    return False
+
+
+def _record_list_post(slug: str, post_id: str, ig_media_id: str,
+                      category: str, sources: list) -> None:
+    """Append to list_posts.jsonl — permanent, never wiped by reset."""
+    import hashlib
+    from datetime import timezone
+    claim = list_dedupe_claim(slug)
+    row = {
+        "claim_hash": hashlib.sha256(claim.encode()).hexdigest(),
+        "claim": claim,
+        "topic": "film",
+        "category": category,
+        "post_id": post_id,
+        "ig_media_id": ig_media_id,
+        "published_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "sources": sources,
+    }
+    LIST_POSTS.parent.mkdir(parents=True, exist_ok=True)
+    with LIST_POSTS.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(row, ensure_ascii=True) + "\n")
+
+
 def _pick_next_unposted_pack() -> str | None:
     """Return the slug of the next unposted pack.
 
     Priority: curated packs → generated themed packs → TMDB trending fallback.
+    Checks list_posts.jsonl (permanent) AND posted.jsonl (resets periodically).
     """
     for slug in LIST_PACKS:
-        if not brain.is_fact_posted(list_dedupe_claim(slug)):
+        if not _is_list_posted(slug) and not brain.is_fact_posted(list_dedupe_claim(slug)):
             return slug
     # All known packs posted — generate a trending pack from TMDB as last resort
     print("All packs posted. Generating auto pack from TMDB trending...")
@@ -179,8 +218,12 @@ def main() -> int:
     post_id = slug_post_id(args.pack)
 
     # Rule 01 spirit: each list pack ships ONCE, ever. New packs, not re-runs.
+    # Check list_posts.jsonl first — it survives resets of posted.jsonl.
+    if _is_list_posted(args.pack):
+        print(f"List pack {args.pack!r} has already been shipped (list_posts.jsonl). Add a new pack rather than reposting.")
+        return 2
     if brain.is_fact_posted(list_dedupe_claim(args.pack)):
-        print(f"List pack {args.pack!r} has already been shipped. Add a new pack rather than reposting.")
+        print(f"List pack {args.pack!r} has already been shipped (posted.jsonl). Add a new pack rather than reposting.")
         return 2
 
     # Cache-first: if Sunday's prepare_packs.py already resolved and uploaded
@@ -363,11 +406,13 @@ def main() -> int:
         "sources": sources,
     }]
     brain.record_publish(post_id=post_id, ig_media_id=ig_media_id, slides=slides_for_brain)
+    # Permanent record — survives any future reset of posted.jsonl.
+    _record_list_post(args.pack, post_id, ig_media_id, pack["category"], sources)
     brain.append_log(
         f"published {post_id} (LIST {pack['category']}, {len(public_urls)} slides, "
         f"pack={args.pack}, ig_media={ig_media_id})"
     )
-    print("Recorded in insta-brain/data/posted.jsonl and log.md.")
+    print("Recorded in insta-brain/data/posted.jsonl, list_posts.jsonl, and log.md.")
     return 0
 
 
