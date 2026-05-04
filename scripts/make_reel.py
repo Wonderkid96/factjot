@@ -459,7 +459,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         # Auto-reset: if reels.jsonl is empty (all reels deleted/fresh start), the dedup
         # ledger would only block footage from deleted reels. Clear it automatically.
         from src.core.paths import USED_FOOTAGE
-        _reels_log = ROOT / "insta-brain" / "data" / "reels.jsonl"
+        _reels_log = REELS_CACHE.parents[2] / "insta-brain" / "data" / "reels.jsonl"
         _reels_empty = not _reels_log.exists() or _reels_log.stat().st_size == 0
         if _reels_empty and USED_FOOTAGE.exists() and USED_FOOTAGE.stat().st_size > 0:
             print("  [footage] reels.jsonl is empty — resetting footage dedup ledger for fresh start")
