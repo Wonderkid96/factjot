@@ -7,6 +7,12 @@ Before anything else, read `/Users/Music/.claude/CLAUDE.md` for Toby's universal
 
 **Fix the tool, not the symptom.** When a value in a data file is wrong (wrong TMDB ID, wrong path, wrong ID in a ledger), do not just patch the value. Find the process that wrote it wrong and fix that process. Patching one bad value means the next one will be wrong too. Example: wrong TMDB IDs in list_packs.py were patched one-by-one until `verify_pack_ids.py` was written to fix them systematically and run weekly.
 
+**HARD RULE -- facts must come from Reddit only.** Never use Claude to generate, invent, or brainstorm facts for the fact bank (rare_fact_bank.py or discovered_facts.jsonl). Facts must originate from real Reddit posts with real user-submitted citations. Claude may be used to write a reel_script or reel_title FROM an existing Reddit-sourced fact, but must never be the source of the fact itself. If the bank runs low, the correct response is to lower Reddit discovery thresholds or set up OAuth for more sources -- not to have Claude generate content.
+
+**HARD RULE -- transitions are hardwired.** `case_file_dynamic` is the only reel transition mode. It is hardcoded in `src/render/reel_composer.py`. Do not add env var flags, feature toggles, or `--classic` fallbacks. The REEL_TRANSITIONS_MODE env var no longer exists. Every reel uses case_file_dynamic, always.
+
+**HARD RULE -- never force-push to main.** Force-pushing rewrites history and silently deletes state commits (posted.jsonl, list_posts.jsonl, reels.jsonl updates) that running workflows have just written. This caused the horror film triple-post incident on 2026-05-05. If large files need removing from history, do it on a separate branch with workflows paused first.
+
 ---
 
 ## What this project is
