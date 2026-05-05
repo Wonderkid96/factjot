@@ -1,5 +1,6 @@
 # factjot brain log
 
+- 2026-05-05 08:40 reel 58c2399d6db931 published (earth, ig_media=18093064208270638)
 - 2026-05-04 21:07 reel 6950064fd073cb published (history, ig_media=18116382691776160)
 - 2026-05-04 21:01 WORKFLOW FAILED: .github/workflows/reel.yml | run=25343273694 | trigger=workflow_dispatch | ref=main
 - 2026-05-04 21:01 reel FAILED no footage — fact='In 1908 something exploded above remote Siberia with the for' hint='Siberia forest devastation aerial'
