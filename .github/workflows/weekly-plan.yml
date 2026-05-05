@@ -83,6 +83,9 @@ jobs:
       - name: Fetch reel performance metrics
         run: python3 scripts/fetch_reel_metrics.py || echo "Metrics fetch failed - continuing"
 
+      - name: Score topic/tone performance
+        run: python3 scripts/score_performance.py || echo "Scoring failed - continuing"
+
       - name: Restock - discover facts + runway report
         run: python3 scripts/restock.py || echo "Restock failed - continuing"
 

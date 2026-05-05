@@ -231,7 +231,36 @@ def _pick_fact(topic: str | None) -> dict | None:
     ]
     if not fresh:
         return None
-    # Sort: quirky_score descending (curation already gated above)
+
+    # Soft performance weighting — tilt toward topics/tones that have performed
+    # well historically. Falls back to quirky_score ordering if:
+    #   - scores file missing or unreadable
+    #   - fewer than 10 total data points (not enough signal)
+    import random as _random
+    from src.core.paths import REPO_ROOT as _ROOT
+    _scores_path = _ROOT / "data" / "ledgers" / "topic_tone_scores.json"
+    _weights = None
+    try:
+        if _scores_path.exists():
+            _sd = json.loads(_scores_path.read_text())
+            if _sd.get("total_reels", 0) >= 10 and _sd.get("scores"):
+                _score_map = _sd["scores"]
+                _all_virals = [v["viral_score"] for v in _score_map.values()]
+                _median = sorted(_all_virals)[len(_all_virals) // 2]
+                if _median > 0:
+                    _weights = []
+                    for r in fresh:
+                        _key = f"{r['topic']}/{r.get('tone', 'curious')}"
+                        _vs = _score_map.get(_key, {}).get("viral_score", _median)
+                        _weights.append(max(0.1, _vs / _median))
+                    print(f"  [pick_fact] topic/tone weights loaded ({len(_score_map)} combos)")
+    except Exception:
+        _weights = None
+
+    if _weights:
+        return _random.choices(fresh, weights=_weights, k=1)[0]
+
+    # Default: quirky_score descending
     fresh.sort(key=lambda r: r.get("quirky_score", 0), reverse=True)
     return fresh[0]
 
@@ -918,7 +947,10 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
 
         # Step 12: Record
         _record(reel_id, ig_media_id, claim, ftopic, out_dir,
-                thumbnail_png=thumbnail_png, story_png=story_png)
+                thumbnail_png=thumbnail_png, story_png=story_png,
+                tone=fact.get("tone", "curious"),
+                reel_title=fact.get("reel_title", ""),
+                word_count=len(vo_script.split()))
         return 0
 
     finally:
@@ -941,6 +973,9 @@ def _record(
     *,
     thumbnail_png: Path | None = None,
     story_png: Path | None = None,
+    tone: str = "curious",
+    reel_title: str = "",
+    word_count: int = 0,
 ) -> None:
     """Persist the Reel to the ledger and brain log.
 
@@ -959,6 +994,9 @@ def _record(
         "claim":         claim,
         "claim_hash":    claim_hash_val,
         "topic":         topic,
+        "tone":          tone,
+        "reel_title":    reel_title,
+        "word_count":    word_count,
         "published_at":  datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "out_dir":       str(out_dir),
         "thumbnail_png": str(thumbnail_png) if thumbnail_png else None,

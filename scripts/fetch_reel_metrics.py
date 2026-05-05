@@ -30,7 +30,7 @@ sys.path.insert(0, str(ROOT))
 REELS_LOG  = ROOT / "insta-brain" / "data" / "reels.jsonl"
 PERF_LOG   = ROOT / "data" / "ledgers" / "reel_performance.jsonl"
 
-REFETCH_DAYS = 90   # re-fetch metrics for reels up to 90 days old
+REFETCH_DAYS = int(os.environ.get("METRICS_DAYS", "90"))  # override via env for daily lightweight fetch
 AUDIO_KBPS   = 128  # for future use
 
 
