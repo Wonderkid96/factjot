@@ -111,24 +111,45 @@ def _auto_title(claim: str, topic: str) -> Optional[str]:
     years = [t for t in tokens if _YEAR_RE.match(t)]
     year  = years[0] if years else None
 
-    # Template selection by topic + available entities
+    # Template selection -- lead with intrigue, not the answer.
+    # Good hooks withhold the punchline so viewers stay to find out.
+    if proper_nouns and year:
+        subject = proper_nouns[0]
+        return f"What {subject} Did in {year}"
+
     if proper_nouns:
         subject = " ".join(proper_nouns[:2])
-        return f"The Story of {subject}"
+        templates_by_topic = {
+            "history": f"The {subject} Nobody Talks About",
+            "space":   f"What {subject} Actually Found",
+            "nature":  f"How {subject} Survived This",
+            "biology": f"How {subject} Survived This",
+            "ocean":   f"What Lives Beneath {subject}",
+            "tech":    f"What {subject} Changed Forever",
+            "earth":   f"The Secret Under {subject}",
+            "science": f"What {subject} Discovered",
+        }
+        return templates_by_topic.get(topic, f"The {subject} Nobody Talks About")
+
+    if year and content_nouns:
+        noun = content_nouns[0].capitalize()
+        return f"In {year}, Nobody Believed This"
 
     if content_nouns:
         noun = content_nouns[0].capitalize()
         templates_by_topic = {
-            "history": f"The {noun} That Changed History",
-            "space":   f"The {noun} at the Edge of Space",
-            "nature":  f"The {noun} That Defies Belief",
-            "ocean":   f"The Secret Life of the {noun}",
-            "tech":    f"The {noun} That Nobody Expected",
+            "history": f"The {noun} They Buried",
+            "space":   f"The {noun} at the Edge of Everything",
+            "nature":  f"The {noun} That Should Not Exist",
+            "biology": f"The {noun} That Should Not Exist",
+            "ocean":   f"The {noun} Hiding in the Deep",
+            "tech":    f"The {noun} That Changed Everything",
             "earth":   f"The {noun} Beneath Our Feet",
+            "science": f"The {noun} Nobody Expected",
         }
-        return templates_by_topic.get(topic, f"The {noun}")
+        return templates_by_topic.get(topic, f"The {noun} Nobody Talks About")
 
     if year:
-        return f"The Event of {year}"
+        return f"Nobody Believed What Happened in {year}"
 
     return None

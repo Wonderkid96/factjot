@@ -53,7 +53,7 @@ _MIN_BYTES_ARK = 50_000         # 50 KB floor for archival/historical content
 _MIN_CLIP_DURATION_S = 5.0      # minimum: clips shorter than this may loop briefly but are usable
 
 # Topics where Archive.org is a useful fallback even without allow_archival=True
-_ARCHIVE_ELIGIBLE_TOPICS = {"history", "earth", "science"}
+_ARCHIVE_ELIGIBLE_TOPICS: set[str] = set()  # disabled -- archival sources return old SD newsreel footage
 
 
 def _extract_hint_keywords(hint: str, max_words: int = 3) -> list[str]:
