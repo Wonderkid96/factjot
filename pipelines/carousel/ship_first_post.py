@@ -58,7 +58,7 @@ def _fact_from_bank(row: dict) -> VerifiedFact:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--topic", required=True, help="topic from the bank: space, nature, ocean, history, tech, earth")
+    parser.add_argument("--topic", default=None, help="Optional topic filter. Omit for a random fact from any topic.")
     parser.add_argument("--dry-run", action="store_true",
                         help="render + host on imgbb but skip the final IG publish call")
     parser.add_argument("--safe-only", action="store_true",
@@ -91,11 +91,12 @@ def main() -> int:
             except Exception:
                 pass
 
-    # ----- Pick the topic's facts; skip ones already in posted.jsonl (rule 01) -----
-    # Apply schema defaults (incl. sensitivity auto-classification) so every
-    # row carries sensitivity/sensitivity_flags before we filter.
-    all_topic_rows = [_with_defaults(dict(row)) for row in load_all_facts() if row["topic"] == args.topic]
-    posted_filtered = [row for row in all_topic_rows if not brain.is_fact_posted(row["claim"])]
+    # ----- Pick facts from the full bank (or filtered by topic if specified) -----
+    # Apply schema defaults so every row carries sensitivity fields before filtering.
+    all_rows = [_with_defaults(dict(row)) for row in load_all_facts()]
+    if args.topic:
+        all_rows = [r for r in all_rows if r["topic"] == args.topic]
+    posted_filtered = [row for row in all_rows if not brain.is_fact_posted(row["claim"])]
     posted_skipped = len(all_topic_rows) - len(posted_filtered)
 
     # Sensitivity gate: default = safe + edgy (the well-loved dark stuff).
@@ -122,69 +123,35 @@ def main() -> int:
     # Reserve reel-eligible facts (reel_script + reel_title) for the reel pipeline.
     # Using them as carousels wastes the curated video script and reduces reel runway.
     # Only use reel-eligible facts as carousel if NO other facts remain (bank empty).
+    # Prefer facts that don't have reel scripts (those are better saved for reels)
     non_reel = [r for r in fresh_rows if not (r.get("reel_script") and r.get("reel_title"))]
     if non_reel:
         fresh_rows = non_reel
+
+    # Quality floor -- prefer quirky_score >= MIN_CAROUSEL_SCORE, fall back to any if needed
     quality_rows = [r for r in fresh_rows if r.get("quirky_score", 1) >= MIN_CAROUSEL_SCORE]
-    quality_skipped = len(fresh_rows) - len(quality_rows)
-    if quality_skipped:
-        print(f"Quality gate dropped {quality_skipped} score<{MIN_CAROUSEL_SCORE} fact(s) for topic={args.topic!r}.")
-    fresh_rows = quality_rows
+    if quality_rows:
+        fresh_rows = quality_rows
+    elif fresh_rows:
+        print(f"Quality bank low -- using score<{MIN_CAROUSEL_SCORE} facts as emergency fallback.")
+        brain.append_log(f"carousel WARNING -- quality bank low, used score<{MIN_CAROUSEL_SCORE} facts")
 
-    if not fresh_rows:
-        print(f"No quality facts (score>={MIN_CAROUSEL_SCORE}) for topic={args.topic!r}. Trying fallback topics...")
-        all_topics = ["history", "space", "biology", "ocean", "earth", "technology", "science"]
-        fallbacks = [t for t in all_topics if t != args.topic]
-        for fb_topic in fallbacks:
-            fb_rows = [_with_defaults(dict(row)) for row in load_all_facts() if row["topic"] == fb_topic]
-            fb_fresh = filter_for_publish(
-                [r for r in fb_rows if not brain.is_fact_posted(r["claim"])],
-                allow_edgy=not args.safe_only,
-                allow_controversial=args.allow_controversial,
-            )
-            # Apply quality floor to fallback too
-            fb_quality = [r for r in fb_fresh if r.get("quirky_score", 1) >= MIN_CAROUSEL_SCORE]
-            if len(fb_quality) >= 3:
-                print(f"  Falling back to topic={fb_topic!r} ({len(fb_quality)} quality facts)")
-                args.topic = fb_topic
-                fresh_rows = fb_quality
-                all_topic_rows = fb_rows
-                break
-            elif len(fb_fresh) >= 3:
-                # Emergency: quality facts exhausted across all topics — use any-score
-                # as last resort rather than silently failing. Triggers restock alert.
-                print(f"  Emergency fallback to topic={fb_topic!r} (bank low — score<{MIN_CAROUSEL_SCORE} facts used)")
-                brain.append_log(
-                    f"carousel WARNING — quality bank low, used score<{MIN_CAROUSEL_SCORE} facts for topic={fb_topic}"
-                )
-                args.topic = fb_topic
-                fresh_rows = fb_fresh
-                all_topic_rows = fb_rows
-                break
-        else:
-            print(f"All topics exhausted. Add new facts to src/research/rare_fact_bank.py.")
-            return 2
-    # Bias toward higher quirky_score so the screenshot-worthy stuff goes first.
-    # Stable sort: ties keep original bank order.
-    fresh_rows.sort(key=lambda r: r.get("quirky_score", 1), reverse=True)
-
-    # Hard floor: a carousel needs at least 3 slides. If the topic is exhausted,
-    # abort cleanly rather than ship a 1-slide stub (the 18:05 UTC 2026-05-02
-    # incident — Mac 128KB RAM single-slide carousel went out because tech bank
-    # had only 1 fresh fact left).
+    # Hard floor: need at least 3 facts for a carousel
     MIN_FRESH_FACTS = 3
     if len(fresh_rows) < MIN_FRESH_FACTS:
-        print(f"\nABORT: only {len(fresh_rows)} fresh fact(s) for topic={args.topic!r}, need >={MIN_FRESH_FACTS}.")
-        print(f"Top up src/research/rare_fact_bank.py with new {args.topic} facts.")
-        brain.append_log(
-            f"carousel ABORTED — topic={args.topic} runway too low "
-            f"({len(fresh_rows)} fresh, need {MIN_FRESH_FACTS}+)"
-        )
+        topic_label = args.topic or "any"
+        print(f"\nABORT: only {len(fresh_rows)} fresh fact(s) available (topic={topic_label!r}), need >={MIN_FRESH_FACTS}.")
+        print("Top up src/research/rare_fact_bank.py with new facts.")
+        brain.append_log(f"carousel ABORTED -- runway too low ({len(fresh_rows)} fresh, need {MIN_FRESH_FACTS}+)")
         return 2
 
+    # Sort best facts first; stable so ties keep bank order
+    fresh_rows.sort(key=lambda r: r.get("quirky_score", 1), reverse=True)
+
+    topic_label = args.topic or "mixed"
     facts = [_fact_from_bank(row) for row in fresh_rows]
     quirky_picked = sum(1 for r in fresh_rows[:6] if r.get("quirky_score", 1) >= 2)
-    print(f"Found {len(fresh_rows)} fresh facts for topic={args.topic!r} ({posted_skipped} already-posted, {sensitivity_skipped} sensitivity-gated, top-6 contains {quirky_picked} quirky_score≥2)")
+    print(f"Found {len(fresh_rows)} fresh facts (topic={topic_label!r}, {posted_skipped} already-posted, {sensitivity_skipped} sensitivity-gated, top-6 has {quirky_picked} quirky_score≥2)")
 
     # ----- Generate the carousel -----
     gen = CarouselDraftGenerator()

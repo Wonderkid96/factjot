@@ -326,7 +326,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 11329,  # Come and See (1985) - Elem Klimov
+                "tmdb_id": 25237,  # Come and See (1985) - Elem Klimov
                 "expected_title": "Come and See",
                 "hook": "A Belarusian boy joins the resistance in 1943. The most viscerally disturbing anti-war film ever made. Watch it once.",
                 "accent_word": "most viscerally disturbing",
@@ -432,7 +432,7 @@ LIST_PACKS: dict[str, dict] = {
         "items": [
             {
                 "kind": "movie",
-                "tmdb_id": 207,  # No Country for Old Men (2007) - Coen Brothers
+                "tmdb_id": 6977,  # No Country for Old Men (2007) - Coen Brothers
                 "expected_title": "No Country for Old Men",
                 "hook": "A hunter stumbles onto a drug deal gone wrong and takes the money. What follows him is not a man in any normal sense.",
                 "accent_word": "not a man in any normal sense",
@@ -442,7 +442,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 769,  # Chinatown (1974) - Roman Polanski
+                "tmdb_id": 829,  # Chinatown (1974) - Roman Polanski
                 "expected_title": "Chinatown",
                 "hook": "A private detective in 1930s Los Angeles takes a simple adultery case. It leads somewhere no detective ever comes back from clean.",
                 "accent_word": "no detective ever comes back from clean",
@@ -452,7 +452,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 745,  # Se7en (1995) - David Fincher
+                "tmdb_id": 807,  # Se7en (1995) - David Fincher
                 "expected_title": "Se7en",
                 "hook": "Two detectives hunt a killer using the seven deadly sins as a template. The ending is one of cinema's most unflinching.",
                 "accent_word": "most unflinching",
@@ -462,7 +462,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 497,  # The Departed (2006) - Martin Scorsese
+                "tmdb_id": 1422,  # The Departed (2006) - Martin Scorsese
                 "expected_title": "The Departed",
                 "hook": "An undercover cop inside the mob. A mob mole inside the police. Each is hunting the other without knowing who they are.",
                 "accent_word": "hunting the other",
@@ -510,8 +510,8 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 409,  # Amelie (2001) - Jean-Pierre Jeunet
-                "expected_title": "Amelie",
+                "tmdb_id": 194,  # Amelie (2001) - Jean-Pierre Jeunet
+                "expected_title": "Amélie",
                 "hook": "A Parisian woman quietly improves the lives of strangers while avoiding her own happiness. Visually unlike anything else from 2001.",
                 "accent_word": "quietly improves",
                 "imdb_score": "8.3",
@@ -520,7 +520,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 140607,  # Sing Street (2016) - John Carney
+                "tmdb_id": 369557,  # Sing Street (2016) - John Carney
                 "expected_title": "Sing Street",
                 "hook": "A Dublin teenager starts a band to impress a girl in 1985. Every song is good. Every scene is kind.",
                 "accent_word": "every scene is kind",
@@ -540,7 +540,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 72105,  # Chef (2014) - Jon Favreau
+                "tmdb_id": 212778,  # Chef (2014) - Jon Favreau
                 "expected_title": "Chef",
                 "hook": "A chef quits his restaurant job, buys a food truck, and drives it across America with his son. Nobody is a villain.",
                 "accent_word": "nobody is a villain",
@@ -568,7 +568,7 @@ LIST_PACKS: dict[str, dict] = {
         "items": [
             {
                 "kind": "movie",
-                "tmdb_id": 11134,  # Following (1998) - Christopher Nolan
+                "tmdb_id": 11660,  # Following (1998) - Christopher Nolan
                 "expected_title": "Following",
                 "hook": "Nolan's debut, shot on weekends for 6,000 dollars in black and white. A neo-noir about a writer who follows strangers. It works completely.",
                 "accent_word": "6,000 dollars",
@@ -588,7 +588,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 10929,  # Pi (1998) - Darren Aronofsky
+                "tmdb_id": 473,  # Pi (1998) - Darren Aronofsky
                 "expected_title": "Pi",
                 "hook": "A mathematician believes a 216-digit number holds the key to everything. Shot in paranoid black and white for 60,000 dollars.",
                 "accent_word": "key to everything",
@@ -598,7 +598,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 40096,  # Bottle Rocket (1996) - Wes Anderson
+                "tmdb_id": 13685,  # Bottle Rocket (1996) - Wes Anderson
                 "expected_title": "Bottle Rocket",
                 "hook": "Three friends with no criminal talent attempt to become criminals. Wes Anderson's first film, before the symmetry fully locked in.",
                 "accent_word": "no criminal talent",
@@ -608,7 +608,7 @@ LIST_PACKS: dict[str, dict] = {
             },
             {
                 "kind": "movie",
-                "tmdb_id": 666,  # Eraserhead (1977) - David Lynch
+                "tmdb_id": 985,  # Eraserhead (1977) - David Lynch
                 "expected_title": "Eraserhead",
                 "hook": "Lynch's first feature took five years to make and was shot mostly at night. Nobody agreed on what it meant, including Lynch.",
                 "accent_word": "five years to make",

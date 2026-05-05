@@ -92,6 +92,9 @@ jobs:
       - name: Generate themed list packs
         run: python3 pipelines/list/generate_list_packs.py || echo "Pack generation failed - continuing"
 
+      - name: Verify and auto-fix TMDB IDs in list_packs.py
+        run: python3 pipelines/list/verify_pack_ids.py || echo "Some IDs could not be auto-fixed -- check logs"
+
       - name: Prepare list pack assets
         run: python3 pipelines/list/prepare_packs.py || echo "Pack prep failed - continuing"
 

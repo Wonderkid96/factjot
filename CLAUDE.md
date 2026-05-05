@@ -5,6 +5,8 @@ Before anything else, read `/Users/Music/.claude/CLAUDE.md` for Toby's universal
 
 **Context management:** Run `/compact` when context usage hits 60% to avoid hitting limits mid-task.
 
+**Fix the tool, not the symptom.** When a value in a data file is wrong (wrong TMDB ID, wrong path, wrong ID in a ledger), do not just patch the value. Find the process that wrote it wrong and fix that process. Patching one bad value means the next one will be wrong too. Example: wrong TMDB IDs in list_packs.py were patched one-by-one until `verify_pack_ids.py` was written to fix them systematically and run weekly.
+
 ---
 
 ## What this project is

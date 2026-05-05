@@ -111,21 +111,7 @@ jobs:
 
       - name: Post morning carousel
         if: steps.check.outputs.skip != 'true'
-        run: |
-          # Topics rotate by weekday so morning and evening cover different categories.
-          # Mon=history Tue=space Wed=biology Thu=ocean Fri=earth Sat=history Sun=technology
-          DAY=$(date +%u)
-          case $DAY in
-            1) TOPIC=history ;;
-            2) TOPIC=space ;;
-            3) TOPIC=biology ;;
-            4) TOPIC=ocean ;;
-            5) TOPIC=earth ;;
-            6) TOPIC=history ;;
-            7) TOPIC=technology ;;
-          esac
-          echo "Day $DAY -> topic=$TOPIC"
-          python3 pipelines/carousel/ship_first_post.py --topic "$TOPIC"
+        run: python3 pipelines/carousel/ship_first_post.py
 
       - name: Capture failure to brain log
         if: failure()

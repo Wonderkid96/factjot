@@ -108,10 +108,16 @@ def main() -> int:
     if reel_st != "OK":
         print(f"  Target >= {REEL_RUNWAY_WARN}. Add q3 facts with reel_script + reel_title.")
 
-    print("\nCAROUSEL RUNWAY (unposted facts per topic):")
-    for topic, count in sorted(_carousel_runway().items()):
-        st = "OK" if count >= CAROUSEL_RUNWAY_WARN else ("WARN" if count >= 7 else "LOW")
-        print(f"  {topic:<14} {count:>3} facts  [{st}]")
+    carousel_by_topic = _carousel_runway()
+    carousel_total = sum(carousel_by_topic.values())
+    carousel_st = "OK" if carousel_total >= CAROUSEL_RUNWAY_WARN else ("WARN" if carousel_total >= 7 else "LOW")
+    print(f"\nCAROUSEL RUNWAY:  {carousel_total} fresh facts  [{carousel_st}]")
+    if carousel_st != "OK":
+        print(f"  Target >= {CAROUSEL_RUNWAY_WARN}. Add facts to src/research/rare_fact_bank.py.")
+    # Show per-topic breakdown only when total is low, for diagnostics
+    if carousel_st != "OK":
+        for topic, count in sorted(carousel_by_topic.items()):
+            print(f"    {topic:<14} {count:>3} facts")
 
     print("\nRUNNING FACT DISCOVERY (r/morbidreality, r/Damnthatsinteresting, Wikipedia)...")
     result = subprocess.run(

@@ -58,6 +58,35 @@ class TMDBClient:
 
     # ----- public --------------------------------------------------------
 
+    def search_movie(self, title: str, year: int | None = None) -> int | None:
+        """Search for a movie by title and optional year. Returns TMDB ID or None."""
+        params: dict = {"query": title, "language": "en-US"}
+        if year:
+            params["year"] = year
+        results = self._get("/search/movie", params).get("results", [])
+        if not results:
+            return None
+        # Prefer exact title match, fall back to first result
+        title_lower = title.lower()
+        for r in results:
+            if (r.get("title") or "").lower() == title_lower:
+                return r["id"]
+        return results[0]["id"]
+
+    def search_tv(self, title: str, year: int | None = None) -> int | None:
+        """Search for a TV show by title and optional year. Returns TMDB ID or None."""
+        params: dict = {"query": title, "language": "en-US"}
+        if year:
+            params["first_air_date_year"] = year
+        results = self._get("/search/tv", params).get("results", [])
+        if not results:
+            return None
+        title_lower = title.lower()
+        for r in results:
+            if (r.get("name") or "").lower() == title_lower:
+                return r["id"]
+        return results[0]["id"]
+
     def get_movie(self, tmdb_id: int) -> dict[str, Any]:
         """Return the core movie record for a TMDB id."""
         return self._get(f"/movie/{tmdb_id}", {"language": "en-GB"})
