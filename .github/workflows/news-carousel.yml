@@ -91,10 +91,10 @@ jobs:
 
       - name: Verify Meta token
         run: |
-          VALID=$(python3 scripts/check_token.py 2>/dev/null || echo invalid)
+          VALID=$(python3 pipelines/shared/check_token.py 2>/dev/null || echo invalid)
           if [ "$VALID" != "ok" ]; then
             echo "::error::Meta access token is invalid or expired."
-            python3 scripts/log_token_alert.py 2>/dev/null || true
+            python3 pipelines/shared/log_token_alert.py 2>/dev/null || true
             exit 1
           fi
           echo "Token valid."
@@ -117,7 +117,7 @@ jobs:
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
             ARGS="$ARGS --dry-run"
           fi
-          python3 scripts/ship_news_post.py $ARGS
+          python3 pipelines/news/ship_news_post.py $ARGS
 
       - name: Capture failure to brain log
         if: failure()
@@ -126,7 +126,7 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           TRIGGER: ${{ github.event_name }}
           REF: ${{ github.ref_name }}
-        run: python3 scripts/log_workflow_failure.py
+        run: python3 pipelines/shared/log_workflow_failure.py
 
       - name: Commit and push state
         if: always()
