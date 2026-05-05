@@ -1,21 +1,20 @@
-name: Autonomous Reel (manual only)
+name: Autonomous Reel — Claude Agent (manual only)
 
-# Claude has complete creative freedom. No topic, no template, no fact bank.
-# Only trigger this deliberately — do not put on a cron until you've
-# seen several outputs and are comfortable with what it produces.
+# Claude Code CLI is dropped into the repo environment with Bash access.
+# No script guidance. No fact bank constraint. The agent reads the repo,
+# decides what to post, and calls make_reel.py with its own content.
+#
+# Requires ANTHROPIC_API_KEY secret.
+# Default: dry-run ON for safety — review output before posting live.
 
 on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Compose video but skip upload and publish (safe preview)"
+        description: "Dry run — compose video but skip upload and publish"
         type: boolean
-        default: false
+        default: true
         required: false
-      model:
-        description: "Claude model (default: claude-opus-4-7)"
-        required: false
-        default: "claude-opus-4-7"
 
 concurrency:
   group: factjot-publish
@@ -63,6 +62,9 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: playwright install-deps chromium
 
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
       - name: Write .env from secrets
         run: |
           cat > .env << 'ENVEOF'
@@ -84,22 +86,40 @@ jobs:
           PIXABAY_API_KEY=${{ secrets.PIXABAY_API_KEY }}
           IMAGE_HOST=${{ secrets.IMAGE_HOST }}
           MUSIC_CREDIT=${{ secrets.MUSIC_CREDIT }}
-          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
           TIMEZONE=UTC
           ENVEOF
 
       - name: Pull latest state
         run: git pull --rebase --autostash origin main 2>/dev/null || true
 
-      - name: Run autonomous reel
+      - name: Run autonomous Claude agent
         env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           PYTHONUNBUFFERED: "1"
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
-            python3 -u scripts/make_autonomous_reel.py --dry-run --model "${{ inputs.model }}"
-          else
-            python3 -u scripts/make_autonomous_reel.py --model "${{ inputs.model }}"
-          fi
+          claude --print \
+            "You are running the factjot Instagram Reel account (@factjot).
+
+          Your job: post something genuinely interesting. Complete creative freedom — no topic constraint, no template.
+
+          The factjot voice is dry, direct, occasionally condescending, faintly contemptuous of people who don't find things interesting. British English. No em dashes. No corporate enthusiasm.
+
+          To understand the project better, read CLAUDE.md. To see what has already been posted, read insta-brain/data/posted.jsonl.
+
+          When you have decided what to post, call make_reel.py like this:
+
+            python3 -u scripts/make_reel.py \\
+              --script \"your script here\" \\
+              --title \"your hook title\" \\
+              --topic <history|science|biology|ocean|earth|space|technology> \\
+              --tone-override <shocking|curious|sober|wholesome> \\
+              --hint \"2-5 word footage search hint\" \\
+              $([ \"\$DRY_RUN\" = \"true\" ] && echo \"--dry-run\")
+
+          The script should be 70-120 words. Lead with the most surprising sentence. Do not build toward it." \
+            --allowedTools "Bash" \
+            --max-turns 30
 
       - name: Capture failure to brain log
         if: failure()

@@ -1006,6 +1006,16 @@ def main() -> int:
                         help="Edge TTS voice. Defaults to en-GB-RyanNeural (British male). "
                              "Other good picks: en-US-AndrewMultilingualNeural, en-US-BrianNeural, "
                              "en-GB-ThomasNeural, en-GB-SoniaNeural (female).")
+    # Autonomous agent flags — bypass fact selection entirely
+    parser.add_argument("--script", default=None,
+                        help="Provide a custom VO script. Bypasses fact bank. Requires --title.")
+    parser.add_argument("--title", default=None,
+                        help="Hook card title for the reel (used with --script).")
+    parser.add_argument("--hint", default=None,
+                        help="Image hint for footage search (used with --script).")
+    parser.add_argument("--tone-override", default="curious",
+                        choices=["shocking", "curious", "sober", "wholesome"],
+                        help="Tone override for TTS voice settings (used with --script).")
     args = parser.parse_args()
 
     if args.list_facts:
@@ -1028,6 +1038,26 @@ def main() -> int:
         used = sum(1 for r in all_q3 if brain.is_fact_posted(r["claim"]) or r["claim"] in used_as_reel)
         print(f"\n  {used} used, {blocked} blocked (controversial), {len(all_q3) - used - blocked} available")
         return 0
+
+    # Autonomous agent path — script provided directly via CLI
+    if args.script:
+        if not args.title:
+            print("ERROR: --script requires --title")
+            return 1
+        autonomous_fact = {
+            "claim":        args.script[:300],
+            "reel_script":  args.script,
+            "reel_title":   args.title,
+            "topic":        args.topic or "history",
+            "tone":         args.tone_override,
+            "image_hint":   args.hint or "",
+            "quirky_score": 3,
+            "allow_archival": False,
+            "sources":      [],
+            "autonomous":   True,
+        }
+        return make_reel(topic=None, dry_run=args.dry_run, voice=args.voice,
+                         _autonomous=autonomous_fact)
 
     return make_reel(topic=args.topic, dry_run=args.dry_run, voice=args.voice)
 
