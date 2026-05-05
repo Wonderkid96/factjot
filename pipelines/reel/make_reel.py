@@ -491,9 +491,8 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         # Load global footage registry — prevents the same clip appearing in two different reels.
         # Auto-reset: if reels.jsonl is empty (all reels deleted/fresh start), the dedup
         # ledger would only block footage from deleted reels. Clear it automatically.
-        from src.core.paths import USED_FOOTAGE
-        _reels_log = REELS_CACHE.parents[2] / "insta-brain" / "data" / "reels.jsonl"
-        _reels_empty = not _reels_log.exists() or _reels_log.stat().st_size == 0
+        from src.core.paths import USED_FOOTAGE, REELS_LEDGER
+        _reels_empty = not REELS_LEDGER.exists() or REELS_LEDGER.stat().st_size == 0
         if _reels_empty and USED_FOOTAGE.exists() and USED_FOOTAGE.stat().st_size > 0:
             print("  [footage] reels.jsonl is empty — resetting footage dedup ledger for fresh start")
             USED_FOOTAGE.write_text("")
@@ -1021,6 +1020,7 @@ def main() -> int:
         help="Restrict to: space, nature, ocean, history, tech, earth, biology, technology, science",
     )
     parser.add_argument("--dry-run", action="store_true", help="Compose video but skip upload + publish")
+    parser.add_argument("--force", action="store_true", help="Bypass today's duplicate guard (use when posting a second reel intentionally)")
     parser.add_argument("--list-facts", action="store_true", help="List available quirky_score=3 facts and exit")
     parser.add_argument("--voice", default="en-GB-RyanNeural",
                         help="Edge TTS voice. Defaults to en-GB-RyanNeural (British male). "
@@ -1060,7 +1060,7 @@ def main() -> int:
         return 0
 
     # TODAY GUARD -- second line of defence against duplicate reel posts.
-    if not args.dry_run and not args.list_facts:
+    if not args.dry_run and not args.list_facts and not args.force:
         _today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         _reels = Path("insta-brain/data/reels.jsonl")
         if _reels.exists():
