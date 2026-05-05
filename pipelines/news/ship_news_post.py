@@ -54,12 +54,14 @@ SLIDES_COUNT  = 8
 NEWS_LEDGER   = Path("data/ledgers/news_posts.jsonl")
 
 # Weekday -> Guardian section (Mon=1 .. Sun=7)
+# Intentionally varied -- not all conflict/politics. Science, tech, and society
+# stories tend to be more positive and shareable.
 SECTION_BY_DAY: dict[int, str] = {
     1: "world",
     2: "technology",
     3: "science",
-    4: "environment",
-    5: "world",
+    4: "society",
+    5: "environment",
     6: "uk-news",
     7: "world",
 }
@@ -221,12 +223,26 @@ def extract_image_urls(article: dict) -> list[str]:
             seen.add(best["file"])
             urls.append(best["file"])
 
+    # Deduplicate by base filename -- the Guardian often returns the same photo
+    # at multiple resolutions (e.g. /1000.jpg and /500.jpg). Keep only one per photo.
+    deduped: list[str] = []
+    base_seen: set[str] = set()
+    for url in urls:
+        # Strip resolution suffix to get the base photo path
+        base = re.sub(r"/\d+\.jpg$", "", url)
+        if base not in base_seen:
+            base_seen.add(base)
+            deduped.append(url)
+
     # Always include the thumbnail as a fallback if we have nothing else
     thumb = article.get("thumbnail", "")
-    if thumb and thumb not in seen:
-        urls.append(thumb)
+    if thumb:
+        thumb_base = re.sub(r"/\d+\.jpg$", "", thumb)
+        if thumb_base not in base_seen:
+            base_seen.add(thumb_base)
+            deduped.append(thumb)
 
-    return urls
+    return deduped
 
 
 def download_image(url: str) -> bytes | None:
@@ -238,6 +254,58 @@ def download_image(url: str) -> bytes | None:
         return r.content
     except Exception:
         return None
+
+
+def fetch_pexels_images(
+    query: str, pexels_key: str, count: int = 8
+) -> list[str]:
+    """Search Pexels for relevant photos and return as base64 data URLs.
+
+    Used to supplement when an article has fewer than MIN_ARTICLE_IMAGES.
+    Portrait orientation preferred for 4:5 carousel format.
+    """
+    if not pexels_key:
+        return []
+    try:
+        resp = requests.get(
+            "https://api.pexels.com/v1/search",
+            headers={"Authorization": pexels_key},
+            params={"query": query, "per_page": count, "orientation": "portrait"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        photos = resp.json().get("photos", [])
+        data_urls: list[str] = []
+        for photo in photos:
+            img_url = (
+                photo.get("src", {}).get("large2x")
+                or photo.get("src", {}).get("large")
+                or photo.get("src", {}).get("medium")
+            )
+            if not img_url:
+                continue
+            data = download_image(img_url)
+            if data:
+                data_urls.append(_inline_bytes(data, "image/jpeg"))
+            if len(data_urls) >= count:
+                break
+        return data_urls
+    except Exception as exc:
+        _log(f"     Pexels fallback error: {exc}")
+        return []
+
+
+def _pexels_query_for_article(article: dict) -> str:
+    """Build a Pexels search query from the article headline and section."""
+    # Strip punctuation, drop short/stop words, take the most meaningful terms
+    stop = {"the", "that", "this", "with", "from", "have", "been", "says",
+            "will", "were", "they", "their", "over", "into", "after", "live"}
+    words = re.findall(r"[a-zA-Z]+", article.get("title", ""))
+    keywords = [w for w in words if len(w) > 3 and w.lower() not in stop][:5]
+    section = article.get("section", "").lower().replace(" news", "").strip()
+    if section and section not in " ".join(keywords).lower():
+        keywords.insert(0, section)
+    return " ".join(keywords[:4])
 
 
 # ------------------------------------------------------------------ #
@@ -254,27 +322,27 @@ def compress_to_slides(
     article_text = f"Headline: {article['title']}\n\n{body}"
 
     prompt = f"""
-You are writing breaking news alerts for Instagram. Your job is to make people stop scrolling.
+You are writing news carousels for Instagram. Your job is to make people stop, read, and feel informed.
 
-Take this article and compress it into {slides_count} slides that feel urgent, electric, and real.
-Every slide is one explosive moment or revelation from the story.
+Take this article and compress it into {slides_count} slides. Not every story is grim -- let the tone
+match the content. A breakthrough deserves excitement. A scandal deserves urgency. A discovery deserves wonder.
 
 Writing rules:
-- Present tense where possible ("Iran threatens", not "Iran threatened")
-- Short, declarative sentences -- no hedging, no "reportedly", no "sources say"
-- Front-load the most dramatic or surprising element on each slide
-- Each slide: exactly 4 lines, 5-8 words per line
-- Lines must connect and escalate within each slide
-- No corporate language, no filler, no padding
+- Present tense where possible ("Scientists discover", not "Scientists discovered")
+- Write in full connected sentences, NOT bullet points or fragments
+- Each slide tells one coherent moment -- lines must flow into each other, not stand alone
+- Each slide: exactly 4 lines, 5-9 words per line
+- Front-load the most interesting element on each slide
+- No hedging, no "reportedly", no corporate filler
 - Do NOT repeat information across slides
-- Still 100% factual -- only state what the article actually says
+- 100% factual -- only state what the article actually says
+- Vary the energy: not every line needs to be a hammer blow
 
-Tone reference: think BBC Breaking push notification meets NYT front page drop.
-Bold. Direct. Urgent. Real.
+Tone: clear, confident, human. Think a smart friend explaining the news, not a wire service.
 
 Output JSON only:
 {{
-  "title": "explosive headline, max 7 words, no full stop",
+  "title": "sharp headline, max 7 words, no full stop",
   "slides": [
     {{"slideNumber": 1, "lines": ["...", "...", "...", "..."]}}
   ]
@@ -469,21 +537,35 @@ def main() -> int:
         return 0
     _log("[2/6] Article is new -- proceeding.")
 
-    # ---- 3. Download all article images ----
+    # ---- 3. Download article images, with Pexels fallback ----
     _log("[3/6] Downloading article images...")
     image_urls_from_api = extract_image_urls(article)
-    _log(f"     Found {len(image_urls_from_api)} image(s) in article")
+    _log(f"     Found {len(image_urls_from_api)} unique image(s) in article")
 
-    # Download each unique image; skip any that fail
     image_data_urls: list[str] = []
     for img_url in image_urls_from_api:
         data = download_image(img_url)
         if data:
             mime = "image/jpeg" if img_url.lower().endswith((".jpg", ".jpeg")) else "image/png"
             image_data_urls.append(_inline_bytes(data, mime))
-            _log(f"     downloaded {len(data):,}b  {img_url[-50:]}")
+            _log(f"     article image {len(image_data_urls)}: {len(data):,}b")
         if len(image_data_urls) >= SLIDES_COUNT:
-            break  # no point fetching more than we can use
+            break
+
+    # Supplement with Pexels if the article has fewer than 4 unique photos.
+    # Live rolling blogs typically have 1-2; written articles have 3-8.
+    MIN_ARTICLE_IMAGES = 4
+    if len(image_data_urls) < MIN_ARTICLE_IMAGES:
+        pexels_key = os.getenv("PEXELS_API_KEY", "").strip()
+        if pexels_key:
+            query = _pexels_query_for_article(article)
+            needed = SLIDES_COUNT - len(image_data_urls)
+            _log(f"     < {MIN_ARTICLE_IMAGES} article images -- Pexels fallback (query: \"{query}\", need {needed})")
+            pexels_images = fetch_pexels_images(query, pexels_key, count=needed)
+            image_data_urls.extend(pexels_images)
+            _log(f"     Pexels added {len(pexels_images)} image(s) -- total: {len(image_data_urls)}")
+        else:
+            _log("     PEXELS_API_KEY not set -- skipping Pexels fallback")
 
     if not image_data_urls:
         _log("     No images available -- photo zone will be empty.")
