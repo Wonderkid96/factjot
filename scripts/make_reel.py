@@ -376,7 +376,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         # If missing, auto-generate from the claim using reel_script.py.
         # The 22-second bug (2026-05-01) was caused by auto-generation running on a
         # claim that was too short. Guard: abort if result < MIN_REEL_SCRIPT_WORDS.
-        from src.content.reel_script import to_voice_script as build_reel_script
+        from src.content.reel_script import to_voice_script as build_reel_script, polish_script_voice
         curated = fact.get("reel_script", "")
         if _autonomous is not None:
             # Autonomous scripts bypass word-count floors — Claude owns quality
@@ -394,6 +394,15 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
                     f"Auto-generated script for {claim[:60]!r} is only {word_count} words "
                     f"(floor: {MIN_REEL_SCRIPT_WORDS}). Claim may be too short to script."
                 )
+
+        # Apply dry/witty voice polish via Claude Haiku (no-op if no API key).
+        # Keeps all facts identical — only adjusts tone and phrasing.
+        # Skip for autonomous posts (Claude already wrote in the right voice).
+        if _autonomous is None:
+            vo_body_polished = polish_script_voice(vo_body)
+            if vo_body_polished != vo_body:
+                print(f"  [voice] polished script ({len(vo_body_polished.split())} words)")
+                vo_body = vo_body_polished
 
         # Append a randomised outro. Each variation contains "factjot" so the
         # compositor can sync the CTA card to the exact moment it is spoken.
