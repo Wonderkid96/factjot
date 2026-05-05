@@ -454,13 +454,14 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'The Strangest Love Story in the Ocean',
-     'reel_script': 'In the deep ocean... something extraordinary happens. The male anglerfish is '
-                    'tiny. Barely the size of your thumb. The female is enormous. When a male finds a '
-                    "female, he doesn't swim away. He bites into her skin. And holds on. His body "
-                    'begins to dissolve. His blood vessels merge with hers. His eyes disappear. His '
-                    'organs... go. Everything that made him... him. Gone. All that remains is a small '
-                    "lump on her body. A permanent passenger. Fully absorbed. And when she's ready to "
-                    "reproduce... He's already there."},
+     'reel_script': 'The male anglerfish finds a mate by biting into her skin and then dissolving. '
+                    'His blood vessels merge with hers. His eyes go. His organs go. His immune '
+                    'system goes. Everything that made him a separate organism disappears. What '
+                    'remains is a small lump on her body, genetically distinct but physically '
+                    'merged, permanently attached. He provides sperm on demand. She provides '
+                    'everything else. Scientists discovered this because they kept finding female '
+                    'anglerfish with unexplained lumps on them. The lumps were the males. Nobody '
+                    'had suspected this was possible.'},
     {'topic': 'ocean',
      'claim': 'The Pacific Ocean contains an underwater waterfall called the Denmark Strait Cataract. '
               'It is more than 3 times the height of Angel Falls and carries 50,000 times more water '
@@ -472,14 +473,13 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': "The World's Tallest Waterfall",
-     'reel_script': 'Angel Falls in Venezuela is the tallest waterfall above ground. Just under a '
-                    "kilometre tall. But it isn't even close to the real record. Between Greenland and "
-                    'Iceland... beneath the ocean... there is a waterfall three times taller. Cold, '
-                    'dense water from the Arctic crashes down into the warmer Atlantic. Three and a '
-                    'half kilometres tall. And the volume? It carries 50,000 times more water than '
-                    "Niagara Falls. Every second. And nobody can ever see it. It's the largest "
-                    'waterfall on the planet. Hidden beneath the sea. It has been falling for '
-                    'thousands of years.'},
+     'reel_script': 'The tallest waterfall on Earth is underwater. Between Greenland and Iceland, '
+                    'cold dense Arctic water crashes into the warmer Atlantic and falls three and a '
+                    'half kilometres. The Denmark Strait Cataract. Three times taller than Angel '
+                    'Falls. It carries fifty thousand times more water per second than Niagara. It '
+                    'has been falling continuously for thousands of years. No one has ever seen it '
+                    'and no one ever will. The largest waterfall on the planet, hidden beneath '
+                    'the sea, completely invisible, falling right now.'},
     {'topic': 'earth',
      'claim': 'About 74,000 years ago a supervolcano in Sumatra erupted with such force it may have '
               'reduced the entire human population to as few as 3,000 to 10,000 individuals. We almost '
@@ -491,14 +491,13 @@ RARE_FACT_BANK = [
      'intensity': 'heavy',
      'tone': 'shocking',
      'reel_title': 'The Eruption That Nearly Ended Us',
-     'reel_script': "About 74 thousand years ago... a volcano erupted in what's now Indonesia. But "
-                    "this wasn't ordinary. This was Mount Toba. The largest eruption on Earth in two "
-                    'million years. It threw 2,800 cubic kilometres of rock into the sky. Ash '
-                    'blanketed the planet. From India to East Africa. Sunlight dimmed for years. '
-                    'Temperatures crashed. Forests died. Food chains collapsed. And humanity? We '
-                    "almost didn't make it. Genetic studies show our ancestors crashed... to as few as "
-                    'three thousand individuals. Every human alive today descends from those '
-                    'survivors. An entire species... hanging by a thread.'},
+     'reel_script': 'Seventy-four thousand years ago a volcano in Indonesia erupted and reduced the '
+                    'entire human population to somewhere between three and ten thousand people. '
+                    'Every human alive today is descended from those survivors. Mount Toba threw '
+                    'two thousand eight hundred cubic kilometres of material into the sky. Ash '
+                    'covered the planet from India to East Africa. Temperatures dropped. Food '
+                    'chains collapsed. The species nearly ended. We do not know why enough people '
+                    'survived. We just know they did, and here we are, remarkably, as a result.'},
     {'topic': 'earth',
      'claim': 'There is a small waterfall in New York State called Eternal Flame Falls. A pocket of '
               'natural methane seeps from the rock behind it. The flame has been burning for thousands '
@@ -510,13 +509,13 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': 'The Fire That Never Goes Out',
-     'reel_script': 'Hidden in a forest in upstate New York... is a small waterfall. Tucked behind it '
-                    'is a tiny grotto. And inside that grotto... a flame. Burning. Underwater. It has '
-                    'been burning for thousands of years. Long before anyone wrote it down. Native '
-                    "Americans knew about it. European settlers found it lit. It's still lit today. "
-                    'Underneath, a pocket of natural methane seeps up through the rock. It feeds the '
-                    "flame from below. Wind doesn't kill it. Rain doesn't kill it. The waterfall "
-                    "doesn't kill it. Eternal Flame Falls. Real. And quietly burning. Right now."},
+     'reel_script': 'Behind a waterfall in upstate New York there is a flame burning underwater. '
+                    'Natural methane seeps up through the rock and has been feeding it for thousands '
+                    'of years. Native Americans knew about it. European settlers found it already '
+                    'lit. Wind does not kill it. Rain does not kill it. The waterfall directly in '
+                    'front of it does not kill it. It is just there, burning quietly behind the '
+                    'water, in a forest in New York, and has been for longer than recorded history. '
+                    'Eternal Flame Falls. You can visit it. Take a lighter just in case.'},
     {'topic': 'history',
      'claim': 'In 1919 a storage tank in Boston exploded and released 2.3 million gallons of molasses '
               'through the streets at 35 miles per hour. The wave killed 21 people and injured 150. '
@@ -547,14 +546,13 @@ RARE_FACT_BANK = [
      'intensity': 'heavy',
      'tone': 'sober',
      'reel_title': 'Typhoid Mary',
-     'reel_script': 'Mary Mallon was a cook in early 1900s New York. She felt fine. Strong. Healthy. '
-                    'But everywhere she worked... families got sick. Typhoid fever. She moved on. '
-                    'Found new work. More families. More fever. An investigator finally tracked her '
-                    'down. She was a healthy carrier. Her body produced typhoid bacteria... but it '
-                    'never made her ill. She infected at least 51 people. Three died. She was forcibly '
-                    'quarantined twice on a small island. She spent the last 23 years of her life '
-                    'there. Alone. Imprisoned. She was never convicted of a crime. Her only offence... '
-                    'was being well.'},
+     'reel_script': 'Mary Mallon infected at least 51 people with typhoid fever and spent the last '
+                    '23 years of her life imprisoned on a small island, having never been convicted '
+                    'of any crime. She was a healthy carrier. Her body produced typhoid bacteria '
+                    'without making her ill. She cooked for families across New York. They got sick. '
+                    'She moved on. Authorities eventually quarantined her by force. She was released, '
+                    'promised not to cook, and went straight back to cooking. They quarantined her '
+                    'again. She died on the island. Her only crime was existing.'},
     {'topic': 'history',
      'claim': 'In 1518 hundreds of people in Strasbourg began dancing uncontrollably and could not '
               'stop. Within weeks, roughly 400 people were dancing day and night. Many collapsed from '
@@ -566,13 +564,13 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'The Dancing Plague of 1518',
-     'reel_script': 'In July 1518, in Strasbourg, a woman walked into the street and began to dance. '
-                    "She didn't stop. She danced for days. Within a week, 30 more people had joined "
-                    'her. Within a month, there were 400. All dancing. Day and night. Without music. '
-                    'Without rest. The city authorities built a stage and hired musicians. It made it '
-                    'worse. Their feet bled. Their hearts gave out. Some died of exhaustion. Nobody '
-                    'had given an order. Nobody had played music. It just... started. Five centuries '
-                    'later, no one has ever explained why.'},
+     'reel_script': 'In July 1518 a woman in Strasbourg walked into the street and started dancing. '
+                    'She danced for days. Within a week, thirty people had joined her. Within a '
+                    'month, four hundred. All dancing, day and night, without music, without rest. '
+                    'The city hired musicians to play along. It got worse. Feet bled. Hearts gave '
+                    'out. Some died from exhaustion. No one had organised it. No one had started '
+                    'it. It just happened and then, after a few weeks, it stopped. Five hundred '
+                    'years later, no one has explained why. This actually happened.'},
     {'topic': 'history',
      'claim': 'When Albert Einstein died in 1955, the pathologist who performed his autopsy removed '
               'and kept his brain without family consent. Thomas Harvey stored it in jars in his '
@@ -584,13 +582,14 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': "The Man Who Stole Einstein's Brain",
-     'reel_script': 'When Albert Einstein died in 1955... the pathologist at his autopsy did something '
-                    "extraordinary. Without the family's permission... he removed the brain. His name "
-                    'was Thomas Harvey. He kept it in a jar in his basement. For decades. He drove it '
-                    'across America in the boot of his car. He sliced it into 240 sections. He posted '
-                    'pieces to researchers around the world. He lost his medical licence. He lost his '
-                    "marriage. But he never gave the brain back. Pieces of Einstein's brain are still "
-                    'in collections today. Studied. Catalogued. Stolen.'},
+     'reel_script': 'When Einstein died in 1955, the pathologist removed his brain without asking '
+                    'anyone. His name was Thomas Harvey. He kept it in a jar in his basement for '
+                    'decades. He sliced it into 240 pieces. He drove it across America in a box '
+                    'in the boot of his car. He mailed sections to researchers around the world. '
+                    'He lost his medical licence and his marriage in the process. He never gave '
+                    'it back. Einstein\'s brain is still in collections today, catalogued and '
+                    'studied. Harvey\'s position was that he had done science a service. '
+                    'The family disagreed.'},
     {'topic': 'history',
      'claim': 'Hiroo Onoda was a Japanese soldier stationed in the Philippines who kept fighting for '
               '29 years after the Second World War ended, because nobody had told him. He emerged from '
@@ -603,12 +602,13 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': "The Soldier Who Didn't Know It Was Over",
-     'reel_script': 'In 1945, the Second World War ended. Almost everyone went home. But deep in the '
-                    'jungles of the Philippines... one soldier kept going. His name was Hiroo Onoda. '
-                    'He fought for 29 years. Ambushes. Skirmishes. Surviving alone in the forest. He '
-                    'believed it was all still happening. In 1974, his original commanding officer '
-                    'flew from Japan just to find him. And ordered him, face to face, to stop. He was '
-                    '52 years old.'},
+     'reel_script': 'Hiroo Onoda fought in the Philippine jungle until 1974 because no one had told '
+                    'him the war ended in 1945. He conducted ambushes and skirmishes for 29 years. '
+                    'He survived alone in the forest. Leaflets were dropped. He dismissed them as '
+                    'enemy propaganda. Family members recorded messages. He did not believe them. '
+                    'Eventually Japan flew his original commanding officer, now elderly, to the '
+                    'jungle to personally order him to stand down. He came out in uniform, weapon '
+                    'in hand, having done his duty. He was 52.'},
     {'topic': 'history',
      'claim': 'In 1966 a US Air Force bomber collided with a refuelling aircraft over Spain and '
               'accidentally dropped four nuclear bombs. None of them detonated. Two released '
@@ -621,14 +621,14 @@ RARE_FACT_BANK = [
      'intensity': 'heavy',
      'tone': 'sober',
      'reel_title': 'The Day Four Nuclear Bombs Fell on Spain',
-     'reel_script': 'January 17th, 1966. The Cold War. An American B-52 bomber is flying near the '
-                    "Spanish coast. It's carrying four hydrogen bombs. Standard patrol. Just in case. "
-                    'It tries to refuel mid-air. Something goes wrong. The two planes collide. The '
-                    'bomber breaks apart. And four nuclear bombs fall toward Spain. None of them '
-                    'detonated. But two of them broke open on impact. Plutonium scattered across '
-                    'farmland near a small village. Palomares. American crews quietly took 1,400 '
-                    'tonnes of contaminated soil back to South Carolina. Locals are still being '
-                    'monitored today. The world almost never knew.'},
+     'reel_script': 'In January 1966 an American B-52 carrying four hydrogen bombs collided with '
+                    'a refuelling aircraft off the Spanish coast. The bomber broke apart. All four '
+                    'bombs fell. None detonated. Two broke open on impact and scattered plutonium '
+                    'across farmland near the village of Palomares. American crews removed one '
+                    'thousand four hundred tonnes of contaminated soil and quietly took it to '
+                    'South Carolina. The Spanish government was told to say the area was safe. '
+                    'Locals are still being health-monitored today. The contamination is still '
+                    'there. This was standard Cold War patrol.'},
     {'topic': 'space',
      'claim': 'The largest known black hole, TON 618, has a mass 66 billion times that of the Sun. Its '
               'event horizon is so large that our entire solar system would fit inside it with room to '
@@ -640,12 +640,13 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'The Biggest Thing in the Universe',
-     'reel_script': "There is an object 18 billion light years from Earth. It's called TON 618. It is "
-                    "a black hole. But not like any you've imagined. Its mass is 66 billion times that "
-                    'of our Sun. Its event horizon is so large you could fit our entire solar system '
-                    'inside it. Forty times over. Pluto. The Sun. All the planets. Gone. Light goes in '
-                    'and never comes back. Time slows to a stop near it. The largest single object we '
-                    "have ever found. And somewhere out there... it's silently feeding. Right now."},
+     'reel_script': 'TON 618 is a black hole with a mass sixty-six billion times that of the Sun. '
+                    'Its event horizon is large enough to contain our entire solar system forty '
+                    'times over. The Sun, all eight planets, Pluto, all of it, would fit inside '
+                    'the event horizon with room to spare. Nothing that crosses it returns. Time '
+                    'stops near it. It is the largest single object ever measured by humans. It '
+                    'is eighteen billion light years away and currently feeding. We found it '
+                    'by accident while studying something else.'},
     {'topic': 'space',
      'claim': 'The Boötes Void is a region of space roughly 330 million light years across that '
               'contains almost nothing. Where hundreds of thousands of galaxies should exist by any '
@@ -657,13 +658,13 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'The Great Nothing',
-     'reel_script': 'In the constellation of Boötes... there is a region of space. 330 million light '
-                    'years across. Astronomers call it the Boötes Void. By every model we have, it '
-                    'should contain at least 2,000 galaxies. Stars. Planets. Solar systems. Instead... '
-                    'there are fewer than 60. Almost nothing. It is the emptiest place in the known '
-                    "universe. Some scientists think it's a statistical fluke. Others think it's "
-                    "evidence of something we don't understand. A wound in the cosmos. We do not know. "
-                    'All we know is... the void is real. And it is enormous.'},
+     'reel_script': 'There is a region of space three hundred and thirty million light years across '
+                    'that contains almost nothing. The Boötes Void. By every model we have, it '
+                    'should contain at least two thousand galaxies. It contains fewer than sixty. '
+                    'No one knows why. Some scientists think it is a statistical coincidence. '
+                    'Others think it is evidence of something our current understanding cannot '
+                    'account for. It is the emptiest known place in the universe, and it is '
+                    'genuinely enormous, and we have no satisfactory explanation for it.'},
     {'topic': 'space',
      'claim': "Jupiter's moon Europa hides a saltwater ocean beneath its frozen crust containing "
               "roughly twice as much water as all of Earth's oceans combined. Scientists consider it "
@@ -675,14 +676,14 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'The Ocean Hidden Beneath the Ice',
-     'reel_script': "Europa is one of Jupiter's moons. From space, it looks like a smooth white "
-                    'marble. Cracked. Frozen. Lifeless. But beneath that ice... there is an ocean. A '
-                    'real, liquid, saltwater ocean. And it contains more water than every ocean on '
-                    'Earth. Combined. Twice over. It is kept warm by the gravitational pull of '
-                    'Jupiter. Hydrothermal vents may line its floor. On Earth, those vents are crowded '
-                    'with life. Scientists think... if life exists anywhere else in the solar '
-                    'system... it is most likely there. Right now. Swimming in the dark beneath the '
-                    'ice. Waiting to be found.'},
+     'reel_script': 'Europa is a moon of Jupiter covered in ice. Beneath that ice is a saltwater '
+                    'ocean containing twice as much water as all of Earth\'s oceans combined. '
+                    'It is kept liquid by the gravitational pull of Jupiter, which generates '
+                    'heat. Hydrothermal vents likely line the ocean floor. On Earth, every '
+                    'hydrothermal vent is crowded with life. Scientists consider Europa the '
+                    'most likely place in the solar system to find it elsewhere. We have not '
+                    'looked yet. We are planning a mission. In the meantime, the ocean is '
+                    'just there, in the dark.'},
     {'topic': 'space',
      'claim': 'In 1977 a radio telescope in Ohio detected a 72-second signal from deep space so '
               "unusual that the astronomer circled it and wrote 'Wow!' in the margin. The signal "
@@ -695,13 +696,14 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'Wow.',
-     'reel_script': 'In 1977, a radio telescope in Ohio was scanning the deep sky. Then a signal '
-                    'arrived. It lasted 72 seconds. Loud. Narrow. Sharp. It matched almost exactly '
-                    'what scientists expected an alien transmission to look like. The astronomer on '
-                    'duty was Jerry Ehman. He looked at the printout. He circled the numbers. And he '
-                    'wrote one word in the margin. Wow. Nothing like it has ever been detected again. '
-                    'Nobody has explained it. Nearly 50 years later... the Wow signal remains the '
-                    'strongest candidate for contact with something out there.'},
+     'reel_script': 'In 1977 a radio telescope in Ohio picked up a signal from space. It lasted '
+                    '72 seconds, was extraordinarily loud, and matched almost exactly what '
+                    'scientists expected an alien transmission to look like. The astronomer on '
+                    'duty circled the numbers on the printout and wrote one word in the margin: '
+                    'Wow. Nothing like it has been detected since. No natural explanation has '
+                    'been confirmed. Nearly fifty years later the Wow signal remains the most '
+                    'credible candidate for contact we have ever found. We looked for it again. '
+                    'It was gone.'},
     {'topic': 'biology',
      'claim': 'Axolotls can regrow entire limbs, their spinal cord, heart muscle, and parts of their '
               'brain. They can also accept transplanted tissue from other axolotls, including eyes and '
@@ -713,13 +715,14 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': 'The Animal That Regrows Its Brain',
-     'reel_script': 'The axolotl is a small pink salamander from Mexico. But it can do something '
-                    'nothing else with a spine can do. Cut off a leg. It grows back. Perfect bone. '
-                    'Perfect muscle. Perfect nerve. Cut its spinal cord. It regrows. Damage its heart. '
-                    'It regrows. Take out part of its brain. It regrows that too. Transplant an eye '
-                    'from one axolotl to another. No rejection. Scientists study it to understand how '
-                    'humans might one day do the same. The axolotl is nearly extinct in the wild. The '
-                    "animal that could rebuild us... we couldn't protect."},
+     'reel_script': 'The axolotl can regrow its limbs, spinal cord, heart muscle, and parts of its '
+                    'brain. Cut a leg off and it grows back with perfect bone, muscle, and nerves. '
+                    'Damage the heart, it regrows. Take part of the brain, it regrows that too. '
+                    'Transplant an eye from another axolotl, no rejection. No other vertebrate '
+                    'does any of this. Scientists study it hoping to understand how to apply '
+                    'the same principles to human medicine. The axolotl is nearly extinct in '
+                    'the wild. We are studying it to learn how to rebuild ourselves while '
+                    'failing to keep it alive.'},
     {'topic': 'biology',
      'claim': 'Vampire bats adopt orphan young from other mothers and regularly share blood meals with '
               'starving colony members. If a bat misses a feed, a neighbour it has previously groomed '
@@ -731,13 +734,13 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': "The Most Generous Animal You've Never Heard Of",
-     'reel_script': "Vampire bats have a problem. If they don't feed every two nights... they die. "
-                    "Their bodies just can't store the energy. But here's the thing nobody told you. "
-                    'When one bat misses a meal... another bat will regurgitate blood into its mouth. '
-                    'For a friend. Not for its young. For a friend. They keep track of who feeds them. '
-                    'And they pay it back. They adopt orphan young. They form lifelong bonds. We make '
-                    'vampires into monsters. But the real ones are some of the most generous animals '
-                    'alive. Quietly keeping each other from dying. In the dark.'},
+     'reel_script': 'Vampire bats die if they go two nights without feeding. Their bodies cannot '
+                    'store the energy. When one bat misses a meal, another bat will regurgitate '
+                    'blood into its mouth. Not for its young. For a friend. They track who has '
+                    'fed them and pay it back later. They adopt orphaned young from other mothers. '
+                    'They form long-term bonds. The animal we chose to represent evil and death '
+                    'turns out to run a sophisticated mutual aid system in the dark. We got '
+                    'that one quite wrong.'},
     {'topic': 'biology',
      'claim': 'Glass frogs have transparent skin on their underside. You can watch their heart '
               'beating, their digestive system working, and see developing eggs inside a pregnant '
@@ -749,14 +752,13 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': 'You Can See Right Through Them',
-     'reel_script': 'In the rainforests of Central America... lives a frog. Tiny. Bright green. Until '
-                    'you turn it over. Then everything changes. Its underside is completely '
-                    'transparent. You can watch its heart beating. You can see blood pumping through '
-                    "the chambers. You can see its stomach digesting. Its intestines moving. If she's "
-                    "a pregnant female... you can count the developing eggs inside her. It's called a "
-                    "glass frog. And it's not just an oddity. By going transparent, it disappears "
-                    'against leaves. Predators look right through it. Evolution made a window. And put '
-                    'a heartbeat behind it.'},
+     'reel_script': 'The glass frog has a transparent underside. You can watch its heart beating. '
+                    'You can see the blood moving through the chambers. You can see its stomach '
+                    'digesting. In a pregnant female, you can count the developing eggs. It is '
+                    'a small frog you can see directly through, sitting on a leaf in Central '
+                    'America, entirely visible to you and entirely invisible to predators, who '
+                    'look through it and see the leaf. Evolution produced an animal that is '
+                    'simultaneously a window and a camouflage mechanism. Both at once.'},
     {'topic': 'biology',
      'claim': 'Migratory birds navigate partly via quantum mechanics. Proteins in their eyes react to '
               "Earth's magnetic field through a quantum entanglement effect, allowing the birds to "
@@ -768,14 +770,14 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': 'Birds Can See What We Cannot',
-     'reel_script': 'Every autumn, birds migrate thousands of miles. Often at night. Often through '
-                    'cloud. How do they know where to go? The answer is stranger than anyone expected. '
-                    "In the back of a robin's eye are proteins called cryptochromes. When light hits "
-                    'them, they trigger a quantum effect. Two electrons become entangled. And those '
-                    "electrons can feel Earth's magnetic field. Migratory birds can literally see the "
-                    'magnetic field of the planet. A glowing compass painted across the sky. We have '
-                    'the same proteins. We just lost the ability to use them. Birds are using quantum '
-                    'mechanics to find their way home.'},
+     'reel_script': 'Migratory birds navigate partly through quantum mechanics. Proteins in their '
+                    'eyes react to Earth\'s magnetic field via quantum entanglement, allowing them '
+                    'to perceive the magnetic field as a visual overlay. They can literally see '
+                    'which direction is north. We have the same proteins. We appear to have lost '
+                    'the ability to use them at some point in our evolutionary history. Birds '
+                    'are using a mechanism we cannot fully replicate in a laboratory to find '
+                    'their way across continents in the dark. They do this every year without '
+                    'particularly thinking about it.'},
     {'topic': 'ocean',
      'claim': 'The barreleye fish has a completely transparent head filled with fluid. What appears to '
               'be its eyes from the front are actually olfactory organs. Its real eyes are the glowing '
@@ -787,11 +789,13 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'The Fish With a See-Through Head',
-     'reel_script': 'There is a fish in the deep ocean with a completely transparent head. Inside '
-                    'it... two glowing green tubes point straight upward. Those are its eyes. The dark '
-                    "spots you think are eyes are not eyes at all. They're its nose. Scientists filmed "
-                    'it alive for the first time in 2004. Before that, we thought its head was just '
-                    'differently shaped. We were wrong. The ocean still has things that stop you cold.'},
+     'reel_script': 'The barreleye fish has a completely transparent head. Inside it, two glowing '
+                    'green tubes point straight upward. Those are its eyes. The dark spots on the '
+                    'front that look like eyes are its nostrils. Scientists first filmed it alive '
+                    'in 2004. Before that, the head always collapsed when brought to the surface '
+                    'and we had no idea what it actually looked like. We assumed wrong. It has '
+                    'a fluid-filled transparent skull containing rotating tubular eyes. The ocean '
+                    'spent millions of years producing this and did not tell anyone.'},
     {'topic': 'ocean',
      'claim': 'The mimic octopus can impersonate at least 15 different marine species, including the '
               'lionfish, flatfish, and banded sea snake. It actively selects which animal to '
@@ -803,14 +807,14 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'The Master of Disguise',
-     'reel_script': 'Most octopuses can change colour. The mimic octopus does something else entirely. '
-                    'It impersonates other animals. It can shape itself into a venomous lionfish. '
-                    'Spread its arms and become a flatfish on the seafloor. Trail two arms and turn '
-                    "into a banded sea snake. At least 15 different species. And here's the trick. It "
-                    'picks which one to imitate based on which predator is nearby. Threat by a '
-                    'damselfish? Become the snake that eats damselfish. The only known animal that '
-                    'actively chooses its disguise. Improvising. Lying. Outsmarting predators that '
-                    'have hunted here for millions of years.'},
+     'reel_script': 'The mimic octopus impersonates other animals. It can reshape itself into a '
+                    'venomous lionfish, flatten out into a flounder, or trail two arms to become '
+                    'a banded sea snake. At least fifteen different species. More importantly, '
+                    'it selects which animal to imitate based on which predator is nearby. Faced '
+                    'with a damselfish, it becomes the sea snake that eats damselfish. It is '
+                    'the only known animal that actively chooses its disguise in response to '
+                    'a specific threat. It is improvising. A small octopus, lying to its '
+                    'predators in real time.'},
     {'topic': 'ocean',
      'claim': 'Giant oarfish can reach 11 metres in length, making them the longest bony fish on '
               'Earth. They swim vertically in the deep ocean and are almost never seen alive. They are '
@@ -822,13 +826,13 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'The Real Sea Serpent',
-     'reel_script': 'Sailors have told stories of sea serpents for centuries. Most people called them '
-                    "myths. Then science found one. It's called the giant oarfish. It can grow to 11 "
-                    'metres long. Longer than a London bus. The longest bony fish on Earth. It swims '
-                    'vertically. Head pointing up. Body trailing down. Like a silver ribbon dropped '
-                    'from the surface. Almost no one has ever seen one alive. When they wash up on '
-                    'beaches, people photograph them in shock. The sea serpents in old sailor stories '
-                    "weren't legends. They were really down there. And they always have been."},
+     'reel_script': 'The giant oarfish grows up to eleven metres long, swims vertically with its '
+                    'head pointing up and body trailing below it like a silver ribbon, and is '
+                    'almost never seen alive. It is the longest bony fish on Earth. When they '
+                    'wash up on beaches, people photograph them in shock because they look '
+                    'exactly like sea serpents. Because they are sea serpents. The creatures '
+                    'in centuries of sailor stories were real. They were just deep enough that '
+                    'we could not find them. They were always down there.'},
     {'topic': 'earth',
      'claim': 'In Turkmenistan there is a 30-metre wide crater that has been on fire since 1971. '
               'Soviet engineers accidentally ignited escaping gas while drilling and expected it to '
@@ -858,14 +862,13 @@ RARE_FACT_BANK = [
      'intensity': 'heavy',
      'tone': 'shocking',
      'reel_title': 'The Tallest Wave Ever Recorded',
-     'reel_script': 'July 9th, 1958. Lituya Bay, Alaska. An earthquake shakes 90 million tonnes of '
-                    'rock loose from a mountainside. It crashes into the bay. The water has nowhere to '
-                    'go. It rises. Higher than the Eiffel Tower. Higher than the Empire State '
-                    'Building. 524 metres tall. The biggest wave ever recorded by humans. Trees were '
-                    'stripped from the cliffs. The forest scrubbed clean. Two fishing boats were '
-                    "anchored in the bay. They didn't drown. They surfed it. Over the trees, over the "
-                    'cliff, and down the other side. They lived to tell it. Nobody believed them. '
-                    'Until the images came out.'},
+     'reel_script': 'In July 1958 an earthquake in Alaska sent ninety million tonnes of rock into '
+                    'Lituya Bay. The wave that resulted was five hundred and twenty-four metres '
+                    'tall. Higher than the Empire State Building. The largest wave ever recorded. '
+                    'It stripped the forest from the cliffs on both sides of the bay. Two fishing '
+                    'boats were anchored there. Both survived. They rode the wave over the trees '
+                    'and down the other side. When they told people what had happened, nobody '
+                    'believed them. Then the photographs came out.'},
     {'topic': 'earth',
      'claim': 'Movile Cave in Romania has been completely sealed from the surface for approximately '
               '5.5 million years. Inside, 48 species of animals live in total darkness, breathing '
@@ -878,13 +881,13 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'The World Sealed for Five Million Years',
-     'reel_script': 'In Romania, deep beneath the ground, there is a cave. Sealed for 5 and a half '
-                    'million years. No sunlight. No oxygen. Hydrogen sulfide. Methane. And yet... 48 '
-                    'species of animals live inside. Spiders. Scorpions. Leeches. Insects. All of them '
-                    'blind. All of them pale. None of them exist anywhere else on Earth. They feed on '
-                    'bacteria that pull energy from toxic chemicals in the rock. Not from the sun. An '
-                    "entire ecosystem. Cut off. Surviving. For longer than humans have existed. It's "
-                    "called Movile Cave. And it shouldn't even be possible."},
+     'reel_script': 'Movile Cave in Romania has been sealed from the surface for five and a half '
+                    'million years. No sunlight reaches it. The air is toxic. And forty-eight '
+                    'species of animals live inside, all blind, all pale, all found nowhere else '
+                    'on Earth. They survive by eating bacteria that extract energy from the '
+                    'toxic gases in the rock rather than from sunlight. A complete, self-contained '
+                    'ecosystem, operating in total darkness for longer than the human species '
+                    'has existed. It was discovered in 1986. Scientists were not expecting it.'},
     {'topic': 'earth',
      'claim': 'In the Sahara Desert there is a geological formation 50 kilometres across that looks '
               'like a giant eye when seen from space. Called the Richat Structure, or Eye of the '
@@ -897,13 +900,14 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': 'The Eye of the Sahara',
-     'reel_script': 'In the middle of the Sahara desert... is a circle. 50 kilometres across. '
-                    'Concentric rings of rock. Like a giant eye staring up at the sky. It can only '
-                    'really be seen from space. When astronauts first photographed it in the 1960s, no '
-                    'one had any idea what it was. A meteor crater? A volcano? We finally have an '
-                    "answer. It's a geological dome that slowly collapsed. Different rock layers "
-                    'eroded at different speeds. Leaving rings. One of the most striking shapes on the '
-                    'planet. And for most of human history... we never even knew it was there.'},
+     'reel_script': 'There is a fifty-kilometre circle of concentric rock rings in the middle of the '
+                    'Sahara that looks, from space, exactly like a giant eye staring upward. It '
+                    'can only be properly seen from orbit. Astronauts photographed it in the '
+                    '1960s and had no idea what it was. The answer turned out to be geological: '
+                    'a dome that collapsed over millions of years with different rock layers '
+                    'eroding at different speeds. One of the most visually striking formations '
+                    'on the planet, sitting in a desert, visible only from space, unnoticed '
+                    'for most of human history.'},
     {'topic': 'earth',
      'claim': 'Australia drifts north at roughly 7 centimetres a year. It has moved so far that GPS '
               'coordinates used in the 1990s are now off by more than 1.5 metres.',
@@ -914,14 +918,13 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': 'Australia Is Moving. Literally.',
-     'reel_script': 'Every year, Australia moves. Not metaphorically. The entire continent physically '
-                    "drifts north at roughly 7 centimetres. That doesn't sound like much. But it adds "
-                    'up. The GPS coordinates used when satellite navigation launched in the 1990s... '
-                    'are now off by more than 1.5 metres. In aviation and shipping, 1.5 metres '
-                    'matters. So Australia had to officially update its own map. Its legal '
-                    'coordinates. The country moved so far it had to reposition itself on paper. Every '
-                    'continent is doing this. Drifting. Shifting. The ground beneath you is not '
-                    'standing still. It never has been.'},
+     'reel_script': 'Australia drifts north at seven centimetres per year. The GPS coordinates '
+                    'from the 1990s are now off by more than one and a half metres. In aviation '
+                    'and shipping, one and a half metres matters considerably. Australia had to '
+                    'officially update its own coordinates. The country moved far enough that '
+                    'it had to reposition itself on paper. Every continent is doing this. The '
+                    'ground is not fixed. It never was. We just did not have accurate enough '
+                    'instruments to notice until recently.'},
     {'topic': 'earth',
      'claim': 'Lake Hillier in Western Australia stays bright bubblegum pink all year round. The '
               'colour comes from a combination of salt-loving algae and bacteria that thrive in its '
@@ -933,13 +936,14 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': 'The Lake That Stays Pink',
-     'reel_script': 'Off the coast of Western Australia... there is a lake. And it is pink. Not '
-                    'occasionally. Not at certain times of day. Permanently. Vibrantly. Bubblegum '
-                    'pink. The water itself is the colour. Fill a glass from it and the glass stays '
-                    'pink. The reason? Salt-loving algae and bacteria. The lake is ten times saltier '
-                    "than the ocean. Most things can't live in it. But these organisms thrive. And as "
-                    'they do, they turn the entire lake the colour of a flamingo. Lake Hillier. Nature '
-                    'decided to do something absurd. And nobody stopped it.'},
+     'reel_script': 'Lake Hillier in Western Australia is permanently bubblegum pink. Not at sunset. '
+                    'Not from a certain angle. The water itself is pink. Fill a glass from it and '
+                    'the glass stays pink. The lake is ten times saltier than the ocean and is '
+                    'filled with salt-loving algae and bacteria that produce the colour. Most '
+                    'things cannot survive in it. These organisms thrive in it and turn the '
+                    'entire thing flamingo pink. It has been this colour for as long as anyone '
+                    'has looked. Nature did something completely absurd and it has been there '
+                    'the whole time.'},
     {'topic': 'earth',
      'claim': "Earth's gravity is measurably weaker over Hudson Bay in Canada. A massive ice sheet "
               'that sat there during the last Ice Age compressed the crust so much that the rock is '
@@ -951,14 +955,14 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'The Place Where Gravity Is Weaker',
-     'reel_script': "Gravity isn't the same everywhere. Here is a specific place where it is "
-                    'measurably, detectably weaker. Hudson Bay. Canada. If you stood there, you would '
-                    'weigh very slightly less than anywhere else on Earth. Why? Because 20,000 years '
-                    'ago, a kilometre-thick ice sheet sat on top of that land. Its weight pushed the '
-                    'crust down. The ice is long gone. But the rock is still slowly rising. There is '
-                    'less mass under that region than there should be. Less mass means less gravity. '
-                    'The planet is still healing from an Ice Age. And you can measure the wound from '
-                    'space.'},
+     'reel_script': 'Gravity is measurably weaker over Hudson Bay in Canada. If you stood there '
+                    'you would weigh very slightly less than anywhere else on Earth. The reason: '
+                    'twenty thousand years ago a kilometre-thick ice sheet sat on that land and '
+                    'compressed the crust. The ice melted. The crust is still slowly rising back. '
+                    'There is less rock mass under that region than there should be. Less mass '
+                    'means less gravity. The planet is still physically recovering from the last '
+                    'Ice Age and you can detect the recovery from orbit. The wound in the crust '
+                    'is measurable.'},
     {'topic': 'earth',
      'claim': 'Lake Nyos in Cameroon released a vast cloud of carbon dioxide in 1986, silently '
               'suffocating 1,746 people, 3,500 livestock, and every living thing within 25 kilometres. '
@@ -970,14 +974,14 @@ RARE_FACT_BANK = [
      'intensity': 'heavy',
      'tone': 'sober',
      'reel_title': 'The Lake That Exhaled Death',
-     'reel_script': 'On the night of August 21st, 1986... a lake in Cameroon exhaled. Lake Nyos. Magma '
-                    'beneath it had been saturating the water with CO2 for years. Then something '
-                    'triggered it. A landslide. A tremor. Nobody is sure. One million tonnes of carbon '
-                    'dioxide erupted from the surface. A silent cloud. Cold. Heavy. Rolling down the '
-                    'hillside. Heavier than air, it flowed into every village. Into every home. 1,746 '
-                    'people died in their sleep. 3,500 livestock. Every bird. Every insect. No sound. '
-                    'No warning. Survivors woke next to everyone they knew... already gone. The lake '
-                    'is still there. Still filling.'},
+     'reel_script': 'On the night of August 21st 1986, Lake Nyos in Cameroon released one million '
+                    'tonnes of carbon dioxide in a single silent eruption. The cloud rolled down '
+                    'the hillside. Heavier than air, it flowed into every village and every home. '
+                    'One thousand seven hundred and forty-six people died in their sleep. Three '
+                    'thousand five hundred livestock. Every bird. Every insect. No sound. No '
+                    'warning. Survivors woke next to everyone they knew, already dead. The lake '
+                    'is still there. Magma is still saturating the water beneath it. It is '
+                    'still filling.'},
     {'topic': 'earth',
      'claim': 'Earth has a small companion called Kamoʻoalewa (2016 HO3) that has been orbiting near '
               'our planet for at least a century. It is not a moon. It loops around Earth in a complex '
@@ -989,13 +993,13 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': "Earth's Hidden Second Companion",
-     'reel_script': "Earth has a Moon. You know this. What you probably don't know is that Earth has a "
-                    "second companion. It's called Kamoʻoalewa. A small asteroid, about the size of a "
-                    "house. Orbiting near Earth for at least a century. Not a moon. Gravity hasn't "
-                    'captured it. But not free either. It traces a complex looping spiral around us. '
-                    'Year after year. Scientists studied its composition and found something strange. '
-                    'Its material matches the surface of our Moon. Kamoʻoalewa might be a fragment of '
-                    'the Moon itself. Broken off by an ancient impact. Drifting beside us ever since.'},
+     'reel_script': 'Earth has a small companion asteroid called Kamoʻoalewa that has been orbiting '
+                    'near us for at least a century. It is not a moon. Gravity has not fully captured '
+                    'it but it is not free either. It traces a complex looping spiral around Earth '
+                    'year after year. Scientists analysed its composition and found it matches '
+                    'the surface of our Moon, not a typical asteroid. Kamoʻoalewa may be a '
+                    'fragment knocked off the Moon by an ancient impact, drifting alongside us '
+                    'ever since. We only discovered it in 2016.'},
     {'topic': 'earth',
      'claim': 'Earth went through what scientists call the Boring Billion. For almost a billion years, '
               'from roughly 1.8 to 0.8 billion years ago, the planet barely changed. Oxygen levels '
@@ -1008,14 +1012,14 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'The Billion Years Nothing Happened',
-     'reel_script': 'Earth is 4.5 billion years old. Life appeared. Oxygen built up. Complexity was '
-                    'growing. Then... it stopped. For almost a billion years, nothing changed. No new '
-                    'body plans. No major evolution. Oxygen flatlined. Scientists call it the Boring '
-                    "Billion. And it terrifies them a little. Because we don't fully understand why it "
-                    'happened. Or why it ended. Then, around 800 million years ago, something '
-                    'triggered a cascade. Complex animals appeared. Then plants. Then us. A billion '
-                    'years of stagnation, then everything all at once. The planet was holding its '
-                    "breath. And we still don't know what made it exhale."},
+     'reel_script': 'For almost a billion years, from roughly 1.8 to 0.8 billion years ago, '
+                    'nothing happened on Earth. No new body plans. No meaningful evolution. '
+                    'Oxygen levels flatlined. Scientists call it the Boring Billion. We do not '
+                    'fully understand why evolution stalled. We do not fully understand what '
+                    'ended it. Around 800 million years ago something triggered a cascade and '
+                    'complex life exploded into existence. A billion years of complete stagnation '
+                    'followed by everything. The planet was, for reasons we cannot explain, '
+                    'waiting. Then it stopped waiting.'},
     {'topic': 'earth',
      'claim': 'Zealandia, a continent mostly hidden beneath the South Pacific Ocean, is 94% submerged '
               'and four times the size of Greenland. Scientists only formally recognised it as a '
@@ -1027,14 +1031,13 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': 'The Continent We Nearly Missed',
-     'reel_script': 'There are seven continents. You learned that in school. What your teacher '
-                    "probably didn't tell you is that there might be eight. Beneath the South Pacific "
-                    'Ocean lies a continent called Zealandia. It is four times the size of Greenland. '
-                    'It has mountains, crust, all the geological hallmarks. And 94% of it is '
-                    "underwater. The only part above the sea is New Zealand. It wasn't officially "
-                    'declared a continent until 2017. A landmass the size of a continent, hiding in '
-                    'plain sight. We mapped Mars before we understood what was beneath the ocean we '
-                    'sail across every day.'},
+     'reel_script': 'There is a continent called Zealandia that is ninety-four percent underwater. '
+                    'It is four times the size of Greenland. It has mountains, tectonic activity, '
+                    'and all the geological features of a continent. The only part above sea level '
+                    'is New Zealand. Scientists formally recognised it as a continent in 2017. '
+                    'It was sitting there the entire time. We mapped the surface of Mars before '
+                    'we properly understood what was beneath the ocean we have been sailing '
+                    'across for millennia. The count is eight continents now. Adjust accordingly.'},
     {'topic': 'earth',
      'claim': 'The Salar de Uyuni salt flat in Bolivia is so large and so perfectly flat that it '
               'becomes a near-perfect mirror when covered by a thin layer of water. It is used to '
@@ -1046,14 +1049,14 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': 'The Mirror at the Top of the World',
-     'reel_script': 'In Bolivia, at 3,600 metres above sea level... is a salt flat the size of a small '
-                    'country. The Salar de Uyuni. 10,000 square kilometres of dried salt. When rain '
-                    'falls, a thin layer of water covers the surface. The sky reflects perfectly. The '
+     'reel_script': 'The Salar de Uyuni in Bolivia is ten thousand square kilometres of dried salt '
+                    'at thirty-six hundred metres above sea level. When it rains, a thin film of '
+                    'water turns the entire surface into a perfect mirror. The sky reflects. The '
                     'horizon disappears. You cannot tell where the ground ends and the sky begins. '
-                    'People walk on the stars. It is so flat and enormous that scientists use it to '
-                    'calibrate satellites in orbit. The most precise instruments ever built check '
-                    'themselves against this ancient lake bed. Earth as a mirror. For machines looking '
-                    'down from space.'},
+                    'It is so flat and so large that space agencies use it to calibrate their '
+                    'satellites. The most precise instruments we have built check themselves '
+                    'against an ancient lake bed in Bolivia. It works because the lake bed '
+                    'is flatter than our instruments.'},
     {'topic': 'ocean',
      'claim': 'The colossal squid has the largest eyes of any known animal. They can reach 27 '
               'centimetres across, about the size of a football, and are thought to help detect the '
@@ -1065,13 +1068,14 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': 'The Biggest Eyes on Earth',
-     'reel_script': 'The colossal squid lives in the deep Southern Ocean. Over 400 kilograms. The '
-                    'largest invertebrate on Earth. And it has the largest eyes of any known animal. '
-                    '27 centimetres across. The size of a football. Each one. Why so big? Because at '
-                    '1,000 metres down, there is almost no light. But sperm whales hunt down there. '
-                    'When they move fast, bioluminescent plankton lights up around them. A faint glow '
-                    'in the blackness. Those eyes can detect it from 120 metres away. The colossal '
-                    'squid evolved football-sized eyes to spot its hunter by the light it disturbs.'},
+     'reel_script': 'The colossal squid has eyes twenty-seven centimetres across. The size of a '
+                    'football. Each one. They are the largest eyes of any known animal. The reason '
+                    'is that at a thousand metres down there is almost no light, but sperm whales '
+                    'hunt there and when they move fast, bioluminescent plankton lights up around '
+                    'them. The squid can detect that faint glow from a hundred and twenty metres '
+                    'away. It evolved football-sized eyes to see its predator by the light it '
+                    'disturbs. The colossal squid weighs over four hundred kilograms and we have '
+                    'only ever seen a handful alive.'},
     {'topic': 'ocean',
      'claim': 'In 1997 NOAA hydrophones picked up a powerful underwater sound called the Bloop. It was '
               'extraordinarily loud, detected by sensors thousands of kilometres apart. Scientists '
@@ -1083,14 +1087,14 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'The Sound From the Deep',
-     'reel_script': 'In 1997, NOAA hydrophones picked up a sound from the Pacific. Not a whale. Not a '
-                    'submarine. Something else. Extraordinarily loud. Detectable by sensors thousands '
-                    'of kilometres apart. The profile matched no known geological event. No known '
-                    'animal. Scientists called it the Bloop. For years, no explanation. The location? '
-                    "Roughly 1,600 kilometres from Lovecraft's fictional R'lyeh. That did not help. We "
-                    'now think it was a massive icequake. A glacier fracturing under its own weight. '
-                    "But for years, no one knew. The ocean made a noise louder than anything we'd "
-                    'heard. And we had no idea what made it.'},
+     'reel_script': 'In 1997 NOAA hydrophones picked up a sound from the Pacific loud enough to be '
+                    'detected by sensors thousands of kilometres apart. The profile matched no '
+                    'known geological event and no known animal. Scientists called it the Bloop. '
+                    'For years there was no explanation. The location happened to be sixteen '
+                    'hundred kilometres from where Lovecraft placed R\'lyeh, which was not '
+                    'helpful. We now believe it was an icequake, a glacier fracturing under its '
+                    'own weight. But for several years the ocean had made a noise louder than '
+                    'anything we had heard, and we had no idea what caused it.'},
     {'topic': 'ocean',
      'claim': 'Below 200 metres the Black Sea is anoxic. No oxygen reaches those depths, so organic '
               'material cannot fully decompose. Ancient shipwrecks discovered there are preserved '
@@ -1103,14 +1107,14 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'The Ships That Never Rotted',
-     'reel_script': 'In 2017, a robot submarine descended into the Black Sea. It found a ship. '
-                    'Ancient. Greek. Still standing. Mast intact. Rudder intact. The ropes still '
-                    'hanging. Over 2,400 years old. The best-preserved ancient vessel ever discovered. '
-                    'And there were dozens more around it. Why? Below 200 metres, the Black Sea has '
-                    'almost no oxygen. No bacteria to rot the wood. No currents to break the hull. '
-                    'Ships that sank here over thousands of years are still sitting there. Like a '
-                    'museum no one ever built. An entire archive of maritime history. Preserved by a '
-                    'dead sea.'},
+     'reel_script': 'The Black Sea below two hundred metres contains almost no oxygen. Bacteria '
+                    'cannot survive. Wood does not rot. Ships that sank there thousands of years '
+                    'ago are still sitting on the seabed, intact. In 2017 a robot submarine '
+                    'found a Greek vessel over two thousand four hundred years old with the mast '
+                    'standing, the rudder in place, and the ropes still hanging. It is the '
+                    'best-preserved ancient ship ever discovered. There are dozens more around it. '
+                    'An entire archive of maritime history, preserved by accident in a dead sea, '
+                    'waiting for someone to look.'},
     {'topic': 'ocean',
      'claim': 'Greenland shark can live for at least 270 years, making them the longest-lived '
               'vertebrate on Earth. They are not sexually mature until they are around 150 years old. '
@@ -1122,13 +1126,13 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'The Shark Born Before America',
-     'reel_script': 'There are sharks in the North Atlantic right now that were alive when George '
-                    'Washington was a child. The Greenland shark. Scientists estimate they can live '
-                    'for at least 270 years. Some possibly 400. They grow barely a centimetre a year. '
-                    'They do not reach sexual maturity until roughly 150 years old. 150 years of life '
-                    'before they can reproduce. The oldest vertebrate ever recorded. A creature that '
-                    'saw the Industrial Revolution. Both World Wars. Still swimming. Still alive. '
-                    'Somewhere beneath the ice, right now.'},
+     'reel_script': 'Greenland sharks can live for at least two hundred and seventy years. Some '
+                    'possibly four hundred. They grow barely a centimetre per year. They do not '
+                    'reach sexual maturity until they are roughly a hundred and fifty years old. '
+                    'There are Greenland sharks swimming in the North Atlantic right now that '
+                    'were alive when the American Revolution happened. They are the oldest '
+                    'vertebrates ever recorded. They saw the Industrial Revolution. Both World '
+                    'Wars. Everything. Slowly moving under the ice, largely unbothered.'},
     {'topic': 'ocean',
      'claim': 'Horseshoe crabs predate the dinosaurs by hundreds of millions of years. Their blood is '
               'bright blue and contains a compound called LAL that is so effective at detecting '
@@ -1141,14 +1145,14 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'Your Vaccine Passed Through This Crab',
-     'reel_script': 'The horseshoe crab has barely changed in 450 million years. It was ancient when '
-                    'the dinosaurs were born. It watched them come. It watched them go. And it has '
-                    'something no lab has replicated. Its blood is bright blue. It contains a compound '
-                    'called LAL. LAL reacts instantly to bacterial contamination. Any endotoxin. Any '
-                    'trace. The pharmaceutical industry uses it to test every injectable drug ever '
-                    'given to a human. Every vaccine. Every IV drip. Passed through the blood of an '
-                    'ancient crab. Half a billion years of evolution. Guarding every hospital on '
-                    'Earth.'},
+     'reel_script': 'Every injectable drug you have ever received was tested using the blood of a '
+                    'horseshoe crab. Their blood is bright blue and contains a compound called '
+                    'LAL that reacts instantly to bacterial contamination. No lab has replicated '
+                    'it. The pharmaceutical industry harvests it to test every vaccine, every IV '
+                    'drip, every injectable medication given to a human. The horseshoe crab '
+                    'has not changed significantly in four hundred and fifty million years. '
+                    'It predates the dinosaurs. It is currently keeping every hospital on '
+                    'Earth safe. We have not found a better way.'},
     {'topic': 'ocean',
      'claim': 'The pistol shrimp snaps its claw shut so fast it creates a cavitation bubble that '
               'briefly reaches temperatures of around 8,000 Kelvin, almost as hot as the surface of '
@@ -1160,13 +1164,14 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': 'The Shrimp That Shoots Plasma',
-     'reel_script': 'The pistol shrimp is the size of your finger. One claw is comically oversized. It '
-                    'looks ridiculous. Until you learn what it can do. It snaps that claw faster than '
-                    'a bullet leaves a gun. The snap creates a cavitation bubble. A tiny pocket of '
-                    'vacuum. For a fraction of a second, it reaches 8,000 Kelvin. Almost as hot as the '
-                    'surface of the Sun. It collapses, producing a shockwave that kills prey outright. '
-                    'No bite. No chase. Just a snap. Submarines used to hide near their colonies '
-                    "because the noise masked their own sound. The ocean's most unlikely weapon."},
+     'reel_script': 'The pistol shrimp is the size of a finger with one comically oversized claw. '
+                    'It snaps that claw faster than a bullet, creating a cavitation bubble that '
+                    'for a fraction of a second reaches eight thousand Kelvin. The surface of '
+                    'the Sun is about five thousand five hundred Kelvin. The bubble collapses '
+                    'into a shockwave that kills prey instantly. No chase, no bite, just a snap. '
+                    'During World War Two, submarines hid near pistol shrimp colonies because '
+                    'the collective noise masked their own acoustic signature from enemy sonar. '
+                    'A small shrimp was providing cover for warships.'},
     {'topic': 'ocean',
      'claim': 'In 2023 scientists filmed a snailfish 8,336 metres beneath the surface of the Pacific '
               'Ocean, the deepest fish ever observed. At that depth, the pressure is 800 times the '
@@ -1178,13 +1183,14 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': 'The Deepest Fish Ever Found',
-     'reel_script': 'In 2023, a camera descended into the Izu-Ogasawara Trench. Down past where any '
-                    'fish had ever been observed alive. 8,336 metres. At that depth, the pressure is '
-                    '800 times what you feel on the surface. Enough to crush unprotected tissue '
-                    'instantly. And there it was. A snailfish. Translucent. Pale. Barely 30 '
-                    'centimetres long. Drifting. Calm. The deepest vertebrate ever recorded. Permanent '
-                    'darkness. Crushing pressure. Near-freezing temperatures. And it was just... '
-                    'swimming. The ocean is still showing us things we cannot quite believe.'},
+     'reel_script': 'In 2023 a camera descended to eight thousand three hundred and thirty-six '
+                    'metres in the Izu-Ogasawara Trench. At that depth the pressure is eight '
+                    'hundred times surface pressure. It is enough to crush tissue instantly. '
+                    'There was a fish. A snailfish. Translucent, barely thirty centimetres '
+                    'long, drifting calmly. The deepest vertebrate ever recorded, in permanent '
+                    'darkness at crushing pressure in near-freezing water, apparently '
+                    'unconcerned. The ocean keeps producing things we did not think were '
+                    'possible. We have explored less than twenty percent of it.'},
     {'topic': 'ocean',
      'claim': 'The megalodon, the largest shark ever to live, could grow up to 18 metres long and had '
               'teeth the size of a human hand. It went extinct roughly 3.6 million years ago. Its bite '
@@ -1196,13 +1202,14 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'The Shark That Makes Great Whites Look Small',
-     'reel_script': "We talk about great white sharks like they're the apex of terror. They're not. "
-                    'For millions of years the ocean was ruled by something else. The megalodon. 18 '
-                    'metres long. Three times the length of a great white. Teeth the size of a human '
-                    'hand. Bite force of 110,000 newtons. The strongest of any animal measured. It '
-                    'hunted whales. It bit them in half. Fossil whale bones carry megalodon bite marks '
-                    'right through them. It went extinct 3.6 million years ago. Nobody is sure why. '
-                    'The great white filled the gap. And suddenly the ocean felt a little smaller.'},
+     'reel_script': 'The megalodon was eighteen metres long, three times the length of a great white, '
+                    'with teeth the size of a human hand and a bite force of a hundred and ten '
+                    'thousand newtons, the strongest of any measured animal. It hunted whales. '
+                    'Fossil whale bones carry megalodon bite marks going straight through them. '
+                    'It went extinct three point six million years ago and nobody is entirely '
+                    'sure why. The great white shark is its closest living relative and fills '
+                    'the ecological gap it left. When people say great whites are terrifying, '
+                    'they are correct, but they are also missing context.'},
     {'topic': 'ocean',
      'claim': 'Leatherback sea turtles regularly dive past 1,000 metres in search of jellyfish. They '
               'are the deepest-diving reptiles on Earth and can travel over 10,000 kilometres in a '
@@ -1214,14 +1221,14 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': 'The Turtle That Dives a Kilometre Deep',
-     'reel_script': 'The leatherback sea turtle has no hard shell. A rubbery, ridged carapace. It can '
-                    'weigh 900 kilograms. The largest reptile on Earth. And it dives past 1,000 '
-                    'metres. Deeper than the light goes. Searching for jellyfish in the blackness. It '
-                    'regulates its own body temperature to stay warm in freezing water. When it '
-                    'migrates, it crosses the entire Pacific Ocean. Over 10,000 kilometres. From the '
-                    'beaches of Indonesia to the coast of California. Without stopping. Navigating by '
-                    "the Earth's magnetic field. A 100-million-year-old lineage. Still crossing "
-                    'oceans.'},
+     'reel_script': 'The leatherback sea turtle weighs up to nine hundred kilograms, dives past a '
+                    'thousand metres in search of jellyfish, regulates its own body temperature '
+                    'in freezing water, and crosses the entire Pacific Ocean during migration. '
+                    'Over ten thousand kilometres, navigating by the Earth\'s magnetic field, '
+                    'without stopping. The leatherback lineage is a hundred million years old. '
+                    'It survived whatever killed the dinosaurs. It is currently endangered '
+                    'primarily due to plastic bags, which resemble jellyfish from below and '
+                    'which it cannot distinguish. We are losing them to our rubbish.'},
     {'topic': 'biology',
      'claim': 'Captive octopuses have been observed recognising and treating individual humans '
               'differently. In studies, animals actively sprayed water at disliked handlers and were '
@@ -1234,14 +1241,14 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': 'The Animal That Holds a Grudge',
-     'reel_script': 'At a research facility in Seattle, eight octopuses were kept in tanks. Two staff '
-                    'members interacted with them every day. One fed them. One poked them gently with '
-                    'a stick. After a few weeks, something remarkable happened. The octopuses started '
-                    "treating those two people completely differently. They'd reach toward the feeder. "
-                    "They'd turn their water jets on the one with the stick. Deliberate. Targeted. "
-                    'Personal. Octopuses can recognise individual human faces. They form opinions '
-                    'about specific people. A creature with no common ancestor with us for 750 million '
-                    'years learned to identify you. And decided whether it liked you.'},
+     'reel_script': 'A research facility in Seattle ran a simple experiment. One staff member fed the '
+                    'octopuses daily. Another poked them with a stick. After a few weeks, the '
+                    'octopuses began directing their water jets at the poker specifically. Not at '
+                    'everyone. At that person. They also reached toward the feeder more often. '
+                    'Deliberate. Targeted. Personal. These animals share no common ancestor with you '
+                    'for 750 million years. No neocortex. No shared evolutionary context. They still '
+                    'remembered who you were, tracked you across days, and arrived at a conclusion. '
+                    'The polite term is individual recognition. The accurate term is grudge.'},
     {'topic': 'science',
      'claim': 'Some people with damage to the primary visual cortex insist they see nothing, yet can '
               'guess the location or orientation of objects on a screen far better than chance. This '
@@ -1253,13 +1260,14 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'The Eyes That Deny They See',
-     'reel_script': 'You assume cortical blindness means nothing useful enters the brain. Researchers '
-                    'flash shapes to patients who swear the screen is empty. Guesses still beat '
-                    'chance. Ask them to reach toward a flash they insist they never saw and the hand '
-                    'lands on target. The lesion blocked conscious vision. Other pathways still carry '
-                    'location, motion, even mood from faces you say you cannot see. The world keeps '
-                    'being modelled while the inner voice insists on darkness. Scientists call that '
-                    'blindsight. It proves processing and awareness are not the same thing.'},
+     'reel_script': 'Damage the primary visual cortex and the patient reports complete blindness in '
+                    'that zone. Nothing. Black. Researchers flash a shape into it and ask them to '
+                    'guess its location. The patient objects. They saw nothing. Guess anyway. The '
+                    'guesses land far above chance. Point at it. The hand finds it. The lesion wiped '
+                    'out conscious sight but left other pathways intact, ones that still carry '
+                    'position, movement, and emotion. The inner voice insists on darkness. The hand '
+                    'knows better. Researchers call this blindsight. Seeing and processing visual '
+                    'information are not the same thing, and only one requires your permission.'},
 ]
 
 from src.core.paths import DISCOVERED_FACTS as DISCOVERED_PATH  # canonical path
