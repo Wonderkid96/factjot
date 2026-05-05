@@ -79,10 +79,10 @@ jobs:
 
       - name: Verify Meta token
         run: |
-          VALID=$(python3 scripts/check_token.py 2>/dev/null || echo invalid)
+          VALID=$(python3 pipelines/shared/check_token.py 2>/dev/null || echo invalid)
           if [ "$VALID" != "ok" ]; then
             echo "::error::Meta access token is invalid or expired. Run refresh_token.py manually."
-            python3 scripts/log_token_alert.py 2>/dev/null || true
+            python3 pipelines/shared/log_token_alert.py 2>/dev/null || true
             exit 1
           fi
           echo "Token valid."
@@ -91,7 +91,7 @@ jobs:
         id: check
         run: |
           git pull --rebase --autostash origin main 2>/dev/null || true
-          if python3 scripts/check_posted_today.py carousel | grep -q already_posted; then
+          if python3 pipelines/shared/check_posted_today.py carousel | grep -q already_posted; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "Already posted today - skipping."
           else
@@ -114,7 +114,7 @@ jobs:
             7) TOPIC=technology ;;
           esac
           echo "Day $DAY -> topic=$TOPIC"
-          python3 scripts/ship_first_post.py --topic "$TOPIC"
+          python3 pipelines/carousel/ship_first_post.py --topic "$TOPIC"
 
       - name: Capture failure to brain log
         if: failure()
@@ -123,7 +123,7 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           TRIGGER: ${{ github.event_name }}
           REF: ${{ github.ref_name }}
-        run: python3 scripts/log_workflow_failure.py
+        run: python3 pipelines/shared/log_workflow_failure.py
       - name: Commit and push state
         if: always()
         run: |

@@ -109,7 +109,7 @@ jobs:
 
           When you have decided what to post, call make_reel.py like this:
 
-            python3 -u scripts/make_reel.py \\
+            python3 -u pipelines/reel/make_reel.py \\
               --script \"your script here\" \\
               --title \"your hook title\" \\
               --topic <history|science|biology|ocean|earth|space|technology> \\
@@ -128,7 +128,7 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           TRIGGER: ${{ github.event_name }}
           REF: ${{ github.ref_name }}
-        run: python3 scripts/log_workflow_failure.py
+        run: python3 pipelines/shared/log_workflow_failure.py
 
       - name: Commit and push state
         if: always()

@@ -100,10 +100,10 @@ jobs:
 
       - name: Verify Meta token
         run: |
-          VALID=$(python3 scripts/check_token.py 2>/dev/null || echo invalid)
+          VALID=$(python3 pipelines/shared/check_token.py 2>/dev/null || echo invalid)
           if [ "$VALID" != "ok" ]; then
             echo "::error::Meta access token is invalid or expired. Run refresh_token.py manually."
-            python3 scripts/log_token_alert.py 2>/dev/null || true
+            python3 pipelines/shared/log_token_alert.py 2>/dev/null || true
             exit 1
           fi
           echo "Token valid."
@@ -118,16 +118,16 @@ jobs:
           if [ "$FORCE_POST" = "true" ]; then
             echo "skip=false" >> "$GITHUB_OUTPUT"
             echo "FORCE_POST=true: bypassing idempotency check."
-          elif python3 scripts/check_posted_today.py reel | grep -q already_posted; then
+          elif python3 pipelines/shared/check_posted_today.py reel | grep -q already_posted; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "Already posted a reel today - skipping."
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
-            REMAINING=$(python3 scripts/check_reel_runway.py 2>/dev/null || echo 99)
+            REMAINING=$(python3 pipelines/reel/check_reel_runway.py 2>/dev/null || echo 99)
             echo "Reel runway: $REMAINING facts remaining"
             if [ "$REMAINING" -lt 14 ]; then
               echo "Runway below 14 - running fact discovery..."
-              python3 scripts/discover_facts.py || echo "Discovery failed, continuing"
+              python3 pipelines/carousel/discover_facts.py || echo "Discovery failed, continuing"
             fi
           fi
 
@@ -137,9 +137,9 @@ jobs:
           TOPIC_ARG=""
           if [ -n "${{ inputs.topic }}" ]; then TOPIC_ARG="--topic ${{ inputs.topic }}"; fi
           if [ "${{ inputs.dry_run }}" = "true" ]; then
-            python3 -u scripts/make_reel.py --dry-run $TOPIC_ARG
+            python3 -u pipelines/reel/make_reel.py --dry-run $TOPIC_ARG
           else
-            python3 -u scripts/make_reel.py $TOPIC_ARG
+            python3 -u pipelines/reel/make_reel.py $TOPIC_ARG
           fi
 
       - name: Capture failure to brain log
@@ -149,7 +149,7 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           TRIGGER: ${{ github.event_name }}
           REF: ${{ github.ref_name }}
-        run: python3 scripts/log_workflow_failure.py
+        run: python3 pipelines/shared/log_workflow_failure.py
 
       - name: Commit and push state
         if: always()

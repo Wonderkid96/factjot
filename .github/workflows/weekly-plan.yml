@@ -75,31 +75,31 @@ jobs:
 
       - name: Refresh Meta access token
         run: |
-          python3 scripts/refresh_token.py || {
+          python3 pipelines/shared/refresh_token.py || {
             echo "::error::Meta token refresh FAILED. Posts will stop working when token expires. Check developers.facebook.com immediately."
             exit 1
           }
 
       - name: Fetch reel performance metrics
-        run: python3 scripts/fetch_reel_metrics.py || echo "Metrics fetch failed - continuing"
+        run: python3 pipelines/reel/fetch_reel_metrics.py || echo "Metrics fetch failed - continuing"
 
       - name: Score topic/tone performance
-        run: python3 scripts/score_performance.py || echo "Scoring failed - continuing"
+        run: python3 pipelines/carousel/score_performance.py || echo "Scoring failed - continuing"
 
       - name: Restock - discover facts + runway report
-        run: python3 scripts/restock.py || echo "Restock failed - continuing"
+        run: python3 pipelines/carousel/restock.py || echo "Restock failed - continuing"
 
       - name: Generate themed list packs
-        run: python3 scripts/generate_list_packs.py || echo "Pack generation failed - continuing"
+        run: python3 pipelines/list/generate_list_packs.py || echo "Pack generation failed - continuing"
 
       - name: Prepare list pack assets
-        run: python3 scripts/prepare_packs.py || echo "Pack prep failed - continuing"
+        run: python3 pipelines/list/prepare_packs.py || echo "Pack prep failed - continuing"
 
       - name: Validate reel fact bank
-        run: python3 scripts/validate_reel_facts.py
+        run: python3 pipelines/reel/validate_reel_facts.py
 
       - name: Prune old caches and trim brain log
-        run: python3 scripts/cleanup_caches.py --keep-days 14 --keep-log-lines 500
+        run: python3 pipelines/shared/cleanup_caches.py --keep-days 14 --keep-log-lines 500
 
       - name: Capture failure to brain log
         if: failure()
@@ -108,7 +108,7 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           TRIGGER: ${{ github.event_name }}
           REF: ${{ github.ref_name }}
-        run: python3 scripts/log_workflow_failure.py
+        run: python3 pipelines/shared/log_workflow_failure.py
 
       - name: Commit and push state
         if: always()

@@ -3,6 +3,8 @@
 Owner: **Toby Johnson (TJCreate)**, Lincoln UK. Instagram: @factjot.
 Before anything else, read `/Users/Music/.claude/CLAUDE.md` for Toby's universal rules (no em dashes, British English, voice, etc).
 
+**Context management:** Run `/compact` when context usage hits 60% to avoid hitting limits mid-task.
+
 ---
 
 ## What this project is

@@ -48,7 +48,7 @@ jobs:
 
       - name: Verify Meta token
         run: |
-          VALID=$(python3 scripts/check_token.py 2>/dev/null || echo invalid)
+          VALID=$(python3 pipelines/shared/check_token.py 2>/dev/null || echo invalid)
           if [ "$VALID" != "ok" ]; then
             echo "::error::Meta access token invalid - metrics fetch skipped."
             exit 1
@@ -59,7 +59,7 @@ jobs:
         run: git pull --rebase --autostash origin main 2>/dev/null || true
 
       - name: Fetch reel performance metrics
-        run: python3 scripts/fetch_reel_metrics.py
+        run: python3 pipelines/reel/fetch_reel_metrics.py
 
       - name: Commit metrics
         if: always()
