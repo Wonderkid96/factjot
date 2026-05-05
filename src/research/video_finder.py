@@ -226,24 +226,51 @@ def find_videos(
     safety_idx = 0
 
     # ------------------------------------------------------------------ #
-    # Tier 0: Entity clips (unchanged) — max 2, score=1.0
+    # Tier 0: Entity clips — fill as many slots as possible with specific
+    # subject content. B-roll only covers what entity sources can't fill.
     # ------------------------------------------------------------------ #
     _claim_ents = extract_entities(claim)
-    _entity_terms: list[str] = []
-    if _claim_ents.proper_nouns:
-        _entity_terms.append(" ".join(_claim_ents.proper_nouns[:2]))
-    if image_hint and (not _entity_terms or image_hint != _entity_terms[0]):
-        _entity_terms.append(image_hint)
 
-    _ENTITY_CAP = 2
+    # Build a rich set of search terms so Wikimedia has multiple chances to
+    # find subject-specific images. More terms = more distinct images found.
+    _entity_terms: list[str] = []
+    _seen_terms: set[str] = set()
+
+    def _add_term(t: str) -> None:
+        t = t.strip()
+        if t and t.lower() not in _seen_terms:
+            _seen_terms.add(t.lower())
+            _entity_terms.append(t)
+
+    # Full joined entity name first (e.g. "Vasili Arkhipov")
+    if _claim_ents.proper_nouns:
+        _add_term(" ".join(_claim_ents.proper_nouns[:2]))
+        # Individual nouns give additional search angles
+        for pn in _claim_ents.proper_nouns[:4]:
+            _add_term(pn)
+
+    # image_hint is the manually curated best search term — try it directly
+    if image_hint:
+        _add_term(image_hint)
+        # Also try first 2 words of hint (catches "Salar de Uyuni" → "Salar")
+        hint_words = image_hint.split()
+        if len(hint_words) > 1:
+            _add_term(" ".join(hint_words[:2]))
+        if len(hint_words) > 2:
+            _add_term(hint_words[0])
+
+    # Topic-level nouns from the claim as a final broadening pass
+    for noun in _claim_ents.nouns[:3]:
+        _add_term(noun)
+
     for _et in _entity_terms:
-        if len(clips) >= _ENTITY_CAP:
+        if len(clips) >= count:
             break
         _ec = _entity_sources(
             _et, out_dir,
             used_source_urls=used_source_urls,
             used_paths=used_paths,
-            max_clips=_ENTITY_CAP - len(clips),
+            max_clips=count - len(clips),
         )
         for ec in _ec:
             if len(clips) < count:
@@ -251,7 +278,7 @@ def find_videos(
                 print(f"  [video] ENTITY-0  ✓ {ec.name}")
 
     # ------------------------------------------------------------------ #
-    # Tier 1: Recall-first beat retrieval
+    # Tier 1: Recall-first beat retrieval — fills slots entity couldn't cover
     # ------------------------------------------------------------------ #
     all_beat_queries = generate_all_beat_queries(
         claim=claim, topic=topic, image_hint=image_hint, reel_script=reel_script,
