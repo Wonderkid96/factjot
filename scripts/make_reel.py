@@ -274,7 +274,14 @@ def _log_pick_diagnostics(topic: str | None) -> None:
 # Main pipeline
 # ------------------------------------------------------------------ #
 
-def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural") -> int:
+def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
+              _autonomous: dict | None = None) -> int:
+    """Run the reel pipeline.
+
+    _autonomous: if provided, bypasses fact selection entirely and uses the
+    supplied dict as the fact. Must contain: claim, reel_script, reel_title,
+    topic, tone, image_hint. Used by make_autonomous_reel.py.
+    """
     configure_logging()
     cfg = load_config()
 
@@ -304,18 +311,22 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
             return 5
         print(f"  [ffmpeg] binary: {ff_bin}")
 
-        # Step 1: Select fact
-        fact = _pick_fact(topic)
-        if not fact:
-            msg = f"No reel-eligible fact found"
-            if topic:
-                msg += f" for topic={topic!r}"
-            print(msg + ".")
-            _log_pick_diagnostics(topic)
-            print("\nFix: add curated reel_title + reel_script (>= "
-                  f"{MIN_REEL_SCRIPT_WORDS} words) to a q3 fact in rare_fact_bank.py, "
-                  "or run scripts/validate_reel_facts.py for the full audit.")
-            return 2
+        # Step 1: Select fact (or use autonomously generated content)
+        if _autonomous is not None:
+            fact = _autonomous
+            print(f"\n[AUTONOMOUS] Claude-generated reel")
+        else:
+            fact = _pick_fact(topic)
+            if not fact:
+                msg = f"No reel-eligible fact found"
+                if topic:
+                    msg += f" for topic={topic!r}"
+                print(msg + ".")
+                _log_pick_diagnostics(topic)
+                print("\nFix: add curated reel_title + reel_script (>= "
+                      f"{MIN_REEL_SCRIPT_WORDS} words) to a q3 fact in rare_fact_bank.py, "
+                      "or run scripts/validate_reel_facts.py for the full audit.")
+                return 2
 
         claim    = fact["claim"]
         ftopic   = fact["topic"]
@@ -367,7 +378,11 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural")
         # claim that was too short. Guard: abort if result < MIN_REEL_SCRIPT_WORDS.
         from src.content.reel_script import to_voice_script as build_reel_script
         curated = fact.get("reel_script", "")
-        if curated and len(curated.split()) >= MIN_REEL_SCRIPT_WORDS:
+        if _autonomous is not None:
+            # Autonomous scripts bypass word-count floors — Claude owns quality
+            vo_body = curated
+            print(f"\n[AUTONOMOUS] script: {len(vo_body.split())} words")
+        elif curated and len(curated.split()) >= MIN_REEL_SCRIPT_WORDS:
             vo_body = curated
             print(f"\nUsing curated reel_script ({len(vo_body.split())} words)")
         else:

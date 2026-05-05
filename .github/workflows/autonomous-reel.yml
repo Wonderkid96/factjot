@@ -1,0 +1,128 @@
+name: Autonomous Reel (manual only)
+
+# Claude has complete creative freedom. No topic, no template, no fact bank.
+# Only trigger this deliberately — do not put on a cron until you've
+# seen several outputs and are comfortable with what it produces.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Compose video but skip upload and publish (safe preview)"
+        type: boolean
+        default: false
+        required: false
+      model:
+        description: "Claude model (default: claude-opus-4-7)"
+        required: false
+        default: "claude-opus-4-7"
+
+concurrency:
+  group: factjot-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install FFmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: playwright install chromium --with-deps
+
+      - name: Install Playwright system deps (cached run)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: playwright install-deps chromium
+
+      - name: Write .env from secrets
+        run: |
+          cat > .env << 'ENVEOF'
+          INSTAGRAM_ACCOUNT_ID=${{ secrets.INSTAGRAM_ACCOUNT_ID }}
+          FACEBOOK_PAGE_ID=${{ secrets.FACEBOOK_PAGE_ID }}
+          META_ACCESS_TOKEN=${{ secrets.META_ACCESS_TOKEN }}
+          META_GRAPH_VERSION=${{ secrets.META_GRAPH_VERSION }}
+          META_APP_SECRET=${{ secrets.META_APP_SECRET }}
+          META_APP_ID=${{ secrets.META_APP_ID }}
+          META_GRAPH_HOST=${{ secrets.META_GRAPH_HOST }}
+          IMGBB_API_KEY=${{ secrets.IMGBB_API_KEY }}
+          PEXELS_API_KEY=${{ secrets.PEXELS_API_KEY }}
+          TMDB_READ_TOKEN=${{ secrets.TMDB_READ_TOKEN }}
+          TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}
+          OMDB_API_KEY=${{ secrets.OMDB_API_KEY }}
+          ELEVENLABS_API_KEY=${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE=${{ secrets.ELEVENLABS_VOICE }}
+          COVERR_API_KEY=${{ secrets.COVERR_API_KEY }}
+          PIXABAY_API_KEY=${{ secrets.PIXABAY_API_KEY }}
+          IMAGE_HOST=${{ secrets.IMAGE_HOST }}
+          MUSIC_CREDIT=${{ secrets.MUSIC_CREDIT }}
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+          TIMEZONE=UTC
+          ENVEOF
+
+      - name: Pull latest state
+        run: git pull --rebase --autostash origin main 2>/dev/null || true
+
+      - name: Run autonomous reel
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            python3 -u scripts/make_autonomous_reel.py --dry-run --model "${{ inputs.model }}"
+          else
+            python3 -u scripts/make_autonomous_reel.py --model "${{ inputs.model }}"
+          fi
+
+      - name: Capture failure to brain log
+        if: failure()
+        env:
+          WORKFLOW_FILE: .github/workflows/autonomous-reel.yml
+          RUN_ID: ${{ github.run_id }}
+          TRIGGER: ${{ github.event_name }}
+          REF: ${{ github.ref_name }}
+        run: python3 scripts/log_workflow_failure.py
+
+      - name: Commit and push state
+        if: always()
+        run: |
+          git config user.name  "factjot-bot"
+          git config user.email "bot@factjot"
+          git add \
+            insta-brain/data/posted.jsonl \
+            insta-brain/data/reels.jsonl \
+            insta-brain/log.md \
+            insta-brain/MEMORY_INDEX.md \
+            data/ledgers/used_footage_urls.jsonl \
+            || true
+          git diff --cached --quiet && echo "No state changes to commit." && exit 0
+          git commit -m "state: autonomous reel $(date -u +%Y-%m-%dT%H:%M)Z"
+          git pull --rebase --autostash origin main
+          git push origin main
