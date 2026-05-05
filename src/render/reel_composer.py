@@ -508,8 +508,7 @@ def _build_filter_graph(
     grit_opacity = 0.65 if texture_intensity != "medium" else 0.70
     grit_env = os.getenv("REEL_GRIT_OVERLAY_PATH", _DEFAULT_GRIT_PATH).strip()
     grit_path = Path(grit_env).expanduser() if grit_env else None
-    transitions_mode = os.getenv("REEL_TRANSITIONS_MODE", "classic").strip().lower()
-    use_case_file_dynamic = transitions_mode == "case_file_dynamic"
+    use_case_file_dynamic = True  # case_file_dynamic is the only transition mode
 
     # Branded intro overlay - ProRes 4444 with alpha channel.
     # The circle cutout reveals footage through it; the red frame sits on top.
@@ -573,9 +572,7 @@ def _build_filter_graph(
     transition_names: list[str] = []
     if use_case_file_dynamic and len(footage_paths) > 1:
         overlaps, transition_names = _build_case_file_join_plan(len(footage_paths), total_duration_s)
-        print(f"  [transitions] mode=case_file_dynamic joins={len(overlaps)}")
-    elif transitions_mode != "classic":
-        print(f"  [transitions] unknown mode={transitions_mode!r} - using classic")
+        print(f"  [transitions] case_file_dynamic joins={len(overlaps)}")
 
     clip_labels = []
     for i, ((start, end), _) in enumerate(zip(clip_windows, footage_paths)):

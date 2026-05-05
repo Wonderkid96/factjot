@@ -53,16 +53,17 @@ from src.core.paths import DISCOVERED_FACTS as OUT_PATH, DISCOVERY_LOG as LOG_PA
 # ---------------------------------------------------------------------------
 
 SOURCES = [
-    # All public Reddit JSON (no auth required) except r/morbidreality which is
-    # NSFW-gated and uses OAuth via _reddit_oauth_token() when REDDIT_* secrets
-    # are present. r/todayilearned removed: too mainstream.
-    {"subreddit": "Damnthatsinteresting", "title_format": "direct", "min_upvotes": 10_000},
-    {"subreddit": "interestingasfuck",    "title_format": "direct", "min_upvotes": 10_000},
-    {"subreddit": "UnresolvedMysteries",  "title_format": "direct", "min_upvotes":  2_000},
-    {"subreddit": "AskHistorians",        "title_format": "direct", "min_upvotes":  2_000},
-    {"subreddit": "history",              "title_format": "direct", "min_upvotes":  2_000},
-    # r/MorbidReality requires Reddit OAuth (NSFW-gated). Not worth the setup
-    # friction - Wikipedia unusual deaths covers the same dark-history angle.
+    # Public subreddits (no OAuth required).
+    # Thresholds lowered to pull a wider pool -- quality gate happens downstream.
+    {"subreddit": "Damnthatsinteresting", "title_format": "direct", "min_upvotes": 5_000},
+    {"subreddit": "interestingasfuck",    "title_format": "direct", "min_upvotes": 5_000},
+    {"subreddit": "todayilearned",        "title_format": "til",    "min_upvotes": 8_000},
+    {"subreddit": "UnresolvedMysteries",  "title_format": "direct", "min_upvotes": 1_000},
+    {"subreddit": "AskHistorians",        "title_format": "direct", "min_upvotes": 1_000},
+    {"subreddit": "history",              "title_format": "direct", "min_upvotes": 1_000},
+    {"subreddit": "morbidreality",        "title_format": "direct", "min_upvotes": 1_000,
+     "needs_oauth": True},   # NSFW-gated -- skipped if REDDIT_* not set
+    {"subreddit": "Glitch_in_the_Matrix", "title_format": "direct", "min_upvotes": 1_000},
 ]
 
 USER_AGENT   = "factjot-discoverer/1.0 (educational, contact @factjot)"
