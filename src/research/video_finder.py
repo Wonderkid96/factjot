@@ -44,44 +44,22 @@ _MIN_BYTES_HD  = 2_000_000      # 2 MB floor - filters out sub-3s clips at typic
 _MIN_BYTES_ARK = 50_000         # 50 KB floor for archival/historical content
 _MIN_CLIP_DURATION_S = 5.0      # minimum: clips shorter than this may loop briefly but are usable
 
-# Stop words excluded when extracting meaningful keywords from image hints
-_STOP = {
-    "with", "that", "from", "this", "into", "have", "been", "were", "they",
-    "their", "there", "when", "what", "which", "about", "after", "before",
-    "would", "could", "should", "other", "where", "while", "these", "those",
-}
-
 # Topics where Archive.org is a useful fallback even without allow_archival=True
 _ARCHIVE_ELIGIBLE_TOPICS = {"history", "earth", "science"}
-
-# Minimum relevance score for compound queries (3+ meaningful words).
-# Requires at least one 6+ char word to match — e.g. "flames"(6), "crater"(6),
-# "burning"(7) pass; "fire"(4), "lava"(4) do not.
-_COMPOUND_SCORE_FLOOR = 6
 
 
 def _extract_hint_keywords(hint: str, max_words: int = 3) -> list[str]:
     """Extract the most meaningful individual words from an image hint.
 
     Prioritises proper nouns (capitalised, likely place/entity names), then
-    long content words. Used to generate targeted Wikimedia searches when
-    compound phrase queries fail to find relevant footage.
+    long content words. Reuses the existing _STOP frozenset defined below.
+    Used to generate targeted Wikimedia searches when compound phrase queries
+    fail to find relevant footage.
     """
     words = hint.split()
     proper  = [w for w in words if w[0].isupper() and len(w) > 4 and w.lower() not in _STOP]
     content = [w for w in words if len(w) > 4 and w.lower() not in _STOP and w not in proper]
     return (proper + content)[:max_words]
-
-
-def _compound_score_floor(query: str) -> int:
-    """Return the minimum acceptable relevance score for this query.
-
-    Compound queries (3+ meaningful words) use a relaxed floor of 6 so that
-    thematically adjacent stock footage is accepted when nothing exact exists.
-    Short queries keep a floor of 1 (any word match is meaningful).
-    """
-    meaningful = [w for w in query.split() if len(w) > 3 and w.lower() not in _STOP]
-    return _COMPOUND_SCORE_FLOOR if len(meaningful) >= 3 else 1
 
 
 def _topic_allows_archival(topic: str, allow_archival: bool) -> bool:
@@ -510,9 +488,8 @@ def _pexels_video_url(query: str, topic: str, skip_urls: set[str] | None = None)
     candidates.sort(key=lambda x: -x[0])
     best_score, best_url, best_vid_id = candidates[0]
     print(f"  [pexels] best match score={best_score} from {len(candidates)} results")
-    _floor = _compound_score_floor(query)
-    if best_score < _floor:
-        print(f"  [pexels] score={best_score} < floor={_floor} — skipping")
+    if best_score == 0:
+        print(f"  [pexels] score=0 — skipping (no relevant match)")
         return None
     # Mark both the file URL and video ID so all quality variants are blocked
     if skip_urls is not None:
@@ -719,9 +696,8 @@ def _coverr_video_url(query: str, topic: str, skip_urls: set[str] | None = None)
             candidates.sort(key=lambda x: -x[0])
             best_score, best_url, best_id = candidates[0]
             print(f"  [coverr] best match score={best_score} from {len(candidates)} results")
-            _floor = _compound_score_floor(query)
-            if best_score < _floor:
-                print(f"  [coverr] score={best_score} < floor={_floor} — skipping")
+            if best_score == 0:
+                print(f"  [coverr] score=0 — skipping (no relevant match)")
                 return None
             if skip_urls is not None:
                 skip_urls.add(f"coverr:{best_id}")
@@ -768,9 +744,8 @@ def _pixabay_video_url(query: str, topic: str, skip_urls: set[str] | None = None
     candidates.sort(key=lambda x: -x[0])
     best_score, best_url, best_id = candidates[0]
     print(f"  [pixabay] best match score={best_score} from {len(candidates)} results")
-    _floor = _compound_score_floor(query)
-    if best_score < _floor:
-        print(f"  [pixabay] score={best_score} < floor={_floor} — skipping")
+    if best_score == 0:
+        print(f"  [pixabay] score=0 — skipping (no relevant match)")
         return None
     if skip_urls is not None:
         skip_urls.add(f"pixabay:{best_id}")
