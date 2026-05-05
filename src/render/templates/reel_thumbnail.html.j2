@@ -26,7 +26,6 @@
     --near-black: #0B0B0C;
     --off-white:  #EDE8DD;
     --accent:     #E6352A;
-    --lime:       #C8DB45;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -40,6 +39,7 @@
     text-rendering: optimizeLegibility;
   }
 
+  /* ── Full-bleed footage frame (always present, even if dark) ─── */
   .stage {
     position: relative;
     width: 100%;
@@ -47,154 +47,188 @@
     {% if frame_url %}
     background: url("{{ frame_url }}") center / cover no-repeat;
     {% else %}
-    background: linear-gradient(160deg, #141416 0%, #0D0D0F 45%, #0A0A0B 100%);
+    background: linear-gradient(160deg, #1a1a1e 0%, #0D0D0F 50%, #0A0A0B 100%);
     {% endif %}
   }
 
-  /* ── Gradient stack ─────────────────────────────────────────────── */
-  .grad-top {
-    position: absolute;
-    inset: 0 0 auto 0;
-    height: 35%;
-    background: linear-gradient(to bottom, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.00) 100%);
-    z-index: 1;
-    pointer-events: none;
-  }
+  /* ── Heavy bottom gradient -- ensures title always legible ─── */
   .grad-bottom {
     position: absolute;
-    inset: 32% 0 0 0;
+    inset: 0;
     background: linear-gradient(
       to bottom,
-      rgba(0,0,0,0.00)  0%,
-      rgba(0,0,0,0.38) 35%,
-      rgba(0,0,0,0.78) 65%,
-      rgba(0,0,0,0.95) 100%
+      rgba(0,0,0,0.10) 0%,
+      rgba(0,0,0,0.05) 20%,
+      rgba(0,0,0,0.30) 42%,
+      rgba(0,0,0,0.82) 62%,
+      rgba(0,0,0,0.97) 78%,
+      rgba(0,0,0,1.00) 100%
     );
     z-index: 1;
-    pointer-events: none;
-  }
-  .grad-sides {
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(ellipse at center, rgba(0,0,0,0.00) 48%, rgba(0,0,0,0.45) 100%);
-    z-index: 1;
-    pointer-events: none;
   }
 
-  /* ── Title scrim ────────────────────────────────────────────────── */
-  .title-scrim {
+  /* ── Subtle side vignette ───────────────────────────────────── */
+  .vignette {
     position: absolute;
-    top: 22%;
-    left: 0;
-    right: 0;
-    height: 55%;
-    background: radial-gradient(ellipse 75% 55% at 50% 50%,
-      rgba(0,0,0,0.60) 0%,
-      rgba(0,0,0,0.00) 100%
+    inset: 0;
+    background: radial-gradient(ellipse at center,
+      rgba(0,0,0,0.00) 50%,
+      rgba(0,0,0,0.45) 100%
     );
     z-index: 2;
     pointer-events: none;
   }
 
-  /* ── Left accent line ───────────────────────────────────────────── */
+  /* ── Accent bar -- left edge, full height, always visible ───── */
+  .accent-bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 7px;
+    background: var(--accent);
+    z-index: 10;
+  }
 
-  /* ── Header: factjot. top-left, TOPIC top-right ────────────────── */
+  /* ── Header row: factjot. left, TOPIC right ─────────────────── */
   .header {
     position: absolute;
     top: 62px;
-    left: 62px;
+    left: 80px;
     right: 62px;
     display: flex;
     align-items: center;
-    z-index: 5;
+    gap: 16px;
+    z-index: 8;
   }
-  .header-wordmark {
+  .wordmark {
     font-family: "Instrument Serif", Georgia, serif;
-    font-weight: 400;
-    font-size: 30px;
+    font-size: 32px;
     letter-spacing: -0.02em;
     color: var(--off-white);
-    flex: 1 1 auto;
-    white-space: nowrap;
-    text-shadow: 1px 1px 0 rgba(0,0,0,0.6);
+    flex: 0 0 auto;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.8);
   }
-  .header-wordmark .reg  { font-style: normal; }
-  .header-wordmark .ital { font-style: italic; }
-  .header-wordmark .dot  { color: var(--accent); }
-  .header-topic {
+  .wordmark .ital { font-style: italic; }
+  .wordmark .dot  { color: var(--accent); }
+  .divider {
+    flex: 1;
+    height: 1px;
+    background: var(--off-white);
+    opacity: 0.28;
+  }
+  .topic {
     font-family: "JetBrains Mono", ui-monospace, monospace;
     font-weight: 700;
-    font-size: 22px;
-    letter-spacing: 0.18em;
+    font-size: 20px;
+    letter-spacing: 0.20em;
     text-transform: uppercase;
     color: var(--off-white);
     flex: 0 0 auto;
-    white-space: nowrap;
-    text-shadow: 1px 1px 0 rgba(0,0,0,0.6);
+    opacity: 0.75;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.8);
   }
 
-  /* ── Corner brackets ────────────────────────────────────────────── */
-  .corners { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
-  .corner { position: absolute; width: 56px; height: 56px; }
-  .corner::before, .corner::after {
-    content: ""; position: absolute; background: var(--off-white); opacity: 0.65;
-  }
-  .corner::before { height: 3px; width: 100%; top: 0; left: 0; }
-  .corner::after  { width:  3px; height: 100%; top: 0; left: 0; }
-  .corner-tl { top: 48px;  left: 48px; }
-  .corner-tr { top: 48px;  right: 48px; transform: scaleX(-1); }
-  .corner-bl { bottom: 48px; left: 48px;  transform: scaleY(-1); }
-  .corner-br { bottom: 48px; right: 48px; transform: scale(-1); }
-
-  /* ── Title: centred, Instrument Serif ───────────────────────────── */
-  .title {
+  /* ── Title block -- anchored to bottom ──────────────────────── */
+  .lower {
     position: absolute;
-    top: 50%;
-    left: 72px;
-    right: 72px;
-    transform: translateY(-50%);
-    z-index: 5;
+    left: 80px;
+    right: 62px;
+    bottom: 100px;
+    z-index: 8;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  /* Red rule above the title */
+  .rule {
+    width: 72px;
+    height: 4px;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+
+  .title {
     font-family: "Instrument Serif", Georgia, serif;
     font-weight: 400;
     font-size: {{ title_size }}px;
-    line-height: 1.06;
-    letter-spacing: -0.020em;
+    line-height: 1.05;
+    letter-spacing: -0.022em;
     color: var(--off-white);
-    text-align: center;
     text-wrap: balance;
     text-shadow:
-      2px 2px 0 rgba(0,0,0,0.70),
-      0 4px 18px rgba(0,0,0,0.60),
-      0 8px 48px rgba(0,0,0,0.40);
+      2px 3px 0   rgba(0,0,0,0.80),
+      0   6px 24px rgba(0,0,0,0.55);
   }
-  .title em { font-style: italic; }
-  .title .accent { color: var(--accent); font-style: italic; }
+  .title em { font-style: italic; color: var(--off-white); }
+
+  /* ── Corner brackets (top-right only -- balances the accent bar) */
+  .corner-tr {
+    position: absolute;
+    top: 48px;
+    right: 48px;
+    width: 48px;
+    height: 48px;
+    z-index: 8;
+  }
+  .corner-tr::before {
+    content: "";
+    position: absolute;
+    top: 0; right: 0;
+    width: 100%;
+    height: 3px;
+    background: var(--off-white);
+    opacity: 0.55;
+  }
+  .corner-tr::after {
+    content: "";
+    position: absolute;
+    top: 0; right: 0;
+    width: 3px;
+    height: 100%;
+    background: var(--off-white);
+    opacity: 0.55;
+  }
+
+  /* ── Bottom-right: factjot watermark ────────────────────────── */
+  .watermark {
+    position: absolute;
+    right: 62px;
+    bottom: 54px;
+    z-index: 8;
+    font-family: "Instrument Serif", serif;
+    font-size: 24px;
+    letter-spacing: -0.01em;
+    color: var(--off-white);
+    opacity: 0.40;
+  }
+  .watermark .ital { font-style: italic; }
+  .watermark .dot  { color: var(--accent); opacity: 1; }
 
 </style>
 </head>
 <body>
 <div class="stage">
 
-  <div class="grad-top"></div>
   <div class="grad-bottom"></div>
-  <div class="grad-sides"></div>
-  <div class="title-scrim"></div>
+  <div class="vignette"></div>
+  <div class="accent-bar"></div>
 
   <div class="header">
-    <span class="header-wordmark">
-      <span class="reg">fact</span><span class="ital">jot</span><span class="dot">.</span>
-    </span>
-    <span class="header-topic">{{ topic }}</span>
+    <span class="wordmark">fact<span class="ital">jot</span><span class="dot">.</span></span>
+    <span class="divider"></span>
+    <span class="topic">{{ topic }}</span>
   </div>
 
-  <div class="corners">
-    <div class="corner corner-tl"></div>
-    <div class="corner corner-tr"></div>
-    <div class="corner corner-bl"></div>
-    <div class="corner corner-br"></div>
+  <div class="corner-tr"></div>
+
+  <div class="lower">
+    <div class="rule"></div>
+    <div class="title">{{ title_html | safe }}</div>
   </div>
 
-  <div class="title">{{ title_html | safe }}</div>
+  <div class="watermark">fact<span class="ital">jot</span><span class="dot">.</span></div>
 
 </div>
 </body>
