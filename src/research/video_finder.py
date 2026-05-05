@@ -263,6 +263,9 @@ def find_videos(
     for noun in _claim_ents.nouns[:3]:
         _add_term(noun)
 
+    _entity_still_count = 0  # cap static images to avoid slideshow feel
+    _ENTITY_STILL_CAP = 2   # max stills; videos from entity tier are unlimited
+
     for _et in _entity_terms:
         if len(clips) >= count:
             break
@@ -273,9 +276,16 @@ def find_videos(
             max_clips=count - len(clips),
         )
         for ec in _ec:
-            if len(clips) < count:
-                clips.append(ec)
-                print(f"  [video] ENTITY-0  ✓ {ec.name}")
+            if len(clips) >= count:
+                break
+            is_still = ec.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}
+            if is_still and _entity_still_count >= _ENTITY_STILL_CAP:
+                print(f"  [video] ENTITY-0  SKIP {ec.name} (still cap reached)")
+                continue
+            clips.append(ec)
+            if is_still:
+                _entity_still_count += 1
+            print(f"  [video] ENTITY-0  ✓ {ec.name} ({'still' if is_still else 'video'})")
 
     # ------------------------------------------------------------------ #
     # Tier 1: Recall-first beat retrieval — fills slots entity couldn't cover
@@ -883,6 +893,10 @@ def _wikipedia_lead_image(entity: str, out_dir: Path, *, used_source_urls: set[s
         # Determine extension
         ext = "jpg"
         lower_url = img_url.lower().split("?")[0]
+        # Skip logos, icons, SVG graphics — not useful as footage
+        if any(t in lower_url for t in ("logo", "icon", "emblem", "flag", "seal", ".svg", "symbol", "badge")):
+            print(f"  [wikipedia] skipping logo/icon/svg")
+            return None
         if lower_url.endswith(".png"):
             ext = "png"
         elif lower_url.endswith(".gif"):
