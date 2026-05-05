@@ -109,6 +109,19 @@ def _valid_image(path: Path) -> bool:
 # Topic-generic atmospheric fallback queries
 # (used when specific searches return nothing usable)
 # ------------------------------------------------------------------ #
+# Hard topic vocabulary — clips whose source query shares zero terms with this
+# set are rejected outright. Prevents a plant appearing in an ocean reel.
+_TOPIC_TERMS: dict[str, set[str]] = {
+    "ocean":    {"ocean", "sea", "water", "marine", "underwater", "fish", "deep", "coral", "wave", "reef", "shark", "whale"},
+    "biology":  {"animal", "creature", "wildlife", "fish", "bird", "insect", "organism", "cell", "biology", "nature", "species"},
+    "nature":   {"animal", "wildlife", "forest", "creature", "habitat", "tree", "bird", "insect", "plant", "nature", "leaf"},
+    "space":    {"space", "star", "planet", "galaxy", "nebula", "orbit", "asteroid", "cosmos", "rocket", "moon", "solar"},
+    "history":  {"historical", "vintage", "archive", "war", "ancient", "period", "soldier", "battle", "century", "old", "military"},
+    "science":  {"science", "laboratory", "experiment", "research", "microscope", "cell", "lab", "scientist", "data", "nuclear"},
+    "earth":    {"earth", "landscape", "mountain", "volcano", "geology", "aerial", "terrain", "ground", "lava", "earthquake"},
+    "tech":     {"technology", "computer", "digital", "code", "circuit", "server", "data", "screen", "robot", "internet"},
+}
+
 _TOPIC_GENERIC: dict[str, list[str]] = {
     "space":      ["galaxy nebula stars time lapse", "milky way stars night sky", "planet orbit solar system"],
     "nature":     ["forest sunlight slow motion", "wildlife animal nature", "green forest time lapse"],
@@ -231,8 +244,8 @@ def find_videos(
     # ------------------------------------------------------------------ #
     _claim_ents = extract_entities(claim)
 
-    # Build a rich set of search terms so Wikimedia has multiple chances to
-    # find subject-specific images. More terms = more distinct images found.
+    # Build entity search terms. Order matters — the 2-still cap is spent on
+    # whatever comes first, so put the most visually specific terms first.
     _entity_terms: list[str] = []
     _seen_terms: set[str] = set()
 
@@ -242,26 +255,28 @@ def find_videos(
             _seen_terms.add(t.lower())
             _entity_terms.append(t)
 
-    # Full joined entity name first (e.g. "Vasili Arkhipov")
-    if _claim_ents.proper_nouns:
-        _add_term(" ".join(_claim_ents.proper_nouns[:2]))
-        # Individual nouns give additional search angles
-        for pn in _claim_ents.proper_nouns[:4]:
-            _add_term(pn)
-
-    # image_hint is the manually curated best search term — try it directly
+    # 1. image_hint first — manually curated visual subject, most specific
     if image_hint:
         _add_term(image_hint)
-        # Also try first 2 words of hint (catches "Salar de Uyuni" → "Salar")
+
+    # 2. Specific lowercase nouns from the claim (e.g. "snailfish", "molasses")
+    #    These are the actual subjects, not geographic context
+    for noun in _claim_ents.nouns[:4]:
+        _add_term(noun)
+
+    # 3. Hint keyword splits as fallback variations
+    if image_hint:
         hint_words = image_hint.split()
         if len(hint_words) > 1:
             _add_term(" ".join(hint_words[:2]))
         if len(hint_words) > 2:
-            _add_term(hint_words[0])
+            _add_term(" ".join(hint_words[:3]))
 
-    # Topic-level nouns from the claim as a final broadening pass
-    for noun in _claim_ents.nouns[:3]:
-        _add_term(noun)
+    # 4. Proper nouns last — geographic/named context, useful as broadening pass
+    if _claim_ents.proper_nouns:
+        _add_term(" ".join(_claim_ents.proper_nouns[:2]))
+        for pn in _claim_ents.proper_nouns[:3]:
+            _add_term(pn)
 
     _entity_still_count = 0  # cap static images to avoid slideshow feel
     _ENTITY_STILL_CAP = 2   # max stills; videos from entity tier are unlimited
@@ -505,6 +520,15 @@ def _collect_beat_candidates(
         if blocked_stems and path.stem in blocked_stems:
             path.unlink(missing_ok=True)
             continue
+        # Hard topic relevance gate: reject clips whose source query shares
+        # zero terms with the topic vocabulary. Prevents plants in ocean reels.
+        topic_vocab = _TOPIC_TERMS.get(topic, set())
+        if topic_vocab:
+            query_terms = set(query.lower().split())
+            if not (query_terms & topic_vocab):
+                print(f"  [video] REJECT off-topic query {query!r} for topic={topic}")
+                path.unlink(missing_ok=True)
+                continue
         found.append(_Candidate(path=path, score=score, beat_idx=beat_idx))
         used_paths.add(str(path))
         blocked_stems.add(path.stem)
