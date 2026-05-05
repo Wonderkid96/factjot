@@ -1,5 +1,8 @@
 # factjot brain log
 
+- 2026-05-05 20:40 discovery: appended 40 fresh facts from r/Damnthatsinteresting, r/interestingasfuck, r/todayilearned, r/UnresolvedMysteries, r/AskHistorians, r/history, r/morbidreality, r/Glitch_in_the_Matrix (rejected 551)
+- 2026-05-05 20:36 carousel ABORTED -- runway too low (1 fresh, need 3+)
+- 2026-05-05 20:36 carousel WARNING -- quality bank low, used score<2 facts
 - 2026-05-05 20:29 WORKFLOW FAILED: .github/workflows/news-carousel.yml | run=25400504315 | trigger=workflow_dispatch | ref=main
 - 2026-05-05 20:19 reel 4664426d548653 published (history, ig_media=18002761472919567)
 - 2026-05-05 19:48 reel ABORTED — short duration 31.4s for Greenland shark can live for at least 270 years, making them
