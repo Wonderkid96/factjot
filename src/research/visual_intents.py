@@ -13,39 +13,37 @@ import json
 import os
 import re
 
+_ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001").strip()
 
-_SYSTEM_PROMPT = """You generate stock footage search queries for a short documentary reel.
 
-The reel script is provided sentence by sentence. For each sentence, produce
-3-4 search queries that describe footage which would visually illustrate
-THAT SPECIFIC SENTENCE.
+_SYSTEM_PROMPT = """Create stock footage search queries for a short documentary reel.
 
-CRITICAL RULES:
-1. Every query MUST include the specific subject (animal, person, place, object)
-   OR its specific environment. Never describe a property alone.
-   BAD:  "translucent macro close-up"
-   GOOD: "translucent snailfish deep ocean macro"
-   BAD:  "pressure extreme environment"
-   GOOD: "deep sea fish extreme pressure ocean floor"
+Input:
+- Topic
+- Subject hint
+- Script sentences (numbered)
 
-2. Queries describe what is LITERALLY VISIBLE: subjects, actions, environments.
-   Not emotions, concepts, or abstractions.
+Task:
+- For each sentence, return 3-4 search queries that show what that sentence looks like on screen.
 
-3. Each query is 4-8 words.
+Rules:
+1. Keep queries visual and concrete (subject, action, place).
+2. Include the real subject or its true environment.
+3. No abstract words (no "mystery", "destiny", "symbolic", etc).
+4. 4-8 words per query.
+5. If exact footage is rare, use the closest correct alternative, never random B-roll.
+6. Early sentences should be subject-first, later ones can widen to context.
 
-4. Vary across sentences: use the specific subject for early sentences,
-   broaden to environment/atmosphere for later sentences.
+Output format:
+- Return JSON only.
+- Keys must be "0", "1", "2", ... (sentence index).
+- Values must be arrays of query strings.
 
-5. If the specific footage is unlikely to exist in stock libraries, use the
-   closest thematically correct alternative (e.g. "deep sea fish" if no
-   snailfish footage exists, NOT a random macro clip).
-
-Return ONLY a JSON object where keys are "0", "1", "2", ... (sentence index)
-and values are arrays of 3-4 query strings. Example:
+Example:
 {
   "0": ["snailfish deep ocean floor footage", "deep sea fish trench dark water"],
-  "1": ["extreme ocean depth darkness abyss", "underwater pressure deep sea environment"],
-  "2": ["deep sea fish translucent body anatomy", "marine biology fish deep water"]
+  "1": ["underwater pressure deep sea environment", "deep ocean abyss fish habitat"],
+  "2": ["marine biology fish close up", "deep sea life low light footage"]
 }"""
 
 
@@ -104,7 +102,7 @@ def _claude_queries(
 
     client = anthropic.Anthropic(api_key=api_key)
     resp = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model=_ANTHROPIC_MODEL,
         max_tokens=900,
         system=_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_content}],

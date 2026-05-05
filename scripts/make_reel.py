@@ -61,6 +61,132 @@ from src.research.video_finder import find_videos
 from src.utils.logging_utils import configure_logging
 
 
+def _append_api_usage_log(
+    *,
+    reel_id: str,
+    topic: str,
+    tts_backend: str,
+    tts_chars: int,
+    voice_word_count: int,
+    total_duration_s: float,
+    transitions_mode: str,
+    texture_finish: str,
+) -> None:
+    """Append per-run API usage and simple cost estimates."""
+    from src.core.paths import LEDGERS
+
+    timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    elevenlabs_rate_per_1k = float(os.getenv("ELEVENLABS_COST_PER_1K_CHARS", "0.30"))
+    elevenlabs_cost = 0.0
+    if tts_backend.strip().lower() == "elevenlabs":
+        elevenlabs_cost = round((tts_chars / 1000.0) * elevenlabs_rate_per_1k, 4)
+
+    entry = {
+        "timestamp": timestamp,
+        "reel_id": reel_id,
+        "topic": topic,
+        "tts_backend": tts_backend,
+        "tts_characters": tts_chars,
+        "voice_word_count": voice_word_count,
+        "total_duration_s": round(total_duration_s, 2),
+        "transitions_mode": transitions_mode,
+        "texture_finish": texture_finish,
+        "cost_estimate_usd": {
+            "elevenlabs_tts": elevenlabs_cost,
+            "total": elevenlabs_cost,
+        },
+        "pricing_meta": {
+            "elevenlabs_cost_per_1k_chars": elevenlabs_rate_per_1k,
+            "note": "Non-TTS APIs are logged as usage context only in this ledger.",
+        },
+    }
+
+    LEDGERS.mkdir(parents=True, exist_ok=True)
+    ledger = LEDGERS / "api_usage_costs.jsonl"
+    with ledger.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+
+
+def _append_hook_optimiser_log(
+    *,
+    reel_id: str,
+    topic: str,
+    claim: str,
+    seed: int,
+    winner: str,
+    top_candidates: list[tuple[str, float]],
+    hook_mode: str,
+) -> None:
+    """Append hook optimiser selection details for offline analysis."""
+    from src.core.paths import LEDGERS
+
+    timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    claim_hash = hashlib.sha1(claim.encode("utf-8", errors="ignore")).hexdigest()
+    entry = {
+        "timestamp": timestamp,
+        "reel_id": reel_id,
+        "topic": topic,
+        "claim_hash": claim_hash,
+        "seed": seed,
+        "hook_mode": hook_mode,
+        "winner": winner,
+        "top_candidates": [
+            {"text": txt, "score": round(float(score), 4)} for (txt, score) in top_candidates
+        ],
+    }
+
+    LEDGERS.mkdir(parents=True, exist_ok=True)
+    ledger = LEDGERS / "hook_optimiser.jsonl"
+    with ledger.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+
+
+def _append_generation_features_log(
+    *,
+    reel_id: str,
+    topic: str,
+    claim: str,
+    hook_title_used: str,
+    hook_mode: str,
+    pacing_mode: str,
+    words_per_line: int,
+    max_chars: int,
+    subtitle_chunks: int,
+    footage_clip_count: int,
+    footage_confidence_avg: float,
+    footage_confidence_min: float,
+    transitions_mode: str,
+    texture_finish: str,
+) -> None:
+    """Append per-reel generation features for later offline scoring."""
+    from src.core.paths import LEDGERS
+
+    timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    claim_hash = hashlib.sha1(claim.encode("utf-8", errors="ignore")).hexdigest()
+    entry = {
+        "timestamp": timestamp,
+        "reel_id": reel_id,
+        "topic": topic,
+        "claim_hash": claim_hash,
+        "hook_title_used": hook_title_used,
+        "hook_mode": hook_mode,
+        "pacing_mode": pacing_mode,
+        "subtitle_chunk_count": subtitle_chunks,
+        "subtitles_words_per_line": words_per_line,
+        "subtitles_max_chars": max_chars,
+        "footage_clip_count": footage_clip_count,
+        "footage_confidence_avg": round(float(footage_confidence_avg), 4),
+        "footage_confidence_min": round(float(footage_confidence_min), 4),
+        "transitions_mode": transitions_mode,
+        "texture_finish": texture_finish,
+    }
+
+    LEDGERS.mkdir(parents=True, exist_ok=True)
+    ledger = LEDGERS / "reel_generation_features.jsonl"
+    with ledger.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+
+
 # ------------------------------------------------------------------ #
 # Outro phrase pool — one is appended to every VO script.
 # Each phrase contains the word "factjot" so the compositor can sync
@@ -127,50 +253,14 @@ def _recompress(
 
 def _pick_music(topic: str, tone: str = "curious") -> Path | None:
     music_dir = Path(__file__).resolve().parents[1] / "assets" / "music"
-
-    # Mood map: (topic, tone) -> preferred filename stem, then fallbacks.
-    # Tracks live in assets/music/ as {stem}.mp3.
-    # Priority: exact topic+tone > topic-only > tone-only > default.
-    _MOOD_MAP: dict[tuple[str, str], str] = {
-        ("history",    "shocking"): "dark",
-        ("history",    "sober"):    "sober",
-        ("history",    "curious"):  "investigations",
-        ("space",      "curious"):  "ambient_space",
-        ("space",      "shocking"): "dark",
-        ("ocean",      "curious"):  "ambient_ocean",
-        ("ocean",      "shocking"): "dark",
-        ("biology",    "curious"):  "investigations",
-        ("biology",    "shocking"): "dark",
-        ("earth",      "curious"):  "ambient_earth",
-        ("earth",      "shocking"): "dark",
-        ("technology", "curious"):  "investigations",
-        ("technology", "shocking"): "dark",
-        ("science",    "curious"):  "investigations",
-        ("science",    "shocking"): "dark",
-    }
-    _TONE_FALLBACK: dict[str, str] = {
-        "shocking":   "dark",
-        "sober":      "sober",
-        "curious":    "investigations",
-        "wholesome":  "ambient_earth",
-    }
-
-    candidates = []
-    exact = _MOOD_MAP.get((topic, tone))
-    if exact:
-        candidates.append(music_dir / f"{exact}.mp3")
-    tone_fb = _TONE_FALLBACK.get(tone)
-    if tone_fb:
-        candidates.append(music_dir / f"{tone_fb}.mp3")
-    candidates += [
-        music_dir / f"{topic}.mp3",
-        music_dir / "default.mp3",
-    ]
-    for c in candidates:
-        if c.exists():
-            return c
-    tracks = list(music_dir.glob("*.mp3"))
-    return tracks[0] if tracks else None
+    # Random-by-default strategy:
+    # pick any available MP3 except default.mp3 first, then fall back to default.
+    tracks = sorted(music_dir.glob("*.mp3"))
+    if not tracks:
+        return None
+    non_default = [t for t in tracks if t.name.lower() != "default.mp3"]
+    pool = non_default or tracks
+    return random.choice(pool)
 
 
 # ------------------------------------------------------------------ #
@@ -198,6 +288,11 @@ class ReelFactInvariantError(RuntimeError):
     """
 
 
+def _has_animal_welfare_flag(row: dict) -> bool:
+    flags = row.get("sensitivity_flags") or []
+    return "animal_welfare" in flags
+
+
 def _pick_fact(topic: str | None) -> dict | None:
     """Pick the best unused fact that passes every reel-quality invariant.
 
@@ -205,8 +300,6 @@ def _pick_fact(topic: str | None) -> dict | None:
     are silently skipped here; the caller logs which gates eliminated them
     via `_log_pick_diagnostics`.
     """
-    from src.research.sensitivity_guide import CONTROVERSIAL
-
     used_as_reel = brain.list_reel_claims()  # reads reels.jsonl fresh from disk
     all_facts = [r for r in load_all_facts() if r.get("quirky_score", 0) == 3]
     if topic:
@@ -221,7 +314,7 @@ def _pick_fact(topic: str | None) -> dict | None:
             if r.get("quirky_score", 0) >= min_score
             and not brain.is_fact_posted(r["claim"])
             and r["claim"] not in used_as_reel
-            and r.get("sensitivity") != CONTROVERSIAL
+            and not _has_animal_welfare_flag(r)
         ]
         if candidates:
             break
@@ -252,20 +345,19 @@ def _pick_fact(topic: str | None) -> dict | None:
 
 def _log_pick_diagnostics(topic: str | None) -> None:
     """Print why no fact qualified, so failures are immediately actionable."""
-    from src.research.sensitivity_guide import CONTROVERSIAL
     used_as_reel = brain.list_reel_claims()
     pool = [r for r in load_all_facts() if r.get("quirky_score", 0) == 3]
     if topic:
         pool = [r for r in pool if r["topic"] == topic]
 
-    posted = used = controversial = no_title = no_script = short_script = ok = 0
+    posted = used = animal_welfare = no_title = no_script = short_script = ok = 0
     for r in pool:
         if brain.is_fact_posted(r["claim"]):
             posted += 1; continue
         if r["claim"] in used_as_reel:
             used += 1; continue
-        if r.get("sensitivity") == CONTROVERSIAL:
-            controversial += 1; continue
+        if _has_animal_welfare_flag(r):
+            animal_welfare += 1; continue
         if not r.get("reel_title"):
             no_title += 1; continue
         if not r.get("reel_script"):
@@ -277,7 +369,7 @@ def _log_pick_diagnostics(topic: str | None) -> None:
     print(f"  pool: {len(pool)} q3 facts  (topic={topic or 'any'})")
     print(f"    posted-elsewhere : {posted}")
     print(f"    already-as-reel  : {used}")
-    print(f"    controversial    : {controversial}")
+    print(f"    animal_welfare   : {animal_welfare}")
     print(f"    missing reel_title : {no_title}")
     print(f"    missing reel_script: {no_script}")
     print(f"    script < {MIN_REEL_SCRIPT_WORDS} words   : {short_script}")
@@ -410,7 +502,9 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         # Append a randomised outro. Each variation contains "factjot" so the
         # compositor can sync the CTA card to the exact moment it is spoken.
         vo_script = _append_outro(vo_body)
-        print(f"  outro appended — total {len(vo_script.split())} words")
+        vo_word_count = len(vo_script.split())
+        vo_char_count = len(vo_script)
+        print(f"  outro appended — total {vo_word_count} words")
 
         print(f"Synthesising voice-over (voice={voice})...")
         tts_backend = os.getenv("TTS_BACKEND", "elevenlabs")
@@ -469,6 +563,17 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         n_clips   = n_clips_for_duration(total_dur)
 
         print(f"  voice duration: {voice_end_s:.1f}s | total reel: {total_dur:.1f}s | CTA at {cta_s:.1f}s | clips: {n_clips}")
+        _append_api_usage_log(
+            reel_id=reel_id,
+            topic=ftopic,
+            tts_backend=tts_backend,
+            tts_chars=vo_char_count,
+            voice_word_count=vo_word_count,
+            total_duration_s=total_dur,
+            transitions_mode=os.getenv("REEL_TRANSITIONS_MODE", "classic"),
+            texture_finish=os.getenv("REEL_TEXTURE_FINISH", "on"),
+        )
+        print("  [cost] logged usage -> data/ledgers/api_usage_costs.jsonl")
 
         # Hard duration gate — never publish a reel shorter than 35s.
         # Direct response to the 2026-05-01 incident where an auto-generated
@@ -517,29 +622,48 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         print(f"  [footage] blocking {len(blocked_footage_filenames)} URLs/IDs from previous reels (ledger)")
         _registry_before = set(global_footage_registry)
 
-        footage_clips = find_videos(
+        footage_pairs = find_videos(
             image_hint=hint, claim=claim, topic=ftopic,
             out_dir=out_dir, count=n_clips,
             allow_archival=allow_archival,
             used_source_registry=global_footage_registry,
             blocked_filenames=blocked_footage_filenames,
             reel_script=vo_script,
+            return_scores=True,
         )
-        if not footage_clips:
+        if not footage_pairs:
             print("ERROR: could not find any footage. Pre-download safety pool clips with:")
             print("  /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/setup_reel_assets.py")
             brain.append_log(f"reel FAILED no footage — fact={claim[:60]!r} hint={hint!r}")
             return 3
 
-        rlog.emit(f"footage ok: {len(footage_clips)} clips -> {[p.name for p in footage_clips]}")
+        # find_videos(return_scores=True) returns List[Tuple[Path, score]].
+        footage_clips = [p for (p, _s) in footage_pairs]
+        footage_confidence_scores = [_s for (_p, _s) in footage_pairs]
+        footage_confidence_avg = sum(footage_confidence_scores) / max(len(footage_confidence_scores), 1)
+        footage_confidence_min = min(footage_confidence_scores) if footage_confidence_scores else 0.0
+
+        rlog.emit(
+            f"footage ok: {len(footage_clips)} clips -> {[p.name for p in footage_clips]}"
+        )
 
         # Step 4: Group words into 5-6 word chunks. FFmpeg segfaults beyond ~50
         # input streams on this build, so keep total inputs (footage + overlays)
         # comfortably under that limit. Larger chunks = fewer overlay PNGs.
+        pacing_mode = os.getenv("REEL_PACING_PROFILE", "classic").strip().lower()
+        if pacing_mode == "dynamic_lite":
+            # More frequent subtitle updates for higher early retention,
+            # while keeping chunk sizes readable.
+            words_per_line = 3
+            max_chars = 26
+        else:
+            words_per_line = 4
+            max_chars = 28
+
         chunks = group_into_chunks(
             word_beats,
-            words_per_line=4,
-            max_chars=28,
+            words_per_line=words_per_line,
+            max_chars=max_chars,
             original_text=vo_script,
         )
 
@@ -564,7 +688,39 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         # 5c: Story title card — fades in during silence, fades out as voice begins.
         # Title occupies the INTRO_S window: fades in at 0, holds, then fades out
         # just as the VO starts so there's a clean handoff to subtitles.
-        story_title = make_title(claim, ftopic, reel_title=fact.get("reel_title"))
+        hook_opt = os.getenv("REEL_HOOK_OPTIMISER", "off").strip().lower()
+        hook_enabled = hook_opt in {"on", "1", "true", "yes"}
+        story_title = None
+        if hook_enabled:
+            try:
+                from src.content.reel_hook import optimise_hook
+
+                # reel_id is unique per run (time-based), so the optimiser
+                # produces bounded variety while remaining deterministic per run.
+                seed = int(reel_id[:8], 16)
+                winner, top = optimise_hook(
+                    claim,
+                    ftopic,
+                    seed=seed,
+                    max_candidates=10,
+                    top_n=3,
+                )
+                story_title = make_title(claim, ftopic, reel_title=winner)
+                _append_hook_optimiser_log(
+                    reel_id=reel_id,
+                    topic=ftopic,
+                    claim=claim,
+                    seed=seed,
+                    winner=winner,
+                    top_candidates=top,
+                    hook_mode=hook_opt,
+                )
+                rlog.emit(f"  [hook] optimiser winner: {winner!r}")
+            except Exception as exc:
+                print(f"  [hook] optimiser failed ({exc}); falling back to make_title()")
+
+        if not story_title:
+            story_title = make_title(claim, ftopic, reel_title=fact.get("reel_title"))
         if story_title:
             print(f"  title: '{story_title}'")
             TITLE_FADE_IN  = 0.3
@@ -605,6 +761,26 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             _sub_count += 1
         print(f"  kinetic subtitles: {len(chunks)} chunks -> {_sub_count} subtitle PNGs")
 
+        if footage_clips:
+            transitions_mode = os.getenv("REEL_TRANSITIONS_MODE", "classic").strip().lower()
+            texture_finish = os.getenv("REEL_TEXTURE_FINISH", "on").strip().lower()
+            _append_generation_features_log(
+                reel_id=reel_id,
+                topic=ftopic,
+                claim=claim,
+                hook_title_used=story_title or "",
+                hook_mode=hook_opt,
+                pacing_mode=pacing_mode,
+                words_per_line=words_per_line,
+                max_chars=max_chars,
+                subtitle_chunks=_sub_count,
+                footage_clip_count=len(footage_clips),
+                footage_confidence_avg=footage_confidence_avg,
+                footage_confidence_min=footage_confidence_min,
+                transitions_mode=transitions_mode,
+                texture_finish=texture_finish,
+            )
+
         # 5e: Documentary photo inserts — archival/entity images appear over footage
         # timed to when the narrator first mentions the subject's name.
         # 5f: CTA frame
@@ -614,7 +790,41 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
 
         # Single Playwright session renders everything
         print(f"  rendering {len(text_frames)} text frames via Playwright...")
-        renderer = ReelTextRenderer()
+        emphasis_keywords = None
+        if pacing_mode == "dynamic_lite" and story_title:
+            # Use selected hook/title words to accent matching subtitles.
+            # Keep it short so we avoid visual noise.
+            import re as _re
+            stop = {
+                "the",
+                "story",
+                "of",
+                "that",
+                "with",
+                "from",
+                "in",
+                "on",
+                "to",
+                "and",
+                "for",
+                "our",
+                "their",
+                "your",
+            }
+            toks = _re.findall(r"[A-Za-z]{3,}", story_title)
+            seen: set[str] = set()
+            kw: list[str] = []
+            for t in toks:
+                tl = t.lower()
+                if tl in stop or tl in seen:
+                    continue
+                seen.add(tl)
+                kw.append(t)
+                if len(kw) >= 6:
+                    break
+            emphasis_keywords = kw
+
+        renderer = ReelTextRenderer(emphasis_keywords=emphasis_keywords)
         renderer.render_all(text_frames)
 
         # Step 6: Music — random start point so every Reel sounds different

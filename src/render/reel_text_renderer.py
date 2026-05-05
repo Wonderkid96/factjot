@@ -70,8 +70,11 @@ class TextFrame:
 class ReelTextRenderer:
     """Renders all text overlays for a Reel via a single Playwright session."""
 
-    def __init__(self) -> None:
+    def __init__(self, emphasis_keywords: Iterable[str] | None = None) -> None:
         assert_fonts_present()   # hard fail if brand fonts are missing
+        self._emphasis_keywords: set[str] = (
+            {k.strip().lower() for k in (emphasis_keywords or []) if k.strip()}
+        )
         self.env = Environment(
             loader=FileSystemLoader(str(_TEMPLATE_DIR)),
             autoescape=False,  # we sanitise inputs ourselves so emphasis HTML survives
@@ -170,8 +173,7 @@ class ReelTextRenderer:
             out.append(_wrap_run(text[cursor:], role))
         return "".join(out)
 
-    @staticmethod
-    def _auto_mark(text: str) -> str:
+    def _auto_mark(self, text: str) -> str:
         """Apply heuristic emphasis markers, max 2 per text block."""
         marks_used = 0
 
@@ -201,6 +203,21 @@ class ReelTextRenderer:
             return f"[i]{word}[/i]"
 
         text = _PROPER_RE.sub(_mark_i, text, count=1)
+        # Optional 3) Hook keyword emphasis:
+        # Only apply if we did not already place [h] or [i] (avoids nested
+        # tags and keeps the total highlight count bounded).
+        if marks_used == 0 and not i_used and self._emphasis_keywords:
+            for kw in self._emphasis_keywords:
+                pattern = re.compile(rf"\b{re.escape(kw)}\b", flags=re.IGNORECASE)
+                m = pattern.search(text)
+                if not m:
+                    continue
+                text = pattern.sub(
+                    lambda mm: f"[h]{mm.group(0)}[/h]",
+                    text,
+                    count=1,
+                )
+                break
         return text
 
 

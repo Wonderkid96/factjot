@@ -196,7 +196,8 @@ def find_videos(
     used_source_registry: set[str] | None = None,
     blocked_filenames: set[str] | None = None,
     reel_script: str = "",
-) -> list[Path]:
+    return_scores: bool = False,
+) -> list[Path] | list[tuple[Path, float]]:
     """Find `count` distinct portrait videos for this fact.
 
     Quality rules
@@ -232,11 +233,16 @@ def find_videos(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     clips: list[Path] = []
+    clip_scores: list[float] = []
     used_paths: set[str] = set()
     used_source_urls: set[str] = set(used_source_registry or ())
     _blocked_stems: set[str] = set(blocked_filenames or ())
     safety = _safety_pool_pick(topic) or []
     safety_idx = 0
+
+    def _push_clip(p: Path, s: float) -> None:
+        clips.append(p)
+        clip_scores.append(float(s))
 
     # ------------------------------------------------------------------ #
     # Tier 0: Entity clips — fill as many slots as possible with specific
@@ -245,10 +251,9 @@ def find_videos(
     _claim_ents = extract_entities(claim)
 
     # Build Wikimedia entity search terms.
-    # image_hint is a VISUAL DESCRIPTION for stock sites — it does not belong
-    # here. Wikimedia needs the actual subject name: "snailfish", not
-    # "translucent deep sea fish". Specific nouns from the claim come first,
-    # then proper nouns. Generic descriptive terms are never searched.
+    # Rule: lead with the specific subject token/phrase (e.g. "grass snake",
+    # "labrador"), then enrich with claim entities. Generic environment words
+    # must never outrank the core subject.
     _entity_terms: list[str] = []
     _seen_terms: set[str] = set()
 
@@ -264,6 +269,11 @@ def find_videos(
         "human", "humans", "water", "light", "temperature", "number",
         "single", "record", "ancient", "modern", "natural", "common",
         "found", "filmed", "observed", "recorded", "discovered", "called",
+        # Environment / action words that are useful for stock queries but bad
+        # as primary Wikimedia entity subjects
+        "underwater", "ocean", "sea", "forest", "desert", "mountain",
+        "river", "lake", "close", "close-up", "macro", "portrait", "wide",
+        "slow", "motion", "minutes", "minute", "hours", "hour",
     })
 
     def _add_term(t: str) -> None:
@@ -272,24 +282,50 @@ def find_videos(
             _seen_terms.add(t.lower())
             _entity_terms.append(t)
 
-    # 1. Specific subject nouns from the claim — the actual thing the fact is
-    #    about (e.g. "snailfish", "megalodon", "molasses"). Sort longer words
-    #    first as they tend to be more specific.
-    subject_nouns = sorted(
-        [n for n in _claim_ents.nouns if len(n) > 4 and n.lower() not in _ENTITY_SKIP],
-        key=len, reverse=True,
-    )
-    for noun in subject_nouns[:4]:
+    def _add_singular_plural(term: str) -> None:
+        """Add simple singular/plural variants for animal/object tokens."""
+        t = term.strip()
+        if not t:
+            return
+        _add_term(t)
+        if len(t) > 3:
+            if t.endswith("ss"):
+                return
+            if t.endswith("s"):
+                _add_term(t[:-1])
+            else:
+                _add_term(f"{t}s")
+
+    # 1. Subject-first from image_hint:
+    #    - 2-word phrase (grass snake, giant oarfish)
+    #    - then each component token
+    # This gives the exact thing the reel is about highest priority.
+    if image_hint:
+        hint_words = [
+            w for w in re.split(r"\s+", image_hint.strip())
+            if w and re.match(r"^[A-Za-z-]+$", w)
+        ]
+        if len(hint_words) >= 2:
+            _add_term(f"{hint_words[0]} {hint_words[1]}")
+            _add_term(f"{hint_words[0]} {hint_words[1]}s")
+        for w in hint_words[:3]:
+            _add_singular_plural(w)
+
+    # 2. Specific subject nouns from the claim in natural order (not length).
+    #    Length-first sorting promoted generic words like "underwater" above
+    #    actual subjects like "snakes". Keep claim order for better intent.
+    subject_nouns = [n for n in _claim_ents.nouns if len(n) > 3 and n.lower() not in _ENTITY_SKIP]
+    for noun in subject_nouns[:6]:
         _add_term(noun)
 
-    # 2. Proper nouns — named people, places, events (e.g. "Phineas Gage",
+    # 3. Proper nouns — named people, places, events (e.g. "Phineas Gage",
     #    "Chernobyl"). Often the most findable on Wikimedia.
     if _claim_ents.proper_nouns:
         _add_term(" ".join(_claim_ents.proper_nouns[:2]))
         for pn in _claim_ents.proper_nouns[:3]:
             _add_term(pn)
 
-    # 3. Last resort: last word of image_hint (usually the subject noun,
+    # 4. Last resort: last word of image_hint (usually the subject noun,
     #    e.g. "fish" from "translucent deep sea fish"). Never the full hint.
     if image_hint:
         last_word = image_hint.strip().split()[-1]
@@ -323,11 +359,11 @@ def find_videos(
                     if len(clips) >= count:
                         break
                     if str(seg) not in used_paths:
-                        clips.append(seg)
+                        _push_clip(seg, 1.0)
                         used_paths.add(str(seg))
                         print(f"  [video] ENTITY-0  ✓ {seg.name} (video)")
             else:
-                clips.append(ec)
+                _push_clip(ec, 1.0)
                 if is_still:
                     _entity_still_count += 1
                 print(f"  [video] ENTITY-0  ✓ {ec.name} ({'still' if is_still else 'video'})")
@@ -356,6 +392,19 @@ def find_videos(
         for c in candidates:
             print(f"    [{lbl}] score={c.score:.2f} ✓ {c.path.name}")
 
+    # Low-confidence discard pass:
+    # Avoid promoting very static/low-complexity clips (cheap proxies only).
+    # We keep at least the best candidate per beat to prevent underfilling.
+    _min_conf = float(os.getenv("REEL_CLIP_MIN_CONF_SCORE", "0.45"))
+    for i, bc in enumerate(beat_candidates):
+        if not bc:
+            continue
+        filtered = [c for c in bc if c.score >= _min_conf]
+        if filtered:
+            beat_candidates[i] = filtered
+        else:
+            beat_candidates[i] = [max(bc, key=lambda c: c.score)]
+
     clip_set: set[str] = {str(p) for p in clips}  # entity clips already committed
 
     # Pass 1: one best clip per beat — ensures beat diversity
@@ -364,7 +413,7 @@ def find_videos(
             break
         for c in beat_cands:
             if str(c.path) not in clip_set:
-                clips.append(c.path)
+                _push_clip(c.path, c.score)
                 clip_set.add(str(c.path))
                 break
 
@@ -380,7 +429,7 @@ def find_videos(
         if len(clips) >= count:
             break
         if str(c.path) not in clip_set:
-            clips.append(c.path)
+            _push_clip(c.path, c.score)
             clip_set.add(str(c.path))
             print(f"  [video] PROMOTED score={c.score:.2f} ✓ {c.path.name}")
 
@@ -389,13 +438,15 @@ def find_videos(
         candidate = safety[safety_idx]
         safety_idx += 1
         if str(candidate) not in clip_set:
-            clips.append(candidate)
+            _push_clip(candidate, 0.20)
             clip_set.add(str(candidate))
             print(f"  [video] SAFETY ✓ {candidate.name}")
 
     print(f"  [video] -> {len(clips)} clips ready for composition")
     if used_source_registry is not None:
         used_source_registry.update(used_source_urls)
+    if return_scores:
+        return list(zip(clips, clip_scores))
     return clips
 
 
@@ -536,7 +587,7 @@ def _collect_beat_candidates(
     for q_idx, query in enumerate(queries):
         if len(found) >= max_clips:
             break
-        score = max(0.25, 0.90 - q_idx * 0.08)
+        base_score = max(0.25, 0.90 - q_idx * 0.08)
         path = _try_all_sources(
             query, topic, out_dir,
             allow_archival=allow_archival,
@@ -559,6 +610,11 @@ def _collect_beat_candidates(
                 print(f"  [video] REJECT off-topic query {query!r} for topic={topic}")
                 path.unlink(missing_ok=True)
                 continue
+        # Lightweight visual quality delta (no ML):
+        # - fps/bitrate proxy for motion/complexity
+        # - query keyword hints for intensity/face-like content
+        quality_delta = _visual_quality_delta(query=query, path=path)
+        score = max(0.0, min(1.0, base_score + quality_delta))
         found.append(_Candidate(path=path, score=score, beat_idx=beat_idx))
         used_paths.add(str(path))
         blocked_stems.add(path.stem)
@@ -1441,6 +1497,122 @@ def _safety_pool_pick(topic: str) -> list[Path]:
         return []
     random.shuffle(clips)
     return clips
+
+
+# ------------------------------------------------------------------ #
+# Lightweight clip quality proxies (no ML)
+# ------------------------------------------------------------------ #
+_FACE_TERMS = (
+    "face",
+    "portrait",
+    "person",
+    "people",
+    "headshot",
+    "close up",
+    "close-up",
+)
+_INTENSITY_TERMS = (
+    "explosion",
+    "fire",
+    "impact",
+    "crash",
+    "deton",
+    "nuclear",
+    "battle",
+    "war",
+    "debris",
+    "falling",
+    "wreck",
+    "storm",
+    "waves",
+    "crowd",
+)
+_STATIC_TERMS = (
+    "still",
+    "photo",
+)
+
+
+def _probe_video_metadata(path: Path) -> tuple[float | None, float | None]:
+    """Return (avg_fps, bitrate_kbps) using ffprobe, or (None, None)."""
+    for ffprobe in ("ffprobe", "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe"):
+        try:
+            proc = subprocess.run(
+                [
+                    ffprobe,
+                    "-v",
+                    "quiet",
+                    "-select_streams",
+                    "v:0",
+                    "-show_entries",
+                    "stream=avg_frame_rate,bit_rate",
+                    "-of",
+                    "default=noprint_wrappers=1:nokey=1",
+                    str(path),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=8,
+            )
+            if proc.returncode != 0:
+                continue
+            lines = [l.strip() for l in proc.stdout.splitlines() if l.strip()]
+            if not lines:
+                continue
+
+            fps_raw = lines[0] if len(lines) >= 1 else ""
+            br_raw = lines[1] if len(lines) >= 2 else ""
+
+            fps: float | None = None
+            if fps_raw and "/" in fps_raw:
+                num_s, den_s = fps_raw.split("/", 1)
+                fps = float(num_s) / max(float(den_s), 1e-9)
+            elif fps_raw:
+                fps = float(fps_raw)
+
+            bitrate_kbps: float | None = None
+            if br_raw:
+                bitrate_bits = float(br_raw)
+                bitrate_kbps = bitrate_bits / 1000.0
+
+            return fps, bitrate_kbps
+        except Exception:
+            continue
+    return None, None
+
+
+def _visual_quality_delta(*, query: str, path: Path) -> float:
+    """Heuristic delta in [-0.25, 0.25] for candidate visual quality."""
+    ql = query.lower()
+    fps, bitrate_kbps = _probe_video_metadata(path)
+
+    delta = 0.0
+
+    # Motion/complexity proxy via fps and bitrate.
+    if fps is not None:
+        if fps >= 25:
+            delta += 0.07
+        elif fps >= 15:
+            delta += 0.02
+        else:
+            delta -= 0.10
+
+    if bitrate_kbps is not None:
+        if bitrate_kbps >= 1500:
+            delta += 0.05
+        elif bitrate_kbps < 500:
+            delta -= 0.08
+
+    # Query keyword boosts: faces and intensity.
+    if any(t in ql for t in _FACE_TERMS):
+        delta += 0.05
+    if any(t in ql for t in _INTENSITY_TERMS):
+        delta += 0.05
+    if any(t in ql for t in _STATIC_TERMS):
+        delta -= 0.06
+
+    # Bound the adjustment so positional base still dominates.
+    return max(-0.25, min(0.25, delta))
 
 
 # ------------------------------------------------------------------ #

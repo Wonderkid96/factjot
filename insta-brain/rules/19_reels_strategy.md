@@ -37,6 +37,9 @@ Length 18-28 seconds. Fast enough for retention, long enough for story.
 - Text animation: simple and intentional. No flashy gimmicks.
 - Music supports momentum, never fights narration.
 - Light SFX accents only on reveal moments.
+- Transition mode defaults to `classic`, with optional `case_file_dynamic`
+  for varied joins in the same visual family.
+- Animated grit finish is allowed as a subtle texture layer over final video.
 
 ## Retention rules
 
@@ -54,9 +57,9 @@ Length 18-28 seconds. Fast enough for retention, long enough for story.
 4. One visual QA pass: relevance, legibility, pacing.
 5. Track per Reel: 3-second hold, average watch time, completion, shares, saves.
 
-## Hard constants in code
+## Hard constants and runtime toggles in code
 
-These constants in `src/render/reel_composer.py` MUST align with the spec:
+These constants/toggles in `src/render/reel_composer.py` MUST align with the spec:
 
 ```python
 TARGET_DURATION_S = (18, 28)       # min, max total length
@@ -68,7 +71,41 @@ TWIST_S          = (14.0, 20.0)
 CTA_S            = (20.0, 26.0)
 KEN_BURNS_ZOOM   = 0.18            # 18% zoom across each clip
 DEFAULT_VOICE    = "en-GB-RyanNeural"
+REEL_TRANSITIONS_MODE = "classic|case_file_dynamic"   # env toggle (default classic)
+REEL_TEXTURE_FINISH = "on|off"                        # env toggle (default on)
+REEL_TEXTURE_INTENSITY = "low|medium"                 # env toggle (default low)
+REEL_GRIT_OVERLAY_PATH = "/abs/path/to/animated.mov"  # env override
+REEL_HOOK_OPTIMISER = "off|on"                        # env toggle (default off)
+REEL_PACING_PROFILE = "classic|dynamic_lite"          # env toggle (default classic)
+REEL_CLIP_MIN_CONF_SCORE = 0.45                       # low-confidence clip filter
 ```
+
+## Compose template requirement
+
+- FFmpeg compose must write a filter graph template file per run:
+  `data/cache/reels/<reel_id>/ffmpeg_filter_complex.txt`
+- FFmpeg must execute via `-filter_complex_script` for maintainability.
+- Keep classic path and fallback behaviour available for reliability.
+
+## Usage and cost tracking
+
+- Each reel run must append usage metadata to:
+  `data/ledgers/api_usage_costs.jsonl`
+- Minimum logged fields: reel id, topic, TTS backend, TTS characters,
+  duration, transitions mode, texture mode, estimated TTS cost.
+- Hook optimiser runs must append candidate/winner metadata to:
+  `data/ledgers/hook_optimiser.jsonl`
+- Reel generation runs should append generation features to:
+  `data/ledgers/reel_generation_features.jsonl`
+  (hook mode, pacing mode, subtitle chunk count, footage confidence summary).
+
+## Verification checklist (before enabling by default)
+
+1. Run dry-run with defaults and confirm no behaviour change.
+2. Run dry-run with `REEL_HOOK_OPTIMISER=on` and verify hook ledger appends.
+3. Run dry-run with `REEL_PACING_PROFILE=dynamic_lite` and verify subtitle readability.
+4. Confirm low-confidence filter does not cause frequent underfilled clip sets.
+5. Keep classic fallback path available at all times.
 
 ## What still needs building (open spec items)
 

@@ -14,6 +14,7 @@ Cuts every 2-4s synced to the voice make the eye stay on screen.
 from __future__ import annotations
 
 import os
+import random
 import signal
 import subprocess
 from dataclasses import dataclass
@@ -128,6 +129,11 @@ def _probe_intro_duration(path: Path, fallback: float = 1.37) -> float:
 
 _INTRO_DURATION: float = _probe_intro_duration(_INTRO_PATH)
 
+_DEFAULT_GRIT_PATH = (
+    "/Users/Music/Downloads/"
+    "film-grain-and-scratches-overlay-on-black-backgrou-2025-12-17-07-15-10-utc (2).mov"
+)
+
 
 _STILL_MAX_PX = 1920
 
@@ -220,7 +226,7 @@ HOOK_LABEL_START   = 0.0
 HOOK_TEXT_START    = 0.0    # hook hits immediately (front-loaded novelty)
 HOOK_TEXT_END      = 1.5    # 0-1.5s = hook beat
 MUSIC_FADEIN_DUR   = 1.0
-MUSIC_VOLUME       = 0.24   # slightly louder - audible atmosphere without drowning VO
+MUSIC_VOLUME       = 0.20   # balanced under VO after per-track loudness normalization
 # CTA shows for 2s after voice ends, then video fades to black.
 # CTA_BEFORE_END_S = CTA display (2.0) + fade overlap (1.5) = 3.5
 # VIDEO_TAIL_S = 0 - total = voice_end + 0.4 + 3.5 (no extra dead air)
@@ -248,6 +254,31 @@ class OverlayFrame:
     fade_in_s: float = 0.3
     fade_out_s: float = 0.2
     rgba: bool = False         # True for photo inserts — preserves transparent background
+
+
+def _build_case_file_join_plan(n_clips: int, total_duration_s: float) -> tuple[list[float], list[str]]:
+    """Deterministic dynamic join plan for case-file style transitions.
+
+    Returns:
+      overlaps: length n_clips-1, seconds per join
+      transitions: xfade transition names, length n_clips-1
+    """
+    if n_clips <= 1:
+        return [], []
+    seed = int(round(total_duration_s * 1000)) ^ (n_clips * 7919)
+    rng = random.Random(seed)
+    pool = ["fade", "wipeleft", "wiperight", "slideleft", "slideright"]
+    overlaps: list[float] = []
+    transitions: list[str] = []
+    last_t = ""
+    for _ in range(n_clips - 1):
+        ov = round(rng.uniform(0.16, 0.32), 3)
+        overlaps.append(ov)
+        choices = [t for t in pool if t != last_t] or pool
+        t = rng.choice(choices)
+        transitions.append(t)
+        last_t = t
+    return overlaps, transitions
 
 
 def compose(
@@ -312,12 +343,14 @@ def compose(
     out_dir = out_path.parent
     err_log = out_dir / "ffmpeg_compose_stderr.log"
     progress_log = out_dir / "ffmpeg_progress.txt"
+    filter_script = out_dir / "ffmpeg_filter_complex.txt"
+    filter_script.write_text(_join_filters(filter_parts))
     cmd = [
         ffmpeg_bin, "-nostdin", "-y",
         "-stats",
         "-progress", str(progress_log),
         *inputs,
-        "-filter_complex", _join_filters(filter_parts),
+        "-filter_complex_script", str(filter_script),
         *map_args,
         "-c:v", "libx264",
         "-preset", "medium",
@@ -337,10 +370,11 @@ def compose(
     print(f"  [ffmpeg] composing {len(overlays)} overlays, duration={total_duration_s:.1f}s")
     print(f"  [ffmpeg] stderr -> {err_log.name} (avoids pipe deadlock; tail on failure)")
     print(f"  [ffmpeg] progress -> {progress_log.name} (tail for frame/time/speed)")
+    print(f"  [ffmpeg] filter script -> {filter_script.name}")
     debug_path = out_dir / "ffmpeg_debug.txt"
     debug_path.write_text(
         "FFmpeg command:\n" + " ".join(cmd) + "\n\n"
-        + "Filter graph:\n" + _join_filters(filter_parts)
+        + "Filter graph script:\n" + filter_script.read_text()
     )
     # stderr -> disk: never blocks FFmpeg; full log on failure (see gotchas: stderr pipe).
     with err_log.open("wb") as err_f:
@@ -466,6 +500,16 @@ def _build_filter_graph(
 ) -> tuple[list[str], list[str], list[str]]:
     inputs: list[str] = []
     filter_lines: list[str] = []
+    texture_mode = os.getenv("REEL_TEXTURE_FINISH", "on").strip().lower()
+    texture_enabled = texture_mode not in {"off", "0", "false", "no"}
+    texture_intensity = os.getenv("REEL_TEXTURE_INTENSITY", "low").strip().lower()
+    # User-requested visual baseline: keep animated grit around 65% when enabled.
+    # Retain low/medium knobs with a slight spread for quick tuning.
+    grit_opacity = 0.65 if texture_intensity != "medium" else 0.70
+    grit_env = os.getenv("REEL_GRIT_OVERLAY_PATH", _DEFAULT_GRIT_PATH).strip()
+    grit_path = Path(grit_env).expanduser() if grit_env else None
+    transitions_mode = os.getenv("REEL_TRANSITIONS_MODE", "classic").strip().lower()
+    use_case_file_dynamic = transitions_mode == "case_file_dynamic"
 
     # Branded intro overlay - ProRes 4444 with alpha channel.
     # The circle cutout reveals footage through it; the red frame sits on top.
@@ -502,6 +546,14 @@ def _build_filter_graph(
     for ov in overlays:
         inputs += ["-i", str(ov.png)]
 
+    grit_idx: Optional[int] = None
+    if texture_enabled and grit_path and grit_path.exists():
+        grit_idx = png_start_idx + len(overlays)
+        inputs += ["-stream_loop", "-1", "-i", str(grit_path)]
+        print(f"  [texture] grit: {grit_path.name} ({texture_intensity}, screen)")
+    elif texture_enabled:
+        print("  [texture] grit overlay missing - skipping texture finish")
+
     # ------------------------------------------------------------------ #
     # Per-clip processing: scale to oversized, trim to window, then
     # animated crop (slow pan) - keeps the video PLAYING as real footage.
@@ -517,10 +569,20 @@ def _build_filter_graph(
     pan_x_range = ow - 1080              # 194 px of horizontal travel
     pan_y_mid   = (oh - 1920) // 2      # vertical centre offset
 
+    overlaps: list[float] = []
+    transition_names: list[str] = []
+    if use_case_file_dynamic and len(footage_paths) > 1:
+        overlaps, transition_names = _build_case_file_join_plan(len(footage_paths), total_duration_s)
+        print(f"  [transitions] mode=case_file_dynamic joins={len(overlaps)}")
+    elif transitions_mode != "classic":
+        print(f"  [transitions] unknown mode={transitions_mode!r} - using classic")
+
     clip_labels = []
     for i, ((start, end), _) in enumerate(zip(clip_windows, footage_paths)):
         inp_idx = i + footage_offset   # shift index past intro if present
         dur = max(0.5, end - start)
+        if overlaps and i < len(overlaps):
+            dur += overlaps[i]
         # Alternate pan direction clip-by-clip so edits feel dynamic
         if i % 4 == 0:   # pan right
             pan_x = f"{pan_x_range}*t/{dur:.3f}"
@@ -538,13 +600,31 @@ def _build_filter_graph(
             f"setsar=1,"
             f"trim=duration={dur:.3f},"
             f"setpts=PTS-STARTPTS,"
-            f"crop=1080:1920:x='{pan_x}':y={pan_y_mid}"
+            f"crop=1080:1920:x='{pan_x}':y={pan_y_mid},"
+            f"fps=30,"
+            f"settb=AVTB"
             f"[clip{inp_idx}]"
         )
         clip_labels.append(f"[clip{inp_idx}]")
 
-    # Concat footage clips only (intro is overlaid separately)
-    if len(clip_labels) > 1:
+    # Join footage clips only (intro is overlaid separately).
+    if len(clip_labels) > 1 and overlaps and transition_names:
+        current = "join0"
+        filter_lines.append(f"{clip_labels[0]}copy[{current}]")
+        elapsed = max(0.0, clip_windows[0][1] - clip_windows[0][0])
+        for i, nxt in enumerate(clip_labels[1:]):
+            ov = overlaps[i]
+            tr = transition_names[i]
+            out = "footage_concat" if i == len(clip_labels) - 2 else f"join{i+1}"
+            # xfade offset is start time of transition in current timeline.
+            # We align it to the end of the "base" window; overlap extends clip trims.
+            xfade_offset = max(0.0, elapsed - ov)
+            filter_lines.append(
+                f"[{current}]{nxt}xfade=transition={tr}:duration={ov:.3f}:offset={xfade_offset:.3f}[{out}]"
+            )
+            elapsed += max(0.0, clip_windows[i + 1][1] - clip_windows[i + 1][0])
+            current = out
+    elif len(clip_labels) > 1:
         filter_lines.append(
             f"{''.join(clip_labels)}concat=n={len(clip_labels)}:v=1:a=0[footage_concat]"
         )
@@ -601,6 +681,42 @@ def _build_filter_graph(
         )
         prev = "after_intro"
 
+    # Subtle animated grit finish (screen on luma only) for a worn archival feel.
+    # Applied as a final treatment over the fully composited video.
+    #
+    # FFmpeg's blend=all_mode=screen on full yuv420p converts via RGB and drifts U/V
+    # (pink or green wash) even when both inputs have neutral chroma. Screen-blend
+    # only the Y planes, then merge original U/V back (mapping 0x001020 -> yuv420p).
+    if grit_idx is not None:
+        base_y = f"{prev}_tex_y"
+        base_u = f"{prev}_tex_u"
+        base_v = f"{prev}_tex_v"
+        filter_lines.append(
+            f"[{prev}]format=yuv420p,extractplanes=y+u+v"
+            f"[{base_y}][{base_u}][{base_v}]"
+        )
+        filter_lines.append(
+            f"[{grit_idx}:v]"
+            "scale=1080:1920:force_original_aspect_ratio=increase:flags=bilinear,"
+            "crop=1080:1920,"
+            "fps=30,"
+            "setpts=PTS-STARTPTS,"
+            "format=yuv420p,"
+            "extractplanes=y"
+            "[grain_y]"
+        )
+        filter_lines.append(
+            f"[{base_y}][grain_y]"
+            f"blend=all_mode=screen:all_opacity={grit_opacity:.3f},format=gray"
+            "[grain_y_scr]"
+        )
+        filter_lines.append(
+            f"[grain_y_scr][{base_u}][{base_v}]"
+            "mergeplanes=0x001020:yuv420p"
+            "[textured]"
+        )
+        prev = "textured"
+
     # Fade to black in the final FADE_TO_BLACK_S seconds
     fade_start = max(0.0, total_duration_s - FADE_TO_BLACK_S)
     filter_lines.append(
@@ -625,6 +741,7 @@ def _build_filter_graph(
         # Music: fade in/out, duck under voice
         filter_lines.append(
             f"[{music_idx}:a]"
+            f"loudnorm=I=-26:LRA=7:TP=-2.0,"
             f"volume={MUSIC_VOLUME},"
             f"afade=t=in:st=0:d={MUSIC_FADEIN_DUR},"
             f"afade=t=out:st={audio_fade_out_start:.3f}:d={FADE_TO_BLACK_S:.3f},"

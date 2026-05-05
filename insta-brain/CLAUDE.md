@@ -30,12 +30,14 @@ All posts fire via **cron-job.org** (primary, reliable) dispatching GitHub Actio
 
 ## Daily automation at a glance
 
-| Time (UTC) | Workflow | Script | Content type |
-|---|---|---|---|
-| 09:00 | carousel-morning.yml | ship_first_post.py --topic X | Fact carousel, topic rotates by weekday |
-| 11:00 | reel.yml | make_reel.py | Reel + thumbnail + story |
-| 17:00 | list-carousel.yml | ship_list_post.py --next | Film/TV list carousel |
-| 03:00 Sun | weekly-plan.yml | restock.py + prepare_packs.py | Discovery, prep, token refresh |
+
+| Time (UTC) | Workflow             | Script                        | Content type                            |
+| ---------- | -------------------- | ----------------------------- | --------------------------------------- |
+| 09:00      | carousel-morning.yml | ship_first_post.py --topic X  | Fact carousel, topic rotates by weekday |
+| 11:00      | reel.yml             | make_reel.py                  | Reel + thumbnail + story                |
+| 17:00      | list-carousel.yml    | ship_list_post.py --next      | Film/TV list carousel                   |
+| 03:00 Sun  | weekly-plan.yml      | restock.py + prepare_packs.py | Discovery, prep, token refresh          |
+
 
 Backup crons fire at +45 min. Idempotency check (git pull then check_posted_today.py) prevents double-posting if both trigger.
 
@@ -44,6 +46,7 @@ Backup crons fire at +45 min. Idempotency check (git pull then check_posted_toda
 ## Posting pipeline — how each type works
 
 ### Morning carousel (`ship_first_post.py`)
+
 - Picks an unposted fact for the day's topic with `quirky_score >= 2`
 - Falls back to other topics if primary is exhausted (quality floor maintained)
 - Emergency fallback to score=1 only if ALL topics are exhausted (logs warning)
@@ -51,27 +54,37 @@ Backup crons fire at +45 min. Idempotency check (git pull then check_posted_toda
 - Commits `posted.jsonl` + `used_images.jsonl` to git
 
 ### Reel (`make_reel.py`)
+
 - Picks unposted q3 fact with curated `reel_script` (>=70 words) + `reel_title`
 - Entity-first footage: Wikipedia lead image, Wikimedia Commons, Internet Archive (Tier 0)
 - Fills remaining clips from Pexels / Coverr / Pixabay B-roll
 - ElevenLabs TTS, FFmpeg composition, branded thumbnail + story PNG
 - Posts reel to Instagram, then immediately posts story
 - Commits `reels.jsonl` + `used_footage_urls.jsonl` to git
-- **Local:** advisory lock on **`data/cache/reels/.make_reel.lock`** (second run exits **10**). **`scripts/kill_local_reel_jobs.sh`** stops this repo's compose jobs. Full encode on a Mac can be very slow; production posting is **`reel.yml`** on Linux.
+- **Local:** advisory lock on `**data/cache/reels/.make_reel.lock`** (second run exits **10**). `**scripts/kill_local_reel_jobs.sh`** stops this repo's compose jobs. Full encode on a Mac can be very slow; production posting is `**reel.yml**` on Linux.
+- Compose writes `data/cache/reels/<id>/ffmpeg_filter_complex.txt` and runs FFmpeg with `-filter_complex_script`.
+- Visual flags: `REEL_TRANSITIONS_MODE`, `REEL_TEXTURE_FINISH`, `REEL_TEXTURE_INTENSITY`, `REEL_GRIT_OVERLAY_PATH`.
+- Performance flags: `REEL_HOOK_OPTIMISER`, `REEL_PACING_PROFILE`, `REEL_CLIP_MIN_CONF_SCORE`.
+- Usage ledger: `data/ledgers/api_usage_costs.jsonl` captures per-run API usage and TTS cost estimates.
+- Performance ledgers:
+  - `data/ledgers/hook_optimiser.jsonl` (hook candidates + winner)
+  - `data/ledgers/reel_generation_features.jsonl` (hook/pacing/footage confidence metadata)
 
 ### Evening list carousel (`ship_list_post.py --next`)
+
 - Picks next unposted pack from `src/content/list_packs.py`
 - **Cache-first:** if `data/ledgers/list_pack_cache.jsonl` has pre-built imgbb URLs for
-  this pack (prepared by Sunday's `prepare_packs.py`), skips TMDB + render + imgbb
-  entirely and posts directly. Reduces post time from ~5 min to ~30 sec.
+this pack (prepared by Sunday's `prepare_packs.py`), skips TMDB + render + imgbb
+entirely and posts directly. Reduces post time from ~5 min to ~30 sec.
 - On cache miss: resolves TMDB, renders via Playwright, uploads to imgbb, posts
 - Commits `posted.jsonl` + `list_pack_cache.jsonl` to git
 
 ### Sunday weekly prep (`weekly-plan.yml`)
+
 - Refresh Meta access token (`refresh_token.py`)
 - Discover new facts from Reddit TIL (`restock.py` — includes discovery + runway report)
 - **Pre-build list packs** (`prepare_packs.py`) — resolves all unposted packs via TMDB
-  (parallelised), renders slides, uploads to imgbb, writes to `list_pack_cache.jsonl`
+(parallelised), renders slides, uploads to imgbb, writes to `list_pack_cache.jsonl`
 - Validate reel fact bank (`validate_reel_facts.py`)
 - Prune old caches (`cleanup_caches.py`)
 - Commits everything to git
@@ -80,19 +93,21 @@ Backup crons fire at +45 min. Idempotency check (git pull then check_posted_toda
 
 ## Brain data ledgers — what lives where
 
-| File | Written by | Read by | Committed to git |
-|---|---|---|---|
-| `insta-brain/data/posted.jsonl` | ship_first_post, ship_list_post | brain.is_fact_posted(), check_posted_today.py | YES — every post workflow |
-| `insta-brain/data/reels.jsonl` | make_reel.py | brain.list_reel_claims(), check_posted_today.py | YES — reel workflow |
-| `insta-brain/data/posted_quotes.jsonl` | ship_first_post.py | QuoteBank | YES — carousel workflows |
-| `data/ledgers/used_images.jsonl` | image_fetcher.py (via paths.py) | brain.images (UsedImageLedger) | YES — all posting workflows |
-| `data/ledgers/used_footage_urls.jsonl` | make_reel.py | make_reel.py (global registry) | YES — reel workflow |
-| `data/ledgers/discovered_facts.jsonl` | discover_facts.py | load_all_facts() | YES — weekly-plan workflow |
-| `data/ledgers/list_pack_cache.jsonl` | prepare_packs.py | ship_list_post.py | YES — weekly-plan + list-carousel |
-| `insta-brain/log.md` | all scripts | agents | YES — all workflows |
-| `data/cache/reels/<id>/pipeline.log` | `ReelRunLogger` in `make_reel.py` | agents debugging reel runs | NO — local/CI cache only (not required in git) |
-| `logs/reel_runs/<UTC>_<id>.log` | same | agents | NO — created under `paths.REEL_RUN_LOGS` |
-| `data/cache/reels/.make_reel.lock` | `make_reel.py` (fcntl) | second concurrent local process | NO — transient; delete if left after a crash |
+
+| File                                   | Written by                        | Read by                                         | Committed to git                               |
+| -------------------------------------- | --------------------------------- | ----------------------------------------------- | ---------------------------------------------- |
+| `insta-brain/data/posted.jsonl`        | ship_first_post, ship_list_post   | brain.is_fact_posted(), check_posted_today.py   | YES — every post workflow                      |
+| `insta-brain/data/reels.jsonl`         | make_reel.py                      | brain.list_reel_claims(), check_posted_today.py | YES — reel workflow                            |
+| `insta-brain/data/posted_quotes.jsonl` | ship_first_post.py                | QuoteBank                                       | YES — carousel workflows                       |
+| `data/ledgers/used_images.jsonl`       | image_fetcher.py (via paths.py)   | brain.images (UsedImageLedger)                  | YES — all posting workflows                    |
+| `data/ledgers/used_footage_urls.jsonl` | make_reel.py                      | make_reel.py (global registry)                  | YES — reel workflow                            |
+| `data/ledgers/discovered_facts.jsonl`  | discover_facts.py                 | load_all_facts()                                | YES — weekly-plan workflow                     |
+| `data/ledgers/list_pack_cache.jsonl`   | prepare_packs.py                  | ship_list_post.py                               | YES — weekly-plan + list-carousel              |
+| `insta-brain/log.md`                   | all scripts                       | agents                                          | YES — all workflows                            |
+| `data/cache/reels/<id>/pipeline.log`   | `ReelRunLogger` in `make_reel.py` | agents debugging reel runs                      | NO — local/CI cache only (not required in git) |
+| `logs/reel_runs/<UTC>_<id>.log`        | same                              | agents                                          | NO — created under `paths.REEL_RUN_LOGS`       |
+| `data/cache/reels/.make_reel.lock`     | `make_reel.py` (fcntl)            | second concurrent local process                 | NO — transient; delete if left after a crash   |
+
 
 **Git is the database.** Every important state file is committed to git after every workflow run. The runner is destroyed after each run — nothing persists except what's in git and on imgbb/tmpfiles servers.
 
@@ -119,7 +134,7 @@ Backup crons fire at +45 min. Idempotency check (git pull then check_posted_toda
 
 Direct, dry, factual. No "did you know" preamble. No corporate fluff. No em dashes. British English. Captions: title hook + punchline body + CTA + source credits + hashtags.
 
-Wordmark: `fact`*`jot*`.` — "jot" italic, "." in `#E6352A`, base off-white `#EDE8DD`.
+Wordmark: `fact`*`jot`*.`— "jot" italic, "." in`#E6352A`, base off-white` #EDE8DD`.
 
 ---
 
@@ -130,3 +145,19 @@ Fix the code. Do not weaken the rule. Add to **[[gotchas]]** if a new failure mo
 ## When uncertain
 
 Stop and ask Toby. Do not silently work around a rule.
+
+## Reel performance rollout (safe mode)
+
+Use staged enablement:
+
+1. Default safe run: `REEL_HOOK_OPTIMISER=off`, `REEL_PACING_PROFILE=classic`
+2. Hook-only trial: `REEL_HOOK_OPTIMISER=on`
+3. Pacing trial: `REEL_PACING_PROFILE=dynamic_lite`
+4. Keep clip confidence floor at default `REEL_CLIP_MIN_CONF_SCORE=0.45` unless underfill becomes frequent.
+
+Verification for each stage:
+
+- Dry-run completes to `final.mp4` (or abort reason is an existing gate, not a new crash).
+- `hook_optimiser.jsonl` and/or `reel_generation_features.jsonl` append as expected.
+- Subtitle readability remains clean around CTA window.
+- Switching flags back to defaults restores classic behaviour.

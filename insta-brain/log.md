@@ -1,5 +1,15 @@
 # factjot brain log
 
+- 2026-05-05 16:53 reel ABORTED — short duration 33.2s for Zealandia, a continent mostly hidden beneath the South Pacif
+- 2026-05-05 15:44 reel FAILED ffmpeg — fact='When Albert Einstein died in 1955, the pathologist who perfo' error=FFmpeg failed (exit 234). See ffmpeg_debug.txt (command) and ffmpeg_compose_stderr.log (stderr tail below).
+reation_time   : 2022-04-09T10:31:15.000000Z
+  Duration: 00:00:23.70, start: 0.000000, bitrate: 2520 kb/s
+  Stream #8:0[0x1](und): Video: h264 (High) (avc1 / 0x31637661), yuv420p(tv, bt709, pr
+- 2026-05-05 session: reel compositor now writes `ffmpeg_filter_complex.txt` and executes `-filter_complex_script`; added `REEL_TRANSITIONS_MODE` (`classic|case_file_dynamic`) and animated grit texture toggles (`REEL_TEXTURE_FINISH`, `REEL_TEXTURE_INTENSITY`, `REEL_GRIT_OVERLAY_PATH`); added API usage/cost ledger `data/ledgers/api_usage_costs.jsonl` (ElevenLabs char-based estimate via `ELEVENLABS_COST_PER_1K_CHARS`).
+- 2026-05-05 15:13 reel f75a90be4a2806 published (biology, ig_media=18586745440058794)
+- 2026-05-05 15:00 discovery: appended 1 fresh facts from r/Damnthatsinteresting, r/interestingasfuck, r/UnresolvedMysteries, r/AskHistorians, r/history (rejected 419)
+- 2026-05-05 14:16 reel a5b491050ff571 published (earth, ig_media=18120596116636157)
+- 2026-05-05 13:01 reel 6c4bfb2007c561 published (earth, ig_media=17890829925356019)
 - 2026-05-05 10:22 WORKFLOW FAILED: .github/workflows/carousel-morning.yml | run=25370794721 | trigger=schedule | ref=main
 - 2026-05-05 10:22 carousel ABORTED — topic=space runway too low (1 fresh, need 3+)
 - 2026-05-05 09:45 WORKFLOW FAILED: .github/workflows/carousel-morning.yml | run=25369183628 | trigger=schedule | ref=main
