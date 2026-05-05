@@ -138,12 +138,13 @@ def fetch_breaking_article(
     max_age_hours: int = 24,
     query: str | None = None,
 ) -> dict | None:
-    """Return the most recent article from the section, or None if nothing is fresh."""
+    """Return the most recent fresh article, including all inline image elements."""
     params: dict = {
-        "api-key":     guardian_key,
-        "show-fields": "bodyText,thumbnail,trailText,headline",
-        "order-by":    "newest",
-        "page-size":   5,
+        "api-key":      guardian_key,
+        "show-fields":  "bodyText,thumbnail,trailText,headline",
+        "show-elements": "image",
+        "order-by":     "newest",
+        "page-size":    5,
     }
     if query:
         params["q"] = query
@@ -164,18 +165,49 @@ def fetch_breaking_article(
         if len(body) < 400:
             continue
         return {
-            "title":     item["webTitle"],
-            "url":       item["webUrl"],
-            "section":   item.get("sectionName", section),
-            "pub_date":  item["webPublicationDate"],
-            "body":      body,
-            "trail":     fields.get("trailText", ""),
-            "thumbnail": fields.get("thumbnail", ""),
+            "title":      item["webTitle"],
+            "url":        item["webUrl"],
+            "section":    item.get("sectionName", section),
+            "pub_date":   item["webPublicationDate"],
+            "body":       body,
+            "trail":      fields.get("trailText", ""),
+            "thumbnail":  fields.get("thumbnail", ""),
+            "elements":   item.get("elements", []),
         }
     return None
 
 
-def download_thumbnail(url: str) -> bytes | None:
+def extract_image_urls(article: dict) -> list[str]:
+    """Pull all unique image URLs from article elements, largest resolution first.
+
+    Falls back to the thumbnail if no inline images are available.
+    """
+    seen: set[str] = set()
+    urls: list[str] = []
+
+    for element in article.get("elements", []):
+        if element.get("type") != "image":
+            continue
+        assets = element.get("assets", [])
+        # Pick the asset with the largest width
+        best = max(
+            (a for a in assets if a.get("file")),
+            key=lambda a: int(a.get("typeData", {}).get("width", 0)),
+            default=None,
+        )
+        if best and best["file"] not in seen:
+            seen.add(best["file"])
+            urls.append(best["file"])
+
+    # Always include the thumbnail as a fallback if we have nothing else
+    thumb = article.get("thumbnail", "")
+    if thumb and thumb not in seen:
+        urls.append(thumb)
+
+    return urls
+
+
+def download_image(url: str) -> bytes | None:
     if not url:
         return None
     try:
@@ -408,15 +440,24 @@ def main() -> int:
         return 0
     _log("[2/6] Article is new -- proceeding.")
 
-    # ---- 3. Download thumbnail ----
-    _log("[3/6] Downloading thumbnail...")
-    thumb_bytes = download_thumbnail(article["thumbnail"])
-    if thumb_bytes:
-        photo_data_url = _inline_bytes(thumb_bytes, "image/jpeg")
-        _log(f"     Thumbnail: {len(thumb_bytes):,} bytes")
-    else:
-        photo_data_url = ""
-        _log("     No thumbnail available -- photo zone will be empty.")
+    # ---- 3. Download all article images ----
+    _log("[3/6] Downloading article images...")
+    image_urls_from_api = extract_image_urls(article)
+    _log(f"     Found {len(image_urls_from_api)} image(s) in article")
+
+    # Download each unique image; skip any that fail
+    image_data_urls: list[str] = []
+    for img_url in image_urls_from_api:
+        data = download_image(img_url)
+        if data:
+            mime = "image/jpeg" if img_url.lower().endswith((".jpg", ".jpeg")) else "image/png"
+            image_data_urls.append(_inline_bytes(data, mime))
+            _log(f"     downloaded {len(data):,}b  {img_url[-50:]}")
+        if len(image_data_urls) >= SLIDES_COUNT:
+            break  # no point fetching more than we can use
+
+    if not image_data_urls:
+        _log("     No images available -- photo zone will be empty.")
 
     # ---- 4. Compress to slides ----
     _log(f"[4/6] Compressing article to {SLIDES_COUNT} slides with Claude...")
@@ -436,6 +477,11 @@ def main() -> int:
         with sync_playwright() as pw:
             browser = pw.chromium.launch()
             for idx, slide in enumerate(slides, start=1):
+                # Cycle through available images; each slide gets its own where possible
+                if image_data_urls:
+                    photo_data_url = image_data_urls[(idx - 1) % len(image_data_urls)]
+                else:
+                    photo_data_url = ""
                 out_path = tmp_dir / f"slide_{idx:02d}.png"
                 render_news_slide(
                     lines=slide["lines"],
@@ -448,7 +494,7 @@ def main() -> int:
                     browser=browser,
                 )
                 slide_paths.append(out_path)
-                _log(f"     slide {idx} done")
+                _log(f"     slide {idx} done  [image {((idx-1) % max(len(image_data_urls),1)) + 1}/{max(len(image_data_urls),1)}]")
             browser.close()
 
         # ---- 6. Host images ----
