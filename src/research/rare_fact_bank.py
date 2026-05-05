@@ -83,13 +83,13 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'The Man With a Spike Through His Head',
-     'reel_script': 'In 1848, a railroad worker named Phineas Gage was packing dynamite into rock. '
-                    'Something sparked. A 3-foot iron rod shot up... straight through his skull. It '
-                    "went in under his cheek and out the top of his head. He didn't die. He sat up, "
-                    'talked, and walked to the doctor. He lived another 12 years. But something had '
-                    'changed. His friends said... he was no longer Gage. His personality. His '
-                    'judgment. His patience. All gone. The case proved that personality lives in the '
-                    'brain. And modern neuroscience was born.'},
+     'reel_script': 'A 3-foot iron rod shot through Phineas Gage\'s skull in 1848 and he sat up, '
+                    'talked, and walked to the doctor. The rod entered under his cheek and left '
+                    'through the top of his head. He lived 12 more years. But everyone who knew him '
+                    'said he was gone. Not dead. Just different. His personality, his patience, his '
+                    'judgment, all of it replaced by something else. He became proof that who you '
+                    'are lives in specific tissue. Damage the tissue and the person does not '
+                    'survive, even if the body does.'},
     {'topic': 'history',
      'claim': "In 1945 a Colorado farmer cut off a chicken's head, but the bird kept living. Mike the "
               'Headless Chicken survived 18 months, fed milk through a dropper, and toured America '
@@ -115,12 +115,12 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': "The Priest Who Died in the Lions' Den",
-     'reel_script': 'In 1932, a Church of England priest was defrocked in a scandal. He swore he was '
-                    'innocent. To fund his appeal, he performed in seaside sideshows across Britain. '
-                    "By 1937 his act was this: re-enacting Daniel in the Lions' Den. Live. In a cage. "
-                    'With two real lions. In Skegness. The lions were not familiar with the story. '
-                    'They mauled him. He died two days later. The man who spent five years fighting to '
-                    "prove his innocence... ended it inside a lion's cage.",
+     'reel_script': 'Harold Davidson spent five years protesting his innocence after the Church threw '
+                    'him out in a scandal. He exhibited himself in a barrel on Blackpool seafront. '
+                    'He performed in sideshows. By 1937 his act had escalated to re-enacting Daniel '
+                    "in the Lions' Den, live, in a cage, with two actual lions, in Skegness. The "
+                    'lions were not briefed on the story. They mauled him. He died two days later. '
+                    'The case for his innocence died with him, inside a cage, in a seaside resort.',
      'discovered_via': 'wikipedia:unusual_deaths'},
     {'topic': 'history',
      'claim': 'In 1962 a Soviet submarine officer named Vasili Arkhipov refused to authorise a nuclear '
@@ -133,13 +133,13 @@ RARE_FACT_BANK = [
      'intensity': 'heavy',
      'tone': 'sober',
      'reel_title': 'The Man Who Saved the World',
-     'reel_script': 'October 1962. The world was 13 days into the Cuban Missile Crisis. A Soviet '
-                    'submarine sat trapped near Cuba. Cut off from Moscow. Out of contact for days. '
-                    'American destroyers were dropping signal charges to force them to surface. The '
-                    'crew thought... war had already begun. On board was a single nuclear torpedo. '
-                    'Three officers had to agree to launch it. Two voted yes. One man said no. His '
-                    'name was Vasili Arkhipov. He held the line. He refused. And because of one '
-                    "stranger you've never heard of... you are alive today."},
+     'reel_script': 'In October 1962, a Soviet submarine near Cuba had been out of contact with '
+                    'Moscow for days. American destroyers were dropping depth charges above them. '
+                    'The crew believed war had already started. The submarine had one nuclear '
+                    'torpedo. Launching required three officers to agree. Two voted yes. One man '
+                    'said no. His name was Vasili Arkhipov. You have never heard of him. There is '
+                    'no monument to him. He is not in school textbooks. And he is the reason you '
+                    'are alive.'},
     {'topic': 'history',
      'claim': 'Sarah Winchester, heir to the Winchester rifle fortune, believed she was haunted by the '
               'dead. She built a 161-room mansion with stairs to nowhere and doors opening onto walls, '
@@ -151,13 +151,13 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': 'The House That Never Stopped',
-     'reel_script': 'Sarah Winchester was the heir to the Winchester rifle fortune. She had millions. '
-                    "She also believed she was haunted... by every person her family's rifles had "
-                    'killed. A medium told her she had to keep building. If construction ever stopped, '
-                    'the spirits would catch her. So she did. For 38 years... carpenters worked 24 '
-                    'hours a day. She built 161 rooms. Stairs that lead to ceilings. Doors that open '
-                    'onto walls. Hallways that vanish into nothing. She only stopped when she died. '
-                    'And the house? It still stands today.'},
+     'reel_script': 'Sarah Winchester believed she was haunted by everyone her family\'s rifles had '
+                    'killed. A medium told her the spirits would take her if construction ever '
+                    'stopped. So she kept building. For 38 years. Round the clock. 161 rooms. '
+                    'Stairs that lead directly into ceilings. Doors that open onto walls. Hallways '
+                    'that go nowhere. She kept the carpenters employed and the ghosts, presumably, '
+                    'at bay. Construction stopped when she died in 1922. The house still stands. '
+                    'You can visit it. Whether you should is a separate question.'},
     {'topic': 'history',
      'claim': 'The 18th-century French soldier Tarrare could eat 30 pounds of food in a day. He was '
               "documented eating a live eel whole, a doctor's wedding ring, and once attempted to eat "
@@ -181,12 +181,12 @@ RARE_FACT_BANK = [
      'intensity': 'heavy',
      'tone': 'shocking',
      'reel_title': '127 Hours',
-     'reel_script': 'In 2003, a hiker named Aron Ralston went out alone in Utah. He told no one where. '
-                    'Deep in a slot canyon, a boulder shifted. It crushed his right arm against the '
-                    "rock wall. He couldn't move it. He couldn't break it. He waited. For five days. "
-                    'Out of water. Out of food. Hallucinating. Then he made a choice. He used a dull '
-                    'multitool to cut through his own arm. He freed himself. He rappelled down a '
-                    'cliff. And walked 8 miles before anyone found him. He survived.'},
+     'reel_script': 'Aron Ralston went hiking alone in Utah in 2003 and told no one where he was '
+                    'going. A boulder shifted and pinned his arm. He waited five days. No water, '
+                    'no food, hallucinating. Then he broke the bones in his own forearm, cut '
+                    'through the remaining tissue with a dull multitool, rappelled a cliff with '
+                    'one arm, and walked eight miles. He survived. He later said it was the best '
+                    'decision he ever made. Most people would have led with not going alone.'},
     {'topic': 'history',
      'claim': 'Early 20th-century factory girls painted glow-in-the-dark watch dials with radium '
               'paint. Told to lick their brushes for a sharp tip, many died slowly of radiation '
@@ -199,14 +199,14 @@ RARE_FACT_BANK = [
      'intensity': 'heavy',
      'tone': 'sober',
      'reel_title': 'The Girls Who Glowed',
-     'reel_script': 'In the 1920s, young women were paid to paint watch dials with radium. It glowed '
-                    'in the dark. Beautiful. Magical. The future of luxury timepieces. Their managers '
-                    'told them to shape the brush tip... with their lips. Every single day. Lick. Dip. '
-                    'Paint. The factories told them it was harmless. Many of them died slowly. Their '
-                    'bones. Their jaws. Eaten away from the inside. When they sued, the company called '
-                    'them unhealthy women. And tried to bury them. They fought anyway... Some '
-                    'testified from their hospital beds. They won. And their case rewrote workplace '
-                    'safety law forever.'},
+     'reel_script': 'In the 1920s, factories paid young women to paint watch dials with radium paint '
+                    'and told them to sharpen their brushes with their lips. Every day. The company '
+                    'knew radium was dangerous. They said nothing. The women began dying. Bones '
+                    'dissolving from inside. Jaws falling off. When they sued, the company called '
+                    'them unhealthy and tried to bury the case. Some of them testified from '
+                    'hospital beds. They won. Their lawsuit created the legal framework for '
+                    'workers to know what they are being asked to handle. The company was wrong '
+                    'about everything except one thing. It was profitable.'},
     {'topic': 'history',
      'claim': "Until 1986, women in Switzerland needed their husband's written permission to take a "
               'paid job. Married women were legally subordinate to their husbands until a sweeping '
@@ -218,13 +218,13 @@ RARE_FACT_BANK = [
      'intensity': 'heavy',
      'tone': 'sober',
      'reel_title': 'Switzerland, 1986',
-     'reel_script': "Switzerland is famous for being modern. Neutral. Wealthy. Civilised. But here's "
-                    "something they don't put in the brochure. Until 1986... a married woman in "
-                    "Switzerland could not take a paid job. Not without her husband's written "
-                    "permission. She couldn't open her own bank account. She couldn't sign a lease. "
-                    'Legally, she was his subordinate. 1986. The same year as Top Gun. The same year '
-                    'as the Chernobyl disaster. Half the population of an entire country... still '
-                    'owned, on paper, by the other half. And it took a national vote to change it.'},
+     'reel_script': 'Until 1986, a married woman in Switzerland needed her husband\'s written '
+                    'permission to take a paid job. She could not open a bank account without '
+                    'him. Could not sign a lease. Legally subordinate. This was not the Middle '
+                    'Ages. This was the same year as Top Gun. The same year as Chernobyl. '
+                    'Switzerland, which is famous for being civilised and neutral and correct '
+                    'about most things, put this to a national vote. The vote was to change it. '
+                    'Which does raise the question of what the other votes were about.'},
     {'topic': 'space',
      'claim': 'In 1945 and 1946 the same plutonium sphere killed two Manhattan Project scientists in '
               'separate criticality accidents. They named it the Demon Core.',
@@ -235,13 +235,13 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'The Demon Core',
-     'reel_script': 'In 1945, the Manhattan Project built a third nuclear core. A sphere of plutonium '
-                    'the size of a grapefruit. It was meant for a third bomb. Japan surrendered before '
-                    "they could use it. So scientists ran experiments on it. Tickling the dragon's "
-                    'tail, they called it. One slip and it would go critical. It killed Harry Daghlian '
-                    'in 1945. A screwdriver slipped. He died nine months later. It killed Louis Slotin '
-                    'in 1946. Same core. Same lab. Two men. The same sphere. After that, they gave it '
-                    'a name. The Demon Core.'},
+     'reel_script': 'The Manhattan Project built a third plutonium core in 1945. Japan surrendered '
+                    'before they needed it, so scientists used it for experiments instead. They '
+                    'called this tickling the dragon\'s tail, which tells you something about the '
+                    'culture. In 1945 a screwdriver slipped. Harry Daghlian absorbed a lethal dose '
+                    'and died. In 1946 a different accident with the same sphere killed Louis '
+                    'Slotin. Same core. Same lab. Two men. They named it the Demon Core and '
+                    'melted it down. Probably should have done that first.'},
     {'topic': 'space',
      'claim': 'In 1908 something exploded above remote Siberia with the force of about 1,000 Hiroshima '
               'bombs. It flattened 2,150 square kilometres of forest. There was no crater. Astronomers '
@@ -253,14 +253,13 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'The Explosion With No Crater',
-     'reel_script': "On the morning of June 30th, 1908... something exploded above Siberia. It wasn't "
-                    'a bomb. There were no bombs that big yet. It flattened 80 million trees. An area '
-                    'larger than New York City. The blast was equivalent to 1,000 Hiroshima bombs. '
-                    'Windows shattered hundreds of miles away. The night sky over Europe glowed for '
-                    "days. But here's the strange part. There was no crater. No fragments. No metal. "
-                    'Whatever it was... exploded in the air. Scientists still argue. Asteroid. Comet. '
-                    "We may never know. If it had hit a city instead of a forest... we'd remember 1908 "
-                    'very differently.'},
+     'reel_script': 'Something exploded above Siberia in 1908 with the force of a thousand Hiroshima '
+                    'bombs. It flattened two thousand square kilometres of forest. Windows shattered '
+                    'hundreds of miles away. The night sky over Europe glowed for days. There was '
+                    'no crater. No fragments. No metal. It detonated in the air and left nothing '
+                    'behind. Scientists still disagree on what it was. Asteroid, comet, something '
+                    'else. It hit one of the emptiest places on Earth. If it had arrived four hours '
+                    'later, it would have hit St Petersburg.'},
     {'topic': 'space',
      'claim': 'In 1859 a solar storm hit Earth so violently that telegraph wires sparked, papers '
               'caught fire, and auroras were visible in the Caribbean. If the Carrington Event '
@@ -272,14 +271,13 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'The Day the Sun Struck Earth',
-     'reel_script': 'September 1st, 1859. A British astronomer named Carrington saw two flashes on the '
-                    'Sun. Eighteen hours later... the planet caught fire. The aurora was so bright '
-                    'over the Caribbean... people thought the morning had come early. Telegraph wires '
-                    'sparked. Operators got electric shocks. Some machines kept sending messages... '
-                    "after they'd been unplugged. Papers caught fire on telegraph desks. It was the "
-                    'strongest solar storm ever recorded. If the Carrington Event happened today... '
-                    'the global electrical grid would be down for years. Trillions in damage. Billions '
-                    'without power. And every century or so... it happens again.'},
+     'reel_script': 'In 1859 a solar storm hit Earth so hard that telegraph operators got electric '
+                    'shocks through their machines. Auroras were visible in the Caribbean. Papers '
+                    'caught fire on telegraph desks. Some machines kept sending messages after '
+                    'being unplugged. The Carrington Event is the strongest solar storm ever '
+                    'recorded. If it happened today, the global electrical grid would be down for '
+                    'years. Trillions in damage. Billions without power. Storms like it happen '
+                    'roughly every century. The last one was 1859. You do the maths.'},
     {'topic': 'space',
      'claim': 'Pluto is smaller than Russia. Its surface area covers 17.7 million km², while Russia '
               'alone covers 17.1 million km². Pluto is also smaller than the Moon.',
@@ -290,13 +288,13 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': 'Pluto Is Smaller Than Russia',
-     'reel_script': 'When you picture Pluto... you probably imagine a planet. A frozen world out at '
-                    "the edge of the solar system. Vast. Distant. Massive. It's not. Pluto's surface "
-                    "area is 17.7 million square kilometres. Russia's surface area is 17.1 million "
-                    "square kilometres. Pluto is barely bigger than one country on Earth. And here's "
-                    'the part that breaks your brain. Pluto is smaller than our Moon. If you put Pluto '
-                    'in front of the Moon... it would disappear behind it. An entire former planet. '
-                    'Smaller than the rock we look at every night.'},
+     'reel_script': 'Pluto is smaller than Russia. Not the solar system. Not the universe. One '
+                    'country. Pluto\'s surface area is 17.7 million square kilometres. Russia is '
+                    '17.1 million. They are roughly the same size. Pluto is also smaller than our '
+                    'Moon. If you placed Pluto over the Moon, it would disappear behind it. The '
+                    'object we spent decades calling a planet is smaller than the thing we look at '
+                    'every night and take for granted. It was demoted in 2006. Given everything, '
+                    'that seems fair.'},
     {'topic': 'biology',
      'claim': 'Octopuses have nine brains. One central brain plus a smaller brain in each of the eight '
               'arms. The arms can react and decide independently of the central brain.',
@@ -307,13 +305,14 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': 'Nine Brains, Eight Decisions',
-     'reel_script': 'An octopus has three hearts. Blue blood. And nine brains. One central brain... '
-                    'and a smaller brain in each of its eight arms. Each arm can taste. Each arm can '
-                    'think. Each arm makes its own decisions. If you cut one off, it keeps reaching. '
-                    'It keeps grabbing food. It keeps responding to threats. Without the main brain at '
-                    "all. When an octopus solves a maze... it isn't one mind solving it. It's nine. We "
-                    'have no idea what that feels like from the inside. And we share a planet with '
-                    'them.'},
+     'reel_script': 'An octopus has nine brains. One central brain and one in each of its eight '
+                    'arms. Each arm can taste, think, and make decisions independently. Cut an arm '
+                    'off and it keeps moving, grabbing food, reacting to threats, with no input '
+                    'from the central brain at all. When an octopus solves a problem, nine minds '
+                    'are involved. What that experience is like from the inside, we have no way '
+                    'of knowing. They diverged from our evolutionary line 750 million years ago '
+                    'and arrived at intelligence through an entirely different route. We share a '
+                    'planet with them and barely understand them.'},
     {'topic': 'biology',
      'claim': 'The mantis shrimp punches with the speed of a bullet, accelerating its claw at 10,000 '
               'g. The strike creates cavitation bubbles that briefly reach the temperature of the '
@@ -325,13 +324,13 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': 'The Deadliest Punch in Nature',
-     'reel_script': 'The mantis shrimp is small. About the size of your hand. But it throws the '
-                    'fastest punch in the animal kingdom. Its claw accelerates at 10,000 g. Faster '
-                    'than a bullet leaving a gun. The strike is so fast... it boils the water around '
-                    'it. Tiny bubbles collapse with a flash of light. For a fraction of a second... '
-                    'that bubble is hotter than the surface of the Sun. Hard enough to crack glass '
-                    'aquarium walls. And it sees colour the way no human ever will. 16 different '
-                    'colour receptors. We have three. What it sees... we cannot imagine.'},
+     'reel_script': 'The mantis shrimp is roughly the size of your hand and throws the fastest punch '
+                    'in the animal kingdom. Its claw accelerates at 10,000 g, faster than a bullet. '
+                    'The strike boils the water around it. The resulting cavitation bubble reaches '
+                    'the temperature of the Sun\'s surface for a fraction of a second. It can crack '
+                    'glass aquarium walls. It also has 16 colour receptors. Humans have 3. What it '
+                    'sees, we cannot visualise. A creature the size of your hand that punches '
+                    'harder than physics should allow and perceives a world we cannot access.'},
     {'topic': 'biology',
      'claim': 'Naked mole-rats can survive without oxygen for 18 minutes by switching their metabolism '
               'to plant-style fructose burning. They almost never get cancer and can live 30 years.',
@@ -342,13 +341,14 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': "The Mammal That Shouldn't Exist",
-     'reel_script': 'Meet the naked mole-rat. It is wrinkled. Hairless. Almost blind. And it breaks '
-                    'every rule of being a mammal. It can survive 18 minutes without oxygen. When the '
-                    'air runs out, its body stops burning sugar. It starts burning fructose. Like a '
-                    'plant. Nothing else with a spine on this planet does that. It almost never gets '
-                    'cancer. It feels almost no pain. It lives 30 years. Most rodents live 3. '
-                    'Scientists think it might hold the key to slowing human ageing. An ugly little '
-                    'rodent... rewriting medicine.'},
+     'reel_script': 'The naked mole-rat can survive 18 minutes without oxygen by switching its '
+                    'metabolism to burn fructose, like a plant. No other vertebrate does this. '
+                    'It almost never gets cancer. It barely feels pain. It lives 30 years, '
+                    'when comparable rodents live 3. It does not age in any way scientists '
+                    'can measure. It is ugly, hairless, nearly blind, and lives underground '
+                    'in a colony with a queen, like an insect. Everything about it is wrong '
+                    'for a mammal. And it is currently the most interesting animal in '
+                    'medical research.'},
     {'topic': 'biology',
      'claim': 'There is a fungus called Cordyceps that hijacks insect brains. It compels infected ants '
               "to climb a plant, bite down, and stay still while the fungus erupts from the host's "
@@ -360,13 +360,14 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'The Fungus That Controls Minds',
-     'reel_script': 'Deep in the jungles of South America... there is a fungus. It is called '
-                    "Cordyceps. And it doesn't just kill insects. It controls them. It floats through "
-                    'the air as a tiny spore. When one lands on an ant... it burrows inside. Then it '
-                    'grows. Through muscle. Through nerves. Into the brain. And it takes the wheel. '
-                    'The ant leaves the colony. It climbs the nearest plant. To exactly the right '
-                    'height. It bites down hard on a leaf. And holds there. Frozen. Until the fungus '
-                    'erupts from its head. Spreading new spores onto the ants below. Nature made this.'},
+     'reel_script': 'There is a fungus called Cordyceps that infects ants, grows through their '
+                    'muscles and into their brains, compels them to climb to a specific height '
+                    'on a specific type of plant, forces them to bite down on a leaf, and then '
+                    'erupts from their heads to spread spores onto the colony below. The fungus '
+                    'does not kill the ant immediately. It drives it first. The ant becomes '
+                    'a vehicle. Scientists have found fossilised leaves with Cordyceps bite '
+                    'marks from 48 million years ago. It has been doing this for a very long '
+                    'time.'},
     {'topic': 'biology',
      'claim': 'Aphids can be born already pregnant. The next generation is developing inside them '
               'before they themselves are born, allowing colonies to multiply almost instantly.',
@@ -377,13 +378,14 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': 'Born Already Pregnant',
-     'reel_script': "Aphids are tiny green insects you've seen on a thousand garden leaves. Ignore "
-                    'them at your peril. When food is plentiful, aphids skip males entirely. Females '
-                    "clone themselves. But here's the twist. An aphid is born... already pregnant. The "
-                    'next generation is growing inside her... before she has even been born. Three '
-                    "generations, nested like Russian dolls, before any of them sees daylight. It's "
-                    'why one aphid in spring becomes thousands by midsummer. Time itself bends for '
-                    'them. Birth, pregnancy, generation... happening all at once.'},
+     'reel_script': 'Aphids can be born already pregnant. The next generation is developing inside '
+                    'them before they have been born themselves. Three generations nested inside '
+                    'each other before any of them sees daylight. When food is available, females '
+                    'skip males entirely and clone themselves. One aphid in spring becomes '
+                    'thousands by midsummer. They are simultaneously grandmother, mother, and '
+                    'daughter before they take their first breath. Biologically this is called '
+                    'telescoping generations. Practically it means a garden can become an infestation '
+                    'in a week.'},
     {'topic': 'technology',
      'claim': 'The Antikythera mechanism is a 2,000-year-old Greek device retrieved from a '
               'Mediterranean shipwreck in 1901. It is an analog computer that predicted eclipses and '
@@ -395,13 +397,13 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': 'The Ancient Computer',
-     'reel_script': 'In 1901, divers off the Greek island of Antikythera found a Roman shipwreck. '
-                    'Inside it... a lump of corroded bronze. It sat in a museum drawer for decades. '
-                    'Then someone X-rayed it. Inside were 30 perfectly cut bronze gears. Interlocking. '
-                    'Tiny. Precise. It was a computer. Built 2,000 years ago. It predicted eclipses. '
-                    'It tracked the position of every known planet. It even followed the four-year '
-                    'cycle of the Olympic Games. Nothing this complex would appear again... for '
-                    "another 1,400 years. Who built it? We still don't know. And the world forgot."},
+     'reel_script': 'In 1901 divers found a corroded lump of bronze in a Roman shipwreck. It sat in '
+                    'a museum drawer for decades. Someone eventually X-rayed it. Inside were 30 '
+                    'precisely cut interlocking bronze gears. It was a computer. Built 2,000 years '
+                    'ago. It predicted eclipses, tracked planetary positions, and followed the '
+                    'Olympic cycle. Nothing of comparable mechanical complexity would appear again '
+                    'for another 1,400 years. We do not know who built it. Whatever civilisation '
+                    'produced this knowledge, that knowledge did not survive. The machine did.'},
     {'topic': 'technology',
      'claim': 'The Voynich Manuscript is a 600-year-old book written in a language nobody has ever '
               'cracked. AI, professional cryptographers, and codebreakers have all failed. Its '
@@ -414,14 +416,14 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': 'The Book Nobody Can Read',
-     'reel_script': 'The Voynich Manuscript is 600 years old. 240 pages of text. Hundreds of '
-                    'illustrations. Plants no botanist recognises. Star charts that match no known '
-                    'sky. Naked figures bathing in green water through interconnecting tubes. And '
-                    'every single word... is written in a language that has never existed. Top '
-                    'codebreakers from World War One and Two failed. The CIA failed. Modern AI has '
-                    'failed. Statistical analysis says it follows real linguistic patterns. But no one '
-                    'alive can tell you what a single sentence means. It sits in a vault at Yale '
-                    'University. Waiting for someone to crack it.'},
+     'reel_script': 'The Voynich Manuscript is 600 years old, 240 pages long, and completely '
+                    'unreadable. Every word is written in a language that has never been identified. '
+                    'The illustrations show plants no botanist recognises, star charts matching no '
+                    'known sky, and figures bathing in green water through interconnecting tubes. '
+                    'Codebreakers from both World Wars failed. The CIA failed. Modern AI failed. '
+                    'Statistical analysis confirms it follows the patterns of real language. We '
+                    'just cannot identify which one. It sits in a vault at Yale. Either it is the '
+                    'most elaborate hoax in history or something is waiting to be understood.'},
     {'topic': 'technology',
      'claim': 'The first photograph of a human being was taken by accident in 1838. During an 8-minute '
               'exposure of a Paris boulevard, only one man stood still long enough to appear. He was '
@@ -434,14 +436,13 @@ RARE_FACT_BANK = [
      'intensity': 'light',
      'tone': 'shocking',
      'reel_title': 'The First Person Ever Photographed',
-     'reel_script': 'Paris. 1838. A Frenchman named Daguerre points a wooden box camera out his '
-                    "window. It's the first decent photograph anyone has ever taken. The exposure "
-                    'takes 8 minutes. In 1838, that meant... anything moving disappears. Carriages. '
-                    'Horses. Hundreds of people walking. All gone. The boulevard looks empty. All '
-                    'except for one man. Standing perfectly still. He was getting his shoes shined. We '
-                    "don't know his name. We don't know who he was. But we know this. A man getting "
-                    'his shoes shined in 1838... is the first human ever photographed. And he had no '
-                    'idea.'},
+     'reel_script': 'The first photograph of a human being was taken by accident. In 1838, Daguerre '
+                    'pointed a camera at a Paris boulevard. The exposure took 8 minutes. Everything '
+                    'moving, carriages, horses, hundreds of pedestrians, vanished. The street looked '
+                    'empty. Except for one man who stayed still long enough to appear. He was getting '
+                    'his shoes shined. We do not know his name. He did not know he was being '
+                    'photographed. He did not know photography existed. He is the first human being '
+                    'ever captured on camera, and he was just standing there.'},
     {'topic': 'ocean',
      'claim': 'Male anglerfish are tiny compared to females. When a male finds a mate he bites her, '
               'and his body slowly fuses with hers. He loses his eyes, organs, and identity, becoming '
@@ -527,13 +528,13 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'The Great Molasses Flood',
-     'reel_script': "On a warm afternoon in January 1919... a giant tank in Boston's North End burst "
-                    'open. Inside it... 2.3 million gallons of molasses. Sweet, sticky, brown '
-                    'molasses. The wave that came out was 15 feet tall. It moved at 35 miles an hour. '
-                    'Faster than people could run. It tore buildings off their foundations. Threw a '
-                    'freight train off its tracks. 21 people died. 150 were injured. Drowned in '
-                    'molasses. Survivors said the syrup smelled in the streets for decades. On hot '
-                    'summer days, locals swore... they could still smell it. Ridiculous. And true.'},
+     'reel_script': 'In January 1919 a storage tank in Boston collapsed and released two point three '
+                    'million gallons of molasses through the streets at 35 miles per hour. The wave '
+                    'was 15 feet tall. It demolished buildings, threw a freight train off its '
+                    'tracks, and killed 21 people. One hundred and fifty were injured. Horses '
+                    'drowned. The cleanup took weeks. Locals said the neighbourhood smelled of '
+                    'molasses for decades. On hot days, some say it still does. Twenty-one people '
+                    'died in a flood of molasses. This is not a metaphor.'},
     {'topic': 'history',
      'claim': 'Mary Mallon, known as Typhoid Mary, was an asymptomatic carrier who infected at least '
               '51 people without ever feeling ill herself. She was forcibly quarantined twice and '
@@ -839,12 +840,13 @@ RARE_FACT_BANK = [
      'intensity': 'medium',
      'tone': 'shocking',
      'reel_title': 'The Door to Hell',
-     'reel_script': 'In 1971, Soviet engineers were drilling for gas in the Karakum desert. The ground '
-                    'collapsed. A crater opened. Gas started escaping. So they did what seemed '
-                    'logical. They lit it on fire. Thinking it would burn out in a few weeks. It is '
-                    'still burning today. Fifty years later. Thirty metres wide. Deep enough to '
-                    'swallow a building. Local people call it the Door to Hell. And no one has ever '
-                    'turned it off.'},
+     'reel_script': 'In 1971 Soviet engineers drilled for gas in the Turkmenistan desert, the ground '
+                    'collapsed, and a crater opened with gas escaping. They lit it on fire, '
+                    'expecting it to burn out within weeks. It has been burning continuously for '
+                    'over fifty years. Thirty metres wide, deep enough to swallow a building, '
+                    'visible from miles away at night. Local people call it the Door to Hell. '
+                    'No one has turned it off because no one is sure how, and at this point it '
+                    'has become a tourist attraction. Which feels appropriate.'},
     {'topic': 'earth',
      'claim': 'In 1958 an earthquake in Alaska triggered a landslide that generated a wave 524 metres '
               'high in Lituya Bay. Taller than the Empire State Building. Two people happened to be '
