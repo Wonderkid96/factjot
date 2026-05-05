@@ -21,6 +21,7 @@ import argparse
 import base64
 import json
 import re
+import shutil
 import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
@@ -406,6 +407,7 @@ def main() -> int:
     parser.add_argument("--dry-run",  action="store_true", help="Render + host but skip IG publish")
     parser.add_argument("--model",    default=DEFAULT_MODEL)
     parser.add_argument("--max-age",  type=int, default=24, help="Max article age in hours (default 24)")
+    parser.add_argument("--out-dir",  default=None, help="Override output dir (dry-run); defaults to output/news/YYYY-MM-DD_HH-MM_SECTION")
     args = parser.parse_args()
 
     configure_logging()
@@ -511,6 +513,16 @@ def main() -> int:
         if args.dry_run:
             _log("\n[DRY RUN] Skipping Instagram publish.")
             _log(f"Caption preview:\n{caption[:300]}...")
+            # Save slides to output/news/YYYY-MM-DD_HH-MM_SECTION (or --out-dir override)
+            from datetime import datetime as _dt
+            ts = _dt.now().strftime("%Y-%m-%d_%H-%M")
+            safe_section = re.sub(r"[^A-Za-z0-9]+", "-", section.lower())
+            default_save = repo_root / "output" / "news" / f"{ts}_{safe_section}"
+            save_dir = Path(args.out_dir) if args.out_dir else default_save
+            save_dir.mkdir(parents=True, exist_ok=True)
+            for p in slide_paths:
+                shutil.copy(p, save_dir / p.name)
+            _log(f"Slides saved to: {save_dir.resolve()}")
             _log_posted(article, caption, len(slides))
             _log("Ledger updated (dry-run).")
             return 0

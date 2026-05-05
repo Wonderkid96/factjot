@@ -64,8 +64,10 @@ Desktop.ini
 .env.local
 .env.*.local
 
-# ── Pipeline experiment output ─────────────────────────────────────
-# Local-only generated slides, frames, videos -- not needed in CI
+# ── Local preview output ───────────────────────────────────────────
+# All pipeline dry-run previews live here locally -- never committed
+output/
+# Legacy test output (also excluded)
 tests/output/
 experiments/*/output/
 # Lock files

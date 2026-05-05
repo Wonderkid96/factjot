@@ -476,7 +476,7 @@ def main() -> None:
     if not anthropic_key:
         raise RuntimeError("Missing ANTHROPIC_API_KEY in .env")
 
-    out_dir    = repo_root / "tests" / "output" / args.project_name
+    out_dir    = repo_root / "output" / "experiments" / args.project_name
     slides_dir = out_dir / "slides"
     for d in [out_dir, slides_dir]:
         d.mkdir(parents=True, exist_ok=True)

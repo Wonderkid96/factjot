@@ -43,13 +43,22 @@ REEL_PERFORMANCE = LEDGERS / "reel_performance.jsonl"
 PUBLISH_FAILURES = LEDGERS / "publish_failures.jsonl"
 
 # ------------------------------------------------------------------ #
-# data/cache/  - regeneratable, safe to delete
+# output/  - all pipeline renders, local only, gitignored
+# Each subfolder = one pipeline. Folders named YYYY-MM-DD_HH-MM_TOPIC
+# so they sort chronologically and are easy to find in Finder.
+# ------------------------------------------------------------------ #
+OUTPUT          = ROOT / "output"
+RENDERS_CACHE   = OUTPUT / "carousel"   # fact carousel slide PNGs
+REELS_CACHE     = OUTPUT / "reel"       # reel build artefacts
+LIST_RENDERS    = OUTPUT / "list"       # list carousel slide PNGs
+NEWS_RENDERS    = OUTPUT / "news"       # news carousel slide PNGs
+
+# ------------------------------------------------------------------ #
+# data/cache/  - regeneratable downloads (images, etc.)
 # ------------------------------------------------------------------ #
 CACHE           = ROOT / "data" / "cache"
 IMAGES_CACHE    = CACHE / "images"
-RENDERS_CACHE   = CACHE / "renders"
 LIST_ASSETS_CACHE = CACHE / "list_assets"
-REELS_CACHE     = CACHE / "reels"
 
 # ------------------------------------------------------------------ #
 # data/db/  - json databases
@@ -95,6 +104,7 @@ TRENDS          = BRAIN_DATA / "trends.jsonl"
 
 def ensure_dirs() -> None:
     """Create all required directories if they don't exist."""
-    for d in (LEDGERS, CACHE, IMAGES_CACHE, RENDERS_CACHE,
-              LIST_ASSETS_CACHE, REELS_CACHE, DB, LOGS, REEL_RUN_LOGS, AVATARS):
+    for d in (LEDGERS, CACHE, IMAGES_CACHE, LIST_ASSETS_CACHE,
+              OUTPUT, RENDERS_CACHE, REELS_CACHE, LIST_RENDERS, NEWS_RENDERS,
+              DB, LOGS, REEL_RUN_LOGS, AVATARS):
         d.mkdir(parents=True, exist_ok=True)

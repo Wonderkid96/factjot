@@ -365,16 +365,16 @@ class BrandKitRenderer:
         return issues
 
     def _render_folder_name(self, post: CarouselPost) -> str:
-        output_root = self.output_dir
-        next_index = 1
-        if output_root.exists():
-            for child in output_root.iterdir():
-                if not child.is_dir():
-                    continue
-                token = child.name.split("_", 1)[0]
-                if token.isdigit():
-                    next_index = max(next_index, int(token) + 1)
-        date_token = (post.created_at or "").replace(":", "").replace("-", "")[:8] or "unknown"
+        # Format: 2026-05-05_14-30_SPACE_abc123
+        # Sorts chronologically in Finder, category is immediately readable.
+        raw_dt = post.created_at or ""
+        if raw_dt:
+            # created_at is ISO: 2026-05-05T14:30:00Z
+            date_part = raw_dt[:10]                          # 2026-05-05
+            time_part = raw_dt[11:16].replace(":", "-")      # 14-30
+            dt_token  = f"{date_part}_{time_part}"
+        else:
+            from datetime import datetime, timezone
+            dt_token = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M")
         category = re.sub(r"[^A-Za-z0-9]+", "_", (post.category or "FACT").upper()).strip("_") or "FACT"
-        series = re.sub(r"[^A-Za-z0-9]+", "_", (post.series or "factjot").lower()).strip("_") or "factjot"
-        return f"{next_index:03d}_{date_token}_{category}_{series}_{post.post_id}"
+        return f"{dt_token}_{category}_{post.post_id[:8]}"

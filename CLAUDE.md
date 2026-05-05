@@ -11,12 +11,30 @@ Before anything else, read `/Users/Music/.claude/CLAUDE.md` for Toby's universal
 
 Fully automated Instagram account posting:
 
-- **2 carousel posts/day** — morning (10:00 BST) + evening (18:00 BST)
-- **1 Reel/day** — midday (12:00 BST), with composite thumbnail + story posted automatically after
+- **2 carousel posts/day** -- morning (10:00 BST) + evening (18:00 BST)
+- **1 Reel/day** -- midday (12:00 BST), with composite thumbnail + story posted automatically after
+- **1 News carousel/day** -- 14:00 BST, only fires if a breaking story is found
 
 Stack: Python 3.11, Playwright + Chromium (HTML rendering), FFmpeg (Reels), ElevenLabs (voice, paid), Instagram Graph API, imgbb + tmpfiles.org (video hosting).
 
 **The Mac does not need to be on.** GitHub Actions handles all posting 24/7.
+
+---
+
+## Local output locations
+
+All pipeline renders are written to `output/` (gitignored, local only). Named `YYYY-MM-DD_HH-MM_TOPIC` so they sort chronologically in Finder.
+
+```
+output/
+  carousel/   fact carousel slides    (src/core/paths.py: RENDERS_CACHE)
+  reel/       reel build artefacts    (src/core/paths.py: REELS_CACHE)
+  list/       list carousel slides    (src/core/paths.py: LIST_RENDERS)
+  news/       news carousel previews  (src/core/paths.py: NEWS_RENDERS)
+  experiments/ prototype pipeline output
+```
+
+Dry-run previews: `pipelines/news/ship_news_post.py --dry-run` auto-saves to `output/news/YYYY-MM-DD_HH-MM_SECTION/`.
 
 ---
 
@@ -121,15 +139,13 @@ make_reel.py
 
 ```bash
 cd /Users/Music/Developer/Insta-bot
-# No FFMPEG_BIN export needed -- ffmpeg_bin.py auto-falls-back to brew ffmpeg-full
-# if the default Homebrew ffmpeg fails its -version probe (e.g. after libvpx upgrade).
-/Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/make_reel.py
-/Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/make_reel.py --dry-run
-/Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/make_reel.py --topic earth
-/Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/make_reel.py --list-facts
+/Library/Frameworks/Python.framework/Versions/Current/bin/python3 pipelines/reel/make_reel.py
+/Library/Frameworks/Python.framework/Versions/Current/bin/python3 pipelines/reel/make_reel.py --dry-run
+/Library/Frameworks/Python.framework/Versions/Current/bin/python3 pipelines/reel/make_reel.py --topic earth
+/Library/Frameworks/Python.framework/Versions/Current/bin/python3 pipelines/reel/make_reel.py --list-facts
 ```
 
-**Local notes:** only one `**make_reel.py`** at a time (lock, exit **10** if contested). Per-run logs: `**data/cache/reels/<id>/pipeline.log`** and `**logs/reel_runs/`**; compose stderr: `**ffmpeg_compose_stderr.log**`; FFmpeg live progress: `**ffmpeg_progress.txt**` (tail for `frame=/time=/speed=`) - all in the reel cache dir. If a run is killed, remove a stale `**.make_reel.lock**` if it remains.
+**Local notes:** only one `make_reel.py` at a time (lock, exit **10** if contested). Per-run logs: `output/reel/<id>/pipeline.log` and `logs/reel_runs/`; compose stderr: `ffmpeg_compose_stderr.log`; FFmpeg live progress: `ffmpeg_progress.txt` (tail for `frame=/time=/speed=`) -- all in the reel output dir. If a run is killed, remove a stale `.make_reel.lock` if it remains.
 
 FFmpeg graph template path: each reel compose writes `ffmpeg_filter_complex.txt` in the reel cache dir and runs FFmpeg with `-filter_complex_script`.
 

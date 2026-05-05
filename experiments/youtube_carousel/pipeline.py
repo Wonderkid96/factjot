@@ -565,7 +565,7 @@ def main() -> None:
     if shutil.which("yt-dlp") is None:
         raise RuntimeError("yt-dlp not found on PATH")
 
-    out_dir = repo_root / "tests" / "output" / args.project_name
+    out_dir = repo_root / "output" / "experiments" / args.project_name
     frames_dir = out_dir / "frames"
     slides_dir = out_dir / "slides"
     for d in [out_dir, frames_dir, slides_dir]:
