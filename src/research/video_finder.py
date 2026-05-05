@@ -246,9 +246,8 @@ def find_videos(
             max_clips=_ENTITY_CAP - len(clips),
         )
         for ec in _ec:
-            if len(clips) < count and str(ec) not in used_paths:
+            if len(clips) < count:
                 clips.append(ec)
-                used_paths.add(str(ec))
                 print(f"  [video] ENTITY-0  ✓ {ec.name}")
 
     # ------------------------------------------------------------------ #
