@@ -1,5 +1,7 @@
 # factjot brain log
 
+- 2026-05-05 10:22 WORKFLOW FAILED: .github/workflows/carousel-morning.yml | run=25370794721 | trigger=schedule | ref=main
+- 2026-05-05 10:22 carousel ABORTED — topic=space runway too low (1 fresh, need 3+)
 - 2026-05-05 09:45 WORKFLOW FAILED: .github/workflows/carousel-morning.yml | run=25369183628 | trigger=schedule | ref=main
 - 2026-05-05 09:45 carousel ABORTED — topic=space runway too low (1 fresh, need 3+)
 - 2026-05-05 09:03 published f5abf8767c4724 (SPACE, 7 slides, ig_media=18093212309331798)
