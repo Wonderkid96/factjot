@@ -523,6 +523,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             allow_archival=allow_archival,
             used_source_registry=global_footage_registry,
             blocked_filenames=blocked_footage_filenames,
+            reel_script=vo_script,
         )
         if not footage_clips:
             print("ERROR: could not find any footage. Pre-download safety pool clips with:")

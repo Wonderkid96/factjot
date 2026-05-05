@@ -30,8 +30,16 @@ import os
 import re
 import subprocess
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
+
+
+@dataclass
+class _Candidate:
+    path: Path
+    score: float   # 0.0-1.0; entity=1.0, query[0]=0.88, decays 0.08/step, floor 0.25
+    beat_idx: int  # -1 for entity tier
 
 import requests
 from dotenv import load_dotenv
@@ -174,6 +182,7 @@ def find_videos(
     allow_archival: bool = False,
     used_source_registry: set[str] | None = None,
     blocked_filenames: set[str] | None = None,
+    reel_script: str = "",
 ) -> list[Path]:
     """Find `count` distinct portrait videos for this fact.
 
@@ -192,49 +201,40 @@ def find_videos(
       - Minimum file size: 50 KB (historical content may be small/grainy).
       - Archive.org and NASA enabled regardless of topic.
       - Use for facts whose subject IS archival footage (first photo, etc.).
+
+    Retrieval strategy (recall-first):
+      1. Entity tier   -- named entity → Wikimedia Commons (max 2, score=1.0)
+      2. Beat queries  -- 8-10 Claude-generated queries per beat, collect up to
+                         3 candidates per beat, score by query position
+      3. Two-pass fill -- pass 1: one best clip per beat (diversity); pass 2:
+                         remaining candidates by score (promotion before safety)
+      4. Safety pool   -- generic pre-downloaded clips, last resort only
     """
-    from src.research.narrative_beats import shot_list, beat_label
+    from src.research.narrative_beats import extract_entities, beat_label
+    from src.research.visual_intents import generate_all_beat_queries
+
+    _CANDIDATES_PER_BEAT = 3
+    _NUM_BEATS = 5
 
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Build ordered query list: narrative beats first, then fallbacks
-    queries: list[tuple[str, str]] = []
-    if use_narrative_beats:
-        beats = shot_list(claim=claim, topic=topic, image_hint=image_hint)
-        queries.extend((beat_label(i), q) for i, q in enumerate(beats))
-        print(f"  [video] narrative shot list:")
-        for label, q in queries:
-            print(f"    {label:<14} {q}")
-
-    fallback_queries = _ranked_queries(image_hint, claim, topic)
-    queries.extend(("FALLBACK", q) for q in fallback_queries)
-
     clips: list[Path] = []
-    used_paths: set[str] = set()       # local file paths already in this batch
-    # Seed from global registry so clips used in previous reels are skipped
+    used_paths: set[str] = set()
     used_source_urls: set[str] = set(used_source_registry or ())
-    # Filename-level dedup: blocks clips whose content appeared in a previous
-    # reel even if the download URL has changed (e.g. different resolution).
     _blocked_stems: set[str] = set(blocked_filenames or ())
     safety = _safety_pool_pick(topic) or []
     safety_idx = 0
 
-    # Tier 0: entity-specific sources (Wikipedia, Wikimedia Commons, Archive.org)
-    # Search using the named person/event extracted from the claim first --
-    # this finds the actual photo of Phineas Gage, the portrait of Arkhipov,
-    # the historical photo of the Radium Girls, etc. Fall back to image_hint
-    # if the claim has no extractable named entity.
-    from src.research.narrative_beats import extract_entities
+    # ------------------------------------------------------------------ #
+    # Tier 0: Entity clips (unchanged) — max 2, score=1.0
+    # ------------------------------------------------------------------ #
     _claim_ents = extract_entities(claim)
     _entity_terms: list[str] = []
     if _claim_ents.proper_nouns:
-        # Primary: first named person/place (e.g. "Phineas Gage")
         _entity_terms.append(" ".join(_claim_ents.proper_nouns[:2]))
     if image_hint and (not _entity_terms or image_hint != _entity_terms[0]):
         _entity_terms.append(image_hint)
 
-    # Hard cap: max 2 entity images total across ALL search terms.
-    # More than 2 consecutive stills = slideshow feel. B-roll fills the rest.
     _ENTITY_CAP = 2
     for _et in _entity_terms:
         if len(clips) >= _ENTITY_CAP:
@@ -251,53 +251,68 @@ def find_videos(
                 used_paths.add(str(ec))
                 print(f"  [video] ENTITY-0  ✓ {ec.name}")
 
-    for label, query in queries:
+    # ------------------------------------------------------------------ #
+    # Tier 1: Recall-first beat retrieval
+    # ------------------------------------------------------------------ #
+    all_beat_queries = generate_all_beat_queries(
+        claim=claim, topic=topic, image_hint=image_hint, reel_script=reel_script,
+    )
+
+    beat_candidates: list[list[_Candidate]] = []
+    for beat_idx in range(_NUM_BEATS):
+        lbl = beat_label(beat_idx)
+        queries = all_beat_queries[beat_idx] if beat_idx < len(all_beat_queries) else []
+        print(f"  [video] {lbl}: trying {len(queries)} queries")
+        candidates = _collect_beat_candidates(
+            queries, beat_idx, topic, out_dir,
+            allow_archival=allow_archival,
+            used_source_urls=used_source_urls,
+            used_paths=used_paths,
+            blocked_stems=_blocked_stems,
+            max_clips=_CANDIDATES_PER_BEAT,
+        )
+        beat_candidates.append(candidates)
+        for c in candidates:
+            print(f"    [{lbl}] score={c.score:.2f} ✓ {c.path.name}")
+
+    clip_set: set[str] = {str(p) for p in clips}  # entity clips already committed
+
+    # Pass 1: one best clip per beat — ensures beat diversity
+    for beat_cands in beat_candidates:
         if len(clips) >= count:
             break
-        path = _try_all_sources(
-            query, topic, out_dir,
-            allow_archival=allow_archival,
-            exclude_paths=used_paths,
-            used_source_urls=used_source_urls,
-        )
-        if path and str(path) not in used_paths:
-            if _blocked_stems and path.stem in _blocked_stems:
-                print(f"  [video] {label} SKIP {path.name} (filename used in a previous reel)")
-                path.unlink(missing_ok=True)
-                continue
-            clips.append(path)
-            used_paths.add(str(path))
-            _blocked_stems.add(path.stem)   # block within this run too
-            print(f"  [video] {label} ✓ {path.name}")
-
-    # Last-resort keyword decomposition: if still short after all queries, try
-    # individual meaningful words from image_hint against Wikimedia Commons only.
-    # This is the final chance to find the actual subject (e.g. "Darvaza" alone)
-    # before falling back to the generic safety pool.
-    if len(clips) < count and image_hint:
-        _lr_tried = set(e.lower() for e in (used_paths or set()))
-        for _kw in _extract_hint_keywords(image_hint, max_words=3):
-            if len(clips) >= count:
+        for c in beat_cands:
+            if str(c.path) not in clip_set:
+                clips.append(c.path)
+                clip_set.add(str(c.path))
                 break
-            print(f"  [video] LAST-RESORT keyword: {_kw!r}")
-            _lr = _wikimedia_entity_files(_kw, out_dir, used_source_urls=used_source_urls)
-            if _lr and str(_lr) not in used_paths:
-                if not (_blocked_stems and _lr.stem in _blocked_stems):
-                    clips.append(_lr)
-                    used_paths.add(str(_lr))
-                    _blocked_stems.add(_lr.stem)
-                    print(f"  [video] LAST-RESORT ✓ {_lr.name}")
 
-    # Top up from safety pool
+    # Pass 2: promotion — fill from all secondary candidates sorted by score.
+    # Higher-scoring secondary clips outrank weaker primary clips, so good
+    # B-roll is promoted before generic safety pool is ever touched.
+    secondary: list[_Candidate] = sorted(
+        [c for bc in beat_candidates for c in bc if str(c.path) not in clip_set],
+        key=lambda c: c.score,
+        reverse=True,
+    )
+    for c in secondary:
+        if len(clips) >= count:
+            break
+        if str(c.path) not in clip_set:
+            clips.append(c.path)
+            clip_set.add(str(c.path))
+            print(f"  [video] PROMOTED score={c.score:.2f} ✓ {c.path.name}")
+
+    # Pass 3: safety pool — only if still underfilled after promotion
     while len(clips) < count and safety_idx < len(safety):
         candidate = safety[safety_idx]
         safety_idx += 1
-        if str(candidate) not in used_paths:
+        if str(candidate) not in clip_set:
             clips.append(candidate)
-            used_paths.add(str(candidate))
+            clip_set.add(str(candidate))
+            print(f"  [video] SAFETY ✓ {candidate.name}")
 
-    print(f"  [video] -> {len(clips)} unique clips ready for composition")
-    # Propagate used URLs back to caller's registry for cross-reel dedup
+    print(f"  [video] -> {len(clips)} clips ready for composition")
     if used_source_registry is not None:
         used_source_registry.update(used_source_urls)
     return clips
@@ -415,6 +430,51 @@ def _try_all_sources(
         except Exception as exc:
             print(f"  [video] {name} error: {exc}")
     return None
+
+
+def _collect_beat_candidates(
+    queries: list[str],
+    beat_idx: int,
+    topic: str,
+    out_dir: Path,
+    *,
+    allow_archival: bool = False,
+    used_source_urls: set[str],
+    used_paths: set[str],
+    blocked_stems: set[str],
+    max_clips: int = 3,
+) -> list[_Candidate]:
+    """Try all queries for one beat and collect up to max_clips candidates.
+
+    Scoring is positional: queries[0] is most specific (0.88), each step
+    decays by 0.08 (floor 0.25). Returns candidates sorted by score desc.
+    Mutates used_paths and blocked_stems to prevent cross-beat duplicates.
+    """
+    found: list[_Candidate] = []
+
+    for q_idx, query in enumerate(queries):
+        if len(found) >= max_clips:
+            break
+        score = max(0.25, 0.90 - q_idx * 0.08)
+        path = _try_all_sources(
+            query, topic, out_dir,
+            allow_archival=allow_archival,
+            exclude_paths=used_paths,
+            used_source_urls=used_source_urls,
+        )
+        if not path:
+            continue
+        if str(path) in used_paths:
+            continue
+        if blocked_stems and path.stem in blocked_stems:
+            path.unlink(missing_ok=True)
+            continue
+        found.append(_Candidate(path=path, score=score, beat_idx=beat_idx))
+        used_paths.add(str(path))
+        blocked_stems.add(path.stem)
+
+    found.sort(key=lambda c: c.score, reverse=True)
+    return found
 
 
 def _build_source_list(topic: str, *, allow_archival: bool = False) -> list[tuple[str, Callable]]:
