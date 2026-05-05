@@ -1,5 +1,6 @@
 # factjot brain log
 
+- 2026-05-05 20:54 WORKFLOW FAILED: .github/workflows/news-carousel.yml | run=25401715019 | trigger=workflow_dispatch | ref=main
 - 2026-05-05 20:40 discovery: appended 40 fresh facts from r/Damnthatsinteresting, r/interestingasfuck, r/todayilearned, r/UnresolvedMysteries, r/AskHistorians, r/history, r/morbidreality, r/Glitch_in_the_Matrix (rejected 551)
 - 2026-05-05 20:36 carousel ABORTED -- runway too low (1 fresh, need 3+)
 - 2026-05-05 20:36 carousel WARNING -- quality bank low, used score<2 facts
