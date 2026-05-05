@@ -18,7 +18,7 @@ import argparse
 import hashlib
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -51,7 +51,7 @@ def _fact_from_bank(row: dict) -> VerifiedFact:
             )
             for u in row["sources"]
         ],
-        verified_at=datetime.utcnow().isoformat() + "Z",
+        verified_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         image_hint=row.get("image_hint", ""),
     )
 

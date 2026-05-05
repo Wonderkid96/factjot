@@ -102,7 +102,7 @@ make_reel.py
   ledger           → insta-brain/data/reels.jsonl + data/ledgers/used_footage_urls.jsonl
 ```
 
-**Video encoding:** Primary encode at **crf 26, preset medium, bicubic scale** (no maxrate). Pre-upload size check: if >4.8MB, recompress at crf 30 / maxrate 800k before upload attempt. Adaptive retry on Meta 413: crf 33 / 600k, then crf 35 / 500k.
+**Video encoding:** Primary encode at **crf 23, preset medium, bicubic scale** (no maxrate). Pre-upload size check: if >4.7MB, two-pass VBR recompress at crf 30 / maxrate 800k. Adaptive retry on Meta 413: crf 33 / 600k, then crf 35 / 500k.
 
 **Cloudinary is DISABLED as primary** (Meta 413'd it 2026-05-02 because URLs don't expire before Meta fetches). Could re-enable if needed for non-expiring URLs, but tmpfiles works fine within the polling window.
 
@@ -231,13 +231,13 @@ Tier 0 fills the first 1-2 clip slots with the actual person/event. B-roll fills
 
 | Constant | Value | Meaning |
 |---|---|---|
-| `INTRO_S` | 3.5s | Silent window — hook title visible, voice starts after |
+| `INTRO_S` | 1.5s | Silent window — hook title visible, voice starts after |
 | `MUSIC_VOLUME` | 0.24 | Background music (sidechain-ducked under voice) |
 | `FADE_TO_BLACK_S` | 1.5s | Final fade duration |
-| `KEN_BURNS_ZOOM` | 0.10 | 10% overscan — subtle pan, not shaky |
+| `KEN_BURNS_ZOOM` | 0.20 | 20% overscan — active pan on every clip |
 | CTA timing | dynamic | Card appears when narrator says "factjot" (word-beat sync) |
 | Total duration | `voice_end + 0.8 + 1.5s` | Tight — no dead air after voice |
-| FFmpeg crf | 26 | High quality — pre-upload size check handles the 5MB cap |
+| FFmpeg crf | 23 | High quality — pre-upload size check handles the 5MB cap |
 | FFmpeg preset | medium | Better motion estimation than ultrafast — sharper transitions |
 | FFmpeg scale | bicubic | Sharper upscale of 1080p source footage |
 | FFmpeg audio | 48kHz, 128k | Meta requires 48kHz (not 44.1k, not 96k) |

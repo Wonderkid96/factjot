@@ -21,7 +21,7 @@ Extract all Python logic to standalone scripts in `scripts/`. Never put more tha
 ## Meta / Instagram API
 
 **Meta's video URL downloader rejects files over ~5MB.**
-This limit appeared 2026-05-02 (previously 12MB worked). Primary reel encode: **crf 30**, **maxrate 800k**, **bufsize 1600k** in `reel_composer.py` `compose()`. On **413**, `make_reel.py` recompresses **crf 33 / maxrate 600k** then **crf 35 / maxrate 500k** (each with matching bufsize).
+This limit appeared 2026-05-02 (previously 12MB worked). Primary reel encode: **crf 23**, **preset medium** in `reel_composer.py` `compose()`. Pre-upload: if >4.7MB, two-pass VBR at **crf 30 / maxrate 800k**. On **413**, `make_reel.py` recompresses **crf 33 / maxrate 600k** then **crf 35 / maxrate 500k** (each with matching bufsize).
 
 **Meta requires 48kHz audio. 44.1kHz and 96kHz are both rejected.**
 ElevenLabs returns 44.1kHz by default. Always resample to 48kHz in FFmpeg before muxing. 96kHz was encountered once from an edge-tts path and also rejected. **Padding step:** concat of 48 kHz silence + 44.1 kHz TTS without `aresample` produced a 44.1 kHz `voice_padded.mp3` (bad). Fixed in `make_reel.py` with `aresample=48000` + matching channel layout before `concat`, plus `-ar 48000` on the MP3 encode.
@@ -139,7 +139,7 @@ Without `-nostdin`, FFmpeg opens stdin in interactive mode waiting for keypresse
 **20+ sequential PNG overlay stages are the wrong approach for kinetic subtitles.**
 Each overlay stage re-renders the full 1080x1920 frame. 27 subtitle chunks = 27 full-frame renders per output frame. The correct approach is FFmpeg's native `ass` filter (`--enable-libass` is compiled into the static FFmpeg build used on GitHub Actions). One `.ass` file replaces all subtitle PNG inputs. `generate_ass_file()` in `src/render/tts_engine.py` generates the file from word beats; `compose()` in `reel_composer.py` applies it via `-filter_complex "[prev]ass=filename=...:[after_subs]"`. The PNG approach was abandoned 2026-05-03. Pass **`fontsdir=assets/fonts/subtitle_fonts`** only so libass does not scan the whole font tree.
 
-**Primary reel encode (2026-05-03):** `libx264` **preset ultrafast**, **crf 30**, **maxrate 800k**, **bufsize 1600k**, **48 kHz** AAC. Older **crf 23** primary encodes overshot Meta's URL size limit and caused avoidable 413 retries.
+**Primary reel encode (current):** `libx264` **preset medium**, **crf 23**, **48 kHz** AAC. Pre-upload size check at 4.7MB triggers two-pass VBR at crf 30 / maxrate 800k. The earlier ultrafast/crf-30 constant approach was retired once tmpfiles proved fast enough that quality budget could go up.
 
 **The real “hung forever” bug (2026-05-03): stderr pipe backpressure, not “slow filter init”.** We briefly used **`-progress pipe:2`**, which floods stderr with progress lines. **`compose()`** then used **`stderr=None`** so FFmpeg **inherited** the parent’s stderr. In Cursor’s agent shell (and any parent whose stderr is a **pipe** with a small kernel buffer), nothing drains that pipe fast enough. Once the buffer fills (~64KB), **FFmpeg blocks on every stderr write** and the encode never advances (looks stuck on frame 0 for hours). **Fix:** remove **`-progress pipe:2`** entirely; write compose **stderr to `ffmpeg_compose_stderr.log`** in the reel cache dir (disk never blocks the writer). On failure, the raised error includes a tail of that log. **`reel.yml`** still uses **`python3 -u`** and **`PYTHONUNBUFFERED=1`** for Python-side logs.
 

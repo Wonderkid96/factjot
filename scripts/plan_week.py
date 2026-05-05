@@ -65,7 +65,7 @@ def _fact_from_row(row: dict) -> VerifiedFact:
             )
             for u in row.get("sources", [])
         ],
-        verified_at=row.get("discovered_at", datetime.utcnow().isoformat() + "Z"),
+        verified_at=row.get("discovered_at", datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")),
         image_hint=row.get("image_hint", ""),
     )
 

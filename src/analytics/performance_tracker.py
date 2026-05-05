@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -19,7 +19,7 @@ class PerformanceTracker:
             {
                 "event_type": event_type,
                 "payload": payload,
-                "created_at": datetime.utcnow().isoformat() + "Z",
+                "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             }
         )
         self.metrics_path.write_text(json.dumps(rows, indent=2, ensure_ascii=True), encoding="utf-8")

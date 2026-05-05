@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from src.core.models import CarouselPost
@@ -35,7 +35,7 @@ class ApprovalQueue:
                 row["status"] = status
                 if publish_at:
                     row["publish_at"] = publish_at
-                row["updated_at"] = datetime.utcnow().isoformat() + "Z"
+                row["updated_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
                 changed = True
         if changed:
             with self.queue_path.open("w", encoding="utf-8") as fh:

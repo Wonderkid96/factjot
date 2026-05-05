@@ -1295,15 +1295,17 @@ def _safety_pool_pick(topic: str) -> list[Path]:
 
 def _probe_duration(path: Path) -> Optional[float]:
     """Return the duration of a video file in seconds, or None if ffprobe unavailable."""
-    try:
-        result = subprocess.run(
-            ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
-             "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
-            capture_output=True, text=True, timeout=10,
-        )
-        return float(result.stdout.strip())
-    except Exception:
-        return None
+    for ffprobe in ("ffprobe", "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe"):
+        try:
+            result = subprocess.run(
+                [ffprobe, "-v", "quiet", "-show_entries", "format=duration",
+                 "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
+                capture_output=True, text=True, timeout=10,
+            )
+            return float(result.stdout.strip())
+        except Exception:
+            continue
+    return None
 
 
 def _download_mp4(url: str, out_path: Path, *, min_bytes: int = _MIN_BYTES_HD) -> bool:

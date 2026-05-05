@@ -478,20 +478,16 @@ def _map_punctuation_to_beats(text: str, beats: list[WordBeat]) -> dict[int, str
 def audio_duration(mp3_path: Path) -> float:
     """Return duration of an MP3 file in seconds using ffprobe."""
     import subprocess, json
-    try:
-        out = subprocess.check_output(
-            [
-                "ffprobe", "-v", "quiet",
-                "-print_format", "json",
-                "-show_format",
-                str(mp3_path),
-            ],
-            stderr=subprocess.STDOUT,
-        )
-        return float(json.loads(out)["format"]["duration"])
-    except Exception:
-        # Estimate from beats if ffprobe unavailable
-        return 0.0
+    for ffprobe in ("ffprobe", "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe"):
+        try:
+            out = subprocess.check_output(
+                [ffprobe, "-v", "quiet", "-print_format", "json", "-show_format", str(mp3_path)],
+                stderr=subprocess.STDOUT,
+            )
+            return float(json.loads(out)["format"]["duration"])
+        except Exception:
+            continue
+    return 0.0
 
 
 # ------------------------------------------------------------------ #

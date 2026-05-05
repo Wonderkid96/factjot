@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 
@@ -58,7 +58,7 @@ class CarouselPost:
     publish_at: str | None = None
     closing_quote: str = ""
     closing_attribution: str = ""
-    created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat() + "Z")
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
 
     def to_dict(self) -> dict[str, Any]:
         return {

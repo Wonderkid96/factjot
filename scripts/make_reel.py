@@ -27,6 +27,9 @@ import hashlib
 import json
 import os
 import random
+import re
+import shutil
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -345,20 +348,18 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         # Include a timestamp so every run gets a unique cache directory.
         # Without this, re-running the same fact reuses the same cache dir
         # and serves stale footage from a previous test or deleted reel.
-        import time as _t, os as _os
         reel_id  = hashlib.sha1(
-            f"reel:{ftopic}:{claim}:{_t.time_ns()}:{_os.urandom(4).hex()}".encode()
+            f"reel:{ftopic}:{claim}:{time.time_ns()}:{os.urandom(4).hex()}".encode()
         ).hexdigest()[:14]
         out_dir  = REELS_CACHE / reel_id
         # Wipe stale reel cache directories (older than 2 hours).
         # Directories from the current run or a concurrently running job
         # are left alone — only accumulated stale dirs are removed.
-        import shutil as _sh
-        _stale_cutoff = _t.time() - 7200
+        _stale_cutoff = time.time() - 7200
         if REELS_CACHE.exists():
             for _old in list(REELS_CACHE.iterdir()):
                 if _old.is_dir() and _old.stat().st_mtime < _stale_cutoff:
-                    _sh.rmtree(_old, ignore_errors=True)
+                    shutil.rmtree(_old, ignore_errors=True)
         out_dir.mkdir(parents=True, exist_ok=True)
         ensure_dirs()
         rlog = ReelRunLogger(reel_id=reel_id, out_dir=out_dir, run_logs_dir=REEL_RUN_LOGS)
@@ -424,7 +425,6 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
 
         # Silent intro - hook title shows here, voice starts AFTER it fades.
         padded_mp3 = out_dir / "voice_padded.mp3"
-        import subprocess as _sp
         # ElevenLabs (and many MP3 paths) are 44.1 kHz; anullsrc is 48 kHz. Raw concat
         # keeps 44.1 kHz on the muxed file (see gotchas: Meta rejects 44.1). Resample
         # both legs to 48 kHz mono before concat so voice_padded.mp3 is safe end-to-end.
@@ -433,7 +433,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             "[1:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono[vo];"
             "[sil][vo]concat=n=2:v=0:a=1[a]"
         )
-        _sp.run([
+        subprocess.run([
             ff_bin, "-y",
             "-f", "lavfi", "-t", str(INTRO_S), "-i", "anullsrc=r=48000:cl=mono",
             "-i", str(mp3_path),
@@ -491,8 +491,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         # Load global footage registry — prevents the same clip appearing in two different reels.
         # Auto-reset: if reels.jsonl is empty (all reels deleted/fresh start), the dedup
         # ledger would only block footage from deleted reels. Clear it automatically.
-        from src.core.paths import USED_FOOTAGE
-        _reels_log = REELS_CACHE.parents[2] / "insta-brain" / "data" / "reels.jsonl"
+        from src.core.paths import USED_FOOTAGE, REELS_LEDGER as _reels_log
         _reels_empty = not _reels_log.exists() or _reels_log.stat().st_size == 0
         if _reels_empty and USED_FOOTAGE.exists() and USED_FOOTAGE.stat().st_size > 0:
             print("  [footage] reels.jsonl is empty — resetting footage dedup ledger for fresh start")
@@ -516,6 +515,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
                     pass
 
         print(f"  [footage] blocking {len(blocked_footage_filenames)} URLs/IDs from previous reels (ledger)")
+        _registry_before = set(global_footage_registry)
 
         footage_clips = find_videos(
             image_hint=hint, claim=claim, topic=ftopic,
@@ -566,16 +566,16 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         story_title = make_title(claim, ftopic, reel_title=fact.get("reel_title"))
         if story_title:
             print(f"  title: '{story_title}'")
-            TITLE_FADE_IN  = 0.6
-            TITLE_FADE_OUT = 0.8   # completes fading just before voice starts
-            TITLE_HOLD     = INTRO_S - TITLE_FADE_IN - TITLE_FADE_OUT  # 3.5 - 0.6 - 0.8 = 2.1s
+            TITLE_FADE_IN  = 0.3
+            TITLE_FADE_OUT = 0.4   # completes fading just as voice begins
+            # TITLE_HOLD = 1.5 - 0.3 - 0.4 = 0.8s — actually readable
 
             title_png = overlay_dir / "title.png"
             text_frames.append(TextFrame(style="hook", text=story_title, out_path=title_png))
             overlays.append(OverlayFrame(
                 png=title_png,
                 start_s=0.0,
-                end_s=INTRO_S,
+                end_s=INTRO_S + 0.5,   # linger slightly into first VO beat
                 fade_in_s=TITLE_FADE_IN,
                 fade_out_s=TITLE_FADE_OUT,
             ))
@@ -621,14 +621,12 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         #
         from src.render.reel_text_renderer import render_photo_insert, render_case_doc
         from src.research.narrative_beats import extract_entities as _ext_ents
-        import re as _re
-
         _DOC_HOLD_S = 4.5   # how long each casefile document is visible
         _DOC_GAP_S  = 2.5   # clean footage gap between consecutive documents
 
         _claim_ents = _ext_ents(claim)
         _entity_name = " ".join(_claim_ents.proper_nouns[:2]) if _claim_ents.proper_nouns else ftopic.title()
-        _year_m = _re.search(r'\b(1[0-9]{3}|20[0-9]{2})\b', claim)
+        _year_m = re.search(r'\b(1[0-9]{3}|20[0-9]{2})\b', claim)
         _year_str = _year_m.group(0) if _year_m else ""
         _insert_zone_end = cta_s - 1.5
 
@@ -757,8 +755,9 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         # Persist footage dedup ledger — log both URLs and filenames so future
         # reels can block by content (filename) not just by source URL.
         USED_FOOTAGE.parent.mkdir(parents=True, exist_ok=True)
+        _new_urls = global_footage_registry - _registry_before
         with USED_FOOTAGE.open("a") as _reg_f:
-            for _url in sorted(global_footage_registry):
+            for _url in sorted(_new_urls):
                 _reg_f.write(json.dumps({"url": _url, "reel_id": reel_id}) + "\n")
             for _clip in footage_clips:
                 _reg_f.write(json.dumps({"filename": _clip.stem, "reel_id": reel_id}) + "\n")
@@ -792,7 +791,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             thumb_src = _still_rendered if _still_rendered.exists() else footage_clips[0]
         else:
             thumb_src = footage_clips[0]
-        _sp.run([
+        subprocess.run([
             ff_bin, "-y",
             "-ss", "1.0",
             "-i", str(thumb_src),
@@ -988,14 +987,13 @@ def _record(
     ledger = REELS_LEDGER
     ledger.parent.mkdir(parents=True, exist_ok=True)
     # Atomic-ish append: open with O_APPEND, single write, fsync.
-    import os as _os
     line = json.dumps(reel_record) + "\n"
-    fd = _os.open(str(ledger), _os.O_WRONLY | _os.O_APPEND | _os.O_CREAT, 0o644)
+    fd = os.open(str(ledger), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
     try:
-        _os.write(fd, line.encode("utf-8"))
-        _os.fsync(fd)
+        os.write(fd, line.encode("utf-8"))
+        os.fsync(fd)
     finally:
-        _os.close(fd)
+        os.close(fd)
     print(f"Recorded in {ledger}")
 
     # Then mirror into shared dedup pool (carousels + future reels).

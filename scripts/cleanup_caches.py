@@ -34,9 +34,10 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+from src.core.paths import REELS_LEDGER
 REELS_CACHE = REPO_ROOT / "data" / "cache" / "reels"
 RENDERS_CACHE = REPO_ROOT / "data" / "cache" / "renders"
-REELS_LEDGER = REPO_ROOT / "insta-brain" / "data" / "reels.jsonl"
 POSTED_LEDGER = REPO_ROOT / "insta-brain" / "data" / "posted.jsonl"
 LOG_PATH = REPO_ROOT / "insta-brain" / "log.md"
 

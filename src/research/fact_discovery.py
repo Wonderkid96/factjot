@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import random
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterable
 
 import requests
@@ -46,7 +46,7 @@ class FactDiscoveryService:
                         topic=row["topic"],
                         claim=row["claim"],
                         rarity_score=0.95,
-                        discovered_at=datetime.utcnow().isoformat() + "Z",
+                        discovered_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                         image_hint=row.get("image_hint", ""),
                         source_candidates=[
                             SourceEvidence(
@@ -87,7 +87,7 @@ class FactDiscoveryService:
                     topic=topic,
                     claim=claim,
                     rarity_score=rarity,
-                    discovered_at=datetime.utcnow().isoformat() + "Z",
+                    discovered_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                     image_hint="",
                     source_candidates=self._build_source_candidates(topic, claim),
                 )

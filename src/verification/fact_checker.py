@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 import re
 
 from src.core.models import FactCandidate, SourceEvidence, VerifiedFact
@@ -34,7 +34,7 @@ class FactVerificationLayer:
                     confidence=confidence,
                     contradiction_flags=contradiction_flags,
                     sources=candidate.source_candidates,
-                    verified_at=datetime.utcnow().isoformat() + "Z",
+                    verified_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                     image_hint=candidate.image_hint,
                 )
             )

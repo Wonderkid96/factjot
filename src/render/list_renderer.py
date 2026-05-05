@@ -221,7 +221,7 @@ class ListCarouselRenderer:
         return f"data:{mime};base64,{b64}"
 
     def _render_folder_name(self, post_id: str, category: str, series: str) -> str:
-        from datetime import datetime
+        from datetime import datetime, timezone
         next_index = 1
         if self.output_dir.exists():
             for child in self.output_dir.iterdir():
@@ -230,7 +230,7 @@ class ListCarouselRenderer:
                 token = child.name.split("_", 1)[0]
                 if token.isdigit():
                     next_index = max(next_index, int(token) + 1)
-        date_token = datetime.utcnow().strftime("%Y%m%d")
+        date_token = datetime.now(timezone.utc).strftime("%Y%m%d")
         cat = re.sub(r"[^A-Za-z0-9]+", "_", (category or "LIST").upper()).strip("_") or "LIST"
         ser = re.sub(r"[^A-Za-z0-9]+", "_", (series or "factjot").lower()).strip("_") or "factjot"
         return f"{next_index:03d}_{date_token}_{cat}_{ser}_{post_id}"
