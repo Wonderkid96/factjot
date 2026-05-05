@@ -6,12 +6,16 @@ on:
     - cron: "45 13 * * *"    # 13:45 UTC backup (skips if already posted)
   workflow_dispatch:
     inputs:
+      article_url:
+        description: "Specific Guardian article URL (set by watcher -- takes priority)"
+        required: false
+        default: ""
       section:
         description: "Guardian section override (world, technology, science, environment, uk-news)"
         required: false
         default: ""
       query:
-        description: "Free-text search query override (overrides section if set)"
+        description: "Free-text search query override"
         required: false
         default: ""
       max_age:
@@ -105,14 +109,19 @@ jobs:
       - name: Post breaking news carousel
         run: |
           ARGS=""
-          if [ -n "${{ github.event.inputs.section }}" ]; then
-            ARGS="$ARGS --section ${{ github.event.inputs.section }}"
-          fi
-          if [ -n "${{ github.event.inputs.query }}" ]; then
-            ARGS="$ARGS --query \"${{ github.event.inputs.query }}\""
-          fi
-          if [ -n "${{ github.event.inputs.max_age }}" ]; then
-            ARGS="$ARGS --max-age ${{ github.event.inputs.max_age }}"
+          # article_url from watcher takes priority over all other inputs
+          if [ -n "${{ github.event.inputs.article_url }}" ]; then
+            ARGS="$ARGS --article-url \"${{ github.event.inputs.article_url }}\""
+          else
+            if [ -n "${{ github.event.inputs.section }}" ]; then
+              ARGS="$ARGS --section ${{ github.event.inputs.section }}"
+            fi
+            if [ -n "${{ github.event.inputs.query }}" ]; then
+              ARGS="$ARGS --query \"${{ github.event.inputs.query }}\""
+            fi
+            if [ -n "${{ github.event.inputs.max_age }}" ]; then
+              ARGS="$ARGS --max-age ${{ github.event.inputs.max_age }}"
+            fi
           fi
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
             ARGS="$ARGS --dry-run"

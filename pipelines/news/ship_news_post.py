@@ -10,10 +10,9 @@ Flow:
   7. Log to ledger and insta-brain
 
 Usage (local):
-    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/ship_news_post.py
-    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/ship_news_post.py --dry-run
-    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/ship_news_post.py --section technology
-    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/ship_news_post.py --query "AI regulation EU"
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 pipelines/news/ship_news_post.py --dry-run
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 pipelines/news/ship_news_post.py --section technology
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 pipelines/news/ship_news_post.py --article-url "https://www.theguardian.com/..."
 """
 from __future__ import annotations
 
@@ -201,6 +200,44 @@ def fetch_breaking_article(
     return None
 
 
+def fetch_article_by_url(article_url: str, guardian_key: str) -> dict | None:
+    """Fetch a specific Guardian article by its full URL."""
+    match = re.search(r"theguardian\.com/(.+?)(?:\?|$)", article_url)
+    if not match:
+        return None
+    path = match.group(1).rstrip("/")
+    try:
+        resp = requests.get(
+            f"{GUARDIAN_BASE}/{path}",
+            params={
+                "api-key":       guardian_key,
+                "show-fields":   "bodyText,thumbnail,trailText,headline",
+                "show-elements": "image",
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        item = resp.json()["response"]["content"]
+    except Exception as exc:
+        _log(f"     fetch_article_by_url failed: {exc}")
+        return None
+
+    fields = item.get("fields", {})
+    body   = fields.get("bodyText", "")
+    if len(body) < 200:
+        return None
+    return {
+        "title":     item["webTitle"],
+        "url":       item["webUrl"],
+        "section":   item.get("sectionName", "News"),
+        "pub_date":  item["webPublicationDate"],
+        "body":      body,
+        "trail":     fields.get("trailText", ""),
+        "thumbnail": fields.get("thumbnail", ""),
+        "elements":  item.get("elements", []),
+    }
+
+
 def extract_image_urls(article: dict) -> list[str]:
     """Pull all unique image URLs from article elements, largest resolution first.
 
@@ -313,7 +350,7 @@ def _pexels_query_for_article(article: dict) -> str:
 # ------------------------------------------------------------------ #
 
 def compress_to_slides(
-    article: dict, slides_count: int, model: str, api_key: str,
+    article: dict, model: str, api_key: str,
 ) -> tuple[dict, dict]:
     body = article["body"]
     if len(body) > 5000:
@@ -324,8 +361,15 @@ def compress_to_slides(
     prompt = f"""
 You are writing news carousels for Instagram. Your job is to make people stop, read, and feel informed.
 
-Take this article and compress it into {slides_count} slides. Let the tone match the content --
-a breakthrough deserves excitement, a scandal deserves urgency, a discovery deserves wonder.
+First, decide how many content slides this story genuinely needs. Use as few as possible.
+- Simple story with one key development: 2-3 content slides
+- Story with several distinct developments: 4-6 content slides
+- Complex multi-part story: up to 8 content slides
+- Maximum 8 content slides
+
+The final slide is always a thought-provoking call to action or reflection question
+related to the story. It should make the reader think or want to discuss it.
+Do NOT include a CTA on any other slide.
 
 Writing rules:
 - Present tense where possible ("Scientists discover", not "Scientists discovered")
@@ -333,15 +377,20 @@ Writing rules:
 - Each slide tells one coherent moment -- lines must flow into each other naturally
 - Each slide: exactly 4 lines, 5-9 words per line
 - Front-load the most interesting element on each slide
-- No hedging, no "reportedly", no corporate filler
+- No hedging, no filler, no attribution phrases ("sources say", "according to")
 - Do NOT repeat information across slides
-- 100% factual -- only state what the article actually says
+- 100% factual -- only state what the article says
 
 Key word markup:
-- In each line, wrap 1-2 of the most important words or short phrases in [r]...[/r]
-- These will render in red on the final slide -- use them to highlight the most striking facts,
-  names, numbers, or turning points. Not every line needs a highlight, but most should.
+- Wrap 1-2 key words or short phrases per line in [r]...[/r] -- rendered in red
+- Use these for the most striking facts, names, numbers, turning points
 - Example: "Iran sets up [r]new authority[/r] over the strait."
+
+CTA slide (always the final slide):
+- 4 lines, same format
+- A thought-provoking question or reflection related to the story
+- Something the reader would want to share or debate
+- Do NOT reference the source or say "follow for more"
 
 Tone: clear, confident, human. A smart friend explaining the news.
 
@@ -350,11 +399,11 @@ Output JSON only:
   "cover_title": "3-5 word punchy title for the cover slide, no full stop",
   "title": "sharp headline, max 7 words, no full stop",
   "slides": [
-    {{"slideNumber": 1, "lines": ["line with [r]key word[/r] here", "...", "...", "..."]}}
+    {{"slideNumber": 1, "lines": ["...", "...", "...", "..."]}}
   ]
 }}
 
-Exactly {slides_count} slides. Exactly 4 lines each. Return JSON only.
+Exactly 4 lines per slide. Return JSON only.
 
 Article:
 {article_text}
@@ -362,7 +411,7 @@ Article:
 
     client = Anthropic(api_key=api_key)
     res = client.messages.create(
-        model=model, max_tokens=2500, temperature=0.5,
+        model=model, max_tokens=3000, temperature=0.5,
         messages=[{"role": "user", "content": prompt}],
     )
 
@@ -378,8 +427,12 @@ Article:
             data = json.loads(raw[s: e + 1])
 
     slides = data.get("slides", [])
-    if len(slides) != slides_count:
-        raise RuntimeError(f"Expected {slides_count} slides, got {len(slides)}")
+    # Claude decides the count -- clamp to 2-8 content slides
+    if len(slides) < 2:
+        raise RuntimeError(f"Too few slides returned: {len(slides)}")
+    if len(slides) > 8:
+        slides = slides[:8]
+        data["slides"] = slides
     for i, s in enumerate(slides, 1):
         if not isinstance(s.get("lines"), list) or len(s["lines"]) != 4:
             raise RuntimeError(f"Slide {i} must have 4 lines")
@@ -577,7 +630,6 @@ def render_news_slide(
     .top-row{{display:flex;align-items:center;justify-content:space-between;margin-bottom:34px;}}
     .wordmark-img{{height:28px;width:auto;display:block;opacity:0.88;filter:drop-shadow(0 0 0 transparent);}}
     .index{{background:rgba(255,255,255,0.1);color:var(--off-white);font-family:"JetBrains Mono",monospace;font-weight:700;font-size:24px;letter-spacing:0.04em;padding:8px 18px 10px;border-radius:999px;line-height:1;}}
-    .source-pill{{align-self:flex-start;background:rgba(255,255,255,0.08);color:var(--muted);font-family:"JetBrains Mono",monospace;font-weight:700;font-size:15px;letter-spacing:0.22em;padding:6px 14px 8px;border-radius:999px;text-transform:uppercase;line-height:1;margin-bottom:24px;}}
     .lines{{display:flex;flex-direction:column;}}
     .line{{font-family:"Instrument Serif",Georgia,serif;font-weight:400;font-size:50px;line-height:1.20;color:var(--off-white);letter-spacing:-0.01em;margin-bottom:16px;}}
     .line .red{{color:var(--accent);font-style:italic;}}
@@ -591,7 +643,6 @@ def render_news_slide(
     <div class="stage">
       <div class="text-zone">
         <div class="top-row">{logo}<div class="index">{index_label}</div></div>
-        <div class="source-pill">{escape_html(pill)}</div>
         <div class="lines">{lines_html}</div>
       </div>
       {photo_zone}
@@ -611,12 +662,13 @@ def render_news_slide(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Post a breaking Guardian news carousel to Instagram")
-    parser.add_argument("--section",  default=None, help="Guardian section override")
-    parser.add_argument("--query",    default=None, help="Search query override")
-    parser.add_argument("--dry-run",  action="store_true", help="Render + host but skip IG publish")
-    parser.add_argument("--model",    default=DEFAULT_MODEL)
-    parser.add_argument("--max-age",  type=int, default=24, help="Max article age in hours (default 24)")
-    parser.add_argument("--out-dir",  default=None, help="Override output dir (dry-run); defaults to output/news/YYYY-MM-DD_HH-MM_SECTION")
+    parser.add_argument("--section",     default=None, help="Guardian section override")
+    parser.add_argument("--query",       default=None, help="Free-text search query override")
+    parser.add_argument("--article-url", default=None, help="Fetch a specific Guardian article by URL (used by watcher)")
+    parser.add_argument("--dry-run",     action="store_true", help="Render + host but skip IG publish")
+    parser.add_argument("--model",       default=DEFAULT_MODEL)
+    parser.add_argument("--max-age",     type=int, default=24, help="Max article age in hours (default 24)")
+    parser.add_argument("--out-dir",     default=None, help="Override output dir (dry-run)")
     args = parser.parse_args()
 
     configure_logging()
@@ -632,13 +684,21 @@ def main() -> int:
     # Section rotation by weekday
     section = args.section or SECTION_BY_DAY.get(datetime.now().isoweekday(), "world")
 
-    # ---- 1. Fetch breaking article ----
-    _log(f"\n[1/6] Checking Guardian for breaking news (section={section}, max_age={args.max_age}h)...")
-    article = fetch_breaking_article(section, guardian_key, max_age_hours=args.max_age, query=args.query)
-
-    if not article:
-        _log("     No breaking story found within the time window. Nothing to post.")
-        return 0
+    # ---- 1. Fetch article ----
+    if args.article_url:
+        # Watcher-triggered: fetch a specific article directly
+        _log(f"\n[1/6] Fetching specific article (watcher-triggered)...")
+        article = fetch_article_by_url(args.article_url, guardian_key)
+        if not article:
+            _log(f"     Could not fetch article: {args.article_url}")
+            return 1
+    else:
+        # Scheduled: search for newest article in today's section
+        _log(f"\n[1/6] Checking Guardian for breaking news (section={section}, max_age={args.max_age}h)...")
+        article = fetch_breaking_article(section, guardian_key, max_age_hours=args.max_age, query=args.query)
+        if not article:
+            _log("     No breaking story found within the time window. Nothing to post.")
+            return 0
 
     _log(f"     Found: \"{article['title']}\"")
     _log(f"     Published: {article['pub_date']}")
@@ -685,8 +745,8 @@ def main() -> int:
         _log("     No images available -- photo zone will be empty.")
 
     # ---- 4. Compress to slides ----
-    _log(f"[4/6] Compressing article to {SLIDES_COUNT} slides with Claude...")
-    slides_payload, usage = compress_to_slides(article, SLIDES_COUNT, args.model, anthropic_key)
+    _log(f"[4/6] Compressing article to slides with Claude (count decided by Claude)...")
+    slides_payload, usage = compress_to_slides(article, args.model, anthropic_key)
     carousel_title = slides_payload.get("title", article["title"])
     cover_title    = slides_payload.get("cover_title", carousel_title)
     _log(f"     Cover title: \"{cover_title}\"")
@@ -697,7 +757,9 @@ def main() -> int:
     # Slides 2-N = content (black bg, white text, red key words)
     # Total = SLIDES_COUNT + 1
     _log("[5/6] Rendering carousel slides...")
-    source_label = f"The Guardian  •  {article['section']}"
+    # Cover pill shows the section category (no Guardian attribution on slides --
+    # Guardian is credited in the caption/description only)
+    source_label = article.get("section", "News").upper()
     slides = slides_payload["slides"]
     total_slides = len(slides) + 1  # +1 for cover
 
