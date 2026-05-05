@@ -244,39 +244,50 @@ def find_videos(
     # ------------------------------------------------------------------ #
     _claim_ents = extract_entities(claim)
 
-    # Build entity search terms. Order matters — the 2-still cap is spent on
-    # whatever comes first, so put the most visually specific terms first.
+    # Build Wikimedia entity search terms.
+    # image_hint is a VISUAL DESCRIPTION for stock sites — it does not belong
+    # here. Wikimedia needs the actual subject name: "snailfish", not
+    # "translucent deep sea fish". Specific nouns from the claim come first,
+    # then proper nouns. Generic descriptive terms are never searched.
     _entity_terms: list[str] = []
     _seen_terms: set[str] = set()
 
+    # Stop-words for entity search — never useful as Wikimedia subjects
+    _ENTITY_SKIP = frozenset({
+        "scientists", "researchers", "metres", "meters", "feet", "surface",
+        "depth", "beneath", "pressure", "times", "level", "world", "known",
+        "ever", "first", "only", "most", "deep", "large", "small", "old",
+    })
+
     def _add_term(t: str) -> None:
         t = t.strip()
-        if t and t.lower() not in _seen_terms:
+        if t and t.lower() not in _seen_terms and t.lower() not in _ENTITY_SKIP:
             _seen_terms.add(t.lower())
             _entity_terms.append(t)
 
-    # 1. image_hint first — manually curated visual subject, most specific
-    if image_hint:
-        _add_term(image_hint)
-
-    # 2. Specific lowercase nouns from the claim (e.g. "snailfish", "molasses")
-    #    These are the actual subjects, not geographic context
-    for noun in _claim_ents.nouns[:4]:
+    # 1. Specific subject nouns from the claim — the actual thing the fact is
+    #    about (e.g. "snailfish", "megalodon", "molasses"). Sort longer words
+    #    first as they tend to be more specific.
+    subject_nouns = sorted(
+        [n for n in _claim_ents.nouns if len(n) > 4 and n.lower() not in _ENTITY_SKIP],
+        key=len, reverse=True,
+    )
+    for noun in subject_nouns[:4]:
         _add_term(noun)
 
-    # 3. Hint keyword splits as fallback variations
-    if image_hint:
-        hint_words = image_hint.split()
-        if len(hint_words) > 1:
-            _add_term(" ".join(hint_words[:2]))
-        if len(hint_words) > 2:
-            _add_term(" ".join(hint_words[:3]))
-
-    # 4. Proper nouns last — geographic/named context, useful as broadening pass
+    # 2. Proper nouns — named people, places, events (e.g. "Phineas Gage",
+    #    "Chernobyl"). Often the most findable on Wikimedia.
     if _claim_ents.proper_nouns:
         _add_term(" ".join(_claim_ents.proper_nouns[:2]))
         for pn in _claim_ents.proper_nouns[:3]:
             _add_term(pn)
+
+    # 3. Last resort: last word of image_hint (usually the subject noun,
+    #    e.g. "fish" from "translucent deep sea fish"). Never the full hint.
+    if image_hint:
+        last_word = image_hint.strip().split()[-1]
+        if len(last_word) > 4:
+            _add_term(last_word)
 
     _entity_still_count = 0  # cap static images to avoid slideshow feel
     _ENTITY_STILL_CAP = 2   # max stills; videos from entity tier are unlimited
@@ -297,10 +308,22 @@ def find_videos(
             if is_still and _entity_still_count >= _ENTITY_STILL_CAP:
                 print(f"  [video] ENTITY-0  SKIP {ec.name} (still cap reached)")
                 continue
-            clips.append(ec)
-            if is_still:
-                _entity_still_count += 1
-            print(f"  [video] ENTITY-0  ✓ {ec.name} ({'still' if is_still else 'video'})")
+            # Long video: slice into multiple snippets to fill more slots.
+            if not is_still and len(clips) < count:
+                slots_needed = count - len(clips)
+                expanded = _extract_snippets(ec, slots_needed, out_dir)
+                for seg in expanded:
+                    if len(clips) >= count:
+                        break
+                    if str(seg) not in used_paths:
+                        clips.append(seg)
+                        used_paths.add(str(seg))
+                        print(f"  [video] ENTITY-0  ✓ {seg.name} (video)")
+            else:
+                clips.append(ec)
+                if is_still:
+                    _entity_still_count += 1
+                print(f"  [video] ENTITY-0  ✓ {ec.name} ({'still' if is_still else 'video'})")
 
     # ------------------------------------------------------------------ #
     # Tier 1: Recall-first beat retrieval — fills slots entity couldn't cover
@@ -1430,6 +1453,65 @@ def _probe_duration(path: Path) -> Optional[float]:
         except Exception:
             continue
     return None
+
+
+def _extract_snippets(
+    src: Path,
+    n: int,
+    out_dir: Path,
+    snippet_s: float = 8.0,
+    min_src_s: float = 20.0,
+) -> list[Path]:
+    """Slice a long video into n evenly-spaced snippets.
+
+    Returns [src] unchanged if the video is shorter than min_src_s or if
+    ffmpeg is unavailable. Each snippet is snippet_s seconds long.
+    Useful when a single long entity video (e.g. 2m snailfish footage) can
+    fill multiple clip slots with visually distinct segments.
+    """
+    duration = _probe_duration(src)
+    if not duration or duration < min_src_s:
+        return [src]
+
+    # How many snippets fit without overlapping? Cap at n.
+    max_possible = max(1, int(duration / (snippet_s + 1)))
+    n = min(n, max_possible)
+    if n <= 1:
+        return [src]
+
+    for ff in ("ffmpeg", "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg"):
+        try:
+            subprocess.run([ff, "-version"], capture_output=True, check=True)
+            ffmpeg_bin = ff
+            break
+        except Exception:
+            continue
+    else:
+        return [src]
+
+    snippets: list[Path] = []
+    usable = duration - snippet_s
+    for i in range(n):
+        start = (usable / (n - 1)) * i if n > 1 else 0.0
+        slug = hashlib.sha1(f"{src.stem}_{i}".encode()).hexdigest()[:8]
+        out = out_dir / f"snippet_{slug}.mp4"
+        try:
+            subprocess.run([
+                ffmpeg_bin, "-y",
+                "-ss", f"{start:.2f}",
+                "-i", str(src),
+                "-t", f"{snippet_s:.2f}",
+                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+                "-an", "-pix_fmt", "yuv420p",
+                str(out),
+            ], check=True, capture_output=True, timeout=60)
+            if out.exists() and out.stat().st_size > 100_000:
+                snippets.append(out)
+                print(f"  [snippets] {src.name} +{start:.1f}s -> {out.name}")
+        except Exception:
+            pass
+
+    return snippets if snippets else [src]
 
 
 def _download_mp4(url: str, out_path: Path, *, min_bytes: int = _MIN_BYTES_HD) -> bool:
