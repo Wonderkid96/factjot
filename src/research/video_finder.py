@@ -254,9 +254,16 @@ def find_videos(
 
     # Stop-words for entity search — never useful as Wikimedia subjects
     _ENTITY_SKIP = frozenset({
+        # Generic measurements / positions
         "scientists", "researchers", "metres", "meters", "feet", "surface",
         "depth", "beneath", "pressure", "times", "level", "world", "known",
         "ever", "first", "only", "most", "deep", "large", "small", "old",
+        # Common adjectives/adverbs that slip through the length filter
+        "different", "including", "impersonate", "predator", "actively",
+        "selects", "nearby", "marine", "species", "animal", "animals",
+        "human", "humans", "water", "light", "temperature", "number",
+        "single", "record", "ancient", "modern", "natural", "common",
+        "found", "filmed", "observed", "recorded", "discovered", "called",
     })
 
     def _add_term(t: str) -> None:
