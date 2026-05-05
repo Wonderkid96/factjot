@@ -1,6 +1,8 @@
 # factjot brain log
 
 - 2026-05-05 20:29 WORKFLOW FAILED: .github/workflows/news-carousel.yml | run=25400504315 | trigger=workflow_dispatch | ref=main
+- 2026-05-05 20:19 reel 4664426d548653 published (history, ig_media=18002761472919567)
+- 2026-05-05 19:48 reel ABORTED — short duration 31.4s for Greenland shark can live for at least 270 years, making them
 - 2026-05-05 16:53 reel ABORTED — short duration 33.2s for Zealandia, a continent mostly hidden beneath the South Pacif
 - 2026-05-05 15:44 reel FAILED ffmpeg — fact='When Albert Einstein died in 1955, the pathologist who perfo' error=FFmpeg failed (exit 234). See ffmpeg_debug.txt (command) and ffmpeg_compose_stderr.log (stderr tail below).
 reation_time   : 2022-04-09T10:31:15.000000Z

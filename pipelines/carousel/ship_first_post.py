@@ -97,7 +97,7 @@ def main() -> int:
     if args.topic:
         all_rows = [r for r in all_rows if r["topic"] == args.topic]
     posted_filtered = [row for row in all_rows if not brain.is_fact_posted(row["claim"])]
-    posted_skipped = len(all_topic_rows) - len(posted_filtered)
+    posted_skipped = len(all_rows) - len(posted_filtered)
 
     # Sensitivity gate: default = safe + edgy (the well-loved dark stuff).
     # --safe-only narrows to safe-tier only.
