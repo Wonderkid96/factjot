@@ -114,20 +114,33 @@ jobs:
           FORCE_POST: ${{ inputs.force }}
         run: |
           # Pull latest state - another concurrent run may have just posted
-          git pull --rebase --autostash origin main 2>/dev/null || true
+          # Fail closed: if pull fails, we can't trust ledger state -- skip to be safe
+          if ! git pull --rebase --autostash origin main 2>/dev/null; then
+            echo "::warning::git pull failed -- skipping to prevent duplicate post"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [ "$FORCE_POST" = "true" ]; then
             echo "skip=false" >> "$GITHUB_OUTPUT"
             echo "FORCE_POST=true: bypassing idempotency check."
-          elif python3 pipelines/shared/check_posted_today.py reel | grep -q already_posted; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Already posted a reel today - skipping."
           else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-            REMAINING=$(python3 pipelines/reel/check_reel_runway.py 2>/dev/null || echo 99)
-            echo "Reel runway: $REMAINING facts remaining"
-            if [ "$REMAINING" -lt 14 ]; then
-              echo "Runway below 14 - running fact discovery..."
-              python3 pipelines/carousel/discover_facts.py || echo "Discovery failed, continuing"
+            # Fail closed: if check script errors or is missing -- skip to be safe
+            CHECK_OUT=$(python3 pipelines/shared/check_posted_today.py reel 2>/dev/null) || {
+              echo "::warning::Idempotency check failed or script missing -- skipping to be safe"
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            }
+            if echo "$CHECK_OUT" | grep -q already_posted; then
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              echo "Already posted a reel today - skipping."
+            else
+              echo "skip=false" >> "$GITHUB_OUTPUT"
+              REMAINING=$(python3 pipelines/reel/check_reel_runway.py 2>/dev/null || echo 99)
+              echo "Reel runway: $REMAINING facts remaining"
+              if [ "$REMAINING" -lt 14 ]; then
+                echo "Runway below 14 - running fact discovery..."
+                python3 pipelines/carousel/discover_facts.py || echo "Discovery failed, continuing"
+              fi
             fi
           fi
 

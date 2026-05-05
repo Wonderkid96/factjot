@@ -91,8 +91,19 @@ jobs:
       - name: Check if list carousel already posted today
         id: check
         run: |
-          git pull --rebase --autostash origin main 2>/dev/null || true
-          if python3 pipelines/shared/check_posted_today.py list | grep -q already_posted; then
+          # Fail closed: if pull fails, we can't trust ledger state -- skip to be safe
+          if ! git pull --rebase --autostash origin main 2>/dev/null; then
+            echo "::warning::git pull failed -- skipping to prevent duplicate post"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Fail closed: if check script errors or is missing -- skip to be safe
+          CHECK_OUT=$(python3 pipelines/shared/check_posted_today.py list 2>/dev/null) || {
+            echo "::warning::Idempotency check failed or script missing -- skipping to be safe"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+          if echo "$CHECK_OUT" | grep -q already_posted; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "Already posted today - skipping."
           else

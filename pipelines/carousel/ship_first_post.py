@@ -71,6 +71,26 @@ def main() -> int:
     cfg = load_config()
     brand = json.loads(Path("brand/brand_kit.json").read_text())
 
+    # TODAY GUARD -- second line of defence against duplicate posts.
+    # Catches the case where the workflow-level check read stale state.
+    from datetime import timezone as _tz
+    _today = datetime.now(_tz.utc).strftime("%Y-%m-%d")
+    _posted = Path("insta-brain/data/posted.jsonl")
+    if _posted.exists():
+        for _line in _posted.read_text(encoding="utf-8").splitlines():
+            try:
+                _e = json.loads(_line.strip())
+                if (
+                    _e.get("published_at", "").startswith(_today)
+                    and _e.get("category", "") not in ("REEL", "")
+                    and not str(_e.get("claim", "")).startswith("list:")
+                    and not args.dry_run
+                ):
+                    print(f"ABORTED: a carousel already posted today at {_e['published_at'][:16]}. Duplicate prevention.")
+                    return 2
+            except Exception:
+                pass
+
     # ----- Pick the topic's facts; skip ones already in posted.jsonl (rule 01) -----
     # Apply schema defaults (incl. sensitivity auto-classification) so every
     # row carries sensitivity/sensitivity_flags before we filter.

@@ -56,6 +56,8 @@ In **GitHub Actions**, bare `python3` is correct (pip installs to the runner's s
 
 **All launchd jobs are DISABLED.** GitHub Actions is the sole scheduler. Do not re-enable launchd without disabling the workflows first or double-posts will occur.
 
+**CRITICAL -- NEVER force-push to main.** Force-pushing rewrites history and silently deletes state commits (posted.jsonl, list_posts.jsonl, reels.jsonl updates) that running workflows have just written. This is what caused the triple-post incident on 2026-05-05. If large files need removing from history, do it on a separate branch, test, then merge -- never force-push to an active main branch. See: incident in memory `project_triple_post_incident.md`.
+
 ### Posting schedule (BST = UTC+1)
 
 
