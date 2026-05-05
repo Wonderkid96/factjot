@@ -27,8 +27,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from src.core.paths import REEL_PERFORMANCE as PERF_LOG
+
 REELS_LOG  = ROOT / "insta-brain" / "data" / "reels.jsonl"
-PERF_LOG   = ROOT / "data" / "ledgers" / "reel_performance.jsonl"
 
 REFETCH_DAYS = int(os.environ.get("METRICS_DAYS", "90"))  # override via env for daily lightweight fetch
 AUDIO_KBPS   = 128  # for future use

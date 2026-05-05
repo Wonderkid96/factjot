@@ -39,6 +39,7 @@ DISCOVERY_LOG   = LEDGERS / "discovery.log.jsonl"
 USED_IMAGES     = LEDGERS / "used_images.jsonl"
 USED_FOOTAGE    = LEDGERS / "used_footage_urls.jsonl"
 ALERTS          = LEDGERS / "alerts.jsonl"
+REEL_PERFORMANCE = LEDGERS / "reel_performance.jsonl"
 PUBLISH_FAILURES = LEDGERS / "publish_failures.jsonl"
 
 # ------------------------------------------------------------------ #

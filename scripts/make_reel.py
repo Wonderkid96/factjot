@@ -232,36 +232,18 @@ def _pick_fact(topic: str | None) -> dict | None:
     if not fresh:
         return None
 
-    # Soft performance weighting — tilt toward topics/tones that have performed
-    # well historically. Falls back to quirky_score ordering if:
-    #   - scores file missing or unreadable
-    #   - fewer than 10 total data points (not enough signal)
-    import random as _random
-    from src.core.paths import REPO_ROOT as _ROOT
-    _scores_path = _ROOT / "data" / "ledgers" / "topic_tone_scores.json"
-    _weights = None
-    try:
-        if _scores_path.exists():
-            _sd = json.loads(_scores_path.read_text())
-            if _sd.get("total_reels", 0) >= 10 and _sd.get("scores"):
-                _score_map = _sd["scores"]
-                _all_virals = [v["viral_score"] for v in _score_map.values()]
-                _median = sorted(_all_virals)[len(_all_virals) // 2]
-                if _median > 0:
-                    _weights = []
-                    for r in fresh:
-                        _key = f"{r['topic']}/{r.get('tone', 'curious')}"
-                        _vs = _score_map.get(_key, {}).get("viral_score", _median)
-                        _weights.append(max(0.1, _vs / _median))
-                    print(f"  [pick_fact] topic/tone weights loaded ({len(_score_map)} combos)")
-    except Exception:
-        _weights = None
+    from src.analytics.topic_scorer import get_topic_weights
+    weights = get_topic_weights()
+    topic_w = weights["topic"]
+    tone_w  = weights["tone"]
 
-    if _weights:
-        return _random.choices(fresh, weights=_weights, k=1)[0]
+    def _perf_key(r: dict) -> float:
+        tw = topic_w.get(r.get("topic", ""), 0.5)
+        nw = tone_w.get(r.get("tone", ""), 0.5)
+        base = tw * 0.7 + nw * 0.3
+        return base + random.uniform(0, 0.2)  # jitter prevents topic lock-in
 
-    # Default: quirky_score descending
-    fresh.sort(key=lambda r: r.get("quirky_score", 0), reverse=True)
+    fresh.sort(key=_perf_key, reverse=True)
     return fresh[0]
 
 
