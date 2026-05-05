@@ -44,6 +44,50 @@ _MIN_BYTES_HD  = 2_000_000      # 2 MB floor - filters out sub-3s clips at typic
 _MIN_BYTES_ARK = 50_000         # 50 KB floor for archival/historical content
 _MIN_CLIP_DURATION_S = 5.0      # minimum: clips shorter than this may loop briefly but are usable
 
+# Stop words excluded when extracting meaningful keywords from image hints
+_STOP = {
+    "with", "that", "from", "this", "into", "have", "been", "were", "they",
+    "their", "there", "when", "what", "which", "about", "after", "before",
+    "would", "could", "should", "other", "where", "while", "these", "those",
+}
+
+# Topics where Archive.org is a useful fallback even without allow_archival=True
+_ARCHIVE_ELIGIBLE_TOPICS = {"history", "earth", "science"}
+
+# Minimum relevance score for compound queries (3+ meaningful words).
+# Requires at least one 6+ char word to match — e.g. "flames"(6), "crater"(6),
+# "burning"(7) pass; "fire"(4), "lava"(4) do not.
+_COMPOUND_SCORE_FLOOR = 6
+
+
+def _extract_hint_keywords(hint: str, max_words: int = 3) -> list[str]:
+    """Extract the most meaningful individual words from an image hint.
+
+    Prioritises proper nouns (capitalised, likely place/entity names), then
+    long content words. Used to generate targeted Wikimedia searches when
+    compound phrase queries fail to find relevant footage.
+    """
+    words = hint.split()
+    proper  = [w for w in words if w[0].isupper() and len(w) > 4 and w.lower() not in _STOP]
+    content = [w for w in words if len(w) > 4 and w.lower() not in _STOP and w not in proper]
+    return (proper + content)[:max_words]
+
+
+def _compound_score_floor(query: str) -> int:
+    """Return the minimum acceptable relevance score for this query.
+
+    Compound queries (3+ meaningful words) use a relaxed floor of 6 so that
+    thematically adjacent stock footage is accepted when nothing exact exists.
+    Short queries keep a floor of 1 (any word match is meaningful).
+    """
+    meaningful = [w for w in query.split() if len(w) > 3 and w.lower() not in _STOP]
+    return _COMPOUND_SCORE_FLOOR if len(meaningful) >= 3 else 1
+
+
+def _topic_allows_archival(topic: str, allow_archival: bool) -> bool:
+    """Return True if archival sources and their lower quality floor should apply."""
+    return allow_archival or topic in _ARCHIVE_ELIGIBLE_TOPICS
+
 
 _IMAGE_MAGIC = {
     b"\xff\xd8\xff":       "jpeg",  # JPEG
@@ -248,6 +292,24 @@ def find_videos(
             _blocked_stems.add(path.stem)   # block within this run too
             print(f"  [video] {label} ✓ {path.name}")
 
+    # Last-resort keyword decomposition: if still short after all queries, try
+    # individual meaningful words from image_hint against Wikimedia Commons only.
+    # This is the final chance to find the actual subject (e.g. "Darvaza" alone)
+    # before falling back to the generic safety pool.
+    if len(clips) < count and image_hint:
+        _lr_tried = set(e.lower() for e in (used_paths or set()))
+        for _kw in _extract_hint_keywords(image_hint, max_words=3):
+            if len(clips) >= count:
+                break
+            print(f"  [video] LAST-RESORT keyword: {_kw!r}")
+            _lr = _wikimedia_entity_files(_kw, out_dir, used_source_urls=used_source_urls)
+            if _lr and str(_lr) not in used_paths:
+                if not (_blocked_stems and _lr.stem in _blocked_stems):
+                    clips.append(_lr)
+                    used_paths.add(str(_lr))
+                    _blocked_stems.add(_lr.stem)
+                    print(f"  [video] LAST-RESORT ✓ {_lr.name}")
+
     # Top up from safety pool
     while len(clips) < count and safety_idx < len(safety):
         candidate = safety[safety_idx]
@@ -352,7 +414,8 @@ def _try_all_sources(
     slug = hashlib.sha1(query.encode()).hexdigest()[:10]
     out_path = out_dir / f"footage_{slug}.mp4"
 
-    min_bytes = _MIN_BYTES_ARK if allow_archival else _MIN_BYTES_HD
+    _use_archival = _topic_allows_archival(topic, allow_archival)
+    min_bytes = _MIN_BYTES_ARK if _use_archival else _MIN_BYTES_HD
 
     # Return from cache only if not already used elsewhere in this batch
     if out_path.exists() and out_path.stat().st_size >= min_bytes:
@@ -360,7 +423,7 @@ def _try_all_sources(
             print(f"  [video] cached: {out_path.name}")
             return out_path
 
-    sources = _build_source_list(topic, allow_archival=allow_archival)
+    sources = _build_source_list(topic, allow_archival=_use_archival)
     for name, fn in sources:
         try:
             url = fn(query, topic, skip_urls=used_source_urls)
@@ -380,9 +443,8 @@ def _build_source_list(topic: str, *, allow_archival: bool = False) -> list[tupl
     """Build ordered source list.
 
     Non-archival (default): Pexels → Coverr → Pixabay → Wikimedia.
-      Archival sources (NASA, Archive.org) produce low-quality footage for
-      most modern queries and are skipped unless the fact is specifically
-      about archival/historical subject matter.
+      For _ARCHIVE_ELIGIBLE_TOPICS (history, earth, science), Archive.org is
+      appended last as a fallback — only reached when all stock sources fail.
 
     Archival mode: Archive.org → NASA (space only) → Wikimedia → Pexels → Coverr → Pixabay.
     """
@@ -397,13 +459,18 @@ def _build_source_list(topic: str, *, allow_archival: bool = False) -> list[tupl
         sources.append(("coverr", _coverr_video_url))
         sources.append(("pixabay", _pixabay_video_url))
     else:
-        # HD-only path: modern stock sources first, Wikimedia as specific-subject backup
+        # HD-first path: stock sources first, Wikimedia as specific-subject backup.
         if topic in _NASA_TOPICS:
             sources.append(("nasa", _nasa_video_url))
         sources.append(("pexels", _pexels_video_url))
         sources.append(("coverr", _coverr_video_url))
         sources.append(("pixabay", _pixabay_video_url))
         sources.append(("wikimedia", _wikimedia_video_url))
+        # Archive.org as last resort for topics with useful archival holdings,
+        # even without an explicit allow_archival flag. Placed last so it only
+        # fires after all stock sources fail — avoids slowing the common case.
+        if topic in _ARCHIVE_ELIGIBLE_TOPICS:
+            sources.append(("archive.org", _archive_video_url))
 
     return sources
 
@@ -443,8 +510,9 @@ def _pexels_video_url(query: str, topic: str, skip_urls: set[str] | None = None)
     candidates.sort(key=lambda x: -x[0])
     best_score, best_url, best_vid_id = candidates[0]
     print(f"  [pexels] best match score={best_score} from {len(candidates)} results")
-    if best_score == 0:
-        print(f"  [pexels] score=0 — skipping (no relevant match)")
+    _floor = _compound_score_floor(query)
+    if best_score < _floor:
+        print(f"  [pexels] score={best_score} < floor={_floor} — skipping")
         return None
     # Mark both the file URL and video ID so all quality variants are blocked
     if skip_urls is not None:
@@ -651,8 +719,9 @@ def _coverr_video_url(query: str, topic: str, skip_urls: set[str] | None = None)
             candidates.sort(key=lambda x: -x[0])
             best_score, best_url, best_id = candidates[0]
             print(f"  [coverr] best match score={best_score} from {len(candidates)} results")
-            if best_score == 0:
-                print(f"  [coverr] score=0 — skipping (no relevant match)")
+            _floor = _compound_score_floor(query)
+            if best_score < _floor:
+                print(f"  [coverr] score={best_score} < floor={_floor} — skipping")
                 return None
             if skip_urls is not None:
                 skip_urls.add(f"coverr:{best_id}")
@@ -699,8 +768,9 @@ def _pixabay_video_url(query: str, topic: str, skip_urls: set[str] | None = None
     candidates.sort(key=lambda x: -x[0])
     best_score, best_url, best_id = candidates[0]
     print(f"  [pixabay] best match score={best_score} from {len(candidates)} results")
-    if best_score == 0:
-        print(f"  [pixabay] score=0 — skipping (no relevant match)")
+    _floor = _compound_score_floor(query)
+    if best_score < _floor:
+        print(f"  [pixabay] score={best_score} < floor={_floor} — skipping")
         return None
     if skip_urls is not None:
         skip_urls.add(f"pixabay:{best_id}")
@@ -1202,6 +1272,25 @@ def _entity_sources(
             clips.append(path)
             if used_paths is not None:
                 used_paths.add(str(path))
+
+    # Keyword fallback: if still below cap, extract individual meaningful words
+    # from the entity_term (which may be the full image_hint) and search
+    # Wikimedia Commons with each one. Catches cases like "Darvaza gas crater"
+    # where the compound phrase fails but "Darvaza" alone finds the real footage.
+    if len(clips) < max_clips:
+        _tried = set(e.lower() for e in entities)
+        for _kw in _extract_hint_keywords(entity_term, max_words=3):
+            if len(clips) >= max_clips:
+                break
+            if _kw.lower() in _tried:
+                continue
+            _tried.add(_kw.lower())
+            print(f"  [entity-sources] wikimedia hint keyword: {_kw!r}")
+            path = _wikimedia_entity_files(_kw, out_dir, used_source_urls=used_source_urls)
+            if path and (used_paths is None or str(path) not in used_paths):
+                clips.append(path)
+                if used_paths is not None:
+                    used_paths.add(str(path))
 
     if clips:
         print(f"  [entity-sources] found {len(clips)} entity clip(s)")
