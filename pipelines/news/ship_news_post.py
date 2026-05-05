@@ -139,13 +139,18 @@ def fetch_breaking_article(
     max_age_hours: int = 24,
     query: str | None = None,
 ) -> dict | None:
-    """Return the most recent fresh article, including all inline image elements."""
+    """Return the most recent fresh article with the full element list.
+
+    Step 1: search for the newest article.
+    Step 2: re-fetch that specific article by path to get ALL inline images
+            (the search endpoint only returns a subset of elements).
+    """
     params: dict = {
-        "api-key":      guardian_key,
-        "show-fields":  "bodyText,thumbnail,trailText,headline",
+        "api-key":       guardian_key,
+        "show-fields":   "bodyText,thumbnail,trailText,headline",
         "show-elements": "image",
-        "order-by":     "newest",
-        "page-size":    5,
+        "order-by":      "newest",
+        "page-size":     5,
     }
     if query:
         params["q"] = query
@@ -165,15 +170,31 @@ def fetch_breaking_article(
         body = fields.get("bodyText", "")
         if len(body) < 400:
             continue
+
+        # Step 2: fetch the full article to get all images
+        article_path = re.search(r"theguardian\.com/(.+)", item["webUrl"])
+        full_elements = item.get("elements", [])
+        if article_path:
+            try:
+                full_resp = requests.get(
+                    f"{GUARDIAN_BASE}/{article_path.group(1)}",
+                    params={"api-key": guardian_key, "show-fields": "thumbnail", "show-elements": "image"},
+                    timeout=15,
+                )
+                if full_resp.ok:
+                    full_elements = full_resp.json()["response"]["content"].get("elements", full_elements)
+            except Exception:
+                pass
+
         return {
-            "title":      item["webTitle"],
-            "url":        item["webUrl"],
-            "section":    item.get("sectionName", section),
-            "pub_date":   item["webPublicationDate"],
-            "body":       body,
-            "trail":      fields.get("trailText", ""),
-            "thumbnail":  fields.get("thumbnail", ""),
-            "elements":   item.get("elements", []),
+            "title":     item["webTitle"],
+            "url":       item["webUrl"],
+            "section":   item.get("sectionName", section),
+            "pub_date":  item["webPublicationDate"],
+            "body":      body,
+            "trail":     fields.get("trailText", ""),
+            "thumbnail": fields.get("thumbnail", ""),
+            "elements":  full_elements,
         }
     return None
 
@@ -233,21 +254,27 @@ def compress_to_slides(
     article_text = f"Headline: {article['title']}\n\n{body}"
 
     prompt = f"""
-You are turning a news article into an Instagram carousel for a factual editorial account.
+You are writing breaking news alerts for Instagram. Your job is to make people stop scrolling.
 
-Create exactly {slides_count} slides that:
-- Tell the story from start to finish in logical order
-- Each slide covers ONE clear idea or development in the story
-- Each slide: exactly 4 lines, 6-9 words per line
-- Lines within each slide must connect — cause, consequence, or contrast
-- Read as editorial journalism: clear, confident, factual, direct
-- No filler, no padding, no repetition across slides
-- Do not begin multiple consecutive lines with the same word
-- A reader following all slides in order gets the full picture
+Take this article and compress it into {slides_count} slides that feel urgent, electric, and real.
+Every slide is one explosive moment or revelation from the story.
+
+Writing rules:
+- Present tense where possible ("Iran threatens", not "Iran threatened")
+- Short, declarative sentences -- no hedging, no "reportedly", no "sources say"
+- Front-load the most dramatic or surprising element on each slide
+- Each slide: exactly 4 lines, 5-8 words per line
+- Lines must connect and escalate within each slide
+- No corporate language, no filler, no padding
+- Do NOT repeat information across slides
+- Still 100% factual -- only state what the article actually says
+
+Tone reference: think BBC Breaking push notification meets NYT front page drop.
+Bold. Direct. Urgent. Real.
 
 Output JSON only:
 {{
-  "title": "short punchy headline (max 7 words)",
+  "title": "explosive headline, max 7 words, no full stop",
   "slides": [
     {{"slideNumber": 1, "lines": ["...", "...", "...", "..."]}}
   ]
@@ -261,7 +288,7 @@ Article:
 
     client = Anthropic(api_key=api_key)
     res = client.messages.create(
-        model=model, max_tokens=2500, temperature=0.2,
+        model=model, max_tokens=2500, temperature=0.5,
         messages=[{"role": "user", "content": prompt}],
     )
 
