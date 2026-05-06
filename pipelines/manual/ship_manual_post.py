@@ -370,7 +370,7 @@ def main() -> int:
     while len(queries) < total_slides:
         queries.append(intent.fallback_query or label.lower())
     post_id = re.sub(r"[^a-z0-9]+", "-", cover_title.lower())[:30]
-    sourcer = ImageSourcer(topic="editorial", use_fresh_ledger=True)
+    sourcer = ImageSourcer(topic="editorial", use_fresh_ledger=args.dry_run)
     images  = sourcer.source_images(queries[:total_slides], intent, post_id)
 
     if not images or not images[0]:
