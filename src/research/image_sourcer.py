@@ -77,7 +77,7 @@ class ImageIntent:
             visual_subject        = str(data.get("visual_subject", "")),
             subject_type          = str(data.get("subject_type", "")),
             fallback_query        = str(data.get("fallback_query", "")),
-            source_aliases        = list(data.get("source_aliases", []))[:8],
+            source_aliases        = list(data.get("source_aliases", []))[:16],
             context_words         = list(data.get("context_words", []))[:8],
             negative_terms        = list(data.get("negative_terms", []))[:12],
             preferred_image_types = list(data.get("preferred_image_types", []))[:8],
@@ -212,10 +212,15 @@ class ImageSourcer:
         intent:   ImageIntent,
         post_id:  str,
         max_pool: int | None = None,
+        per_slot_aliases: "list[list[str] | None] | None" = None,
     ) -> list[str]:
         """Return one base64 data URL per query slot.
 
         Empty string = typography-only slide.
+
+        per_slot_aliases: optional list aligned with queries. Each entry is either
+        a non-empty list of aliases that REPLACE the global intent.source_aliases
+        for that slot, or None to fall back to the global aliases unchanged.
         """
 
         pool_size = max_pool if max_pool is not None else self.MAX_POOL
@@ -228,13 +233,24 @@ class ImageSourcer:
         for i, query in enumerate(queries):
             log.debug("IMAGE slot=%d query=%r", i, query)
 
+            slot_override = (
+                per_slot_aliases[i]
+                if per_slot_aliases and i < len(per_slot_aliases)
+                else None
+            )
+            effective_aliases = slot_override if slot_override else (intent.source_aliases or None)
+            if slot_override:
+                log.debug("IMAGE slot=%d aliases=slot(%s)", i, slot_override)
+            else:
+                log.debug("IMAGE slot=%d aliases=global", i)
+
             raw_pool = self._fetcher.fetch_pool(
                 query          = query,
                 topic          = self.topic,
                 post_id        = post_id,
                 slide_index    = i,
                 intent_text    = intent.fallback_query or query,
-                source_aliases = intent.source_aliases or None,
+                source_aliases = effective_aliases,
                 negative_terms = intent.negative_terms or None,
                 context_words  = intent.context_words  or None,
                 extra_fallbacks= extra_fallbacks,

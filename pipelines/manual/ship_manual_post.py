@@ -103,8 +103,10 @@ For image_queries (one per slide including cover):
 - Good: "Concorde takeoff", "Concorde cockpit", "Concorde crash 2000"
 - Bad: "supersonic aircraft breaking sound barrier at altitude over ocean"
 
-For source_aliases: list 4-8 canonical name variants an image archive might use
-to tag or title a photo of this subject. Include TWO types:
+For source_aliases: list canonical name variants an image archive might use
+to tag or title a photo of this subject. Include all required aliases. Aim for
+4-12, but exceed 12 if needed to include every named entity from image_queries.
+Do not drop named entities just to satisfy a count limit. Include THREE types:
 
 1. At least 2 multi-word aliases (2+ words each, strongest for tag providers).
    Example: "British Airways Concorde", "Air France Concorde", "BAC Concorde"
@@ -116,8 +118,54 @@ to tag or title a photo of this subject. Include TWO types:
    match before the image is accepted, so adding "Concorde" alone does NOT let in
    photos of Place de la Concorde -- those would fail the context_word gate.
 
+3. The bare name of every named entity that appears as the subject of any
+   image_queries entry -- even if that entity is not the primary visual subject.
+   Named entities are: people, companies, organisations, products, places,
+   and named technologies (e.g. "TSMC", "MediaTek Dimensity").
+   Do NOT extract generic descriptive words. Never add as aliases: portrait,
+   chip, processor, device, concept, phone, photo, factory, office, building,
+   or any other non-specific noun. Terms like "semiconductor" or "wafer" must
+   not be added as aliases unless they are part of a specific named product or
+   named technology (e.g. "TSMC N2P" is acceptable, bare "wafer" is not).
+
+   Examples of correct extraction:
+   - image_queries entry "Sam Altman portrait" → add alias "Sam Altman"
+   - image_queries entry "MediaTek chip processor" → add alias "MediaTek"
+   - image_queries entry "TSMC semiconductor wafer" → add alias "TSMC"
+   - image_queries entry "Luxshare manufacturing factory" → add alias "Luxshare"
+   Do NOT extract: "portrait", "chip", "semiconductor", "factory".
+
+   Why: per-slide queries target different named entities across the deck. A
+   Wikipedia photo of Sam Altman has metadata "Sam Altman" -- it needs "Sam Altman"
+   as a bare alias to pass the image gate. "Sam Altman phone" requires "phone" in
+   the metadata, which a portrait image will never have.
+
 Example for Concorde: ["British Airways Concorde", "Air France Concorde",
 "BAC Concorde", "Concorde aircraft", "supersonic airliner", "Concorde"]
+
+For cover_slot_aliases: bare named entity names that the cover image_query targets.
+Same rules as slot_aliases. Omit or use [] if the cover targets the primary visual
+subject already covered by source_aliases.
+
+For each slide's slot_aliases: bare named entity names that the slide's image_query
+specifically targets. These REPLACE the global source_aliases for that slot (global
+aliases are not appended). Leave slot_aliases as [] if the slide targets the same
+subject as the overall carousel.
+
+Rules for slot_aliases and cover_slot_aliases:
+- Include only: people, companies, organisations, products, places, named technologies.
+- Do NOT include generic words: portrait, chip, processor, device, concept, phone,
+  photo, factory, office, building, designer, original, comparison, or any other
+  non-specific noun.
+- Include at least the bare proper name. One multi-word variant is acceptable.
+
+Examples:
+- image_query "Sam Altman portrait" → slot_aliases: ["Sam Altman"]
+- image_query "Jony Ive designer portrait" → slot_aliases: ["Jony Ive"]
+- image_query "Apple iPhone original 2007" → slot_aliases: ["Apple", "Apple iPhone"]
+- image_query "MediaTek chip processor" → slot_aliases: ["MediaTek"]
+- image_query "OpenAI logo" → slot_aliases: [] (global source_aliases already covers this)
+- image_query "Concorde takeoff" → slot_aliases: [] (global source_aliases already covers this)
 
 For context_words: list 4-8 words that confirm the metadata is about the
 RIGHT subject when only a single-word alias matched. These are not required
@@ -173,8 +221,9 @@ Return JSON only:
   "preferred_image_types": ["type1", "type2", ...],
   "avoid_image_types": ["type1", "type2", ...],
   "image_queries": ["query for cover", "query for slide 1", ...],
+  "cover_slot_aliases": ["NamedEntityForCover"],
   "slides": [
-    {{"slideNumber": 1, "lines": ["...", "...", "..."]}}
+    {{"slideNumber": 1, "lines": ["...", "...", "..."], "slot_aliases": ["NamedEntity"]}}
   ]
 }}
 
@@ -328,11 +377,14 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
-    # Route image sourcer DEBUG logs to stdout so pool scoring is visible.
+    # Route image sourcer + fetcher DEBUG logs to stdout so pool scoring and
+    # POOL_REJECT reasons are visible.
     _h = _logging.StreamHandler()
     _h.setFormatter(_logging.Formatter("%(message)s"))
-    _logging.getLogger("src.research.image_sourcer").setLevel(_logging.DEBUG)
-    _logging.getLogger("src.research.image_sourcer").addHandler(_h)
+    for _logger_name in ("src.research.image_sourcer", "src.research.image_fetcher"):
+        _lg = _logging.getLogger(_logger_name)
+        _lg.setLevel(_logging.DEBUG)
+        _lg.addHandler(_h)
 
     n_slides = max(2, min(8, args.slides))
 
@@ -366,13 +418,34 @@ def main() -> int:
     _log(f"     Avoid:     {intent.avoid_image_types}")
     _log(f"     Fallback:  \"{intent.fallback_query}\"")
 
+    # Build per-slot alias overrides. Cover uses cover_slot_aliases; each content
+    # slide uses its own slot_aliases if present. A non-empty list replaces the
+    # global source_aliases for that slot. None means fall back to global.
+    def _clean_aliases(raw: object) -> list[str]:
+        if not isinstance(raw, list):
+            return []
+        return [a for a in raw if isinstance(a, str) and a.strip()]
+
+    cover_sa = _clean_aliases(data.get("cover_slot_aliases", []))
+    slide_sa  = [_clean_aliases(s.get("slot_aliases", [])) for s in slides]
+    per_slot_aliases: list[list[str] | None] = (
+        [cover_sa if cover_sa else None]
+        + [sa if sa else None for sa in slide_sa]
+    )
+    _log(f"     SlotAliases: {per_slot_aliases}")
+
     # ---- 2. Fetch images (ImageSourcer: pool + Haiku selection + scoring + reuse limits) ----
     _log(f"\n[2/4] Fetching images (pool mode, max 40 candidates/slot, Haiku selector)...")
     while len(queries) < total_slides:
         queries.append(intent.fallback_query or label.lower())
+    while len(per_slot_aliases) < total_slides:
+        per_slot_aliases.append(None)
     post_id = re.sub(r"[^a-z0-9]+", "-", cover_title.lower())[:30]
     sourcer = ImageSourcer(topic="editorial", use_fresh_ledger=args.dry_run)
-    images  = sourcer.source_images(queries[:total_slides], intent, post_id)
+    images  = sourcer.source_images(
+        queries[:total_slides], intent, post_id,
+        per_slot_aliases=per_slot_aliases[:total_slides],
+    )
 
     if not images or not images[0]:
         _log("\nERROR: COVER_IMAGE_FAILED — no usable image found for the cover slide.")
