@@ -54,6 +54,17 @@ class PoolCandidate:
     width:        int = 0
     height:       int = 0
 
+def _alias_matches(alias: str, m: str) -> bool:
+    """Return True if every word in alias is a complete alphanumeric token in m.
+
+    Uses token-boundary matching, not substring matching, so 'Concord' does not
+    false-match 'Concorde'. m is expected to already be lowercased by the caller.
+    Multi-word aliases match words in any order.
+    """
+    meta_tokens = set(re.findall(r"[a-z0-9]+", m))
+    return all(w.lower() in meta_tokens for w in alias.split())
+
+
 WEAK_QUERY_WORDS = {
     "single", "every", "anything", "nothing", "something", "someone",
     "produces", "producing", "produce", "produced", "containing", "contains",
@@ -859,13 +870,6 @@ class ImageFetcher:
                 return False, f"negative_term={hit!r}"
 
         # --- 2. Source aliases + context_words ---
-        # Alias matching: ALL words in the alias must appear in metadata (any order).
-        # This works for both comma-separated Pixabay tags ("concorde, aircraft")
-        # and archive filenames ("File:Concorde G-BOAG.jpg") where words are not
-        # necessarily contiguous phrases.
-        def _alias_matches(alias: str, m: str) -> bool:
-            return all(w in m for w in alias.lower().split())
-
         if source_aliases:
             if meta:
                 matched = [a for a in source_aliases if _alias_matches(a, meta)]

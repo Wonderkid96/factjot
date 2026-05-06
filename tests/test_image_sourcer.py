@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from src.research.image_fetcher import _alias_matches
 from src.research.image_sourcer import (
     ImageIntent,
     ImageSourcer,
@@ -292,3 +293,32 @@ def test_news_intent_no_alias_no_crash():
     assert sc_commons == PROVIDER_TRUST["wikimedia_commons"]
     assert sc_pixabay  == PROVIDER_TRUST["pixabay"]
     assert sc_commons  > sc_pixabay
+
+
+# ------------------------------------------------------------------ #
+# Test 9: _alias_matches — token-boundary matching (Phase 7 fix)
+# ------------------------------------------------------------------ #
+
+def test_alias_matches_rejects_substring():
+    """'Concord' must not match 'Concorde' via substring."""
+    assert _alias_matches("Concord", "concorde") is False
+    assert _alias_matches("Concord", "british airways concorde") is False
+    assert _alias_matches("Concord", "place de la concorde") is False
+    assert _alias_matches("Concord", "concordance") is False
+
+
+def test_alias_matches_accepts_whole_token():
+    """'Concord' must match when it appears as a complete token."""
+    assert _alias_matches("Concord", "concord grape concordgrapes2.jpg") is True
+    assert _alias_matches("Concord", "concord, massachusetts") is True
+    assert _alias_matches("Concord", "concord-massachusetts") is True
+    assert _alias_matches("Concord", "file:concord_ma.jpg") is True
+    assert _alias_matches("Concord", "concord") is True
+
+
+def test_alias_matches_multi_word_any_order():
+    """Multi-word aliases match words in any order, still token-bounded."""
+    assert _alias_matches("Concord Massachusetts", "concord, massachusetts central part") is True
+    assert _alias_matches("Concord Massachusetts", "massachusetts concord town") is True
+    assert _alias_matches("Concord Massachusetts", "concorde g-boag.jpg") is False
+    assert _alias_matches("Concord grape", "concord grape concordgrapes2.jpg") is True
