@@ -1,5 +1,6 @@
 # factjot brain log
 
+- 2026-05-06 12:25 reel b3828c4f8122ba published (biology, ig_media=18096083987277128)
 - 2026-05-06 12:10 WORKFLOW FAILED: .github/workflows/news-carousel.yml | run=25434361213 | trigger=workflow_dispatch | ref=main
 - 2026-05-06 11:36 WORKFLOW FAILED: .github/workflows/reel.yml | run=25432760527 | trigger=schedule | ref=main
 - 2026-05-06 11:36 reel FAILED ffmpeg — fact='Male anglerfish are tiny compared to females. When a male fi' error=FFmpeg failed (exit 254). See ffmpeg_debug.txt (command) and ffmpeg_compose_stderr.log (stderr tail below).
