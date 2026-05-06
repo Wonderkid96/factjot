@@ -1,5 +1,6 @@
 # factjot brain log
 
+- 2026-05-06 18:03 WORKFLOW FAILED: .github/workflows/news-carousel.yml | run=25452318946 | trigger=workflow_dispatch | ref=main
 - 2026-05-06 17:42 published 2cd2dfd792df62 (LIST WORLD CINEMA, 7 slides, pack=german_essential, ig_media=18349672396214027)
 - 2026-05-06 17:04 WORKFLOW FAILED: .github/workflows/news-carousel.yml | run=25449517055 | trigger=workflow_dispatch | ref=main
 - 2026-05-06 17:04 WORKFLOW FAILED: .github/workflows/list-carousel.yml | run=25449410797 | trigger=workflow_dispatch | ref=main
