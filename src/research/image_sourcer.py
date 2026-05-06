@@ -474,14 +474,14 @@ class ImageSourcer:
             f"Candidates (id 0 to {len(candidates_payload) - 1}):\n"
             f"{json.dumps(candidates_payload, indent=2)}\n\n"
             f"Return JSON only: "
-            f'{{\"best\": <id>, \"backups\": [<id>, <id>], \"confidence\": \"high|medium|low\"}}'
+            f'{{\"best\": <id>, \"backups\": [<id>, <id>], \"confidence\": \"high|medium|low\", \"reason\": \"<one short phrase>\"}}'
         )
 
         try:
             client = Anthropic(api_key=api_key)
             res = client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=80,
+                max_tokens=120,
                 temperature=0.0,
                 system=system,
                 messages=[{"role": "user", "content": user}],
@@ -497,6 +497,7 @@ class ImageSourcer:
             confidence = str(data.get("confidence", "low")).lower()
             if confidence not in ("high", "medium", "low"):
                 confidence = "low"
+            reason = str(data.get("reason", "")).strip()[:80]
 
             # Validate: all IDs must be integers in range
             valid = set(range(len(capped)))
@@ -506,8 +507,8 @@ class ImageSourcer:
             backups = [b for b in backups if isinstance(b, int) and b in valid]
 
             log.debug(
-                "IMAGE haiku_select slot=%d best=%s backups=%s confidence=%s",
-                slot, best, backups, confidence,
+                "IMAGE haiku_select slot=%d best=%s backups=%s confidence=%s reason=%r",
+                slot, best, backups, confidence, reason,
             )
             return best, backups, confidence
 
