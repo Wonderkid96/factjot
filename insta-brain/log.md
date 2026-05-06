@@ -1,5 +1,6 @@
 # factjot brain log
 
+- 2026-05-06 09:19 WORKFLOW FAILED: .github/workflows/news-carousel.yml | run=25426838902 | trigger=workflow_dispatch | ref=main
 - 2026-05-06 09:03 published 6db4feb2df35b4 (HISTORY, 7 slides, ig_media=18090021661994519)
 - 2026-05-06 08:19 WORKFLOW FAILED: .github/workflows/news-carousel.yml | run=25424204982 | trigger=workflow_dispatch | ref=main
 - 2026-05-06 07:25 WORKFLOW FAILED: .github/workflows/news-carousel.yml | run=25422057230 | trigger=workflow_dispatch | ref=main
