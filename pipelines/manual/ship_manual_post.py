@@ -40,6 +40,7 @@ from pipelines.news.ship_news_post import (
 from src.content.hashtag_builder import build_hashtags
 from src.publish.image_host import make_image_host
 from src.publish.instagram_publisher import InstagramGraphPublisher
+from src.brain import brain, DuplicatePostError, claim_hash
 from src.research.image_sourcer import CoverImageFailed, ImageIntent, ImageSourcer
 
 # ------------------------------------------------------------------ #
@@ -454,6 +455,9 @@ def main() -> int:
             image_urls.append(hosted.public_url)
             _log(f"     uploaded: {hosted.public_url[:60]}...")
 
+        brief_hash      = claim_hash(args.brief)[:12]
+        editorial_claim = f"manual:{brief_hash}:{post_id}"
+
         publisher = InstagramGraphPublisher(
             account_id=os.getenv("INSTAGRAM_ACCOUNT_ID", ""),
             access_token=os.getenv("META_ACCESS_TOKEN", ""),
@@ -461,9 +465,26 @@ def main() -> int:
             graph_version=os.getenv("META_GRAPH_VERSION", "v21.0"),
         )
 
+        try:
+            brain.assert_no_duplicate([editorial_claim])
+        except DuplicatePostError:
+            _log(f"\nABORTED: this brief has already been posted (id={post_id}).")
+            return 1
+
         result      = publisher.publish_carousel(image_urls, caption)
         ig_media_id = result.get("id") or result.get("ig_media_id", "")
         _log(f"\nPosted! Media ID: {ig_media_id}")
+        if ig_media_id:
+            brain.record_publish(
+                post_id=post_id,
+                ig_media_id=ig_media_id,
+                slides=[{
+                    "claim":    editorial_claim,
+                    "topic":    "editorial",
+                    "category": label,
+                    "sources":  [],
+                }],
+            )
 
         # Story: cover image + link back to carousel
         story_result = {"ok": False, "error": "no media id"}
