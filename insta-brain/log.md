@@ -1,5 +1,6 @@
 # factjot brain log
 
+- 2026-05-06 10:30 WORKFLOW FAILED: .github/workflows/carousel-morning.yml | run=25429962782 | trigger=schedule | ref=main
 - 2026-05-06 10:18 WORKFLOW FAILED: .github/workflows/news-carousel.yml | run=25429471465 | trigger=workflow_dispatch | ref=main
 - 2026-05-06 09:54 WORKFLOW FAILED: .github/workflows/carousel-morning.yml | run=25428420515 | trigger=schedule | ref=main
 - 2026-05-06 09:19 WORKFLOW FAILED: .github/workflows/news-carousel.yml | run=25426838902 | trigger=workflow_dispatch | ref=main
