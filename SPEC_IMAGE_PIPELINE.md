@@ -94,12 +94,12 @@ Current and approved providers, in order of trust:
 1. Wikimedia Commons
 2. Wikipedia
 3. Smithsonian Open Access
-4. Pixabay
-5. Openverse, enabled only after live verification of unauthenticated reads and licence/source reliability
+4. Flickr Creative Commons API (requires FLICKR_API_KEY; licence filter: CC-BY, CC-BY-SA, CC0, PDM only)
+5. Pixabay
+6. Openverse, enabled only after live verification of unauthenticated reads and licence/source reliability
 
 Future, not in scope of this spec:
 
-- Flickr Creative Commons API
 - Search-engine APIs (used as candidate discovery only). If ever enabled, they must still go through provider/licence verification before any candidate enters the pool. They never become a direct image source.
 
 Forbidden:
@@ -308,7 +308,6 @@ If any of the above is unverified, the work is not done.
 For this implementation:
 
 - No Google Images scraping.
-- No Flickr integration.
 - No broad rebuild of the reel pipeline.
 - No broad rebuild of the list carousel pipeline.
 - No broad rebuild of the scheduled fact carousel pipeline.
@@ -321,7 +320,6 @@ For this implementation:
 
 Tracked, not in scope here:
 
-- Flickr Creative Commons API integration.
 - Search-engine API candidate discovery with mandatory licence verification.
 - Visual AI verification, a vision model checks that the actual image content matches the subject.
 - Richer provider-specific adapters (better Wikimedia category traversal, better Smithsonian metadata extraction).
@@ -334,7 +332,7 @@ Tracked, not in scope here:
 Spec written: 2026-05-06.
 Approved by Toby: 2026-05-06.
 
-After approval, the next steps are:
+Next steps are:
 
 1. Compare the current implementation against this spec.
 2. Identify the smallest set of changes to bring the implementation into compliance.
