@@ -1,28 +1,12 @@
-"""Build Instagram caption for a Reel.
-
-Structure:
-    Title        - reel_title if set, else first sentence of claim.
-    Punchline    - the single most striking detail from the claim (1 sentence).
-    Blank line
-    CTA          - randomised "Follow @factjot" variant.
-    Blank line
-    Credits      - sources (publisher names), footage, music.
-    Blank line
-    Hashtags     - 3-tier: broad reach + topic + subject-specific (15-20 total).
-
-The 3-tier hashtag system:
-    Tier 1 - Broad (5 tags, >10M posts): drives discovery across all audiences.
-    Tier 2 - Topic (5 tags, 1M-10M posts): reaches people interested in the category.
-    Tier 3 - Subject (5 tags, <1M posts): highly relevant niche tags extracted
-             from the claim and title, the most likely to reach people who care
-             about THIS specific fact.
-"""
+"""Build Instagram caption for a Reel."""
 from __future__ import annotations
 
 import os
 import random
 import re
 from urllib.parse import urlparse
+
+from src.content.hashtag_builder import build_hashtags
 
 _CTAS = [
     "Follow @factjot for more facts like this.",
@@ -232,13 +216,11 @@ def build_reel_caption(
     if music:
         credit_lines.append(f"🎵 Music: {music}")
 
-    # 3-tier hashtags
-    tier1 = _BROAD
-    tier2 = _TOPIC_TAGS.get(topic, _DEFAULT_TOPIC)
-    tier3 = _subject_hashtags(claim, reel_title, topic)
-    hashtags = f"{tier1} {tier2} {_BRAND_TAGS}"
-    if tier3:
-        hashtags = f"{tier3} {hashtags}"
+    hashtags = build_hashtags(
+        summary=f"{reel_title or ''} {claim}".strip(),
+        topic=topic,
+        post_type="reel",
+    )
 
     parts = [hook, body, "", cta, "", "\n".join(credit_lines), "", hashtags]
     caption = "\n".join(parts)

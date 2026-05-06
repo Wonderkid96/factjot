@@ -39,8 +39,10 @@ import os
 from anthropic import Anthropic
 from playwright.sync_api import sync_playwright
 
+from src.content.hashtag_builder import build_hashtags
 from src.publish.image_host import make_image_host
 from src.publish.instagram_publisher import InstagramGraphPublisher
+from src.research.image_sourcer import ImageIntent, ImageSourcer
 from src.utils.logging_utils import configure_logging
 
 # ------------------------------------------------------------------ #
@@ -375,7 +377,7 @@ Writing rules:
 - Present tense where possible ("Scientists discover", not "Scientists discovered")
 - Write in full connected sentences, NOT bullet points or fragments
 - Each slide tells one coherent moment -- lines must flow into each other naturally
-- Each slide: exactly 4 lines, 5-9 words per line
+- Each slide: exactly 3 lines, 5-8 words per line
 - Front-load the most interesting element on each slide
 - No hedging, no filler, no attribution phrases ("sources say", "according to")
 - Do NOT repeat information across slides
@@ -387,7 +389,7 @@ Key word markup:
 - Example: "Iran sets up [r]new authority[/r] over the strait."
 
 CTA slide (always the final slide):
-- 4 lines, same format
+- 3 lines, same format
 - A thought-provoking question or reflection related to the story
 - Something the reader would want to share or debate
 - Do NOT reference the source or say "follow for more"
@@ -399,11 +401,11 @@ Output JSON only:
   "cover_title": "3-5 word punchy title for the cover slide, no full stop",
   "title": "sharp headline, max 7 words, no full stop",
   "slides": [
-    {{"slideNumber": 1, "lines": ["...", "...", "...", "..."]}}
+    {{"slideNumber": 1, "lines": ["...", "...", "..."]}}
   ]
 }}
 
-Exactly 4 lines per slide. Return JSON only.
+Exactly 3 lines per slide. Return JSON only.
 
 Article:
 {article_text}
@@ -434,8 +436,8 @@ Article:
         slides = slides[:8]
         data["slides"] = slides
     for i, s in enumerate(slides, 1):
-        if not isinstance(s.get("lines"), list) or len(s["lines"]) != 4:
-            raise RuntimeError(f"Slide {i} must have 4 lines")
+        if not isinstance(s.get("lines"), list) or len(s["lines"]) != 3:
+            raise RuntimeError(f"Slide {i} must have 3 lines")
 
     input_tok  = res.usage.input_tokens
     output_tok = res.usage.output_tokens
@@ -449,31 +451,24 @@ Article:
 # Caption
 # ------------------------------------------------------------------ #
 
-SECTION_HASHTAGS: dict[str, str] = {
-    "world":       "#WorldNews #BreakingNews #GlobalNews",
-    "technology":  "#Tech #Technology #TechNews",
-    "science":     "#Science #ScienceNews #Discovery",
-    "environment": "#Climate #Environment #ClimateNews",
-    "uk-news":     "#UKNews #Britain #PoliticsUK",
-}
-
-NEWS_HASHTAGS = "#News #FactJot #LearnOnInstagram #DidYouKnow #Interesting #Viral #Facts"
-
-
 def build_caption(article: dict, carousel_title: str, trail: str) -> str:
-    pub = article["pub_date"][:10]
+    pub     = article["pub_date"][:10]
     section = article.get("section", "world").lower().replace(" ", "-")
-    section_tags = SECTION_HASHTAGS.get(section, "#News #WorldNews")
 
     intro = trail.strip() if trail else carousel_title
-    # Strip HTML tags from trail text if any
     intro = re.sub(r"<[^>]+>", "", intro).strip()
+
+    hashtags = build_hashtags(
+        summary=article.get("title", carousel_title),
+        topic=section,
+        post_type="news",
+    )
 
     return (
         f"{intro}\n\n"
         f"Source: The Guardian ({pub})\n"
         f"Read more: {article['url']}\n\n"
-        f"{section_tags} {NEWS_HASHTAGS}"
+        f"{hashtags}"
     )
 
 
@@ -562,9 +557,6 @@ def render_cover_slide(
     .lower{{display:flex;flex-direction:column;gap:22px;}}
     .pill{{align-self:flex-start;background:var(--accent);color:var(--white);font-family:"JetBrains Mono",monospace;font-weight:700;font-size:17px;letter-spacing:0.26em;padding:7px 16px 9px;border-radius:999px;text-transform:uppercase;line-height:1;}}
     .title{{font-family:"Instrument Serif",Georgia,serif;font-weight:400;font-size:{title_size}px;line-height:{title_lh};letter-spacing:-0.015em;color:var(--white);text-shadow:2px 2px 0 rgba(0,0,0,0.52);text-wrap:balance;}}
-    .corner-mark{{position:absolute;right:58px;bottom:38px;z-index:11;font-family:"Instrument Serif",serif;font-size:32px;line-height:1;letter-spacing:-0.01em;color:var(--off-white);opacity:0.82;pointer-events:none;}}
-    .corner-mark .ital{{font-style:italic;}}
-    .corner-mark .dot{{color:var(--accent);}}
     </style></head><body>
     <div class="stage">
       <div class="photo"></div>
@@ -581,7 +573,6 @@ def render_cover_slide(
           <div class="title">{escape_html(cover_title)}</div>
         </div>
       </div>
-      <div class="corner-mark">fact<span class="ital">jot</span><span class="dot">.</span></div>
     </div></body></html>"""
 
     page = browser.new_page(viewport={"width": 1080, "height": 1350}, device_scale_factor=2)
@@ -594,6 +585,14 @@ def render_cover_slide(
 # ------------------------------------------------------------------ #
 # Content slides -- black background, white text, red key words
 # ------------------------------------------------------------------ #
+
+_GRAIN_SVG = (
+    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='280' height='280'>"
+    "<filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' "
+    "stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.7 0'/>"
+    "</filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"
+)
+
 
 def render_news_slide(
     lines: list[str],
@@ -610,50 +609,103 @@ def render_news_slide(
     mono_url  = _inline_asset(repo_root / "assets/fonts/JetBrainsMono-Bold.ttf")
 
     index_label = f"{index}/{total}"
-    pill = source_label.upper()[:32]
     logo = _logo_tag(logo_url, invert=True)
     lines_html = _markup_lines(lines)
 
-    photo_zone = (
-        f'<div class="photo-zone"><img src="{photo_data_url}" alt="" /></div>'
-        if photo_data_url else
-        '<div class="photo-zone photo-empty"></div>'
-    )
-
-    html = f"""<!doctype html><html><head><meta charset="utf-8"/><style>
-    {_font_faces(serif_url, mono_url)}
-    :root{{--near-black:#0B0B0C;--off-white:#EDE8DD;--accent:#E6352A;--muted:#9A938A;--white:#FFFFFF;}}
-    *{{box-sizing:border-box;margin:0;padding:0;}}
-    html,body{{width:1080px;height:1350px;overflow:hidden;background:var(--near-black);-webkit-font-smoothing:antialiased;}}
-    .stage{{position:relative;width:1080px;height:1350px;overflow:hidden;display:flex;flex-direction:column;background:var(--near-black);}}
-    .text-zone{{flex:0 0 auto;padding:62px 70px 0 70px;display:flex;flex-direction:column;}}
-    .top-row{{display:flex;align-items:center;justify-content:space-between;margin-bottom:34px;}}
-    .wordmark-img{{height:28px;width:auto;display:block;opacity:0.88;filter:drop-shadow(0 0 0 transparent);}}
-    .index{{background:rgba(255,255,255,0.1);color:var(--off-white);font-family:"JetBrains Mono",monospace;font-weight:700;font-size:24px;letter-spacing:0.04em;padding:8px 18px 10px;border-radius:999px;line-height:1;}}
-    .lines{{display:flex;flex-direction:column;}}
-    .line{{font-family:"Instrument Serif",Georgia,serif;font-weight:400;font-size:50px;line-height:1.20;color:var(--off-white);letter-spacing:-0.01em;margin-bottom:16px;}}
-    .line .red{{color:var(--accent);font-style:italic;}}
-    .photo-zone{{flex:1 1 0;margin:26px 50px 48px 50px;overflow:hidden;border-radius:6px;background:rgba(255,255,255,0.04);}}
-    .photo-zone img{{width:100%;height:100%;object-fit:cover;display:block;}}
-    .photo-empty{{background:rgba(255,255,255,0.03);}}
-    .corner-mark{{position:absolute;right:60px;bottom:56px;z-index:20;font-family:"Instrument Serif",serif;font-size:28px;line-height:1;letter-spacing:-0.01em;color:var(--off-white);opacity:0.45;pointer-events:none;}}
-    .corner-mark .ital{{font-style:italic;}}
-    .corner-mark .dot{{color:var(--accent);}}
-    </style></head><body>
-    <div class="stage">
-      <div class="text-zone">
-        <div class="top-row">{logo}<div class="index">{index_label}</div></div>
-        <div class="lines">{lines_html}</div>
-      </div>
-      {photo_zone}
-      <div class="corner-mark">fact<span class="ital">jot</span><span class="dot">.</span></div>
-    </div></body></html>"""
+    if photo_data_url:
+        html = _render_news_slide_photo(
+            serif_url, mono_url, logo, index_label, lines_html, photo_data_url,
+        )
+    else:
+        html = _render_news_slide_typography(
+            serif_url, mono_url, logo, index_label, lines_html,
+        )
 
     page = browser.new_page(viewport={"width": 1080, "height": 1350}, device_scale_factor=2)
     page.set_content(html, wait_until="networkidle")
+
+    # No font scaling needed for full-bleed — text sits over a gradient at the bottom
+    # of the canvas with no photo zone to protect.
+
     out_path.parent.mkdir(parents=True, exist_ok=True)
     page.screenshot(path=str(out_path), full_page=False, clip={"x": 0, "y": 0, "width": 1080, "height": 1350})
     page.close()
+
+
+def _render_news_slide_photo(
+    serif_url: str, mono_url: str, logo: str, index_label: str,
+    lines_html: str, photo_data_url: str,
+) -> str:
+    """Full-bleed content slide. Photo fills the canvas; text sits over a bottom gradient."""
+    return f"""<!doctype html><html><head><meta charset="utf-8"/><style>
+    {_font_faces(serif_url, mono_url)}
+    :root{{--near-black:#0B0B0C;--off-white:#EDE8DD;--accent:#E6352A;--white:#FFFFFF;}}
+    *{{box-sizing:border-box;margin:0;padding:0;}}
+    html,body{{width:1080px;height:1350px;overflow:hidden;background:var(--near-black);-webkit-font-smoothing:antialiased;}}
+    .stage{{position:relative;width:1080px;height:1350px;overflow:hidden;isolation:isolate;}}
+    .photo{{position:absolute;inset:0;background:url("{photo_data_url}") center/cover no-repeat;z-index:0;}}
+    .top-darken{{position:absolute;inset:0 0 auto 0;height:28%;background:linear-gradient(to bottom,rgba(0,0,0,0.72),rgba(0,0,0,0));z-index:1;}}
+    .bottom-darken{{position:absolute;inset:30% 0 0 0;background:linear-gradient(to bottom,rgba(11,11,12,0) 0%,rgba(11,11,12,0.60) 35%,rgba(11,11,12,0.95) 62%,rgba(11,11,12,0.99) 100%);z-index:1;}}
+    .vignette{{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 65%,rgba(0,0,0,0.30) 100%);z-index:2;pointer-events:none;}}
+    .grain{{position:absolute;inset:0;z-index:3;opacity:0.055;mix-blend-mode:overlay;background-image:url("{_GRAIN_SVG}");pointer-events:none;}}
+    .frame{{position:absolute;inset:0;z-index:10;padding:62px 70px 74px 70px;display:flex;flex-direction:column;justify-content:space-between;}}
+    .top-row{{display:flex;align-items:center;gap:20px;}}
+    .wordmark-img{{height:28px;width:auto;display:block;opacity:0.95;flex-shrink:0;filter:drop-shadow(1px 1px 0 rgba(0,0,0,0.45));}}
+    .top-divider{{flex:1;height:1px;background:var(--off-white);opacity:0.32;}}
+    .index{{background:rgba(255,255,255,0.12);color:var(--off-white);font-family:"JetBrains Mono",monospace;font-weight:700;font-size:24px;letter-spacing:0.04em;padding:8px 18px 10px;border-radius:999px;line-height:1;flex-shrink:0;}}
+    .lines{{display:flex;flex-direction:column;}}
+    .line{{font-family:"Instrument Serif",Georgia,serif;font-weight:400;font-size:72px;line-height:1.24;color:var(--off-white);letter-spacing:-0.015em;margin-bottom:2px;text-shadow:2px 2px 0 rgba(0,0,0,0.55);}}
+    .line .red{{color:var(--accent);font-style:italic;}}
+    </style></head><body>
+    <div class="stage">
+      <div class="photo"></div>
+      <div class="top-darken"></div>
+      <div class="bottom-darken"></div>
+      <div class="vignette"></div>
+      <div class="grain"></div>
+      <div class="frame">
+        <div class="top-row">{logo}<span class="top-divider"></span><div class="index">{index_label}</div></div>
+        <div class="lines">{lines_html}</div>
+      </div>
+    </div></body></html>"""
+
+
+def _render_news_slide_typography(
+    serif_url: str, mono_url: str, logo: str, index_label: str, lines_html: str,
+) -> str:
+    """Intentional full-height typography-only slide. No photo zone. Looks deliberate."""
+    return f"""<!doctype html><html><head><meta charset="utf-8"/><style>
+    {_font_faces(serif_url, mono_url)}
+    :root{{--near-black:#0B0B0C;--off-white:#EDE8DD;--accent:#E6352A;--white:#FFFFFF;}}
+    *{{box-sizing:border-box;margin:0;padding:0;}}
+    html,body{{width:1080px;height:1350px;overflow:hidden;background:var(--near-black);-webkit-font-smoothing:antialiased;}}
+    .stage{{position:relative;width:1080px;height:1350px;overflow:hidden;background:var(--near-black);}}
+    .accent-line{{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--accent);z-index:2;}}
+    .grain{{position:absolute;inset:0;z-index:1;opacity:0.055;mix-blend-mode:overlay;
+            background-image:url("{_GRAIN_SVG}");pointer-events:none;}}
+    .frame{{position:absolute;inset:0;z-index:10;padding:62px 70px 62px 86px;
+            display:flex;flex-direction:column;}}
+    .top-row{{display:flex;align-items:center;gap:20px;flex-shrink:0;margin-bottom:0;}}
+    .wordmark-img{{height:28px;width:auto;display:block;opacity:0.88;flex-shrink:0;}}
+    .top-divider{{flex:1;height:1px;background:var(--off-white);opacity:0.32;}}
+    .index{{background:rgba(255,255,255,0.1);color:var(--off-white);font-family:"JetBrains Mono",monospace;
+            font-weight:700;font-size:24px;letter-spacing:0.04em;padding:8px 18px 10px;border-radius:999px;line-height:1;flex-shrink:0;}}
+    .lines-wrap{{flex:1;display:flex;flex-direction:column;justify-content:center;padding-right:20px;}}
+    .lines{{display:flex;flex-direction:column;}}
+    .line{{font-family:"Instrument Serif",Georgia,serif;font-weight:400;font-size:80px;line-height:1.22;
+           color:var(--off-white);letter-spacing:-0.015em;margin-bottom:6px;}}
+    .line .red{{color:var(--accent);font-style:italic;}}
+    </style></head><body>
+    <div class="stage">
+      <div class="accent-line"></div>
+      <div class="grain"></div>
+      <div class="frame">
+        <div class="top-row">{logo}<span class="top-divider"></span><div class="index">{index_label}</div></div>
+        <div class="lines-wrap">
+          <div class="lines">{lines_html}</div>
+        </div>
+      </div>
+    </div></body></html>"""
 
 
 # ------------------------------------------------------------------ #
@@ -726,20 +778,23 @@ def main() -> int:
         if len(image_data_urls) >= SLIDES_COUNT:
             break
 
-    # Supplement with Pexels if the article has fewer than 4 unique photos.
-    # Live rolling blogs typically have 1-2; written articles have 3-8.
+    # Supplement via editorial sources (Commons, Wikipedia, Openverse, Smithsonian)
+    # if the article has fewer than 4 unique photos. Pexels is not used here:
+    # news articles cover specific named subjects and Pexels cannot be trusted
+    # to return relevant images for proper nouns.
     MIN_ARTICLE_IMAGES = 4
     if len(image_data_urls) < MIN_ARTICLE_IMAGES:
-        pexels_key = os.getenv("PEXELS_API_KEY", "").strip()
-        if pexels_key:
-            query = _pexels_query_for_article(article)
-            needed = SLIDES_COUNT - len(image_data_urls)
-            _log(f"     < {MIN_ARTICLE_IMAGES} article images -- Pexels fallback (query: \"{query}\", need {needed})")
-            pexels_images = fetch_pexels_images(query, pexels_key, count=needed)
-            image_data_urls.extend(pexels_images)
-            _log(f"     Pexels added {len(pexels_images)} image(s) -- total: {len(image_data_urls)}")
-        else:
-            _log("     PEXELS_API_KEY not set -- skipping Pexels fallback")
+        needed    = SLIDES_COUNT - len(image_data_urls)
+        query     = _pexels_query_for_article(article)
+        post_slug = re.sub(r"[^a-z0-9]+", "-", article["title"].lower())[:40]
+        _log(f"     < {MIN_ARTICLE_IMAGES} article images -- editorial fallback (query: \"{query}\", need {needed})")
+        sourcer = ImageSourcer(topic="editorial", use_fresh_ledger=False)
+        extras  = sourcer.source_images([query] * needed, ImageIntent.news_intent(), post_slug)
+        for url in extras:
+            if url:
+                image_data_urls.append(url)
+        filled = sum(1 for u in extras if u)
+        _log(f"     editorial fallback: {filled}/{needed} slots filled")
 
     if not image_data_urls:
         _log("     No images available -- photo zone will be empty.")

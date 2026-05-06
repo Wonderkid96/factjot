@@ -51,6 +51,27 @@ class UsedImageLedger:
                 return True
             return False
 
+    def clear_post(self, post_id: str) -> None:
+        """Remove all ledger entries for a given post_id and rewrite the file."""
+        if not post_id:
+            return
+        with self._lock:
+            lines: list[str] = []
+            if self.path.exists():
+                for line in self.path.read_text(encoding="utf-8").splitlines():
+                    try:
+                        row = json.loads(line)
+                        if row.get("post_id") == post_id:
+                            continue
+                    except json.JSONDecodeError:
+                        pass
+                    lines.append(line)
+            self.path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+            # Reload sets from the rewritten file
+            self._urls.clear()
+            self._shas.clear()
+            self._load()
+
     def mark_used(self, *, url: str, sha256: str, provider: str,
                   post_id: str = "", slide_index: int = 0,
                   query: str = "") -> None:
