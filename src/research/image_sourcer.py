@@ -221,6 +221,8 @@ class ImageSourcer:
         pool_size = max_pool if max_pool is not None else self.MAX_POOL
         extra_fallbacks = [q for q in [intent.fallback_query, intent.visual_subject] if q]
 
+        log.debug("IMAGE provider_order=%s topic=%s", self._fetcher._provider_order(self.topic), self.topic)
+
         data_urls: list[str] = []
 
         for i, query in enumerate(queries):
@@ -250,6 +252,11 @@ class ImageSourcer:
 
             data_urls.append(chosen)
 
+        n_image = sum(1 for url in data_urls if url)
+        log.debug(
+            "IMAGE coverage: %d/%d image, %d/%d typography-only",
+            n_image, len(data_urls), len(data_urls) - n_image, len(data_urls),
+        )
         return data_urls
 
     # ------------------------------------------------------------------ #
