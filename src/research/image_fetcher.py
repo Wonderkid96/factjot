@@ -27,6 +27,7 @@ import io
 import logging
 import os
 import re
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterator
 
@@ -37,6 +38,21 @@ from dotenv import load_dotenv
 from src.research.used_images import UsedImageLedger
 
 log = logging.getLogger(__name__)
+
+
+@dataclass
+class PoolCandidate:
+    """A single validated image candidate ready for scoring and selection."""
+    provider:     str
+    url:          str
+    meta:         str
+    content:      bytes
+    img:          Image.Image
+    credit_name:  str
+    credit_url:   str
+    allow_reason: str
+    width:        int = 0
+    height:       int = 0
 
 WEAK_QUERY_WORDS = {
     "single", "every", "anything", "nothing", "something", "someone",
@@ -107,13 +123,23 @@ class ImageFetcher:
         "nature": ("pexels", "pixabay", "inaturalist", "openverse", "wiki", "commons", "nasa", "smithsonian"),
         "biology": ("pexels", "pixabay", "inaturalist", "openverse", "wiki", "commons", "nasa", "smithsonian"),
         "ocean": ("pexels", "pixabay", "inaturalist", "openverse", "wiki", "commons", "nasa", "smithsonian"),
-        # SPACE: NASA first. Their image library has only real spacecraft +
-        # celestial photography (no stock-photo studio props). Pexels gets
-        # the strict allowlist gate as a last-resort safety net.
         "space": ("nasa", "wiki", "commons", "smithsonian", "openverse", "pexels", "pixabay", "inaturalist"),
         "earth": ("pexels", "pixabay", "wiki", "openverse", "commons", "nasa", "smithsonian", "inaturalist"),
         "history": ("pexels", "pixabay", "wiki", "commons", "smithsonian", "openverse", "nasa", "inaturalist"),
         "tech": ("pexels", "pixabay", "wiki", "commons", "openverse", "smithsonian", "nasa", "inaturalist"),
+        # editorial: named subjects (aircraft, events, people, technology).
+        # Commons first: file titles contain the proper name ("Concorde arp.jpg").
+        # Wikipedia lead image: by definition the right photo for the article.
+        # Smithsonian: strong historical archive, well-tagged.
+        # Pixabay last: some historical photos, but broad tag matching needs alias gate.
+        # Pexels excluded: lifestyle stock, unreliable for specific named subjects.
+        # Openverse excluded 2026-05-06: API works unauthenticated (240 results for "Concorde aircraft")
+        #   but ~100% of results are Flickr-hosted images. Flickr returns HTTP 429 on direct
+        #   image download from our bot IP regardless of Referer header. Re-evaluate if we
+        #   get a Flickr API key or if Openverse adds a non-Flickr CDN proxy for full images.
+        # wiki_article: fetches all inline photos from the Wikipedia article body,
+        #   not just the lead image. Yields cockpit, cabin, historical, and detail shots.
+        "editorial": ("commons", "wiki", "wiki_article", "smithsonian", "pixabay"),
     }
     DEFAULT_PROVIDER_ORDER = ("pexels", "pixabay", "openverse", "wiki", "commons", "inaturalist", "nasa", "smithsonian")
     # Keep the system flexible: Pexels/Pixabay first, but allow fallbacks.
@@ -246,7 +272,12 @@ class ImageFetcher:
 
     def fetch(self, query: str, topic: str = "", seed: str = "",
               post_id: str = "", slide_index: int = 0,
-              intent_text: str = "") -> tuple[Path, dict[str, str]]:
+              intent_text: str = "",
+              source_aliases: list[str] | None = None,
+              negative_terms: list[str] | None = None,
+              context_words: list[str] | None = None,
+              extra_fallbacks: list[str] | None = None,
+              ) -> tuple[Path, dict[str, str]]:
         category = self._slug(topic) or "misc"
         post_slug = self._slug(post_id) if post_id else "unassigned"
         category_dir = self.cache_dir / category / post_slug
@@ -255,16 +286,21 @@ class ImageFetcher:
         cache_key = self._cache_key(query, topic, seed)
         slide_token = f"s{slide_index:02d}" if slide_index > 0 else "s00"
         cached = category_dir / f"{slide_token}_{cache_key}.jpg"
-        # Never short-circuit from cache before dedupe. Reuse is forbidden
-        # across shipped posts, so we must always source a fresh candidate
-        # through the ledger checks below.
 
-        for variant in self._query_variants(query, topic):
+        for variant in self._query_variants(query, topic, extra_fallbacks=extra_fallbacks):
             for cand in self._iter_candidates(variant, topic=topic):
-                if not self._candidate_allowed(cand, topic, variant, intent_text):
+                allowed, reason = self._candidate_allowed(
+                    cand, topic, variant, intent_text,
+                    source_aliases=source_aliases,
+                    negative_terms=negative_terms,
+                    context_words=context_words,
+                )
+                if not allowed:
+                    log.debug("REJECT %s | provider=%s | meta=%r", reason, cand.provider, (cand.meta_text or "")[:120])
                     continue
                 content_sha = self.ledger.sha256_of(cand.content)
                 if self.ledger.is_used(url=cand.url, sha256=content_sha):
+                    log.debug("SKIP already_used | provider=%s | url=%s", cand.provider, cand.url[:80])
                     continue
                 self._save(cand.img, cached)
                 self.ledger.mark_used(
@@ -275,18 +311,109 @@ class ImageFetcher:
                     "provider": cand.provider,
                     "name": cand.credit_name,
                     "url": cand.credit_url,
+                    "meta": cand.meta_text or "",
+                    "reason": reason,
                 }
 
         raise NoImageFound(f"No fresh image for query={query!r} topic={topic!r}")
 
+    def fetch_pool(
+        self,
+        query: str,
+        topic: str = "",
+        post_id: str = "",
+        slide_index: int = 0,
+        intent_text: str = "",
+        source_aliases: list[str] | None = None,
+        negative_terms: list[str] | None = None,
+        context_words: list[str] | None = None,
+        extra_fallbacks: list[str] | None = None,
+        max_pool: int = 20,
+    ) -> list[PoolCandidate]:
+        """Collect up to max_pool candidates that pass _candidate_allowed().
+
+        Does NOT save or mark images as used — call commit_candidate() on the
+        selected winner afterwards.
+        """
+        pool: list[PoolCandidate] = []
+        seen_urls: set[str] = set()
+
+        for variant in self._query_variants(query, topic, extra_fallbacks=extra_fallbacks):
+            for cand in self._iter_candidates(variant, topic=topic):
+                if cand.url in seen_urls:
+                    continue
+                allowed, reason = self._candidate_allowed(
+                    cand, topic, variant, intent_text,
+                    source_aliases=source_aliases,
+                    negative_terms=negative_terms,
+                    context_words=context_words,
+                )
+                if not allowed:
+                    log.debug("POOL_REJECT %s | %s | meta=%r", reason, cand.provider, (cand.meta_text or "")[:80])
+                    continue
+                seen_urls.add(cand.url)
+                w, h = cand.img.size if cand.img else (0, 0)
+                pool.append(PoolCandidate(
+                    provider=cand.provider,
+                    url=cand.url,
+                    meta=cand.meta_text or "",
+                    content=cand.content,
+                    img=cand.img,
+                    credit_name=cand.credit_name,
+                    credit_url=cand.credit_url,
+                    allow_reason=reason,
+                    width=w,
+                    height=h,
+                ))
+                if len(pool) >= max_pool:
+                    return pool
+        return pool
+
+    def commit_candidate(
+        self,
+        cand: PoolCandidate,
+        query: str,
+        topic: str,
+        post_id: str,
+        slide_index: int,
+    ) -> tuple[Path, dict[str, str]]:
+        """Save the selected candidate to cache and mark it as used in the ledger."""
+        category  = self._slug(topic) or "misc"
+        post_slug = self._slug(post_id) if post_id else "unassigned"
+        category_dir = self.cache_dir / category / post_slug
+        category_dir.mkdir(parents=True, exist_ok=True)
+
+        cache_key   = self._cache_key(query, topic, "")
+        slide_token = f"s{slide_index:02d}" if slide_index > 0 else "s00"
+        cached      = category_dir / f"{slide_token}_{cache_key}.jpg"
+
+        self._save(cand.img, cached)
+        sha = self.ledger.sha256_of(cand.content)
+        self.ledger.mark_used(
+            url=cand.url, sha256=sha, provider=cand.provider,
+            post_id=post_id, slide_index=slide_index, query=query,
+        )
+        return cached, {
+            "provider": cand.provider,
+            "name":     cand.credit_name,
+            "url":      cand.credit_url,
+            "meta":     cand.meta,
+            "reason":   cand.allow_reason,
+        }
+
     # ----- query construction -----
 
-    def _query_variants(self, query: str, topic: str) -> list[str]:
+    # Topic strings that are pipeline labels, not meaningful search terms.
+    _NON_SEARCH_TOPICS = frozenset({"editorial", "misc", "general", "fact", "news", "film"})
+
+    def _query_variants(self, query: str, topic: str,
+                        extra_fallbacks: list[str] | None = None) -> list[str]:
         """Build progressively broader queries.
 
-        Order matters: most specific (subject + topic disambiguator) first,
-        so search engines land on the right meaning of ambiguous words like
-        "Venus" (planet vs plant) or "Mercury" (planet vs element).
+        Order: specific slot query → first two words → proper noun →
+        caller-supplied fallbacks (visual_subject, fallback_query) →
+        topic disambiguator (only if topic is a real search term).
+        Never degrades to bare "editorial" or other pipeline label strings.
         """
         cleaned = re.sub(r"\[/?[ihab]\]", "", query)
         words = re.findall(r"[A-Za-z][A-Za-z'\-]+", cleaned)
@@ -308,24 +435,27 @@ class ImageFetcher:
         ambiguous_for_topic = AMBIGUOUS_SUBJECTS_BY_TOPIC.get(topic_low, set())
         subject_is_ambiguous = bool(subject) and subject_low in ambiguous_for_topic
 
-        # 1. For ambiguous subjects, lead with disambiguated query first.
-        #    For everything else, keep the bare subject first.
         if subject and disamb and subject_is_ambiguous:
             add(f"{subject} {disamb}")
             if topic_low == "space":
                 add(f"{subject} planet space")
-        # Prefer explicit multi-word subject phrase before single token.
         if len(kept) >= 2:
             add(" ".join(kept[:2]))
         if subject:
             add(subject)
-        # Only add disambiguator for known ambiguous subjects. For specific
-        # subjects, this extra suffix can dilute retrieval intent.
-        # 4. Topic + disambiguator catch-all.
         if disamb:
             add(disamb)
-        if topic:
+
+        # Caller-supplied fallbacks (e.g. fallback_query, visual_subject).
+        for fb in (extra_fallbacks or []):
+            if fb:
+                add(fb)
+
+        # Only use the topic string as a search term if it is a real search
+        # concept, not a pipeline routing label like "editorial".
+        if topic and topic_low not in self._NON_SEARCH_TOPICS:
             add(topic.strip())
+
         return variants
 
     def _provider_order(self, topic: str) -> tuple[str, ...]:
@@ -345,6 +475,7 @@ class ImageFetcher:
             "nasa": self._nasa_candidates,
             "smithsonian": self._smithsonian_candidates,
             "wiki": self._wiki_candidates,
+            "wiki_article": self._wiki_article_images_candidates,
             "commons": self._commons_candidates,
         }
         order = self._provider_order(topic)
@@ -448,6 +579,96 @@ class ImageFetcher:
                 credit_url=page_url,
                 meta_text=title,
             )
+
+    def _wiki_article_images_candidates(self, term: str, topic: str = "") -> Iterator[_Candidate]:
+        """Fetch all inline photos from a Wikipedia article body.
+
+        Unlike _wiki_candidates() which returns only the lead image, this extracts
+        every photo embedded in the article — cockpit, cabin, historical shots, etc.
+        All images are CC-licensed or public domain via Wikimedia Commons.
+        """
+        # Find best matching article via opensearch
+        resp = self.session.get(
+            self.WIKI_OPENSEARCH,
+            params={"action": "opensearch", "search": term, "limit": 3,
+                    "namespace": 0, "format": "json"},
+            timeout=10,
+        )
+        if not resp.ok:
+            return
+        data = resp.json()
+        if not (isinstance(data, list) and len(data) >= 2 and data[1]):
+            return
+        article_title = data[1][0]
+
+        # Get all image filenames embedded in the article (up to 50)
+        resp2 = self.session.get(
+            self.WIKI_OPENSEARCH,
+            params={"action": "query", "format": "json",
+                    "titles": article_title, "prop": "images", "imlimit": 50},
+            timeout=10,
+        )
+        if not resp2.ok:
+            return
+        pages = (resp2.json().get("query") or {}).get("pages", {})
+        if not pages:
+            return
+        page = next(iter(pages.values()))
+
+        # Filter to JPEG/PNG; skip SVGs, diagrams, logos, maps
+        _SKIP = (
+            ".svg", ".gif", ".ogg", ".wav", ".ogv", ".webm",
+            "commons-logo", "wikimedia-logo", "-icon", "icon-",
+            "flag_of", "coat_of", "symbol", "route_", "route-",
+            "silhouette", "diagram", "scheme", "map", "blank", "signature",
+        )
+        file_titles = [
+            img["title"] for img in page.get("images", [])
+            if img.get("title")
+            and img["title"].lower().endswith((".jpg", ".jpeg", ".png"))
+            and not any(p in img["title"].lower() for p in _SKIP)
+        ]
+        if not file_titles:
+            return
+
+        # Batch imageinfo requests to get URLs (up to 20 titles per API call)
+        for i in range(0, len(file_titles), 20):
+            batch = file_titles[i: i + 20]
+            resp3 = self.session.get(
+                self.WIKI_OPENSEARCH,
+                params={
+                    "action": "query", "format": "json",
+                    "titles": "|".join(batch),
+                    "prop": "imageinfo",
+                    "iiprop": "url|mime|size",
+                    "iiurlwidth": 1280,
+                },
+                timeout=12,
+            )
+            if not resp3.ok:
+                continue
+            pages3 = (resp3.json().get("query") or {}).get("pages", {}) or {}
+            for pg in pages3.values():
+                for info in (pg.get("imageinfo") or []):
+                    url = info.get("thumburl") or info.get("url")
+                    mime = info.get("mime", "")
+                    if not url or "image" not in mime:
+                        continue
+                    if not url.lower().endswith((".jpg", ".jpeg", ".png")):
+                        continue
+                    file_name = str(pg.get("title", "")).replace("File:", "").strip()
+                    # meta includes article title + filename so alias gate can
+                    # match both the subject name and descriptive filename words
+                    meta = f"{article_title} {file_name}"
+                    yield from self._make_candidate(
+                        "wikipedia", url,
+                        credit_name=f"Wikipedia / {file_name}",
+                        credit_url=(
+                            "https://commons.wikimedia.org/wiki/File:"
+                            + file_name.replace(" ", "_")
+                        ),
+                        meta_text=meta,
+                    )
 
     def _wiki_summary_image_url(self, title: str) -> str | None:
         if not title:
@@ -617,14 +838,73 @@ class ImageFetcher:
                 return False
         return True
 
-    def _candidate_allowed(self, cand: _Candidate, topic: str, query_variant: str, intent_text: str = "") -> bool:
+    def _candidate_allowed(self, cand: _Candidate, topic: str, query_variant: str,
+                           intent_text: str = "",
+                           source_aliases: list[str] | None = None,
+                           negative_terms: list[str] | None = None,
+                           context_words: list[str] | None = None,
+                           ) -> tuple[bool, str]:
+        """Return (allowed, reason_string) for every candidate.
+
+        reason_string is logged at DEBUG level so you can trace exactly why
+        each image was accepted or rejected.
+        """
         topic_low = topic.strip().lower()
         meta = (cand.meta_text or "").strip().lower()
+
+        # --- 1. Negative terms: hard reject before anything else ----
+        if negative_terms and meta:
+            hit = next((t for t in negative_terms if t.lower() in meta), None)
+            if hit:
+                return False, f"negative_term={hit!r}"
+
+        # --- 2. Source aliases + context_words ---
+        # Alias matching: ALL words in the alias must appear in metadata (any order).
+        # This works for both comma-separated Pixabay tags ("concorde, aircraft")
+        # and archive filenames ("File:Concorde G-BOAG.jpg") where words are not
+        # necessarily contiguous phrases.
+        def _alias_matches(alias: str, m: str) -> bool:
+            return all(w in m for w in alias.lower().split())
+
+        if source_aliases:
+            if meta:
+                matched = [a for a in source_aliases if _alias_matches(a, meta)]
+                if not matched:
+                    return False, f"no_alias_match aliases={[a[:20] for a in source_aliases[:3]]}"
+
+                # Single-word alias matches are ambiguous only in tag-based
+                # providers (pixabay, pexels) where photographers tag broadly.
+                # e.g. "concorde" tags photos of Place de la Concorde in Paris.
+                # Archive providers (commons, wiki, smithsonian) title files by
+                # their actual subject — "File:Concorde arp.jpg" is authoritative
+                # without needing additional context words.
+                _TAG_PROVIDERS = {"pixabay", "pexels"}
+                # Single-word check: apply context gate only when every matched
+                # alias is a single word AND we are on a tag-based provider.
+                all_single_word = all(len(a.split()) == 1 for a in matched)
+                if all_single_word and context_words and cand.provider in _TAG_PROVIDERS:
+                    ctx_hit = next((c for c in context_words if c.lower() in meta), None)
+                    if not ctx_hit:
+                        return False, (
+                            f"single_alias={matched[0]!r} no context_word "
+                            f"({[c[:15] for c in context_words[:4]]}) in tags"
+                        )
+                    return True, f"alias={matched[0]!r} + context={ctx_hit!r} (tag provider)"
+
+                return True, f"alias={matched[0]!r} ({'multi-word' if not all_single_word else 'archive-trusted'})"
+            else:
+                if cand.provider != "nasa":
+                    return False, "no_meta and provider not nasa"
+                return True, "nasa_trusted_no_meta"
+
+        # --- 3. Fallback: intent_text subject terms (used when no aliases provided) ---
+        subject_terms = self._intent_terms(intent_text) if intent_text else []
+
         intent_terms = self._intent_terms(query_variant)
-        if intent_text:
-            for term in self._intent_terms(intent_text):
-                if term not in intent_terms:
-                    intent_terms.append(term)
+        for t in subject_terms:
+            if t not in intent_terms:
+                intent_terms.append(t)
+
         expanded_terms: list[str] = []
         for term in intent_terms:
             expanded = self.TERM_EXPANSIONS.get(term)
@@ -635,15 +915,31 @@ class ImageFetcher:
             if term not in expanded_terms:
                 expanded_terms.append(term)
 
-        # If provider gives metadata, require at least one intent term match.
-        if meta and expanded_terms and not any(t in meta for t in expanded_terms):
+        # Pexels/Pixabay always supply metadata; empty = no usable signal.
+        _META_REQUIRED = {"pexels", "pixabay"}
+        if not meta and cand.provider in _META_REQUIRED and subject_terms:
             return False
 
+        if subject_terms and meta:
+            hit = next((t for t in subject_terms if t in meta), None)
+            if not hit:
+                return False, f"no_subject_term_in_meta terms={subject_terms[:3]}"
+        elif subject_terms and not meta:
+            if cand.provider != "nasa":
+                return False, "no_meta_subject_terms_require_nasa"
+
+        if not subject_terms and meta and expanded_terms:
+            hit = next((t for t in expanded_terms if t in meta), None)
+            if not hit:
+                return False, f"no_expanded_term_in_meta terms={expanded_terms[:3]}"
+
+        ok = self._space_check(cand, topic_low, meta)
+        return ok, ("pass_intent_terms" if ok else "space_check_failed")
+
+    def _space_check(self, cand: "_Candidate", topic_low: str, meta: str) -> bool:
+        """Space-topic allowlist gate. Returns True for all other topics."""
         if topic_low != "space":
             return True
-        # SPACE allowlist: NASA's API answers are trusted by provider since
-        # they only host space-mission imagery. Everyone else has to prove
-        # their alt text contains a real celestial-subject word.
         if cand.provider == "nasa":
             return True
         if not meta:
@@ -662,6 +958,10 @@ class ImageFetcher:
         for t in sorted(set(terms), key=len, reverse=True):
             if t not in out:
                 out.append(t)
+        # Drop any term that is a strict substring of a longer term already in
+        # the list. Prevents "sonic" matching Sonic the Hedgehog tags when the
+        # query contains "supersonic" (which already covers the concept).
+        out = [t for t in out if not any(t in other for other in out if other != t)]
         return out[:4]
 
     def _save(self, img: Image.Image, path: Path) -> None:

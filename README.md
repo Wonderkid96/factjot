@@ -4,9 +4,24 @@ Automated Instagram carousel pipeline. One daily post under [@factjot](https://i
 
 > **Read first:** every agent and human contributor reads `insta-brain/CLAUDE.md` and `insta-brain/CRITICAL_FACTS.md` before touching this repo. The brain is the single source of truth for rules.
 
+> ## README is being modernised, read this notice first
+>
+> This document is partly legacy. The system has changed since several sections below were written. Until this README is fully updated, treat the following as authoritative:
+>
+> - **Production scheduler is GitHub Actions, not local launchd.** The launchd plist install steps, `scripts/publish_due.py`, `scripts/review_queue.py`, and the queue-based "approve then publish" flow described in this README are **legacy** unless explicitly revived. Autonomous posting now happens entirely from GitHub Actions runners. See `CLAUDE.md` "Daily automation" and `SPEC_FACTJOT_SYSTEM.md` section 6 for the current flow.
+> - **Pipeline entrypoints live under `pipelines/<name>/`, not `scripts/`.** Most rows in this README's "Scripts" table point at `scripts/<name>.py` paths that no longer exist there. The current entrypoints are `pipelines/carousel/ship_first_post.py`, `pipelines/list/ship_list_post.py`, `pipelines/reel/make_reel.py`, `pipelines/news/ship_news_post.py`, `pipelines/manual/ship_manual_post.py`, plus shared operational scripts in `pipelines/shared/`.
+> - **Manual / editorial carousels are gated, autonomous pipelines are not.** Approval today means a human inspecting rendered output before publish, only for editorial content. The repeating scheduled pipelines (reels, fact carousel, list carousel, news carousel) post autonomously without a queue. The old queue/approve-and-ship rhythm is legacy.
+> - **Higher authority on current architecture:** `SPEC_FACTJOT_SYSTEM.md` (system constitution) and `CLAUDE.md` (project operating rules). On any conflict, prefer the spec, then `CLAUDE.md`, then this README.
+> - **Image provider order and manual carousel image behaviour are owned by `SPEC_IMAGE_PIPELINE.md`.** The "Image source coverage" list further down may be stale and is being deferred to the spec.
+> - **`pipelines/news/ship_news_post.py` currently has dual responsibility** as both the news pipeline entrypoint and the renderer used by the manual carousel pipeline. This is a known architecture risk to be untangled later, not something to change in passing.
+>
+> Sections describing the older flow are tagged **[LEGACY]** below. They are kept for reference, not because they reflect today's behaviour.
+
 ---
 
-## How autonomous posting works (in plain English)
+## How autonomous posting works (in plain English) [LEGACY trigger description]
+
+> **[LEGACY]** This section describes the original local-launchd flow. The Graph API mechanics (imgbb upload, `/media` child containers, `/media` carousel parent, `/media_publish`) are still accurate. The trigger is no longer launchd; GitHub Actions fires `pipelines/<name>/ship_*.py` entrypoints on cron. See `CLAUDE.md` "Daily automation" for the current flow.
 
 The API route is **Meta's Instagram Graph API**. It is the only sanctioned, supported, free way to post to Instagram from a script.
 
@@ -24,7 +39,9 @@ No browser automation, no third-party scheduler, no manual step. Just HTTP calls
 
 ---
 
-## End-to-end pipeline
+## End-to-end pipeline [LEGACY single-pipeline view]
+
+> **[LEGACY]** The diagram and table below describe the older fact-carousel-only pipeline. The current system runs five pipelines (reels, fact carousel, list, news, manual) and the canonical lifecycle has nine stages: `SOURCE → VERIFY → GENERATE → ACQUIRE MEDIA → RENDER → (APPROVE) → PUBLISH → LEDGER → MEASURE`. See `SPEC_FACTJOT_SYSTEM.md` section 5 for the current lifecycle. Several `scripts/<name>.py` paths in the table no longer exist there; current entrypoints are under `pipelines/<name>/`. Render output is now `output/<pipeline>/...` not `data/renders/...`.
 
 ```
 DISCOVER → VERIFY → GENERATE → RENDER → APPROVE → PUBLISH → MEASURE
@@ -47,7 +64,9 @@ The full step-by-step is in `insta-brain/PUBLISH_PLAN.md`. This README is the or
 
 ---
 
-## Quick start (fresh machine)
+## Quick start (fresh machine) [PARTLY LEGACY]
+
+> **[LEGACY]** Steps 3-6 below reference `scripts/<name>.py` paths and a launchd-based auto-publish loop. Operational scripts moved to `pipelines/shared/<name>.py`, and autonomous publishing is now run by GitHub Actions, not launchd. The Python venv and Playwright install steps are still correct.
 
 ```bash
 # 1. Python deps
@@ -109,7 +128,26 @@ See `.env.example`. Bot will refuse to publish unless `INSTAGRAM_ACCOUNT_ID`, `M
 
 ---
 
-## Scripts (entry points)
+## Scripts (entry points) [PARTLY LEGACY, paths stale]
+
+> **[LEGACY paths]** Almost every row below names a path under `scripts/`. The `scripts/` directory is now effectively empty, the operational scripts have moved. Current locations:
+>
+> | Old path in this table | Current path |
+> |---|---|
+> | `scripts/plan_week.py` | `pipelines/shared/plan_week.py` |
+> | `scripts/smoke_render.py` | `pipelines/carousel/smoke_render.py` |
+> | `scripts/review_queue.py` | `pipelines/shared/review_queue.py` (legacy queue, not used by autonomous flow) |
+> | `scripts/publish_now.py` | `pipelines/shared/publish_now.py` (legacy, manual override only) |
+> | `scripts/publish_due.py` | `pipelines/shared/publish_due.py` (legacy, launchd-era) |
+> | `scripts/check_meta_setup.py` | `pipelines/shared/check_meta_setup.py` |
+> | `scripts/auto_schedule_weekly.py` | `pipelines/shared/auto_schedule_weekly.py` |
+> | `scripts/refresh_token.py` | `pipelines/shared/refresh_token.py` |
+>
+> Posting entrypoints (which the table below does not list) are in `pipelines/<pipeline>/`: `ship_first_post.py` (carousel), `ship_list_post.py` (list), `make_reel.py` (reel), `ship_news_post.py` (news, also currently used as the manual carousel renderer), `ship_manual_post.py` (manual).
+>
+> `scripts/run_pipeline.py`, `scripts/fetch_metrics.py`, and `scripts/weekly_report.py` are not in the live `scripts/` directory. Their successors (where they exist) are in `pipelines/reel/fetch_reel_metrics.py` and the `weekly-plan.yml` workflow. The "Auto-fired by launchd" notes are legacy.
+>
+> The original table is preserved below for reference until this section is fully rewritten.
 
 | Script | Purpose | When to run |
 |---|---|---|
@@ -128,6 +166,37 @@ See `.env.example`. Bot will refuse to publish unless `INSTAGRAM_ACCOUNT_ID`, `M
 ---
 
 ## Folder map
+
+> **Updated.** The current top-level structure includes a `pipelines/` directory that holds every post-type entrypoint. The original tree below did not show it. Rendered output now lives under `output/<pipeline>/...`, and the in-flight `data/posts/` / `data/renders/` paths have largely been replaced by `output/` and `data/ledgers/`. The original tree is preserved below for reference; treat it as orientation, not the live layout.
+
+Current top-level layout (high signal):
+
+```
+Insta-bot/
+├── README.md                      # this file (partly legacy, see notice)
+├── CLAUDE.md                      # project-level operating rules (current)
+├── SPEC_FACTJOT_SYSTEM.md         # system constitution (current)
+├── SPEC_IMAGE_PIPELINE.md         # image pipeline sub-spec
+├── insta-brain/                   # operating manual + ledgers + rules + bank
+├── brand/brand_kit.json           # locked visual identity (single source of truth)
+├── assets/                        # fonts, music, intros, safety footage
+├── config/pipeline.yaml           # pipeline knobs
+├── .github/workflows/             # GitHub Actions (production scheduler)
+├── launchd/                       # macOS launchd plists (legacy, not used)
+├── src/                           # shared modules (core, research, content, render, publish, verification, utils)
+├── pipelines/                     # post-type entrypoints (current home)
+│   ├── reel/                      # make_reel.py + reel-only helpers
+│   ├── carousel/                  # ship_first_post.py (morning fact carousel) + helpers
+│   ├── list/                      # ship_list_post.py (evening list) + pack tooling
+│   ├── news/                      # ship_news_post.py (news + currently shared as manual renderer)
+│   ├── manual/                    # ship_manual_post.py (editorial brief carousels)
+│   └── shared/                    # cross-pipeline ops (publish, token, idempotency, status, etc.)
+├── output/                        # per-run rendered artefacts (gitignored, local only)
+├── data/                          # repo-tracked state (ledgers + caches)
+└── scripts/                       # mostly legacy, now contains very little (kill_local_reel_jobs.sh)
+```
+
+Original tree (legacy view, kept for reference):
 
 ```
 Insta-bot/
@@ -211,7 +280,9 @@ If you add a feature without updating the docs, future agents will not know it e
 
 ---
 
-## Scheduling (auto-publish)
+## Scheduling (auto-publish) [LEGACY]
+
+> **[LEGACY]** This entire section describes the launchd-based local publishing flow, which is **disabled**. Autonomous posting is now run by GitHub Actions, triggered primarily by cron-job.org with GitHub's built-in cron as backup. Do not install the launchd plist; doing so while the GitHub workflows are live will cause double-posts (this happened on 2026-05-05). For the current schedule and workflow inventory, see `CLAUDE.md` "Daily automation". The block below is preserved for reference only.
 
 A macOS launchd job at `launchd/com.tjcreate.factjot.publish.plist` fires `scripts/publish_due.py` every 15 minutes.
 
@@ -229,7 +300,9 @@ launchctl load ~/Library/LaunchAgents/com.tjcreate.factjot.publish.plist
 
 ---
 
-## Toby vs the bot
+## Toby vs the bot [PARTLY LEGACY]
+
+> **[LEGACY]** "Weekly: skim and approve" describes the old queue/approve cadence. Today the autonomous pipelines (reels, fact carousel, list carousel, news carousel) post without per-run approval; only manual / editorial carousels are gated, and approval there means inspecting the rendered output before publishing. See `SPEC_FACTJOT_SYSTEM.md` section 6 for the two-mode model.
 
 | Toby | The bot |
 |---|---|
@@ -243,18 +316,9 @@ Toby never logs into Instagram to post. He approves; the bot ships.
 
 ---
 
-## Image source coverage
+## Image source coverage [DEFERRED to spec]
 
-The fetcher iterates each source in this order until it finds a fresh, unused image. If every source fails for every query variant, the slide is held for review (rule 11).
-
-1. Pexels (key) — high-quality stock
-2. Pixabay (key) — big library
-3. Openverse (no key) — aggregator
-4. iNaturalist (no key) — biology / nature
-5. NASA Images (no key) — space
-6. Smithsonian (no key) — broad cultural / scientific
-7. Wikipedia opensearch + REST summary (no key)
-8. Wikimedia Commons file search (no key)
+> **Source of truth: `SPEC_IMAGE_PIPELINE.md` section 6.** The current image provider order, validation rules, and licence policy for the manual carousel image pipeline are owned by that spec, not by this README. The list previously published here was inconsistent with the spec (it placed Pexels first, while the spec places Wikimedia first and excludes Pexels for images). To avoid agents following a stale order, the list has been removed from this README. Pexels remains a footage source for reels, governed by `CLAUDE.md` "Footage quality rules" until `SPEC_VIDEO_PIPELINE.md` is written.
 
 ---
 

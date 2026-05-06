@@ -30,6 +30,7 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from src.brain import brain
 from src.content.description_builder import build_instagram_description
+from src.content.hashtag_builder import build_hashtags
 from src.content.list_packs import LIST_PACKS, get_pack, list_packs
 from src.content.pack_resolver import resolve_pack, slug_post_id, list_dedupe_claim
 from src.core.paths import GENERATED_LIST_PACKS, LIST_POSTS
@@ -42,13 +43,6 @@ from src.render.list_renderer import ListCarouselRenderer, ListSlideSpec
 from src.render.render_carousel import BrandKitRenderer
 from src.utils.logging_utils import configure_logging
 
-
-HASHTAGS_FILM = [
-    "factjot", "filmrecs", "moviestowatch", "scifi", "filmtwitter",
-    "movienight", "cinephile", "indiefilm", "filmlovers", "filmlist",
-    "underratedfilms", "filmcommunity", "movierecommendations",
-    "filmsofinstagram", "watchlist",
-]
 
 
 def _load_pack_cache(slug: str) -> dict | None:
@@ -359,7 +353,11 @@ def main() -> int:
 
         titles = [item["title"] for item in recap if item.get("title")]
         credits_line = "Credits:\n" + "\n".join(f"• {t}" for t in titles) if titles else ""
-        hashtag_block = " ".join(HASHTAGS_FILM)
+        hashtag_block = build_hashtags(
+            summary=pack.get("caption", pack.get("title", "")),
+            topic=pack.get("category", "film").lower(),
+            post_type="film",
+        )
         full_caption = "\n\n".join(p for p in [
             pack["caption"].strip(), credits_line, hashtag_block
         ] if p).strip()
@@ -420,7 +418,7 @@ def main() -> int:
                     hook="",
                     slides=[pack["title"]],
                     caption=pack["caption"],
-                    hashtags=HASHTAGS_FILM,
+                    hashtags=hashtag_block.split(),
                     sources=sources,
                     confidence=0.9,
                     category=pack["category"],

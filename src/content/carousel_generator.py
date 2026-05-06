@@ -5,6 +5,7 @@ import re
 from collections import OrderedDict
 from typing import Sequence
 
+from src.content.hashtag_builder import build_hashtags
 from src.content.image_relevance import ImageRelevanceService
 from src.content.quotes import QuoteBank
 from src.core.models import CarouselPost, VerifiedFact
@@ -122,12 +123,12 @@ class CarouselDraftGenerator:
 
             hook = self._strip_markup(slides[0]) if slides else ""
             caption = self._caption(chunk)
-            hashtags = self._hashtags(topic, category)
-
-            avg_confidence = (
-                sum(f.confidence for f in chunk) / len(chunk) if chunk else 0.0
-            )
             anchor_claim = chunk[0].claim if chunk else ""
+            hashtags = build_hashtags(
+                summary=anchor_claim,
+                topic=topic,
+                post_type="fact",
+            ).split()
             image_prompt = self.image_relevance.build_image_prompt(
                 anchor_claim, topic,
                 style_hint="moody documentary photography, dark cinematic lighting, real subject, no text",
@@ -390,38 +391,3 @@ class CarouselDraftGenerator:
             return f"{hook}\n\n{cta}"
         return cta
 
-    @staticmethod
-    def _hashtags(topic: str, category: str) -> list[str]:
-        normalized_topic = re.sub(r"\W+", "", topic.strip()).lower()
-        normalized_cat = re.sub(r"\W+", "", category.strip()).lower()
-        # 15-tag mix: brand → broad-reach → category → topic. Stays under the
-        # 30-tag IG cap with room to add per-claim niche tags later.
-        tags = [
-            "#factjot",
-            "#didyouknow",
-            "#facts",
-            "#dailyfact",
-            "#interestingfacts",
-            "#funfacts",
-            "#mindblown",
-            "#learnsomething",
-            "#todayilearned",
-            "#knowledge",
-            "#curiosity",
-        ]
-        if normalized_cat:
-            tags.append(f"#{normalized_cat}")
-            tags.append(f"#{normalized_cat}facts")
-        if normalized_topic and normalized_topic != normalized_cat:
-            tags.append(f"#{normalized_topic}")
-            tags.append(f"#{normalized_topic}facts")
-        # Dedupe while preserving order.
-        seen: set[str] = set()
-        out: list[str] = []
-        for t in tags:
-            low = t.lower()
-            if low in seen:
-                continue
-            seen.add(low)
-            out.append(t)
-        return out[:15]

@@ -7,11 +7,52 @@ Before anything else, read `/Users/Music/.claude/CLAUDE.md` for Toby's universal
 
 **Fix the tool, not the symptom.** When a value in a data file is wrong (wrong TMDB ID, wrong path, wrong ID in a ledger), do not just patch the value. Find the process that wrote it wrong and fix that process. Patching one bad value means the next one will be wrong too. Example: wrong TMDB IDs in list_packs.py were patched one-by-one until `verify_pack_ids.py` was written to fix them systematically and run weekly.
 
+## Image pipeline rule -- read the spec first
+
+Before touching manual carousel image sourcing, image candidate selection, image provider order, image fallbacks, or manual/news slide rendering, read:
+
+`SPEC_IMAGE_PIPELINE.md`
+
+If the file does not exist, create it in plan mode before making implementation changes.
+
+The product goal is not just to avoid wrong images. The goal is a finished carousel that looks intentional, visually strong, factually accurate, legally usable, and safe to post.
+
+A safe but ugly carousel is still a failed carousel.
+
+Do not patch image sourcing symptoms without checking the spec.
+
 **HARD RULE -- facts must come from Reddit only.** Never use Claude to generate, invent, or brainstorm facts for the fact bank (rare_fact_bank.py or discovered_facts.jsonl). Facts must originate from real Reddit posts with real user-submitted citations. Claude may be used to write a reel_script or reel_title FROM an existing Reddit-sourced fact, but must never be the source of the fact itself. If the bank runs low, the correct response is to lower Reddit discovery thresholds or set up OAuth for more sources -- not to have Claude generate content.
 
 **HARD RULE -- transitions are hardwired.** `case_file_dynamic` is the only reel transition mode. It is hardcoded in `src/render/reel_composer.py`. Do not add env var flags, feature toggles, or `--classic` fallbacks. The REEL_TRANSITIONS_MODE env var no longer exists. Every reel uses case_file_dynamic, always.
 
 **HARD RULE -- never force-push to main.** Force-pushing rewrites history and silently deletes state commits (posted.jsonl, list_posts.jsonl, reels.jsonl updates) that running workflows have just written. This caused the horror film triple-post incident on 2026-05-05. If large files need removing from history, do it on a separate branch with workflows paused first.
+
+**HARD RULE -- no empty image boxes.** If a carousel slide has no usable image, the renderer must use an intentional typography-only layout. Never render an empty photo rectangle, blank image slot, or near-invisible placeholder and call it success.
+
+**HARD RULE -- image pipeline changes require plan mode.** Any change to `image_sourcer.py`, `image_fetcher.py`, manual carousel rendering, provider order, image fallback logic, or candidate scoring/selection must begin in plan mode. The plan must list files touched, functions touched, expected behaviour, acceptance tests, and rollback path.
+
+**Image sourcing success means visual success.** Unit tests passing is not enough. The rendered output must be inspected. If the carousel has wrong images, repeated weak images, blank slots, or accidental empty boxes, the task is not complete.
+
+---
+
+## Known architecture risks (do not edit blindly)
+
+**`pipelines/news/ship_news_post.py` has dual responsibility.** It is both:
+
+1. The news pipeline's entry-point script (called by `news-carousel.yml`).
+2. The renderer used by the manual / editorial carousel pipeline (`pipelines/manual/ship_manual_post.py` currently delegates rendering to it, and dry-run previews from the manual pipeline land in `output/news/...`).
+
+This means an edit to `ship_news_post.py` for one purpose can silently affect the other. If you are asked to "fix manual carousel rendering" or "change manual slide layout", you will end up editing news-pipeline code. If you are asked to "change news layout", you will affect the manual pipeline.
+
+This is a known mismatch flagged in `SPEC_FACTJOT_SYSTEM.md` section 10.1 and is to be untangled in a deliberate refactor (split renderer from news entry point, route manual through its own renderer, write to `output/manual/`). Until that refactor lands, treat any change here as cross-pipeline and inspect both manual and news rendered output before shipping.
+
+---
+
+## Open decisions (not for ad-hoc resolution)
+
+Items below are deliberately undecided. Do not pick one in passing. They are owned by the relevant spec or by Toby and will be resolved in a focused decision.
+
+- **INK black hex.** The system currently references INK as both `#0A0A0A` (CLAUDE.md typography section, brand colours line) and `#0B0B0C` (`SPEC_IMAGE_PIPELINE.md` section 12, typography-only fallback background). Final value belongs in `brand/brand_kit.json` once the style guide is migrated, and is owned by the future `SPEC_STYLE_GUIDE.md`. Do not unilaterally normalise either value in code or in templates.
 
 ---
 
@@ -64,17 +105,39 @@ In **GitHub Actions**, bare `python3` is correct (pip installs to the runner's s
 
 **All launchd jobs are DISABLED.** GitHub Actions is the sole scheduler. Do not re-enable launchd without disabling the workflows first or double-posts will occur.
 
+**The legacy queue is also disabled.** `pipelines/shared/publish_due.py`, `pipelines/shared/review_queue.py`, the `queue.jsonl` ledger, and the older "approve queued posts then publish" rhythm in README.md are legacy. The autonomous flow does not use them. They are kept on disk for reference and for the (rare) manual override case (`publish_now.py`). Do not wire any new automation through `publish_due.py` or `review_queue.py`. Manual / editorial carousels are gated by rendered-output inspection per `SPEC_FACTJOT_SYSTEM.md` section 6.2, not by the old queue.
+
 **CRITICAL -- NEVER force-push to main.** Force-pushing rewrites history and silently deletes state commits (posted.jsonl, list_posts.jsonl, reels.jsonl updates) that running workflows have just written. This is what caused the triple-post incident on 2026-05-05. If large files need removing from history, do it on a separate branch, test, then merge -- never force-push to an active main branch. See: incident in memory `project_triple_post_incident.md`.
 
 ### Posting schedule (BST = UTC+1)
 
 
-| Workflow               | BST   | UTC   | Triggers                       |
-| ---------------------- | ----- | ----- | ------------------------------ |
-| `carousel-morning.yml` | 10:00 | 09:00 | `ship_first_post.py --topic X` |
-| `reel.yml`             | 12:00 | 11:00 | `make_reel.py`                 |
-| `list-carousel.yml`    | 18:00 | 17:00 | `ship_list_post.py --next`     |
+| Workflow               | BST   | UTC   | Triggers                                      |
+| ---------------------- | ----- | ----- | --------------------------------------------- |
+| `carousel-morning.yml` | 10:00 | 09:00 | `pipelines/carousel/ship_first_post.py`       |
+| `reel.yml`             | 12:00 | 11:00 | `pipelines/reel/make_reel.py`                 |
+| `news-carousel.yml`    | 14:00 | 13:00 | `pipelines/news/ship_news_post.py` (only fires when the news-watcher gate finds a breaking story) |
+| `list-carousel.yml`    | 18:00 | 17:00 | `pipelines/list/ship_list_post.py --next`     |
 
+
+### All GitHub Actions workflows
+
+The repo holds more workflows than the posting-schedule table above. The complete inventory in `.github/workflows/` is:
+
+| File | Role |
+| ---- | ---- |
+| `carousel-morning.yml`     | Daily morning fact carousel (autonomous post) |
+| `reel.yml`                 | Daily reel (autonomous post) |
+| `autonomous-reel.yml`      | Reel pipeline workflow (read the file before assuming the relationship to `reel.yml`; both currently exist) |
+| `news-carousel.yml`        | Daily news carousel, conditional on the news-watcher gate (autonomous post) |
+| `news-watcher.yml`         | Polls news sources for the breaking-story gate that `news-carousel.yml` depends on |
+| `list-carousel.yml`        | Daily evening list carousel (autonomous post) |
+| `weekly-plan.yml`          | Sunday housekeeping: restock, fact discovery, runway report, weekly token refresh |
+| `daily-metrics.yml`        | Pulls IG insights / scores performance (writes `data/ledgers/reel_performance.jsonl` etc.) |
+| `pages.yml`                | GitHub Pages build for `docs/` (privacy, terms, etc.) — not a posting workflow |
+| `reset-and-relaunch.yml`   | Operational reset / relaunch helper — not part of normal posting cadence |
+
+When changing posting cadence or adding a new pipeline, only the posting workflows above should be touched. `daily-metrics.yml`, `weekly-plan.yml`, `news-watcher.yml`, `pages.yml`, and `reset-and-relaunch.yml` have separate roles and should not be conflated with daily posts.
 
 ### How it fires
 
@@ -161,7 +224,7 @@ FFmpeg graph template path: each reel compose writes `ffmpeg_filter_complex.txt`
 
 Reel visual toggles:
 
-- `REEL_TRANSITIONS_MODE=classic|case_file_dynamic` (default `classic`)
+- `case_file_dynamic` is hardcoded. There is no `REEL_TRANSITIONS_MODE` toggle.
 - `REEL_TEXTURE_FINISH=on|off` (default `on`)
 - `REEL_TEXTURE_INTENSITY=low|medium` (default `low`)
 - `REEL_GRIT_OVERLAY_PATH=/abs/path/to/animated_grit.mov` (optional override)
@@ -199,20 +262,20 @@ Use this rollout order for new Reel performance features:
 
 | File                                           | Purpose                                                                             |
 | ---------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `scripts/make_reel.py`                         | Main Reel pipeline entry point                                                      |
+| `pipelines/reel/make_reel.py`                  | Main Reel pipeline entry point                                                      |
 | `scripts/kill_local_reel_jobs.sh`              | Stops this repo's `make_reel.py` + FFmpeg jobs using `factjot_intro.mov`            |
 | `src/utils/reel_run_logger.py`                 | `ReelRunLogger`: `pipeline.log` + `logs/reel_runs/` copies                          |
-| `scripts/ship_first_post.py`                   | Morning carousel (topic-based, quirky_score >= 2 floor)                             |
-| `scripts/ship_list_post.py`                    | Evening list carousel (cache-first, then TMDB fallback)                             |
-| `scripts/prepare_packs.py`                     | Sunday: pre-resolves all unposted list packs, writes cache                          |
-| `scripts/restock.py`                           | Sunday: fact discovery + runway report across all content types                     |
-| `scripts/refresh_token.py`                     | Refreshes Meta 60-day access token                                                  |
-| `scripts/check_posted_today.py`                | Idempotency guard — exits 1 if already posted today                                 |
-| `scripts/check_token.py`                       | Verifies Meta token; prints `ok` or `invalid`                                       |
-| `scripts/check_reel_runway.py`                 | Counts unposted q2+q3 facts with reel fields for runway                             |
-| `scripts/discover_facts.py`                    | Discovers facts from Reddit TIL; scores 0-3; rejects boring                         |
-| `scripts/log_workflow_failure.py`              | Writes failure entry to brain log on workflow error                                 |
-| `scripts/log_token_alert.py`                   | Writes token-expired alert to brain log                                             |
+| `pipelines/carousel/ship_first_post.py`        | Morning carousel (topic-based, quirky_score >= 2 floor)                             |
+| `pipelines/list/ship_list_post.py`             | Evening list carousel (cache-first, then TMDB fallback)                             |
+| `pipelines/list/prepare_packs.py`              | Sunday: pre-resolves all unposted list packs, writes cache                          |
+| `pipelines/carousel/restock.py`                | Sunday: fact discovery + runway report across all content types                     |
+| `pipelines/shared/refresh_token.py`            | Refreshes Meta 60-day access token                                                  |
+| `pipelines/shared/check_posted_today.py`       | Idempotency guard, exits 1 if already posted today                                  |
+| `pipelines/shared/check_token.py`              | Verifies Meta token; prints `ok` or `invalid`                                       |
+| `pipelines/reel/check_reel_runway.py`          | Counts unposted q2+q3 facts with reel fields for runway                             |
+| `pipelines/carousel/discover_facts.py`         | Discovers facts from Reddit TIL; scores 0-3; rejects boring                         |
+| `pipelines/shared/log_workflow_failure.py`     | Writes failure entry to brain log on workflow error                                 |
+| `pipelines/shared/log_token_alert.py`          | Writes token-expired alert to brain log                                             |
 | `src/content/pack_resolver.py`                 | Shared TMDB resolution for list packs (used by both ship_list_post + prepare_packs) |
 | `src/research/rare_fact_bank.py`               | Curated facts — source of truth                                                     |
 | `src/research/narrative_beats.py`              | 5 footage queries derived from `image_hint`                                         |
@@ -233,7 +296,14 @@ Use this rollout order for new Reel performance features:
 | `src/core/brand.py`                            | Brand constants — fonts, colours, dimensions                                        |
 | `src/core/paths.py`                            | All file paths — single source of truth                                             |
 | `src/core/ffmpeg_bin.py`                       | `FFMPEG_BIN` + startup check; auto-falls-back to brew ffmpeg-full if default fails  |
-| `scripts/download_music.py`                    | Helper to populate assets/music/ from Pixabay or flag missing tracks                |
+| `pipelines/reel/download_music.py`             | Helper to populate assets/music/ from Pixabay or flag missing tracks                |
+| `pipelines/manual/ship_manual_post.py`         | Manual carousel pipeline, content generation, image intent, rendering entry point   |
+| `src/research/image_sourcer.py`                | Manual/news image orchestration, candidate pool, Haiku selector/scoring/fallback    |
+| `src/research/image_fetcher.py`                | Low-level image provider search, candidate fetching, hard validation                |
+| `src/research/used_images.py`                  | Image URL/SHA ledger                                                                |
+| `pipelines/news/ship_news_post.py`             | News/manual slide renderer currently used by manual pipeline (DUAL ROLE, see warning below) |
+| `SPEC_IMAGE_PIPELINE.md`                       | Required spec for image sourcing and fallback behaviour                             |
+| `SPEC_FACTJOT_SYSTEM.md`                       | Top-level system constitution (read before any cross-cutting change)                |
 
 
 ---
@@ -475,12 +545,14 @@ Every fix must be a long-term structural fix, not a temporary patch. A patch tha
 
 **Obsidian:** open the `insta-brain/` folder as a vault (or use the repo’s brain notes there). Hub notes use wikilinks so **[[gotchas]]** appears in the graph: start from **[[MEMORY_INDEX]]** in the same vault, or link **[[gotchas]]** from any note you edit. Plain paths alone do not create graph edges.
 
+**Empty image string gotcha:** if a pipeline returns an empty string for an image slot, confirm how the renderer handles it. Empty string must not become a blank photo box. It must become a deliberate typography-only slide or the run must fail with a clear reason. Never assume the renderer handles this correctly without checking the template.
+
 ---
 
 ## Invariants — never break
 
 1. Never repost a fact — check `insta-brain/data/posted.jsonl`.
-2. Never reuse a carousel image — check `data/ledgers/used_images.jsonl`.
+2. Never reuse a carousel image across posts unless the relevant ledger/spec explicitly allows it. Within a single manual carousel, image reuse is only allowed by `SPEC_IMAGE_PIPELINE.md`: max 2 uses per URL, no consecutive duplicates, and only when reuse is better than a weak or misleading image.
 3. Every fact must be 100% true — 2+ reputable sources, confidence >= 0.65.
 4. No em dashes — anywhere, ever. Including YAML workflow comments.
 5. British English throughout all copy.
