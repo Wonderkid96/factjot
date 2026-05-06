@@ -1,6 +1,6 @@
 # Image Pipeline Spec
 
-**Status:** Reset draft, awaiting Toby approval, 2026-05-06.
+**Status:** Approved by Toby, 2026-05-06.
 **Parent spec:** `SPEC_FACTJOT_SYSTEM.md`, system constitution. This document is a sub-spec. It inherits all system-wide invariants, safety rules, and agent workflow rules from the parent. Where this spec and the parent disagree, the parent wins.
 **Replaces:** Previous SPEC_IMAGE_PIPELINE.md (approved 2026-05-06). The implementation work that followed approval still produced failing carousels, so this spec resets the brief at product level before any further code work.
 **Primary target:** Manual carousel image pipeline.
@@ -332,7 +332,7 @@ Tracked, not in scope here:
 ## Approval
 
 Spec written: 2026-05-06.
-Approved by Toby: pending.
+Approved by Toby: 2026-05-06.
 
 After approval, the next steps are:
 
