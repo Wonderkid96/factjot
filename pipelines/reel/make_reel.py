@@ -1059,19 +1059,10 @@ def main() -> int:
         print(f"\n  {used} used, {blocked} blocked (controversial), {len(all_q3) - used - blocked} available")
         return 0
 
-    # TODAY GUARD -- second line of defence against duplicate reel posts.
-    if not args.dry_run and not args.list_facts and not args.force:
-        _today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        _reels = Path("insta-brain/data/reels.jsonl")
-        if _reels.exists():
-            for _line in _reels.read_text(encoding="utf-8").splitlines():
-                try:
-                    _e = json.loads(_line.strip())
-                    if _e.get("published_at", "").startswith(_today):
-                        print(f"ABORTED: a reel already posted today at {_e['published_at'][:16]}. Duplicate prevention.")
-                        return 2
-                except Exception:
-                    pass
+    # Per-day reel cap removed: the autonomous agent is now the single
+    # poster and runs its own duplicate guard via the post bank summary.
+    # Capping reels at 1/day here prevented legitimate format choices
+    # made after a same-day blocked attempt.
 
     # Autonomous agent path — script provided directly via CLI
     if args.script:

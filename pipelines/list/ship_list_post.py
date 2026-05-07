@@ -246,21 +246,10 @@ def main() -> int:
     pack = get_pack(args.pack)
     post_id = slug_post_id(args.pack)
 
-    # TODAY GUARD -- catches duplicates even when the workflow-level check reads
-    # stale state (e.g. after a force-push wiped earlier state commits).
-    # If ANY list post went out today, abort immediately.
-    from datetime import timezone as _tz
-    _today = datetime.now(_tz.utc).strftime("%Y-%m-%d")
-    _lp = Path("insta-brain/data/list_posts.jsonl")
-    if _lp.exists():
-        for _line in _lp.read_text(encoding="utf-8").splitlines():
-            try:
-                _entry = json.loads(_line.strip())
-                if _entry.get("published_at", "").startswith(_today) and _entry.get("ig_media_id") != "skip":
-                    print(f"ABORTED: a list carousel already posted today at {_entry['published_at'][:16]}. Duplicate prevention.")
-                    return 2
-            except Exception:
-                pass
+    # Per-day list cap removed: the autonomous agent is now the single
+    # poster and runs its own duplicate guard via the post bank summary.
+    # The pack-uniqueness check below still applies (a list pack ships
+    # only once, ever).
 
     # Rule 01 spirit: each list pack ships ONCE, ever. New packs, not re-runs.
     # Check list_posts.jsonl first — it survives resets of posted.jsonl.
