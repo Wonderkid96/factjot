@@ -43,13 +43,16 @@ def render_thumbnail(
     out_path: Path,
     *,
     frame_path: Path | None = None,
-    title_size: int = 78,
+    title_size: int = 88,
 ) -> Path:
     """Render a thumbnail PNG with optional footage frame as background.
 
-    Framed like a carousel slide so the profile grid reads as one visual
-    system: factjot. ─── TOPIC header, accent pill with the topic, smaller
-    Instrument Serif headline, factjot. corner-mark bottom-right.
+    Anchored to Instagram's 1:1 centre-crop safe area so the profile grid,
+    feed, and Reels tab all show full branding. factjot. ─── TOPIC header
+    band, accent pill, Instrument Serif headline centred in the safe zone,
+    factjot. corner-mark bottom-right. Top and bottom 420px get cropped on
+    the grid -- those zones hold heavy gradient bands that double as
+    legibility scrims for the masthead and footer rows.
     """
     assert_fonts_present()
     out_path.parent.mkdir(parents=True, exist_ok=True)
