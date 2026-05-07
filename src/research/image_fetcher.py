@@ -65,6 +65,38 @@ def _alias_matches(alias: str, m: str) -> bool:
     return all(w.lower() in meta_tokens for w in alias.split())
 
 
+def _negative_term_hits(*, meta: str, negative_terms: list[str]) -> list[str]:
+    """Return negative terms that match meta on token / phrase boundaries.
+
+    Single-word negatives must match a whole token in meta. Multi-word
+    phrases match a contiguous token sequence anywhere in meta.
+
+    Avoids the substring trap where 'station' fires on 'destination'.
+    """
+    if not negative_terms or not meta:
+        return []
+    meta_lower = meta.lower()
+    meta_tokens = re.findall(r"[a-z0-9]+", meta_lower)
+    meta_token_string = " ".join(meta_tokens)
+    hits: list[str] = []
+    for term in negative_terms:
+        t = term.strip().lower()
+        if not t:
+            continue
+        if " " in t:
+            pattern = (
+                r"(?:^|\s)"
+                + r"\s+".join(re.escape(w) for w in t.split())
+                + r"(?:\s|$)"
+            )
+            if re.search(pattern, meta_token_string):
+                hits.append(term)
+        else:
+            if t in meta_tokens:
+                hits.append(term)
+    return hits
+
+
 WEAK_QUERY_WORDS = {
     "single", "every", "anything", "nothing", "something", "someone",
     "produces", "producing", "produce", "produced", "containing", "contains",
@@ -889,7 +921,8 @@ class ImageFetcher:
             "nasa", "smithsonian",
         }
         if negative_terms and meta:
-            neg_hit = next((t for t in negative_terms if t.lower() in meta), None)
+            hits = _negative_term_hits(meta=meta, negative_terms=negative_terms)
+            neg_hit = hits[0] if hits else None
             if neg_hit:
                 is_weak_neg = (len(neg_hit.split()) == 1)
                 has_strong_alias = bool(source_aliases) and any(

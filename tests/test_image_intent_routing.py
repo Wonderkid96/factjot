@@ -27,3 +27,29 @@ def test_classifies_abstract_concept_as_abstract():
         slot_aliases=[],
     )
     assert intent == "abstract"
+
+
+from src.research.image_fetcher import _negative_term_hits
+
+
+def test_negative_term_hits_token_boundary():
+    """A negative 'station' must not fire on 'destination' (substring trap)."""
+    hits = _negative_term_hits(
+        meta="travel destination paris",
+        negative_terms=["station"],
+    )
+    assert hits == []
+
+    hits = _negative_term_hits(
+        meta="metro station entrance",
+        negative_terms=["station"],
+    )
+    assert hits == ["station"]
+
+
+def test_negative_term_hits_compound_phrase():
+    hits = _negative_term_hits(
+        meta="place de la concorde paris square",
+        negative_terms=["place de la concorde", "obelisk"],
+    )
+    assert "place de la concorde" in hits
