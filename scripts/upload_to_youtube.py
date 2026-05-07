@@ -141,6 +141,57 @@ def _ensure_shorts_tag(description: str) -> str:
     return description.rstrip() + "\n\n#Shorts"
 
 
+def _prepare_thumbnail(video_path: Path) -> Path | None:
+    """Return a JPEG version of the reel's thumbnail.png under 2 MB, or
+    None if no thumbnail file is available next to the video.
+
+    YouTube caps custom thumbnails at 2 MB; our PNG renders at ~2.3 MB.
+    JPEG at quality 85 typically lands well under 1 MB.
+    """
+    src = video_path.parent / "thumbnail.png"
+    if not src.exists():
+        return None
+    try:
+        from PIL import Image
+    except ImportError:
+        print("[youtube] Pillow not installed, skipping thumbnail compression", flush=True)
+        return None
+
+    out = video_path.parent / "thumbnail_yt.jpg"
+    with Image.open(src) as im:
+        im = im.convert("RGB")
+        im.save(out, format="JPEG", quality=85, optimize=True, progressive=True)
+    size_kb = out.stat().st_size // 1024
+    if out.stat().st_size > 2 * 1024 * 1024:
+        # Re-encode at lower quality if still over 2MB.
+        with Image.open(src) as im:
+            im = im.convert("RGB")
+            im.save(out, format="JPEG", quality=75, optimize=True, progressive=True)
+        size_kb = out.stat().st_size // 1024
+    print(f"[youtube] thumbnail prepared: {out.name} ({size_kb}KB)", flush=True)
+    return out
+
+
+def _set_thumbnail(youtube, video_id: str, thumbnail_path: Path) -> bool:
+    """Upload custom thumbnail. Soft fail (returns False) if the channel
+    is not verified or the API rejects the image — YouTube will fall
+    back to an auto-generated frame from the video."""
+    try:
+        request = youtube.thumbnails().set(
+            videoId=video_id,
+            media_body=MediaFileUpload(str(thumbnail_path), mimetype="image/jpeg"),
+        )
+        request.execute()
+        print(f"[youtube] custom thumbnail set on {video_id}", flush=True)
+        return True
+    except HttpError as exc:
+        print(f"[youtube] thumbnail set failed (non-fatal): {exc}", flush=True)
+        return False
+    except Exception as exc:
+        print(f"[youtube] thumbnail set failed (non-fatal): {exc}", flush=True)
+        return False
+
+
 def upload(video_path: Path, title: str, description: str,
            tags: list[str], privacy: str) -> dict:
     creds   = _credentials_from_env()
@@ -170,7 +221,14 @@ def upload(video_path: Path, title: str, description: str,
         status, response = request.next_chunk()
         if status:
             print(f"[youtube] {int(status.progress() * 100)}% uploaded", flush=True)
-    print(f"[youtube] done. video_id={response['id']}", flush=True)
+    video_id = response["id"]
+    print(f"[youtube] done. video_id={video_id}", flush=True)
+
+    # Custom thumbnail (soft - YouTube auto-picks a frame if this fails).
+    thumb = _prepare_thumbnail(video_path)
+    if thumb is not None:
+        _set_thumbnail(youtube, video_id, thumb)
+
     return response
 
 
