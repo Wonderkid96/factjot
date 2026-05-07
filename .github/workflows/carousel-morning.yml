@@ -111,6 +111,7 @@ jobs:
 
       - name: Post morning carousel
         if: steps.check.outputs.skip != 'true'
+        timeout-minutes: 8
         run: python3 pipelines/carousel/ship_first_post.py
 
       - name: Capture failure to brain log

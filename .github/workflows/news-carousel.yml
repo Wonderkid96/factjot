@@ -107,26 +107,23 @@ jobs:
         run: git pull --rebase --autostash origin main 2>/dev/null || true
 
       - name: Post breaking news carousel
+        env:
+          ARTICLE_URL: ${{ github.event.inputs.article_url }}
+          SECTION: ${{ github.event.inputs.section }}
+          QUERY: ${{ github.event.inputs.query }}
+          MAX_AGE: ${{ github.event.inputs.max_age }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
         run: |
-          ARGS=""
-          # article_url from watcher takes priority over all other inputs
-          if [ -n "${{ github.event.inputs.article_url }}" ]; then
-            ARGS="$ARGS --article-url \"${{ github.event.inputs.article_url }}\""
+          ARGS=()
+          if [ -n "$ARTICLE_URL" ]; then
+            ARGS+=(--article-url "$ARTICLE_URL")
           else
-            if [ -n "${{ github.event.inputs.section }}" ]; then
-              ARGS="$ARGS --section ${{ github.event.inputs.section }}"
-            fi
-            if [ -n "${{ github.event.inputs.query }}" ]; then
-              ARGS="$ARGS --query \"${{ github.event.inputs.query }}\""
-            fi
-            if [ -n "${{ github.event.inputs.max_age }}" ]; then
-              ARGS="$ARGS --max-age ${{ github.event.inputs.max_age }}"
-            fi
+            [ -n "$SECTION" ] && ARGS+=(--section "$SECTION")
+            [ -n "$QUERY" ]   && ARGS+=(--query "$QUERY")
+            [ -n "$MAX_AGE" ] && ARGS+=(--max-age "$MAX_AGE")
           fi
-          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
-            ARGS="$ARGS --dry-run"
-          fi
-          python3 pipelines/news/ship_news_post.py $ARGS
+          [ "$DRY_RUN" = "true" ] && ARGS+=(--dry-run)
+          python3 pipelines/news/ship_news_post.py "${ARGS[@]}"
 
       - name: Capture failure to brain log
         if: failure()
