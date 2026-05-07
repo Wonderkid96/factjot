@@ -49,6 +49,10 @@ HISTORY_LIMIT = 30
 # Anthropic Sonnet 4.6 pricing (USD per million tokens, May 2026).
 PRICE_INPUT_PER_M  = 3.00
 PRICE_OUTPUT_PER_M = 15.00
+# Prompt caching billing (5-minute ephemeral TTL):
+#   write = 1.25x base input, read = 0.10x base input.
+PRICE_CACHE_WRITE_PER_M = round(PRICE_INPUT_PER_M * 1.25, 4)
+PRICE_CACHE_READ_PER_M  = round(PRICE_INPUT_PER_M * 0.10, 4)
 
 REPO_ROOT   = Path(__file__).resolve().parent.parent
 POSTED_LOG  = REPO_ROOT / "insta-brain" / "data" / "posted.jsonl"
@@ -951,10 +955,26 @@ def main(argv: list[str] | None = None) -> int:
     client   = anthropic.Anthropic(api_key=api_key)
     prompt   = build_prompt(mode)
     tools    = tools_for_mode(mode)
-    messages: list[dict] = [{"role": "user", "content": prompt}]
+    # The first user message carries the giant per-mode prompt. Marking
+    # it cache_control=ephemeral pins the prefix (tools + system + this
+    # message) in Anthropic's prompt cache for ~5 minutes, so every turn
+    # after the first reads it at 10% of input cost. The agent loop runs
+    # 1-12 turns within seconds, so cache hits happen on turn 2 onwards.
+    messages: list[dict] = [{
+        "role": "user",
+        "content": [
+            {
+                "type": "text",
+                "text": prompt,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ],
+    }]
 
-    total_input  = 0
-    total_output = 0
+    total_input          = 0
+    total_output         = 0
+    total_cache_creation = 0
+    total_cache_read     = 0
     final_status = "unknown"
     exit_code    = 0
     skipped      = False
@@ -970,8 +990,18 @@ def main(argv: list[str] | None = None) -> int:
             )
             usage = getattr(response, "usage", None)
             if usage is not None:
-                total_input  += getattr(usage, "input_tokens",  0) or 0
-                total_output += getattr(usage, "output_tokens", 0) or 0
+                total_input          += getattr(usage, "input_tokens",  0) or 0
+                total_output         += getattr(usage, "output_tokens", 0) or 0
+                total_cache_creation += getattr(usage, "cache_creation_input_tokens", 0) or 0
+                total_cache_read     += getattr(usage, "cache_read_input_tokens", 0) or 0
+                # Per-turn visibility: show whether the prefix hit the cache.
+                cw = getattr(usage, "cache_creation_input_tokens", 0) or 0
+                cr = getattr(usage, "cache_read_input_tokens", 0) or 0
+                if cw or cr:
+                    print(
+                        f"[cache] turn={turn} cache_write={cw} cache_read={cr}",
+                        flush=True,
+                    )
 
             messages.append({"role": "assistant", "content": response.content})
 
@@ -1011,34 +1041,69 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[autonomous-agent] hit max turns ({MAX_TURNS}).", flush=True)
             final_status = "max_turns"
     finally:
-        _log_cost(mode, dry_run, total_input, total_output, final_status)
+        _log_cost(
+            mode, dry_run,
+            total_input, total_output,
+            total_cache_creation, total_cache_read,
+            final_status,
+        )
 
     return exit_code
 
 
-def _log_cost(mode: str, dry_run: bool, input_tokens: int, output_tokens: int, status: str) -> None:
-    """Append per-run cost estimate to data/ledgers/api_usage_costs.jsonl."""
+def _log_cost(
+    mode: str,
+    dry_run: bool,
+    input_tokens: int,
+    output_tokens: int,
+    cache_creation_tokens: int,
+    cache_read_tokens: int,
+    status: str,
+) -> None:
+    """Append per-run cost estimate to data/ledgers/api_usage_costs.jsonl.
+
+    `input_tokens` is the SDK's `usage.input_tokens`, which does NOT include
+    cache_creation_input_tokens or cache_read_input_tokens (those are billed
+    on separate lines). The total below sums all four.
+    """
     from datetime import datetime, timezone
-    cost_in  = input_tokens  / 1_000_000 * PRICE_INPUT_PER_M
-    cost_out = output_tokens / 1_000_000 * PRICE_OUTPUT_PER_M
-    total    = round(cost_in + cost_out, 6)
+    cost_in        = input_tokens          / 1_000_000 * PRICE_INPUT_PER_M
+    cost_out       = output_tokens         / 1_000_000 * PRICE_OUTPUT_PER_M
+    cost_cache_w   = cache_creation_tokens / 1_000_000 * PRICE_CACHE_WRITE_PER_M
+    cost_cache_r   = cache_read_tokens     / 1_000_000 * PRICE_CACHE_READ_PER_M
+    total          = round(cost_in + cost_out + cost_cache_w + cost_cache_r, 6)
+    # Naive baseline if caching had been off: cache_read tokens would have
+    # been charged at full input rate. cache_creation is already 1.25x of
+    # input, so the real "saved" amount is cache_read * (1.0 - 0.10) input.
+    baseline_input = (input_tokens + cache_creation_tokens + cache_read_tokens) \
+        / 1_000_000 * PRICE_INPUT_PER_M
+    baseline_total = round(baseline_input + cost_out, 6)
+    saved          = round(baseline_total - total, 6)
     record = {
         "timestamp":     datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
         "source":        "autonomous_agent",
         "mode":          mode,
         "dry_run":       dry_run,
         "model":         MODEL,
-        "input_tokens":  input_tokens,
-        "output_tokens": output_tokens,
+        "input_tokens":          input_tokens,
+        "output_tokens":         output_tokens,
+        "cache_creation_tokens": cache_creation_tokens,
+        "cache_read_tokens":     cache_read_tokens,
         "stop_status":   status,
         "cost_estimate_usd": {
-            "anthropic_input":  round(cost_in, 6),
-            "anthropic_output": round(cost_out, 6),
-            "total":            total,
+            "anthropic_input":        round(cost_in,      6),
+            "anthropic_output":       round(cost_out,     6),
+            "anthropic_cache_write":  round(cost_cache_w, 6),
+            "anthropic_cache_read":   round(cost_cache_r, 6),
+            "total":                  total,
+            "baseline_no_cache":      baseline_total,
+            "saved_by_cache":         saved,
         },
         "pricing_meta": {
-            "input_per_million_usd":  PRICE_INPUT_PER_M,
-            "output_per_million_usd": PRICE_OUTPUT_PER_M,
+            "input_per_million_usd":        PRICE_INPUT_PER_M,
+            "output_per_million_usd":       PRICE_OUTPUT_PER_M,
+            "cache_write_per_million_usd":  PRICE_CACHE_WRITE_PER_M,
+            "cache_read_per_million_usd":   PRICE_CACHE_READ_PER_M,
         },
     }
     try:
@@ -1047,7 +1112,8 @@ def _log_cost(mode: str, dry_run: bool, input_tokens: int, output_tokens: int, s
             fh.write(json.dumps(record) + "\n")
         print(
             f"[cost] in={input_tokens} out={output_tokens} "
-            f"total=${total:.4f} (mode={mode}, model={MODEL})",
+            f"cache_w={cache_creation_tokens} cache_r={cache_read_tokens} "
+            f"total=${total:.4f} saved=${saved:.4f} (mode={mode}, model={MODEL})",
             flush=True,
         )
     except Exception as exc:
