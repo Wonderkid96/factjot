@@ -54,6 +54,62 @@ MAX_REUSES:  int = 1   # same URL never repeated in a carousel
 
 
 # ------------------------------------------------------------------ #
+# Per-slot intent classifier (Phase 3 of content quality recovery)
+# ------------------------------------------------------------------ #
+
+_ABSTRACT_TOKENS = frozenset({
+    "budget", "funding", "approval", "policy", "ruling", "verdict",
+    "decision", "regulation", "classification", "guidelines",
+    "agreement", "negotiation", "investigation", "analysis",
+    "inflation", "interest", "tariff", "quota",
+})
+
+_SCENE_TOKENS = frozenset({
+    "rescue", "crowd", "protest", "march", "factory", "office",
+    "courtroom", "warehouse", "lab", "hospital", "stadium",
+    "street", "harbour", "port", "cockpit", "deck", "platform",
+    "site", "scene", "queue", "bridge", "tunnel",
+})
+
+
+def _classify_slot_intent(
+    *,
+    slide_text: str,
+    query: str,
+    slot_aliases: list[str] | None,
+) -> str:
+    """Return 'entity' | 'scene' | 'abstract' for one slot.
+
+    'entity' = the slot is about a specific named subject. Archive
+              providers (Wikipedia, Commons, Smithsonian) should run
+              first; their files are titled by subject identity.
+    'scene' = the slot describes a photographable scene without a
+              specific named subject. Stock providers (Pexels, Pixabay)
+              are better; they tag by visual content.
+    'abstract' = the slot describes an abstract concept (budget,
+                 ruling, policy). The fitter should already have
+                 reframed this around a concrete proxy, but if it
+                 didn't, route to stock providers and rely on the
+                 visual_fallback_query.
+    """
+    has_alias = bool(slot_aliases)
+    text = f"{slide_text} {query}".lower()
+    tokens = set(re.findall(r"[a-z]{3,}", text))
+    has_scene = bool(tokens & _SCENE_TOKENS)
+    has_abstract = bool(tokens & _ABSTRACT_TOKENS)
+
+    if has_alias:
+        return "entity"
+    if has_abstract and not has_scene:
+        return "abstract"
+    if has_scene:
+        return "scene"
+    if any(w[:1].isupper() and len(w) > 2 for w in slide_text.split()):
+        return "entity"
+    return "scene"
+
+
+# ------------------------------------------------------------------ #
 # ImageIntent
 # ------------------------------------------------------------------ #
 
