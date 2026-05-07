@@ -31,3 +31,38 @@ def test_shape_error_flags_overlong_lines():
         ] + [{"lines": ["a", "b", "c"]} for _ in range(4)],
     )
     assert any(o["chars"] > 24 for o in diag["overlong_lines"])
+
+
+import pytest
+from pipelines.manual.ship_manual_post import _enforce_carousel_shape
+
+
+def test_enforce_carousel_shape_rejects_too_many_slides():
+    data = {
+        "slides": [{"lines": ["a", "b", "c"]} for _ in range(9)],
+    }
+    with pytest.raises(CarouselShapeError) as exc:
+        _enforce_carousel_shape(data, requested_content_slides=5)
+    assert exc.value.diagnostics["returned_content_slides"] == 9
+    assert exc.value.diagnostics["requested_content_slides"] == 5
+
+
+def test_enforce_carousel_shape_rejects_wrong_line_count():
+    data = {
+        "slides": [
+            {"lines": ["a", "b"]},
+            {"lines": ["a", "b", "c"]},
+            {"lines": ["a", "b", "c"]},
+            {"lines": ["a", "b", "c"]},
+            {"lines": ["a", "b", "c"]},
+        ],
+    }
+    with pytest.raises(CarouselShapeError):
+        _enforce_carousel_shape(data, requested_content_slides=5)
+
+
+def test_enforce_carousel_shape_passes_clean_data():
+    data = {
+        "slides": [{"lines": ["one", "two", "three"]} for _ in range(5)],
+    }
+    _enforce_carousel_shape(data, requested_content_slides=5)

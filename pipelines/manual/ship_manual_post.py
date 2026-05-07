@@ -43,6 +43,10 @@ from src.publish.image_host import make_image_host
 from src.publish.instagram_publisher import InstagramGraphPublisher
 from src.brain import brain, DuplicatePostError, claim_hash
 from src.research.image_sourcer import CoverImageFailed, ImageIntent, ImageSourcer
+from src.content.carousel_diagnostics import (
+    CarouselShapeError,
+    build_shape_diagnostics,
+)
 
 # ------------------------------------------------------------------ #
 # Brand constants (sourced from brand/brand_kit.json)
@@ -447,6 +451,34 @@ def _assert_lines_within_render_cap(slides: list[dict]) -> None:
         )
 
 
+def _enforce_carousel_shape(data: dict, *, requested_content_slides: int) -> None:
+    """Hard-fail if the writer returned the wrong shape.
+
+    Replaces the previous silent slides[:8] and lines[:3] slicing.
+    The autonomous agent surfaces the diagnostics payload in its tool
+    result so the operator can see what was lost.
+
+    `requested_content_slides` is content-slides only (cover excluded).
+    See "Slide-count contract" in the implementation plan. `data["slides"]`
+    is also content-only.
+    """
+    slides = data.get("slides") or []
+    diag = build_shape_diagnostics(
+        requested_content_slides=requested_content_slides,
+        returned_content_slides=len(slides),
+        slides=slides,
+        dropped_facts=data.get("dropped_facts") or [],
+    )
+    if len(slides) != requested_content_slides:
+        raise CarouselShapeError(
+            "writer returned wrong content-slide count", diag,
+        )
+    if diag["bad_line_count"]:
+        raise CarouselShapeError(
+            "one or more slides have wrong line count (must be exactly 3)", diag,
+        )
+
+
 def generate_content(
     brief: str, n_slides: int, api_key: str, format_type: str = "fact",
 ) -> tuple[dict, dict]:
@@ -489,17 +521,14 @@ def generate_content(
 
     slides = data.get("slides", [])
     if len(slides) < 1:
-        raise RuntimeError("No slides returned")
-    if len(slides) > 8:
-        dropped_n = len(slides) - 8
-        dropped_preview = [
-            (s.get("lines", [None])[0] if isinstance(s.get("lines"), list) else None)
-            for s in slides[8:]
-        ]
-        _log(f"     [WARN] Sonnet returned {len(slides)} slides; pipeline cap is 8. "
-             f"Dropping last {dropped_n}. First-line preview of dropped slides: {dropped_preview!r}")
-        slides = slides[:8]
-        data["slides"] = slides
+        raise CarouselShapeError(
+            "writer returned no slides",
+            build_shape_diagnostics(
+                requested_content_slides=n_slides,
+                returned_content_slides=0,
+                slides=[],
+            ),
+        )
 
     # Log any explicit dropped_facts the writer surfaced from over-dense beats.
     dropped_facts = data.get("dropped_facts") or []
@@ -508,12 +537,9 @@ def generate_content(
         for df in dropped_facts:
             _log(f"            - {df}")
 
-    for i, s in enumerate(slides, 1):
-        lines = s.get("lines")
-        if not isinstance(lines, list) or len(lines) < 2:
-            raise RuntimeError(f"Slide {i} has too few lines: {lines}")
-        if len(lines) > 3:
-            s["lines"] = lines[:3]
+    # n_slides is the content-only count (see Slide-count contract).
+    _enforce_carousel_shape(data, requested_content_slides=n_slides)
+    slides = data["slides"]
 
     # Validate line character rules. Warn-only -- never silently rewrite.
     # Sonnet's output is the truth; if a line is awkward, that is a brief
