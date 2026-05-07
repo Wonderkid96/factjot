@@ -492,11 +492,18 @@ def _markup_lines(lines: list[str]) -> str:
     return "\n".join(result)
 
 
-def _font_faces(serif_url: str, mono_url: str) -> str:
+def _font_faces(serif_url: str, mono_url: str, archivo_url: str = "") -> str:
+    archivo = ""
+    if archivo_url:
+        archivo = (
+            f'@font-face{{font-family:"Archivo Black";src:url("{archivo_url}") '
+            f'format("truetype");font-weight:900;font-style:normal;}}'
+        )
     return f"""
     @font-face{{font-family:"Instrument Serif";src:url("{serif_url}") format("truetype");font-weight:400;font-style:normal;}}
     @font-face{{font-family:"Instrument Serif";src:url("{serif_url}") format("truetype");font-weight:400;font-style:italic;}}
-    @font-face{{font-family:"JetBrains Mono";src:url("{mono_url}") format("truetype");font-weight:700;font-style:normal;}}"""
+    @font-face{{font-family:"JetBrains Mono";src:url("{mono_url}") format("truetype");font-weight:700;font-style:normal;}}
+    {archivo}"""
 
 
 def _logo_tag(logo_url: str, invert: bool = False) -> str:
@@ -521,25 +528,29 @@ def render_cover_slide(
     repo_root: Path,
     browser,
 ) -> None:
-    logo_url  = _inline_asset(repo_root / "assets/logo/factjot_mark.png")
-    serif_url = _inline_asset(repo_root / "assets/fonts/InstrumentSerif-Regular.ttf")
-    mono_url  = _inline_asset(repo_root / "assets/fonts/JetBrainsMono-Bold.ttf")
+    logo_url    = _inline_asset(repo_root / "assets/logo/factjot_mark.png")
+    serif_url   = _inline_asset(repo_root / "assets/fonts/InstrumentSerif-Regular.ttf")
+    mono_url    = _inline_asset(repo_root / "assets/fonts/JetBrainsMono-Bold.ttf")
+    archivo_url = _inline_asset(repo_root / "assets/fonts/ArchivoBlack-Regular.ttf")
 
     index_label = f"{index}/{total}"
     pill = source_label.upper()[:32]
     logo = _logo_tag(logo_url, invert=True)
 
-    # Size title dynamically
-    chars = len(cover_title)
+    # Size title dynamically. Archivo Black is heavier than Instrument Serif at
+    # the same px, so the scale is shifted down to roughly match perceived size.
+    chars = len(cover_title.strip())
     if chars <= 20:
-        title_size, title_lh = 112, 1.00
+        title_size, title_lh = 100, 0.96
     elif chars <= 35:
-        title_size, title_lh = 90, 1.02
+        title_size, title_lh = 82, 0.98
     else:
-        title_size, title_lh = 76, 1.06
+        title_size, title_lh = 64, 1.04
+
+    cover_title_clean = cover_title.strip().rstrip(".")
 
     html = f"""<!doctype html><html><head><meta charset="utf-8"/><style>
-    {_font_faces(serif_url, mono_url)}
+    {_font_faces(serif_url, mono_url, archivo_url)}
     :root{{--near-black:#0B0B0C;--off-white:#EDE8DD;--accent:#E6352A;--white:#FFFFFF;--muted:#9A938A;}}
     *{{box-sizing:border-box;margin:0;padding:0;}}
     html,body{{width:1080px;height:1350px;overflow:hidden;background:var(--near-black);-webkit-font-smoothing:antialiased;}}
@@ -556,7 +567,8 @@ def render_cover_slide(
     .index{{opacity:0.72;}}
     .lower{{display:flex;flex-direction:column;gap:22px;}}
     .pill{{align-self:flex-start;background:var(--accent);color:var(--white);font-family:"JetBrains Mono",monospace;font-weight:700;font-size:17px;letter-spacing:0.26em;padding:7px 16px 9px;border-radius:999px;text-transform:uppercase;line-height:1;}}
-    .title{{font-family:"Instrument Serif",Georgia,serif;font-weight:400;font-size:{title_size}px;line-height:{title_lh};letter-spacing:-0.015em;color:var(--white);text-shadow:2px 2px 0 rgba(0,0,0,0.52);text-wrap:balance;}}
+    .title{{font-family:"Archivo Black","Inter",system-ui,sans-serif;font-weight:900;font-size:{title_size}px;line-height:{title_lh};letter-spacing:-0.01em;text-transform:lowercase;color:var(--off-white);text-shadow:2px 2px 0 rgba(0,0,0,0.55);text-wrap:balance;}}
+    .title::after{{content:".";color:var(--accent);font-family:"Archivo Black","Inter",system-ui,sans-serif;text-transform:none;}}
     </style></head><body>
     <div class="stage">
       <div class="photo"></div>
@@ -570,7 +582,7 @@ def render_cover_slide(
         </div>
         <div class="lower">
           <span class="pill">{escape_html(pill)}</span>
-          <div class="title">{escape_html(cover_title)}</div>
+          <div class="title">{escape_html(cover_title_clean)}</div>
         </div>
       </div>
     </div></body></html>"""
@@ -604,9 +616,10 @@ def render_news_slide(
     repo_root: Path,
     browser,
 ) -> None:
-    logo_url  = _inline_asset(repo_root / "assets/logo/factjot_mark.png")
-    serif_url = _inline_asset(repo_root / "assets/fonts/InstrumentSerif-Regular.ttf")
-    mono_url  = _inline_asset(repo_root / "assets/fonts/JetBrainsMono-Bold.ttf")
+    logo_url    = _inline_asset(repo_root / "assets/logo/factjot_mark.png")
+    serif_url   = _inline_asset(repo_root / "assets/fonts/InstrumentSerif-Regular.ttf")
+    mono_url    = _inline_asset(repo_root / "assets/fonts/JetBrainsMono-Bold.ttf")
+    archivo_url = _inline_asset(repo_root / "assets/fonts/ArchivoBlack-Regular.ttf")
 
     index_label = f"{index}/{total}"
     logo = _logo_tag(logo_url, invert=True)
@@ -614,17 +627,17 @@ def render_news_slide(
 
     if photo_data_url:
         html = _render_news_slide_photo(
-            serif_url, mono_url, logo, index_label, lines_html, photo_data_url,
+            serif_url, mono_url, archivo_url, logo, index_label, lines_html, photo_data_url,
         )
     else:
         html = _render_news_slide_typography(
-            serif_url, mono_url, logo, index_label, lines_html,
+            serif_url, mono_url, archivo_url, logo, index_label, lines_html,
         )
 
     page = browser.new_page(viewport={"width": 1080, "height": 1350}, device_scale_factor=2)
     page.set_content(html, wait_until="networkidle")
 
-    # No font scaling needed for full-bleed — text sits over a gradient at the bottom
+    # No font scaling needed for full-bleed: text sits over a gradient at the bottom
     # of the canvas with no photo zone to protect.
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -633,12 +646,17 @@ def render_news_slide(
 
 
 def _render_news_slide_photo(
-    serif_url: str, mono_url: str, logo: str, index_label: str,
+    serif_url: str, mono_url: str, archivo_url: str, logo: str, index_label: str,
     lines_html: str, photo_data_url: str,
 ) -> str:
-    """Full-bleed content slide. Photo fills the canvas; text sits over a bottom gradient."""
+    """Full-bleed content slide. Photo fills the canvas; text sits over a bottom gradient.
+
+    Body lines are Archivo Black 900 lowercase (v2 brand). Sizes and line-height
+    are tuned for AB's heavier weight: ~17% smaller px and 14% tighter leading
+    than the previous Instrument Serif setup.
+    """
     return f"""<!doctype html><html><head><meta charset="utf-8"/><style>
-    {_font_faces(serif_url, mono_url)}
+    {_font_faces(serif_url, mono_url, archivo_url)}
     :root{{--near-black:#0B0B0C;--off-white:#EDE8DD;--accent:#E6352A;--white:#FFFFFF;}}
     *{{box-sizing:border-box;margin:0;padding:0;}}
     html,body{{width:1080px;height:1350px;overflow:hidden;background:var(--near-black);-webkit-font-smoothing:antialiased;}}
@@ -653,9 +671,9 @@ def _render_news_slide_photo(
     .wordmark-img{{height:28px;width:auto;display:block;opacity:0.95;flex-shrink:0;filter:drop-shadow(1px 1px 0 rgba(0,0,0,0.45));}}
     .top-divider{{flex:1;height:1px;background:var(--off-white);opacity:0.32;}}
     .index{{background:rgba(255,255,255,0.12);color:var(--off-white);font-family:"JetBrains Mono",monospace;font-weight:700;font-size:24px;letter-spacing:0.04em;padding:8px 18px 10px;border-radius:999px;line-height:1;flex-shrink:0;}}
-    .lines{{display:flex;flex-direction:column;}}
-    .line{{font-family:"Instrument Serif",Georgia,serif;font-weight:400;font-size:72px;line-height:1.24;color:var(--off-white);letter-spacing:-0.015em;margin-bottom:2px;text-shadow:2px 2px 0 rgba(0,0,0,0.55);}}
-    .line .red{{color:var(--accent);font-style:italic;}}
+    .lines{{display:flex;flex-direction:column;gap:8px;}}
+    .line{{font-family:"Archivo Black","Inter",system-ui,sans-serif;font-weight:900;font-size:60px;line-height:1.05;letter-spacing:-0.01em;text-transform:lowercase;color:var(--off-white);text-shadow:2px 2px 0 rgba(0,0,0,0.55);}}
+    .line .red{{color:var(--accent);font-weight:900;}}
     </style></head><body>
     <div class="stage">
       <div class="photo"></div>
@@ -671,11 +689,15 @@ def _render_news_slide_photo(
 
 
 def _render_news_slide_typography(
-    serif_url: str, mono_url: str, logo: str, index_label: str, lines_html: str,
+    serif_url: str, mono_url: str, archivo_url: str, logo: str, index_label: str, lines_html: str,
 ) -> str:
-    """Intentional full-height typography-only slide. No photo zone. Looks deliberate."""
+    """Intentional full-height typography-only slide. No photo zone. Looks deliberate.
+
+    Lines are Archivo Black 900 lowercase, sized down for AB's heavier weight
+    and tightened leading.
+    """
     return f"""<!doctype html><html><head><meta charset="utf-8"/><style>
-    {_font_faces(serif_url, mono_url)}
+    {_font_faces(serif_url, mono_url, archivo_url)}
     :root{{--near-black:#0B0B0C;--off-white:#EDE8DD;--accent:#E6352A;--white:#FFFFFF;}}
     *{{box-sizing:border-box;margin:0;padding:0;}}
     html,body{{width:1080px;height:1350px;overflow:hidden;background:var(--near-black);-webkit-font-smoothing:antialiased;}}
@@ -691,10 +713,10 @@ def _render_news_slide_typography(
     .index{{background:rgba(255,255,255,0.1);color:var(--off-white);font-family:"JetBrains Mono",monospace;
             font-weight:700;font-size:24px;letter-spacing:0.04em;padding:8px 18px 10px;border-radius:999px;line-height:1;flex-shrink:0;}}
     .lines-wrap{{flex:1;display:flex;flex-direction:column;justify-content:center;padding-right:20px;}}
-    .lines{{display:flex;flex-direction:column;}}
-    .line{{font-family:"Instrument Serif",Georgia,serif;font-weight:400;font-size:80px;line-height:1.22;
-           color:var(--off-white);letter-spacing:-0.015em;margin-bottom:6px;}}
-    .line .red{{color:var(--accent);font-style:italic;}}
+    .lines{{display:flex;flex-direction:column;gap:10px;}}
+    .line{{font-family:"Archivo Black","Inter",system-ui,sans-serif;font-weight:900;font-size:64px;line-height:1.05;
+           letter-spacing:-0.01em;text-transform:lowercase;color:var(--off-white);}}
+    .line .red{{color:var(--accent);font-weight:900;}}
     </style></head><body>
     <div class="stage">
       <div class="accent-line"></div>
