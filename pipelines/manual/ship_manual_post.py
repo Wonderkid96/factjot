@@ -54,22 +54,29 @@ Voice: curious, precise, dry. A smart friend explaining something remarkable.
 Tone: confident, never sensational. Present tense where possible.
 Reading level: general audience.
 
-Slide format (strict, tuned for Archivo Black 900):
+Slide format (strict, tuned to the actual rendered template):
 - Each slide: exactly 3 lines.
-- Each line: 18 to 28 characters. NEVER exceed 32 characters. Anything
-  over 32 wraps in Archivo Black at the rendered slide size and breaks
-  the layout.
+- Each line: 16 to 22 characters target. HARD CAP 24 characters. Anything
+  over 24 wraps in Archivo Black at the rendered slide size, which
+  produces orphan words and 4-visual-line slides.
+- The renderer may still soft-wrap lines that look "fine" on paper. To
+  prevent that, write SHORT and assume each line will be measured
+  visually. Do not rely on your own line breaks if the line is dense.
 - Lines must flow as connected sentences, NOT bullet points or fragments.
-- ONE THOUGHT PER SLIDE -- HARD RULE. A slide makes ONE point. If the
-  brief beat names two people, two events, two consequences, two anything,
-  you may NOT compress them into a single slide. Either the brief beat
-  itself is wrong (push back by writing fewer slides than asked) or the
-  agent miscounted beats. Do not weld unrelated facts together.
+- ONE SLIDE = ONE IDEA. ONE BEAT = ONE FACT. HARD RULE.
+  - Semicolons inside a beat are FORBIDDEN. A semicolon means two facts
+    are sharing a slide. Split them or pick the stronger one.
+  - If you find yourself writing "and" to add a second fact, that "and"
+    starts a NEW beat. Do not weld two facts with "and".
+  - "X happened, then Y happened" is two beats, not one.
 - Front-load the most interesting element on each slide.
 - No hedging, no filler, no attribution phrases ("sources say", "according to").
 - No em-dashes. Use commas, full stops, or parentheses instead.
-- Do not end a line with a weak connector word: a, the, and, or, of, in, to, with
-- Do not leave the final line under 10 characters.
+- ANTI-ORPHAN RULE. A line must contain either at least 3 words, OR
+  one named entity worth standing alone (e.g. "carl norden,"). A line
+  that is just one short word ("crews", "and", "in") is forbidden.
+- Do not end a line with a weak connector word: a, the, and, or, of, in, to, with, an, at, by, for.
+- Do not leave the final line under 8 characters.
 - Do not split names, dates, numbers or key phrases across lines awkwardly.
 - Prefer clean visual rhythm over exact word count.
 
@@ -94,31 +101,27 @@ Bad: "no apps no store".
 Category label: 1-3 words in capitals. Any subject is valid — SPORT, POLITICS, CRIME, CULTURE, FOOD, DESIGN, MUSIC, INTERNET HISTORY, AVIATION, SCIENCE, or anything else that fits.
 
 Final slide (CTA): a thought-provoking question or reflection the reader wants to debate.
-Same format: 3 lines, 28-42 characters each. Do NOT reference the source or say "follow for more"."""
+Same format: 3 lines, 16-22 characters each, hard cap 24. Do NOT reference the source or say "follow for more"."""
 
 
 TYPE_GUIDANCE: dict[str, str] = {
+    # Layout / render-shape only. The agent's MODE_PROMPTS carry editorial
+    # angle, voice, and beat structure. The pipeline must NOT re-steer the
+    # editorial direction or duplicate the agent prompt -- if it does, the
+    # writer ends up with two slightly different sets of instructions and
+    # drifts. Keep this dict to render-shape facts only.
     "fact": (
         "POST TYPE: FACT CAROUSEL.\n"
-        "Single subject deep dive. The carousel must move forward across\n"
-        "slides: setup, mechanism, consequence, contradiction, sting.\n"
-        "No filler, no recap. One subject. Evergreen, not topical.\n"
+        "Render shape: cover + content slides matching the brief's beats.\n"
     ),
     "news": (
         "POST TYPE: NEWS / CURRENT CAROUSEL.\n"
-        "A current or recent story (last 30 days). Lead with the named\n"
-        "entities and the specific weird angle the brief identifies.\n"
-        "Do NOT explain the news in general terms. Assume the viewer\n"
-        "knows roughly what is going on; you are pointing at the angle.\n"
-        "Voice stays dry. Do not slip into newsreader register.\n"
+        "Render shape: cover + content slides matching the brief's beats.\n"
     ),
     "list": (
         "POST TYPE: LIST CAROUSEL.\n"
-        "Cover + 5 items + closing = 7 slides total. Each item slide\n"
-        "names ONE specific item from the brief and gives one line of\n"
-        "angle (why it belongs in this list). Item ordering is intentional.\n"
-        "Closing slide should make the 5 items feel like a pattern, not\n"
-        "a coincidence. Do not summarise the list in the closing line.\n"
+        "Render shape: cover + one slide per list item + closing.\n"
+        "Each item slide carries exactly ONE specific list item from the brief.\n"
     ),
 }
 
@@ -142,6 +145,28 @@ Before writing the slides, resolve the visual subject. The brief may use a
 colloquial or misspelled name. Identify the canonical proper name of the subject
 (e.g. brief says "Concord plane" → visual_subject is "Concorde supersonic airliner").
 This ensures image searches find the right thing.
+
+PRESERVE SUBSTANCE -- HARD RULE.
+
+The brief contains specific facts, numbers, names, and angles. Preserve
+the SUBSTANCE of each beat. Compress EXPRESSION, not meaning. Do not
+drop the central fact to make the slide easier.
+
+If a beat genuinely cannot fit one slide:
+- use the strongest single fact from the beat,
+- and surface the loss in your decision-note for the run log
+  (return the dropped sub-facts in a top-level `dropped_facts` field
+  so the operator can see what was lost).
+Do NOT weld two unrelated fragments together to "include both".
+
+ONE SLIDE = ONE IDEA. ONE BEAT = ONE FACT. HARD RULE.
+
+- Semicolons inside a beat or a slide line are FORBIDDEN. A semicolon
+  means two facts are sharing a slide. Split or pick the stronger one.
+- If a sentence needs "and" to add a second fact ("X happened AND Y
+  happened"), that "and" begins a NEW beat. Do not weld with "and".
+- Multiple named people, multiple events, multiple consequences in one
+  slide are forbidden.
 
 BEAT-TO-SLIDE MAPPING -- HARD RULE.
 
@@ -172,8 +197,21 @@ For image_queries (one per slide including cover):
 - Write SHORT, SUBJECT-FIRST phrases matching how archive files are titled.
 - Always start with the canonical proper name from visual_subject.
 - Keep each query 2-5 words. Vary aspect across slides (takeoff, cockpit, interior, crash, retirement).
-- Good: "Concorde takeoff", "Concorde cockpit", "Concorde crash 2000"
-- Bad: "supersonic aircraft breaking sound barrier at altitude over ocean"
+- PHOTOGRAPHABLE RULE -- HARD. Every query must describe a visible
+  object, person, or scene that an archive could realistically have a
+  photograph of. If the slide's content is an abstract concept (a
+  budget, a decision, a secrecy classification, a court ruling), the
+  image_query for that slot must NOT describe the concept. It must
+  describe a photographable proxy: the people, the device, the
+  workplace, the scene, the era.
+- Good (photographable): "Concorde takeoff", "Norden bombsight",
+  "B-17 bombardier compartment", "World War II aircraft cockpit",
+  "Hermann Lang factory worker portrait".
+- Bad (abstract / unphotographable): "Manhattan Project funding",
+  "Norden bombsight secrecy classification", "court ruling",
+  "cost-benefit analysis", "regulatory decision".
+- If you cannot think of a photographable proxy for a slide, repeat
+  the cover query rather than invent a non-photographable one.
 
 For source_aliases: list canonical name variants an image archive might use
 to tag or title a photo of this subject. Include all required aliases. Aim for
@@ -245,21 +283,35 @@ for multi-word alias matches. Describe what the subject IS, not what it looks li
 Example for Concorde aircraft: ["aircraft", "airliner", "aviation", "airline",
 "supersonic", "jet", "airways", "flight"]
 
-For negative_terms: list 8-16 words that would appear in metadata of WRONG images.
-Think about every other meaning of the subject name, across ALL of these categories:
-- Geographic/landmark: squares, plazas, obelisks, fountains, monuments, parks
-- Transit infrastructure: metro stations, train stations, bus terminals, airports
-  (IMPORTANT: if the subject name is shared with a metro or train station, include
-  "station", "metro", "ligne", "platform", "terminal")
-- Naval/military: ships, frigates, destroyers, HMS prefix, class names
-  (if the subject name is shared with a vessel or ship class, include
-  "frigate", "destroyer", "ship", "vessel", "HMS", "warship", "class")
-- Unrelated proper nouns: people, places, brands, animals with the same name
-IMPORTANT: scan all meanings of the subject name before writing this list.
-Example for Concorde (aircraft, not the Paris square AND not the Paris metro AND not the warship class):
-["place de la concorde", "paris", "obelisk", "luxor", "fountain",
-"monument", "square", "plaza", "station", "metro", "platform",
-"frigate", "warship", "HMS", "concord massachusetts", "concord grape"]
+For negative_terms: list 6-12 phrases that would appear in metadata of WRONG images.
+
+PREFER COMPOUND WRONG-MEANING PHRASES over single words. Single-word
+negatives like "station", "park", "monument" collide with valid archive
+metadata. A Wikipedia photo titled "Norden Bombsight, Mare Island Naval
+Station" must NOT be rejected just because it contains "station".
+
+Good (compound, pins the wrong meaning):
+- "place de la concorde", "metro station", "train station", "bus terminal"
+- "parish church", "village green", "frigate class", "HMS"
+- "concord massachusetts", "concord grape"
+- "model kit", "toy"
+
+Acceptable (single word, only when truly unambiguous for this subject):
+- "obelisk" (when the subject is not an obelisk)
+- "diagram" or "illustration" (when you want photographs only)
+
+Bad (too generic, rejects valid archive photos):
+- "station" alone, "park" alone, "monument" alone, "square" alone,
+  "metro" alone, "platform" alone, "ship" alone
+
+Example for Concorde (aircraft, not the Paris square / metro / warship class):
+["place de la concorde", "concord massachusetts", "concord grape",
+ "metro station", "obelisk", "frigate class", "model kit", "diagram"]
+
+The pipeline allows a strong multi-word alias match or an archive
+provider (Wikimedia, Wikipedia, Smithsonian, NASA) to override a
+single-word negative. Compound negatives are still hard rejects
+regardless of provider. So write compound when you can.
 
 For subject_type: one short category string that describes what kind of subject
 this is. Used to weight scoring. Choose from:
@@ -295,7 +347,7 @@ same phrase. These are the last resort before a slide becomes typography-only.
 
 Return JSON only:
 {{
-  "cover_title": "3-5 word punchy title",
+  "cover_title": "5-9 word title in voice",
   "label": "CATEGORY LABEL",
   "caption_body": "2-3 sentences. Human, warm. No hashtags.",
   "visual_subject": "canonical name and type of the main subject, max 12 words",
@@ -303,16 +355,23 @@ Return JSON only:
   "fallback_query": "canonical proper name, 1-4 words",
   "source_aliases": ["multi-word alias 1", "multi-word alias 2", "single word ok"],
   "context_words": ["word1", "word2", ...],
-  "negative_terms": ["wrong term 1", "wrong term 2", ...],
+  "negative_terms": ["compound wrong-meaning 1", "compound wrong-meaning 2", ...],
   "preferred_image_types": ["type1", "type2", ...],
   "avoid_image_types": ["type1", "type2", ...],
   "image_queries": ["query for cover", "query for slide 1", ...],
   "visual_fallback_queries": ["fallback for cover", "fallback for slide 1", ...],
   "cover_slot_aliases": ["NamedEntityForCover"],
+  "dropped_facts": ["sub-fact you had to drop because beat was too dense"],
   "slides": [
     {{"slideNumber": 1, "lines": ["...", "...", "..."], "slot_aliases": ["NamedEntity"]}}
   ]
 }}
+
+`dropped_facts` is OPTIONAL. Only include it if a beat had more facts
+than one slide could carry and you had to drop sub-facts to keep the
+slide coherent. The pipeline logs these so the operator can see what
+was lost. If you did not drop anything, omit the field entirely or
+return an empty list.
 
 Exactly 3 lines per slide. One image_queries entry per slide including cover.
 Return JSON only, no prose."""
@@ -324,10 +383,11 @@ Return JSON only, no prose."""
 
 _WEAK_ENDINGS = frozenset({"a", "the", "and", "or", "of", "in", "to", "with", "an", "at", "by", "for"})
 
-# Hard cap for a single content-slide line (Archivo Black 900 at slide size).
-# Lines over this WILL wrap visually and break the layout. Sonnet's writer
-# prompt asks for 18-28; this 32 gives a small safety margin before fail.
-HARD_LINE_CAP = 32
+# Hard cap for a single content-slide line at the rendered template size.
+# Calibrated to Archivo Black 900 at 42px on the 1080-wide content slide:
+# above 24 chars the renderer soft-wraps and the layout breaks (orphan
+# words, 4-visual-line slides). Writer prompt asks for 16-22; cap is 24.
+HARD_LINE_CAP = 24
 
 
 def _strip_markup(text: str) -> str:
@@ -335,17 +395,32 @@ def _strip_markup(text: str) -> str:
 
 
 def _validate_lines(slides: list[dict]) -> list[str]:
-    """Return warning strings for lines that violate soft character rules."""
+    """Return warning strings for lines that violate soft character rules.
+
+    Hard-cap violations are surfaced here AND raised by
+    _assert_lines_within_render_cap. Soft warnings cover orphans and
+    weak endings; they do not block publish.
+    """
     warnings: list[str] = []
     for i, slide in enumerate(slides, 1):
         lines = slide.get("lines", [])
         for j, raw_line in enumerate(lines):
-            line = _strip_markup(raw_line).strip()
+            line  = _strip_markup(raw_line).strip()
+            words = line.split()
             if len(line) > HARD_LINE_CAP:
                 warnings.append(f"slide {i} line {j+1}: {len(line)} chars (max {HARD_LINE_CAP}): {line!r}")
-            if len(line) < 10 and j == len(lines) - 1:
+            if len(line) < 8 and j == len(lines) - 1:
                 warnings.append(f"slide {i} final line too short ({len(line)} chars): {line!r}")
-            last_word = line.rstrip(".,;:!?").split()[-1].lower() if line.split() else ""
+            # Anti-orphan: a line must have >= 3 words, OR be a single
+            # named entity worth standing alone (heuristic: starts with a
+            # capital in the original markup-stripped form, or a digit).
+            if len(words) <= 2:
+                stripped = line.rstrip(".,;:!?")
+                first = stripped[:1] if stripped else ""
+                looks_like_entity = first.isupper() or first.isdigit()
+                if not looks_like_entity:
+                    warnings.append(f"slide {i} line {j+1}: orphan ({len(words)} words): {line!r}")
+            last_word = line.rstrip(".,;:!?").split()[-1].lower() if words else ""
             if last_word in _WEAK_ENDINGS:
                 warnings.append(f"slide {i} line {j+1}: ends with weak word '{last_word}'")
     return warnings
@@ -416,8 +491,23 @@ def generate_content(
     if len(slides) < 1:
         raise RuntimeError("No slides returned")
     if len(slides) > 8:
+        dropped_n = len(slides) - 8
+        dropped_preview = [
+            (s.get("lines", [None])[0] if isinstance(s.get("lines"), list) else None)
+            for s in slides[8:]
+        ]
+        _log(f"     [WARN] Sonnet returned {len(slides)} slides; pipeline cap is 8. "
+             f"Dropping last {dropped_n}. First-line preview of dropped slides: {dropped_preview!r}")
         slides = slides[:8]
         data["slides"] = slides
+
+    # Log any explicit dropped_facts the writer surfaced from over-dense beats.
+    dropped_facts = data.get("dropped_facts") or []
+    if isinstance(dropped_facts, list) and dropped_facts:
+        _log(f"     [INFO] Writer reported dropped_facts (beat too dense for one slide):")
+        for df in dropped_facts:
+            _log(f"            - {df}")
+
     for i, s in enumerate(slides, 1):
         lines = s.get("lines")
         if not isinstance(lines, list) or len(lines) < 2:

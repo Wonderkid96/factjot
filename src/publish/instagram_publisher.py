@@ -26,6 +26,12 @@ class InstagramGraphPublisher:
         if len(image_urls) > 10:
             return {"ok": False, "error": f"Carousel exceeds Instagram's 10-image cap ({len(image_urls)})"}
         if len(caption) > 2200:
+            tail = caption[2197:]
+            print(
+                f"[publish_carousel WARN] caption truncated from {len(caption)} -> 2200 chars. "
+                f"Tail dropped ({len(tail)} chars): {tail[:120]!r}",
+                flush=True,
+            )
             caption = caption[:2197] + "..."
 
         child_creation_ids = []

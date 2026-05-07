@@ -692,10 +692,19 @@ NEWS_PROMPT = textwrap.dedent("""\
 
     BEAT DENSITY -- HARD RULE
 
-    Each numbered beat in the brief becomes ONE slide. Each slide carries
-    ONE thought. Do NOT pack two facts into one beat. The slide writer
-    has a 18-28 character budget per line, max 32, in Archivo Black 900.
-    If your beat needs more than 3 short sentences to express, split it.
+    Each numbered beat = ONE slide = ONE fact.
+
+    Forbidden inside a beat: semicolons, "and" used to add a second fact,
+    multiple named people, multiple events, multiple consequences. Split.
+
+    The slide writer renders at 16-22 chars per line, hard cap 24, in
+    Archivo Black 900 at 42px. If your beat needs more than 3 short
+    sentences to express, it is two beats.
+
+    PHOTOGRAPHABLE BEATS. Prefer beats whose subject is photographable.
+    Abstract beats (rulings, budgets, classifications) must be framed
+    around a concrete proxy (the people, the room, the device, the
+    document) so the image pipeline has something to find.
 
     DECISION PROCESS
 
@@ -841,22 +850,33 @@ FACT_PROMPT = textwrap.dedent("""\
     BEAT DENSITY -- HARD RULE
 
     Each numbered beat in the brief becomes ONE slide. Each slide carries
-    ONE thought. So each beat must be ONE thought.
+    ONE fact. So each beat must be ONE fact.
 
-    Forbidden: a beat that names two people, two events, two consequences,
-    or two anything. Example of a banned beat: "locals nicknamed it X and
-    drove on for the ride. A man named Y abandoned his car and crawled
-    off. His dog Z died. A film-maker W filmed it." That is FOUR beats
-    pretending to be one. The slide writer cannot fit them into 3 lines
-    without dropping content or producing nonsense.
+    Forbidden inside a beat:
+    - Semicolons. A semicolon means two facts are sharing a beat. Split.
+    - "and" used to add a second fact. If your sentence reads "X did Y
+      AND Z happened", that is two beats. Split.
+    - Multiple named people in one beat (unless the beat is literally
+      about both at once -- e.g. "they wrote the memo together").
+    - Multiple events, multiple consequences, multiple anything.
 
     If the story has 7 distinct things worth saying, write 7 beats and
     call run_carousel with slides=8 (cover + 7). Better to have more
     short slides than fewer crowded ones.
 
-    Each line on a slide is rendered in Archivo Black 900. The writer
-    has a budget of 18-28 characters per line, max 32. If your beat
-    needs more than 3 short sentences to express, it is too dense.
+    Each line on a slide is rendered in Archivo Black 900 at 42px. The
+    writer has 16-22 characters per line, hard cap 24. If your beat
+    needs more than 3 short sentences to express, it is two beats.
+
+    PHOTOGRAPHABLE BEATS
+
+    Prefer beats whose subject is photographable: a person, a place, a
+    device, a scene. The image pipeline cannot find archive photographs
+    of abstract concepts (a budget figure, a secrecy classification, a
+    legal ruling, a cost-benefit calculation). If a beat MUST be about
+    something abstract, frame it around a concrete proxy: the people who
+    made the decision, the room where it happened, the device that was
+    classified, the document that surfaced.
 
     DECISION PROCESS
 

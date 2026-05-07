@@ -776,7 +776,7 @@ def _render_news_slide_typography(
             font-weight:700;font-size:24px;letter-spacing:0.04em;padding:8px 18px 10px;border-radius:999px;line-height:1;flex-shrink:0;}}
     .lines-wrap{{flex:1;display:flex;flex-direction:column;justify-content:center;padding-right:20px;}}
     .lines{{display:flex;flex-direction:column;gap:10px;}}
-    .line{{font-family:"Archivo Black","Inter",system-ui,sans-serif;font-weight:900;font-size:52px;line-height:1.08;
+    .line{{font-family:"Archivo Black","Inter",system-ui,sans-serif;font-weight:900;font-size:42px;line-height:1.10;
            letter-spacing:-0.01em;text-transform:lowercase;color:var(--off-white);}}
     .line .red{{color:var(--accent);font-weight:900;}}
     </style></head><body>

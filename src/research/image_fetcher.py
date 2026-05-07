@@ -872,11 +872,40 @@ class ImageFetcher:
         topic_low = topic.strip().lower()
         meta = (cand.meta_text or "").strip().lower()
 
-        # --- 1. Negative terms: hard reject before anything else ----
+        # --- 1. Negative terms: hard reject UNLESS the negative is a
+        #     vague single word AND the candidate has a strong subject
+        #     signal (multi-word alias match OR archive provider).
+        #
+        # Substring matching catches compound wrong-meaning phrases like
+        # "place de la concorde", "metro station", "frigate class".
+        # Single-word negatives ("station", "park", "monument") tend to
+        # collide with valid archive metadata, e.g. a Wikipedia photo
+        # titled "Norden Bombsight, Naval Station Mare Island". The
+        # override below allows that valid photo through while still
+        # blocking compound wrong-meaning matches.
+        _ARCHIVE_PROVIDERS = {
+            "commons", "wiki", "wiki_article",
+            "wikimedia_commons", "wikipedia",
+            "nasa", "smithsonian",
+        }
         if negative_terms and meta:
-            hit = next((t for t in negative_terms if t.lower() in meta), None)
-            if hit:
-                return False, f"negative_term={hit!r}"
+            neg_hit = next((t for t in negative_terms if t.lower() in meta), None)
+            if neg_hit:
+                is_weak_neg = (len(neg_hit.split()) == 1)
+                has_strong_alias = bool(source_aliases) and any(
+                    len(a.split()) > 1 and _alias_matches(a, meta)
+                    for a in source_aliases
+                )
+                is_archive = cand.provider in _ARCHIVE_PROVIDERS
+                if is_weak_neg and (has_strong_alias or is_archive):
+                    log.debug(
+                        "NEGATIVE_OVERRIDE neg=%r overridden (strong_alias=%s, archive=%s) | %s | meta=%r",
+                        neg_hit, has_strong_alias, is_archive, cand.provider,
+                        (cand.meta_text or "")[:80],
+                    )
+                    # Fall through to alias gate.
+                else:
+                    return False, f"negative_term={neg_hit!r}"
 
         # --- 2. Source aliases + context_words ---
         if source_aliases:
