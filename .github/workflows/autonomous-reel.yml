@@ -102,7 +102,7 @@ jobs:
 
       - name: Install Playwright system deps (cached run)
         if: steps.playwright-cache.outputs.cache-hit == 'true'
-        timeout-minutes: 3
+        timeout-minutes: 6
         run: playwright install-deps chromium
 
       - name: Write .env from secrets
