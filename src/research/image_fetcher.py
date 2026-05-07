@@ -340,17 +340,24 @@ class ImageFetcher:
         context_words: list[str] | None = None,
         extra_fallbacks: list[str] | None = None,
         max_pool: int = 20,
+        provider_override: tuple[str, ...] | None = None,
     ) -> list[PoolCandidate]:
         """Collect up to max_pool candidates that pass _candidate_allowed().
 
         Does NOT save or mark images as used — call commit_candidate() on the
         selected winner afterwards.
+
+        provider_override: optional tuple of provider names. When given,
+        bypasses the topic-based provider order. Used by the R3 fallback
+        branch in image_sourcer to route stock-style queries through
+        Pexels/Pixabay first instead of through the editorial archive
+        order.
         """
         pool: list[PoolCandidate] = []
         seen_urls: set[str] = set()
 
         for variant in self._query_variants(query, topic, extra_fallbacks=extra_fallbacks):
-            for cand in self._iter_candidates(variant, topic=topic):
+            for cand in self._iter_candidates(variant, topic=topic, provider_override=provider_override):
                 if cand.url in seen_urls:
                     continue
                 allowed, reason = self._candidate_allowed(
@@ -475,7 +482,8 @@ class ImageFetcher:
 
     # ----- candidate iterators -----
 
-    def _iter_candidates(self, term: str, topic: str = "") -> Iterator[_Candidate]:
+    def _iter_candidates(self, term: str, topic: str = "",
+                         provider_override: tuple[str, ...] | None = None) -> Iterator[_Candidate]:
         if not term:
             return
         sources_by_name = {
@@ -489,7 +497,7 @@ class ImageFetcher:
             "wiki_article": self._wiki_article_images_candidates,
             "commons": self._commons_candidates,
         }
-        order = self._provider_order(topic)
+        order = provider_override if provider_override is not None else self._provider_order(topic)
         for name in order:
             source = sources_by_name.get(name)
             if source is None:

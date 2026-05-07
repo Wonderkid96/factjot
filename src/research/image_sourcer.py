@@ -283,6 +283,15 @@ class ImageSourcer:
                 # Round 3: use the Sonnet-generated visual fallback query for this slot.
                 # These are descriptive stock-photography terms ("smartphone screen apps")
                 # not subject names, so the query terms themselves gate relevance.
+                #
+                # R3 routes through a stock-friendly provider order: Pexels and
+                # Pixabay first (their tag indexing matches descriptive B-roll
+                # terms), Smithsonian and Commons as long-shot fallbacks. The
+                # editorial topic order is archive-first, which is correct for
+                # R1/R2 named-subject queries but pointless on R3 because
+                # archives title files by subject identity, not visual content.
+                # Openverse omitted: known to return Flickr-hosted URLs that
+                # 429 our bot IP, so it adds latency without coverage.
                 vfq = (
                     visual_fallback_queries[i]
                     if visual_fallback_queries and i < len(visual_fallback_queries)
@@ -292,16 +301,17 @@ class ImageSourcer:
                     relaxation_round = 3
                     log.debug("IMAGE slot=%d RELAX_R3 → visual fallback %r", i, vfq)
                     raw_pool = self._fetcher.fetch_pool(
-                        query          = vfq,
-                        topic          = self.topic,
-                        post_id        = post_id,
-                        slide_index    = i,
-                        intent_text    = vfq,
-                        source_aliases = None,
-                        negative_terms = intent.negative_terms or None,
-                        context_words  = None,
-                        extra_fallbacks= None,
-                        max_pool       = min(pool_size, 20),
+                        query             = vfq,
+                        topic             = self.topic,
+                        post_id           = post_id,
+                        slide_index       = i,
+                        intent_text       = vfq,
+                        source_aliases    = None,
+                        negative_terms    = intent.negative_terms or None,
+                        context_words     = None,
+                        extra_fallbacks   = None,
+                        max_pool          = min(pool_size, 20),
+                        provider_override = ("pexels", "pixabay", "smithsonian", "commons"),
                     )
                     # Only allow images not yet used in this carousel.
                     if raw_pool:
