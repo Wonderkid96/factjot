@@ -73,7 +73,10 @@ jobs:
           cache: pip
 
       - name: Install FFmpeg
-        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
+        timeout-minutes: 3
+        uses: FedericoCarboni/setup-ffmpeg@v3
+        with:
+          ffmpeg-version: release
 
       - name: Install Python dependencies
         run: pip install -r requirements.txt
