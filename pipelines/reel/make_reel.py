@@ -53,8 +53,11 @@ from src.render.reel_text_renderer import (
 )
 from src.content.reel_title import make_title
 from src.render.tts_engine import group_into_chunks, synthesise
-from src.research.rare_fact_bank import load_all_facts
 from src.research.video_finder import find_videos
+# load_all_facts is intentionally a lazy import (see _pick_fact and the
+# --list-facts CLI path). The autonomous agent provides --script via
+# run_reel and never selects from the fact bank, so importing it at
+# module level would load legacy data on every autonomous run.
 from src.utils.logging_utils import configure_logging
 
 
@@ -203,6 +206,7 @@ def _pick_fact(topic: str | None) -> dict | None:
     via `_log_pick_diagnostics`.
     """
     from src.research.sensitivity_guide import CONTROVERSIAL
+    from src.research.rare_fact_bank import load_all_facts
 
     used_as_reel = brain.list_reel_claims()  # reads reels.jsonl fresh from disk
     all_facts = [r for r in load_all_facts() if r.get("quirky_score", 0) == 3]
@@ -250,6 +254,7 @@ def _pick_fact(topic: str | None) -> dict | None:
 def _log_pick_diagnostics(topic: str | None) -> None:
     """Print why no fact qualified, so failures are immediately actionable."""
     from src.research.sensitivity_guide import CONTROVERSIAL
+    from src.research.rare_fact_bank import load_all_facts
     used_as_reel = brain.list_reel_claims()
     pool = [r for r in load_all_facts() if r.get("quirky_score", 0) == 3]
     if topic:
@@ -1040,6 +1045,7 @@ def main() -> int:
 
     if args.list_facts:
         from src.research.sensitivity_guide import CONTROVERSIAL
+        from src.research.rare_fact_bank import load_all_facts
         all_q3 = [r for r in load_all_facts() if r.get("quirky_score", 0) == 3]
         if args.topic:
             all_q3 = [r for r in all_q3 if r["topic"] == args.topic]
