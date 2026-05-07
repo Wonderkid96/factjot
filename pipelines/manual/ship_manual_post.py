@@ -502,12 +502,73 @@ def generate_content(
         type_guidance          = type_guidance,
     )
 
-    # Stage B: fitter.
-    fits, usage_b = fit_slide_lines(
-        editorial_slides = writer_result.slides,
-        hard_cap         = HARD_LINE_CAP,
-        api_key          = api_key,
+    # Stage B: fitter + Playwright probe retry loop.
+    from playwright.sync_api import sync_playwright as _sync_pw_for_probe
+    from src.render.line_fit_probe import (
+        cap_for_slide_kind,
+        measure_lines_overflow,
     )
+
+    # We do not yet know per-slot slide kind (image vs typography); that
+    # depends on the image-source result, which only runs later. Use the
+    # photo cap (the tighter of the two) so anything that ships will also
+    # fit a typography-only slide if the image fallback kicks in.
+    fitter_cap = cap_for_slide_kind("photo")
+
+    feedback = ""
+    fits: list[SlideFit] = []
+    usage_b: dict = {}
+    fitter_attempts = 0
+    probe_attempts = 0
+    fitter_costs_sum = 0.0
+    last_err: Exception | None = None
+    for attempt in range(1, 4):
+        fitter_attempts = attempt
+        try:
+            fits, usage_b = fit_slide_lines(
+                editorial_slides       = writer_result.slides,
+                hard_cap               = fitter_cap,
+                api_key                = api_key,
+                prior_attempt_feedback = feedback,
+            )
+            fitter_costs_sum += float(usage_b.get("cost_usd", 0.0) or 0.0)
+        except (FactPreservationError, LineFitError) as exc:
+            last_err = exc
+            feedback = str(exc)
+            _log(f"     [fitter retry {attempt}] {exc}")
+            continue
+
+        # Probe each slide for visual wrap.
+        probe_attempts += 1
+        with _sync_pw_for_probe() as pw:
+            browser = pw.chromium.launch()
+            try:
+                wraps_per_slide: list[list[bool]] = []
+                for f in fits:
+                    wraps_per_slide.append(measure_lines_overflow(
+                        lines      = f.lines,
+                        slide_kind = "photo",
+                        browser    = browser,
+                    ))
+            finally:
+                browser.close()
+
+        bad: list[str] = []
+        for f, wraps in zip(fits, wraps_per_slide):
+            for j, wraps_j in enumerate(wraps, 1):
+                if wraps_j:
+                    bad.append(
+                        f"slide {f.slide_index} line {j} visually wraps: "
+                        f"{f.lines[j-1]!r} (Archivo Black photo cap)"
+                    )
+        if not bad:
+            break
+        feedback = "\n".join(bad)
+        _log(f"     [fitter retry {attempt}] visual wrap detected:\n{feedback}")
+    else:
+        raise LineFitError(
+            f"fitter could not produce a non-wrapping deck after 3 attempts: {last_err}"
+        )
 
     # Reshape into the dict form the rest of the pipeline already speaks.
     fitted_by_index = {f.slide_index: f for f in fits}
@@ -566,6 +627,15 @@ def generate_content(
         _log("     [INFO] Writer reported dropped_facts (beat too dense for one slide):")
         for df in writer_result.dropped_facts:
             _log(f"            - {df}")
+
+    # Stage B may have run more than once if the probe rejected the first
+    # try. Update usage_b to reflect the aggregated cost across all attempts.
+    if usage_b:
+        usage_b = dict(usage_b)
+        usage_b["cost_usd"] = round(fitter_costs_sum, 5)
+
+    data["_fitter_attempts"] = fitter_attempts
+    data["_probe_attempts"] = probe_attempts
 
     return data, [usage_a, usage_b]
 
@@ -881,7 +951,8 @@ def main() -> int:
                 result="dry_run",
                 editorial_cost_usd=editorial_cost,
                 fitter_cost_usd=fitter_cost,
-                fitter_attempts=1,
+                fitter_attempts=data.get("_fitter_attempts", 1),
+                probe_attempts=data.get("_probe_attempts", 0),
             )
             return 0
 
@@ -936,7 +1007,8 @@ def main() -> int:
                 result="published",
                 editorial_cost_usd=editorial_cost,
                 fitter_cost_usd=fitter_cost,
-                fitter_attempts=1,
+                fitter_attempts=data.get("_fitter_attempts", 1),
+                probe_attempts=data.get("_probe_attempts", 0),
             )
         else:
             err = publish_result.get("error", "(no error key in result)")
@@ -958,7 +1030,8 @@ def main() -> int:
                 result="publish_failed",
                 editorial_cost_usd=editorial_cost,
                 fitter_cost_usd=fitter_cost,
-                fitter_attempts=1,
+                fitter_attempts=data.get("_fitter_attempts", 1),
+                probe_attempts=data.get("_probe_attempts", 0),
             )
             return 1
 

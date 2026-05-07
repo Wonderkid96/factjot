@@ -264,6 +264,7 @@ def fit_slide_lines(
     editorial_slides: list[EditorialSlide],
     hard_cap: int,
     api_key: str,
+    prior_attempt_feedback: str = "",
 ) -> tuple[list[SlideFit], dict]:
     """Call Haiku 4.5 to fit each slide's prose to 3 lines under the cap.
 
@@ -278,11 +279,18 @@ def fit_slide_lines(
         ],
         ensure_ascii=False,
     )
+    feedback_block = ""
+    if prior_attempt_feedback:
+        feedback_block = (
+            "\n\nThe previous attempt failed. Specific issues:\n"
+            f"{prior_attempt_feedback}\n"
+            "Fix only those specific lines. Keep the rest unchanged.\n"
+        )
     prompt = FITTER_PROMPT_TEMPLATE.format(
         hard_cap=hard_cap,
         slides_json=slides_json,
         n_slides=len(editorial_slides),
-    )
+    ) + feedback_block
     res = client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=2000,
