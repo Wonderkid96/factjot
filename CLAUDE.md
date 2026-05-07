@@ -60,10 +60,10 @@ Items below are deliberately undecided. Do not pick one in passing. They are own
 
 Fully automated Instagram account posting via a single autonomous agent:
 
-- **3 posts/day** at 10:00 / 13:00 / 18:00 BST (09:00 / 12:00 / 17:00 UTC)
-- The agent (Sonnet 4.6) reads the post bank, picks the strongest non-duplicate idea, writes the brief or script, and chooses format (reel, carousel, list-style carousel)
-- One workflow: `autonomous-reel.yml` with three scheduled crons + manual dispatch
-- Modes: `morning`, `lunch`, `evening`. Lunch additionally has permission to use a current/breaking story if it passes the same quality bar; otherwise lunch falls back to evergreen
+- **5 posts/day** at 09:00 / 12:30 / 15:30 / 18:00 / 20:30 BST. Each slot is locked to one format.
+- The agent (Sonnet 4.6) reads the post bank, picks the strongest non-duplicate idea, and produces the brief or script in its assigned format. No format choice at runtime.
+- One workflow: `autonomous-reel.yml` with five scheduled crons + manual dispatch
+- Modes: `reel_morning`, `news`, `list`, `reel_evening`, `fact`. Each mode exposes only the tools it needs (run_reel for reels, run_carousel for carousels, plus `skip` everywhere). If no candidate clears the quality gate, the agent calls `skip` and the slot is left empty.
 - Successful reel posts cross-post automatically to YouTube as Shorts (same MP4, same caption + `#Shorts`, same custom thumbnail)
 
 Stack: Python 3.11, Playwright + Chromium (HTML rendering), FFmpeg (Reels), ElevenLabs (voice, paid), Anthropic Sonnet 4.6 (agent + carousel writing), Anthropic Haiku 4.5 (image selection / repair / hashtags / search-query expansion), Instagram Graph API, YouTube Data API v3, imgbb + tmpfiles.org (image / video hosting).
@@ -113,13 +113,17 @@ In **GitHub Actions**, bare `python3` is correct (pip installs to the runner's s
 
 ### Posting schedule (BST = UTC+1)
 
-All three fires use the same workflow with a different `post_mode` resolved from the cron schedule:
+All five fires use the same workflow with a different `post_mode` resolved from the cron schedule. Each mode is format-locked: the agent only sees the tools relevant to that slot.
 
-| Mode    | BST   | UTC   | Cron expression  | Behaviour                                                |
-| ------- | ----- | ----- | ---------------- | -------------------------------------------------------- |
-| morning | 10:00 | 09:00 | `0 9 * * *`      | Standard autonomous flow. No news permission.            |
-| lunch   | 13:00 | 12:00 | `0 12 * * *`     | Standard flow + permission to use a current/breaking story if it clears the same quality bar; falls back to evergreen otherwise. |
-| evening | 18:00 | 17:00 | `0 17 * * *`     | Standard autonomous flow. No news permission.            |
+| Mode           | BST   | UTC   | Cron expression  | Format                                              |
+| -------------- | ----- | ----- | ---------------- | --------------------------------------------------- |
+| reel_morning   | 09:00 | 08:00 | `0 8 * * *`      | Evergreen reel. No news.                            |
+| news           | 12:30 | 11:30 | `30 11 * * *`    | News / current carousel. Story from last 30 days.   |
+| list           | 15:30 | 14:30 | `30 14 * * *`    | List carousel. 5 items, 7 slides total.             |
+| reel_evening   | 18:00 | 17:00 | `0 17 * * *`     | Evergreen reel. No news.                            |
+| fact           | 20:30 | 19:30 | `30 19 * * *`    | Fact carousel. Single subject, 6 slides.            |
+
+**DST caveat:** crons are UTC and tracked to BST (summer). When UK clocks fall back to GMT in October, posts fire at the same UK clock time still (UTC == GMT). For exact 9am UK year-round, swap crons twice a year.
 
 ### All GitHub Actions workflows
 
@@ -127,14 +131,14 @@ Only two workflows exist after the 2026-05-07 cleanup:
 
 | File | Role |
 | ---- | ---- |
-| `autonomous-reel.yml` | The agent. Three scheduled crons + manual dispatch. Drives the entire posting cadence. |
+| `autonomous-reel.yml` | The agent. Five scheduled crons + manual dispatch. Drives the entire posting cadence. Each cron resolves to a format-locked mode. |
 | `pages.yml`           | GitHub Pages build for `docs/` (privacy, terms). Never publishes to social. |
 
 Everything else has been deleted. Do not re-add legacy posting workflows without explicitly removing the autonomous workflow first or double-posts will occur.
 
 ### How it fires
 
-GitHub's built-in cron fires the autonomous workflow three times a day at 09:00 / 12:00 / 17:00 UTC. There is no longer a cron-job.org backup; the previous backup crons (`+45 min`) are also gone. The agent's prompt-level duplicate guard means a delayed or duplicate dispatch cannot accidentally produce a similar second post.
+GitHub's built-in cron fires the autonomous workflow five times a day (08:00 / 11:30 / 14:30 / 17:00 / 19:30 UTC). There is no cron-job.org backup. The agent's prompt-level duplicate guard means a delayed or duplicate dispatch cannot accidentally produce a similar second post. Each fire is mode-locked, so e.g. a 12:30 retrigger can only produce a news carousel.
 
 ### Every autonomous run does
 
