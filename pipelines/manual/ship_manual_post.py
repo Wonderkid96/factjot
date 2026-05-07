@@ -320,6 +320,14 @@ def _repair_slides(slides: list[dict], warnings: list[str], api_key: str) -> lis
 
 
 def generate_content(brief: str, n_slides: int, api_key: str) -> tuple[dict, dict]:
+    """Write the carousel slides + cover + caption + image metadata.
+
+    Uses Sonnet 4.6 because this is the final reader-facing copy; editorial
+    voice, mechanism precision, and conceptual sting matter here. Haiku
+    flattened the language at the 28-42 char constraint. The repair pass
+    below stays on Haiku because that is a constrained-fit task, not an
+    editorial one.
+    """
     client  = Anthropic(api_key=api_key)
     prompt  = CONTENT_PROMPT.format(
         brand_voice=BRAND_VOICE,
@@ -327,7 +335,7 @@ def generate_content(brief: str, n_slides: int, api_key: str) -> tuple[dict, dic
         n_slides=n_slides,
     )
     res = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model="claude-sonnet-4-6",
         max_tokens=4000,
         temperature=0.5,
         messages=[{"role": "user", "content": prompt}],
@@ -367,11 +375,11 @@ def generate_content(brief: str, n_slides: int, api_key: str) -> tuple[dict, dic
             slides = _repair_slides(slides, warnings, api_key)
             data["slides"] = slides
 
-    pricing = {"input": 0.80, "output": 4.00}
+    pricing = {"input": 3.00, "output": 15.00}
     cost = (res.usage.input_tokens / 1_000_000) * pricing["input"] + \
            (res.usage.output_tokens / 1_000_000) * pricing["output"]
     usage = {
-        "model": "claude-haiku-4-5-20251001",
+        "model": "claude-sonnet-4-6",
         "input_tokens": res.usage.input_tokens,
         "output_tokens": res.usage.output_tokens,
         "cost_usd": round(cost, 5),
