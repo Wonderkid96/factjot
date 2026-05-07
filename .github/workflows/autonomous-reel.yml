@@ -99,50 +99,8 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           PYTHONUNBUFFERED: "1"
-          DRY_RUN: ${{ inputs.dry_run }}
-        run: |
-          DRY_RUN_FLAG=""
-          if [ "${DRY_RUN}" = "true" ]; then DRY_RUN_FLAG="--dry-run"; fi
-
-          cat > /tmp/agent_prompt.txt << PROMPTEOF
-          You are running the factjot Instagram account (@factjot).
-
-          Your job: post something genuinely interesting. Complete creative freedom. No topic constraint. No template.
-
-          The factjot voice is dry, direct, faintly contemptuous of people who don't find things interesting. British English. No em dashes. No corporate enthusiasm.
-
-          First, read CLAUDE.md to understand the project. Then read insta-brain/data/posted.jsonl to see what has already been posted. Choose something that is not already covered.
-
-          You may post in either format. Choose whichever suits the content.
-
-          --- REEL ---
-          A single striking fact, narrated to camera. Best for: a jaw-dropping claim, a moment in history, something visual.
-
-            python3 -u pipelines/reel/make_reel.py \
-              --script "70-120 word script, first sentence is the most surprising" \
-              --title "hook title" \
-              --topic <history|science|biology|ocean|earth|space|technology> \
-              --tone-override <shocking|curious|sober|wholesome> \
-              --hint "2-5 word footage hint" \
-              ${DRY_RUN_FLAG}
-
-          --- CAROUSEL ---
-          A news story, explainer, or editorial take. Best for: current events, a subject with multiple angles, anything that needs more than one sentence.
-
-            python3 -u pipelines/manual/ship_manual_post.py \
-              --brief "plain-English description of what to post, 2-4 sentences" \
-              --label "CATEGORY IN CAPS" \
-              --slides 6 \
-              ${DRY_RUN_FLAG}
-
-          Pick one format. Run it once. Do not retry on failure.
-          PROMPTEOF
-
-          claude --print \
-            --dangerously-skip-permissions \
-            --allowedTools "Bash" \
-            --max-turns 40 \
-            "$(cat /tmp/agent_prompt.txt)"
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: python3 -u scripts/autonomous_agent.py
 
       - name: Capture failure to brain log
         if: failure()
