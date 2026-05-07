@@ -137,7 +137,29 @@ colloquial or misspelled name. Identify the canonical proper name of the subject
 (e.g. brief says "Concord plane" → visual_subject is "Concorde supersonic airliner").
 This ensures image searches find the right thing.
 
-Write {n_slides} content slides plus a cover, following the format above exactly.
+BEAT-TO-SLIDE MAPPING -- HARD RULE.
+
+The brief may contain numbered beats describing what each slide should
+cover (e.g. "(1) cover hook ... (2) setup ... (3) mechanism ... (4) ...").
+If the brief contains numbered beats, you MUST follow them exactly:
+- Beat (1) -> the cover slide.
+- Beat (2) -> content slide 1.
+- Beat (3) -> content slide 2.
+- ... and so on, in order, one beat per slide.
+
+You may NOT:
+- merge two beats into one slide
+- split one beat across two slides
+- skip a beat
+- add a slide for content not in the brief
+- reorder beats
+
+If the brief specifies N beats and you produce M slides, M must equal N.
+The carousel exists to deliver the brief's argument in the brief's order.
+
+If the brief does NOT contain numbered beats, write {n_slides} content
+slides plus a cover, derived from the brief, in the order the brief
+introduces ideas. Do not improvise structure.
 
 For image_queries (one per slide including cover):
 - Queries search Wikimedia Commons and Wikipedia by file title.
@@ -318,51 +340,6 @@ def _validate_lines(slides: list[dict]) -> list[str]:
     return warnings
 
 
-def _repair_slides(slides: list[dict], warnings: list[str], api_key: str) -> list[dict]:
-    """One Haiku repair call for slides with bad lines. Returns original on failure."""
-    client = Anthropic(api_key=api_key)
-    bad_indices = set()
-    for w in warnings:
-        m = re.match(r"slide (\d+)", w)
-        if m:
-            bad_indices.add(int(m.group(1)) - 1)
-
-    if not bad_indices:
-        return slides
-
-    slides_text = json.dumps(
-        [{"slideNumber": i + 1, "lines": slides[i]["lines"]} for i in bad_indices],
-        indent=2
-    )
-    prompt = (
-        "Fix only the lines listed below. Rules:\n"
-        "- Each line must be 28-42 characters (never over 48)\n"
-        "- Do not end a line with: a, the, and, or, of, in, to, with\n"
-        "- Final line must be at least 12 characters\n"
-        "- Preserve meaning and [r]...[/r] markup\n"
-        "- Return JSON only: same structure as input\n\n"
-        f"Slides to fix:\n{slides_text}"
-    )
-    try:
-        res = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=1000,
-            temperature=0.3,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw = res.content[0].text.strip()
-        fixed = json.loads(raw) if raw.startswith("[") else json.loads(
-            re.search(r"\[[\s\S]*\]", raw).group(0)
-        )
-        for entry in fixed:
-            idx = entry.get("slideNumber", 0) - 1
-            if 0 <= idx < len(slides) and len(entry.get("lines", [])) == 3:
-                slides[idx]["lines"] = entry["lines"]
-    except Exception:
-        pass  # repair is best-effort; original slides remain
-    return slides
-
-
 def generate_content(
     brief: str, n_slides: int, api_key: str, format_type: str = "fact",
 ) -> tuple[dict, dict]:
@@ -416,15 +393,12 @@ def generate_content(
         if len(lines) > 3:
             s["lines"] = lines[:3]
 
-    # Validate line character rules; repair with Haiku if more than 2 warnings.
+    # Validate line character rules. Warn-only -- never silently rewrite.
+    # Sonnet's output is the truth; if a line is awkward, that is a brief
+    # or render concern, not something a second model should "fix".
     warnings = _validate_lines(slides)
-    if warnings:
-        for w in warnings:
-            _log(f"     [line warn] {w}")
-        if len(warnings) > 2:
-            _log(f"     {len(warnings)} warnings — running Haiku repair pass...")
-            slides = _repair_slides(slides, warnings, api_key)
-            data["slides"] = slides
+    for w in warnings:
+        _log(f"     [line warn] {w}")
 
     pricing = {"input": 3.00, "output": 15.00}
     cost = (res.usage.input_tokens / 1_000_000) * pricing["input"] + \
