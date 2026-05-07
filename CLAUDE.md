@@ -457,15 +457,20 @@ Position: `top: 56px; left: 72px; right: 72px` (see `src/render/templates/slide.
 ## Typography — strict brand rule
 
 
-| Font                              | Use                                | File                                     |
-| --------------------------------- | ---------------------------------- | ---------------------------------------- |
-| Instrument Serif Regular + Italic | Hook titles, wordmark, title cards | `assets/fonts/InstrumentSerif-*.ttf`     |
-| Space Grotesk SemiBold 600        | Subtitles, body text               | `assets/fonts/SpaceGrotesk-SemiBold.ttf` |
-| JetBrains Mono Bold 700           | Labels, badges, tags               | `assets/fonts/JetBrainsMono-Bold.ttf`    |
+Source of truth: `brand/brand_kit.json` (v2.0) and `brand/style-guide-v2.pdf` (gitignored, kept locally).
 
+| Font                              | Use                                                | File                                     |
+| --------------------------------- | -------------------------------------------------- | ---------------------------------------- |
+| Instrument Serif Regular + Italic | Hook titles, wordmark, title cards                 | `assets/fonts/InstrumentSerif-*.ttf`     |
+| Space Grotesk SemiBold 600        | Subtitles, body text                               | `assets/fonts/SpaceGrotesk-SemiBold.ttf` |
+| JetBrains Mono Bold 700           | Labels, badges, tags                               | `assets/fonts/JetBrainsMono-Bold.ttf`    |
+| Archivo Black 900 (v2, NEW)       | Short-form video burn-in subtitles only — never elsewhere | `assets/fonts/ArchivoBlack-Regular.ttf`  |
 
-Wordmark: `fact*jot*.` — "jot" italic, "." in `#E6352A`, base off-white `#EDE8DD`.
+Archivo Black is scoped: lowercase preferred, tracking `-0.015em` to `-0.005em`, line-height `1.0`-`1.1`. Pairs against Instrument Serif. Do not use it for headlines, labels, or wordmark. Do not switch existing renderers to it without explicit approval.
+
+Wordmark: `fact*jot*.` — "jot" italic, "." in `#E6352A`, base off-white `#EDE8DD`. Unchanged in v2.
 Brand colours: PAPER `#F4F1E9` INK `#0A0A0A` ACCENT `#E6352A` LIME `#C8DB45` LILAC `#C4A9D0`.
+v2 additions: SKY `#C9D8E2` AVAILABLE `#80EF80`, surface tokens `dark_bg #0A0A0A` / `surface #161614` / `elevated #1E1E1B`, brand gradient `accent → paper → lime → lilac` at 90°.
 Shadow style: hard drop `2px 2px 0 rgba(0,0,0,0.5)` — matches carousels, no blur.
 
 ---
@@ -557,7 +562,7 @@ Every fix must be a long-term structural fix, not a temporary patch. A patch tha
 4. No em dashes — anywhere, ever. Including YAML workflow comments.
 5. British English throughout all copy.
 6. Append-only ledgers — never edit historical lines. **Exception:** `data/ledgers/reel_performance.jsonl` is a mutable metrics store — it is fully rewritten on each `fetch_reel_metrics.py` run to update engagement numbers as they accumulate. Do not convert it to append-only.
-7. Three fonts only — brand-locked.
+7. Four fonts only — brand-locked. Three primaries (Instrument Serif, Space Grotesk, JetBrains Mono) plus Archivo Black scoped strictly to short-form video burn-in subtitles. No fifth font.
 8. Reels use `quirky_score=3` facts only (fallback to q2 only when q3 exhausted).
 9. All q3 facts must have curated `reel_script` (>=70 words) and `reel_title`.
 10. Always use the full Python path for local runs. Bare `python3` only in GitHub Actions.

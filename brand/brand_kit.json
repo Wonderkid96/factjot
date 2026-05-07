@@ -1,6 +1,8 @@
 {
   "name": "factjot",
   "handle": "@factjot",
+  "version": "2.0",
+  "version_note": "v2.0 (2026-05) adds Archivo Black for caption/video burn-in, plus SKY, AVAILABLE, and surface tokens. Existing colours and three primary fonts unchanged.",
   "voice": {
     "tone": "curious, precise, dry",
     "reading_level": "general audience",
@@ -19,17 +21,58 @@
     "shadow": "#000000",
     "white": "#FFFFFF"
   },
+  "colors_v2": {
+    "sky":          "#C9D8E2",
+    "available":    "#80EF80",
+    "muted_v2_note": "TJCreate v2 spec lists muted as #6B645A. Existing factjot renderers use muted=#9A938A. Both kept; new renderers may use #6B645A as muted_canonical.",
+    "muted_canonical": "#6B645A"
+  },
+  "surfaces": {
+    "dark_bg":   "#0A0A0A",
+    "surface":   "#161614",
+    "elevated":  "#1E1E1B"
+  },
+  "gradient": {
+    "brand_stops":   ["accent", "paper", "lime", "lilac"],
+    "brand_angle":   90,
+    "brand_css":     "linear-gradient(90deg, #E6352A 0%, #F4F1E9 33%, #C8DB45 66%, #C4A9D0 100%)"
+  },
   "typography": {
     "headline_font": "assets/fonts/InstrumentSerif-Regular.ttf",
     "headline_italic_font": "assets/fonts/InstrumentSerif-Italic.ttf",
     "label_font": "assets/fonts/JetBrainsMono-Bold.ttf",
     "label_font_regular": "assets/fonts/JetBrainsMono-Regular.ttf",
+    "caption_font": "assets/fonts/ArchivoBlack-Regular.ttf",
+    "caption_font_family": "Archivo Black",
+    "caption_use": "Reels burn-in subtitles, title cards, short-form video captions only. Pairs against Instrument Serif. Lowercase preferred.",
+    "caption_letter_spacing_em": -0.01,
     "headline_size_max": 132,
     "headline_size_min": 64,
     "headline_line_height": 0.95,
     "headline_letter_spacing_em": -0.02,
     "label_size": 22,
     "label_letter_spacing_em": 0.14
+  },
+  "type_scale_v2": {
+    "hero":  "clamp(2.2rem, 10vw, 11rem)",
+    "h1":    "clamp(2.5rem, 8vw, 7rem)",
+    "bio":   "clamp(1.45rem, 3vw, 2.8rem)",
+    "h2":    "clamp(1.2rem, 2.5vw, 2rem)",
+    "body":  "0.95rem to 1.25rem",
+    "label": "10 to 11px, 0.2em tracking",
+    "caption_archivo_black": "14 to 22pt burn-in subtitle"
+  },
+  "type_rules_v2": {
+    "heading_pattern":            "Word Italic.",
+    "italic_accent_rule":         "whole word only, never mid-word",
+    "accent_period":              "trailing dot in #E6352A on key words",
+    "section_counter_format":     "[ 01 / Label ] (square brackets required)",
+    "tracking_display_em":        -0.035,
+    "tracking_label_em":          0.20,
+    "tracking_archivo_black_em": [-0.015, -0.005],
+    "line_height_display":       [0.9, 1.0],
+    "line_height_body":          [1.5, 1.6],
+    "line_height_archivo_black": [1.0, 1.1]
   },
   "layout": {
     "canvas_width": 1080,

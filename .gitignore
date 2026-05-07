@@ -73,6 +73,10 @@ experiments/*/output/
 # Lock files
 .make_reel.lock
 
+# ── Brand reference docs (kept locally, never committed) ──────────
+brand/style-guide-v2.pdf
+brand/style-guide-*.pdf
+
 # ── Loose log / temp files ─────────────────────────────────────────
 *.log
 *.tmp

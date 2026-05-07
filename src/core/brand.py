@@ -5,12 +5,13 @@ Never hardcode colours, fonts, or sizes. Read from brand_kit.json
 via this module so the brand can't drift across carousel, list, Reel,
 or story renderers.
 
-Typography (from TJCreate Visual Style Guide):
+Typography (TJCreate Visual Style Guide v2.0, 2026-05):
   Display / headlines  -> Instrument Serif  Regular + Italic
   Body / subtitles     -> Space Grotesk     SemiBold 600
   Labels / tags        -> JetBrains Mono    Bold 700
+  Caption / burn-in    -> Archivo Black     900 (video subtitles only)
 
-Wordmark rule (hardwired):
+Wordmark rule (hardwired, never changes):
   fact[normal]  jot[italic]  .[accent-red]  colour=off-white
   letter-spacing: -0.02em  (matches make_avatar.py exactly)
 """
@@ -51,6 +52,22 @@ LIME       = _c("lime")         # #C8DB45
 LILAC      = _c("lilac")        # #C4A9D0
 WHITE      = _c("white")        # #FFFFFF
 
+# v2 additions (TJCreate Visual Style Guide v2.0)
+_v2 = _kit.get("colors_v2", {})
+SKY              = _v2.get("sky")              # #C9D8E2
+AVAILABLE        = _v2.get("available")        # #80EF80
+MUTED_CANONICAL  = _v2.get("muted_canonical")  # #6B645A (v2 spec)
+
+_surfaces = _kit.get("surfaces", {})
+SURFACE_DARK_BG  = _surfaces.get("dark_bg")    # #0A0A0A
+SURFACE          = _surfaces.get("surface")    # #161614
+SURFACE_ELEVATED = _surfaces.get("elevated")   # #1E1E1B
+
+BRAND_GRADIENT_CSS = (_kit.get("gradient") or {}).get(
+    "brand_css",
+    "linear-gradient(90deg, #E6352A 0%, #F4F1E9 33%, #C8DB45 66%, #C4A9D0 100%)",
+)
+
 # ------------------------------------------------------------------ #
 # Font file paths (absolute)
 # ------------------------------------------------------------------ #
@@ -62,6 +79,11 @@ FONT_SANS_SEMIBOLD  = _F / "SpaceGrotesk-SemiBold.ttf"
 FONT_SANS_MEDIUM    = _F / "SpaceGrotesk-Medium.ttf"
 FONT_MONO_BOLD      = _F / "JetBrainsMono-Bold.ttf"
 
+# Caption / burn-in font (Archivo Black 900, single weight). v2.0 only —
+# scope is short-form video subtitles and title cards. Existing
+# carousel/reel-thumbnail/story renderers do NOT use it.
+FONT_CAPTION_BLACK  = _F / "ArchivoBlack-Regular.ttf"
+
 def font_url(path: Path) -> str:
     """Return a file:// URI for a font path (for HTML/CSS use)."""
     return path.absolute().as_uri()
@@ -72,6 +94,7 @@ def font_url(path: Path) -> str:
 ROLE_DISPLAY = "Instrument Serif"  # headlines, title cards, CTA wordmark
 ROLE_BODY    = "Space Grotesk"     # subtitles, body copy
 ROLE_LABEL   = "JetBrains Mono"   # category tags, metadata, counters
+ROLE_CAPTION = "Archivo Black"     # short-form video burn-in subtitles only (v2)
 
 # ------------------------------------------------------------------ #
 # Wordmark spec (matches make_avatar.py - the canonical renderer)
