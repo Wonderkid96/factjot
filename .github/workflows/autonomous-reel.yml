@@ -8,6 +8,9 @@ name: Autonomous Post — Claude Agent (manual)
 # Default: dry-run OFF — this is the live autonomous post.
 
 on:
+  schedule:
+    - cron: "0 15 * * *"   # 15:00 UTC = 16:00 BST (primary)
+    - cron: "45 15 * * *"  # 15:45 UTC = 16:45 BST (backup)
   workflow_dispatch:
     inputs:
       dry_run:
