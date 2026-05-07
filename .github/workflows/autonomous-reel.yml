@@ -1,22 +1,31 @@
-name: Autonomous Post — Claude Agent (manual)
+name: Autonomous Post (factjot agent)
 
-# Claude Code CLI is dropped into the repo with Bash access.
-# No topic constraint. No template. The agent reads the repo, decides what
-# to post and in what format (reel or carousel), then calls the pipeline.
+# Three scheduled autonomous posts a day, plus manual dispatch.
+# The agent reads the post bank, picks the strongest non-duplicate idea,
+# decides reel vs carousel vs list-style carousel, then calls the
+# pipeline. Lunch mode also has permission to use a current/breaking
+# story if it passes the quality bar.
 #
 # Requires ANTHROPIC_API_KEY secret.
-# Default: dry-run OFF — this is the live autonomous post.
+# Default: dry-run OFF for scheduled runs (live posting).
 
 on:
   schedule:
-    - cron: "0 15 * * *"   # 15:00 UTC = 16:00 BST (primary)
-    - cron: "45 15 * * *"  # 15:45 UTC = 16:45 BST (backup)
+    - cron: "0 9 * * *"     # 09:00 UTC = 10:00 BST -> morning
+    - cron: "0 12 * * *"    # 12:00 UTC = 13:00 BST -> lunch
+    - cron: "0 17 * * *"    # 17:00 UTC = 18:00 BST -> evening
   workflow_dispatch:
     inputs:
+      post_mode:
+        description: "Post mode (morning, lunch, evening)"
+        type: choice
+        options: [morning, lunch, evening]
+        default: morning
+        required: true
       dry_run:
-        description: "Dry run — compose content but skip upload and publish"
+        description: "Dry run: compose content but skip upload and publish"
         type: boolean
-        default: false
+        default: true
         required: false
 
 concurrency:
@@ -32,6 +41,25 @@ jobs:
     timeout-minutes: 45
 
     steps:
+      - name: Resolve post mode from schedule or input
+        id: mode
+        env:
+          INPUT_MODE: ${{ inputs.post_mode }}
+          CRON: ${{ github.event.schedule }}
+        run: |
+          if [ -n "$INPUT_MODE" ]; then
+            MODE="$INPUT_MODE"
+          else
+            case "$CRON" in
+              "0 9 * * *")  MODE="morning" ;;
+              "0 12 * * *") MODE="lunch" ;;
+              "0 17 * * *") MODE="evening" ;;
+              *)            MODE="morning" ;;
+            esac
+          fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "Resolved post_mode=$MODE"
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -65,9 +93,6 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: playwright install-deps chromium
 
-      - name: Install Claude Code CLI
-        run: npm install -g @anthropic-ai/claude-code
-
       - name: Write .env from secrets
         run: |
           cat > .env << 'ENVEOF'
@@ -100,7 +125,8 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           PYTHONUNBUFFERED: "1"
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
-        run: python3 -u scripts/autonomous_agent.py
+          POST_MODE: ${{ steps.mode.outputs.mode }}
+        run: python3 -u scripts/autonomous_agent.py --post-mode "$POST_MODE"
 
       - name: Capture failure to brain log
         if: failure()
