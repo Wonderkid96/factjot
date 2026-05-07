@@ -94,9 +94,10 @@ Current and approved providers, in order of trust:
 1. Wikimedia Commons
 2. Wikipedia
 3. Smithsonian Open Access
-4. Flickr Creative Commons API (requires FLICKR_API_KEY; licence filter: CC-BY, CC-BY-SA, CC0, PDM only)
-5. Pixabay
-6. Openverse, enabled only after live verification of unauthenticated reads and licence/source reliability
+4. Pixabay
+5. Openverse, enabled only after live verification of unauthenticated reads and licence/source reliability
+
+Flickr is no longer supported. The Flickr API moved to a premium-only model in 2024 and is no longer accessible to free integrations. Direct Flickr image URLs returned via Openverse also rate-limit our requests with HTTP 429.
 
 Future, not in scope of this spec:
 
