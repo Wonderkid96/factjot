@@ -47,65 +47,60 @@ from src.content.carousel_diagnostics import (
     CarouselShapeError,
     build_shape_diagnostics,
 )
+from src.content.carousel_writer import (
+    EditorialSlide,
+    FactPreservationError,
+    LineFitError,
+    SlideFit,
+    fit_slide_lines,
+    write_editorial_slides,
+)
 
 # ------------------------------------------------------------------ #
 # Brand constants (sourced from brand/brand_kit.json)
 # ------------------------------------------------------------------ #
 
-BRAND_VOICE = """\
+BRAND_VOICE_EDITORIAL = """\
 Brand: factjot (@factjot)
 Voice: curious, precise, dry. A smart friend explaining something remarkable.
 Tone: confident, never sensational. Present tense where possible.
 Reading level: general audience.
 
-Slide format (strict, tuned to the actual rendered template):
-- Each slide: exactly 3 lines.
-- Each line: 16 to 22 characters target. HARD CAP 24 characters. Anything
-  over 24 wraps in Archivo Black at the rendered slide size, which
-  produces orphan words and 4-visual-line slides.
-- The renderer may still soft-wrap lines that look "fine" on paper. To
-  prevent that, write SHORT and assume each line will be measured
-  visually. Do not rely on your own line breaks if the line is dense.
-- Lines must flow as connected sentences, NOT bullet points or fragments.
+Editorial rules (Stage A - meaning only, layout handled by Stage B):
 - ONE SLIDE = ONE IDEA. ONE BEAT = ONE FACT. HARD RULE.
-  - Semicolons inside a beat are FORBIDDEN. A semicolon means two facts
-    are sharing a slide. Split them or pick the stronger one.
-  - If you find yourself writing "and" to add a second fact, that "and"
-    starts a NEW beat. Do not weld two facts with "and".
-  - "X happened, then Y happened" is two beats, not one.
+- No semicolons inside a beat. No "and" welding two facts.
+- "X happened, then Y happened" is two beats, not one.
+- No em dashes. Commas, full stops, or parentheses instead.
+- British English. No hedging. No attribution phrases ("sources say",
+  "according to").
 - Front-load the most interesting element on each slide.
-- No hedging, no filler, no attribution phrases ("sources say", "according to").
-- No em-dashes. Use commas, full stops, or parentheses instead.
-- ANTI-ORPHAN RULE. A line must contain either at least 3 words, OR
-  one named entity worth standing alone (e.g. "carl norden,"). A line
-  that is just one short word ("crews", "and", "in") is forbidden.
-- Do not end a line with a weak connector word: a, the, and, or, of, in, to, with, an, at, by, for.
-- Do not leave the final line under 8 characters.
-- Do not split names, dates, numbers or key phrases across lines awkwardly.
-- Prefer clean visual rhythm over exact word count.
+- Preserve specific names, dates, numbers, places.
+- If a beat is genuinely too dense for one slide, surface the dropped
+  sub-fact in dropped_facts rather than welding fragments.
 
 Red keyword markup:
-- Wrap 1-2 key words or short phrases per line in [r]...[/r] -- rendered in red
-- Use for the most striking facts, names, numbers, turning points
-- Example: "Iran sets up [r]new authority[/r] over the strait."
-- Count [r]...[/r] tags in the character limit but they are short so it is fine
+- Wrap 1-2 key words or short phrases per line in [r]...[/r] - the
+  fitter will preserve the markup when it breaks lines.
+- Use for the most striking facts, names, numbers, turning points.
 
-Cover title: 5 to 9 words. No full stop. Must contain a verb or a sting,
-not a noun phrase. Sets up the story without spoiling it.
+Cover title: 5 to 9 words. No full stop. Must contain a verb or a
+sting, not a noun phrase. Sets up the story without spoiling it.
 Banned shapes (chant-style, all rejected):
 - "the X with no Y"
 - "no X no Y"
 - "X-free Y"
-- "the Y that X" where Y is vague (the thing that, the one that, the X that)
-The title should sound like a sentence in factjot's voice, not a tagline.
-Good: "openai built a phone that refuses apps".
-Good: "the software that jailed the post office workers".
-Bad: "the phone with no apps".
-Bad: "no apps no store".
-Category label: 1-3 words in capitals. Any subject is valid — SPORT, POLITICS, CRIME, CULTURE, FOOD, DESIGN, MUSIC, INTERNET HISTORY, AVIATION, SCIENCE, or anything else that fits.
+- "the Y that X" where Y is vague.
 
-Final slide (CTA): a thought-provoking question or reflection the reader wants to debate.
-Same format: 3 lines, 16-22 characters each, hard cap 24. Do NOT reference the source or say "follow for more"."""
+Category label: 1-3 words in capitals. Any subject is valid: SPORT,
+POLITICS, CRIME, CULTURE, FOOD, DESIGN, MUSIC, INTERNET HISTORY,
+AVIATION, SCIENCE, or anything else that fits.
+
+Final slide (CTA): a thought-provoking question or reflection the
+reader wants to debate. Do NOT reference the source or say "follow
+for more"."""
+
+# Backwards-compat: some legacy imports still reach for BRAND_VOICE.
+BRAND_VOICE = BRAND_VOICE_EDITORIAL
 
 
 TYPE_GUIDANCE: dict[str, str] = {
@@ -481,88 +476,98 @@ def _enforce_carousel_shape(data: dict, *, requested_content_slides: int) -> Non
 
 def generate_content(
     brief: str, n_slides: int, api_key: str, format_type: str = "fact",
-) -> tuple[dict, dict]:
-    """Write the carousel slides + cover + caption + image metadata.
+) -> tuple[dict, list[dict]]:
+    """Two-stage carousel writer.
 
-    Uses Sonnet 4.6 because this is the final reader-facing copy; editorial
-    voice, mechanism precision, and conceptual sting matter here. Haiku
-    flattened the language at the 28-42 char constraint. The repair pass
-    below stays on Haiku because that is a constrained-fit task, not an
-    editorial one.
+    Stage A (Sonnet 4.6) writes editorial slide prose without char-cap
+    pressure. Stage B (Haiku 4.5) fits each slide's prose to 3 lines
+    under the renderer's hard cap. A FactPreservationError is raised
+    if entity identity drifts.
 
-    `format_type` selects the writer guidance (fact / news / list).
-    Structural rules (lines per slide, char limits, image queries) are
-    shared across all three.
+    Returns the same `data` shape the rest of the pipeline expects
+    (with `slides` populated as `[{slideNumber, lines, slot_aliases}]`)
+    plus a list of usage records, one per stage.
+
+    `n_slides` is content-only (cover added on top in main()).
     """
-    client  = Anthropic(api_key=api_key)
-    prompt  = CONTENT_PROMPT.format(
-        brand_voice=BRAND_VOICE,
-        type_guidance=_type_guidance(format_type),
-        brief=brief,
-        n_slides=n_slides,
+    type_guidance = _type_guidance(format_type)
+
+    # Stage A: editorial writer.
+    writer_result, usage_a = write_editorial_slides(
+        brief                  = brief,
+        n_content_slides       = n_slides,
+        format_type            = format_type,
+        api_key                = api_key,
+        brand_voice_editorial  = BRAND_VOICE_EDITORIAL,
+        type_guidance          = type_guidance,
     )
-    res = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=4000,
-        temperature=0.5,
-        messages=[{"role": "user", "content": prompt}],
+
+    # Stage B: fitter.
+    fits, usage_b = fit_slide_lines(
+        editorial_slides = writer_result.slides,
+        hard_cap         = HARD_LINE_CAP,
+        api_key          = api_key,
     )
-    raw = res.content[0].text.strip()
 
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        fenced = re.search(r"```(?:json)?\s*(\{[\s\S]*\})\s*```", raw, re.IGNORECASE)
-        if fenced:
-            data = json.loads(fenced.group(1))
-        else:
-            s, e = raw.find("{"), raw.rfind("}")
-            data = json.loads(raw[s: e + 1])
+    # Reshape into the dict form the rest of the pipeline already speaks.
+    fitted_by_index = {f.slide_index: f for f in fits}
+    slide_dicts: list[dict] = []
+    for ed in writer_result.slides:
+        f = fitted_by_index.get(ed.slide_index)
+        if f is None:
+            raise LineFitError(f"fitter dropped slide_index={ed.slide_index}")
+        # Stage A's slot_aliases list is parallel to its slides list, so
+        # the writer-result index (not slide_index) keys it.
+        try:
+            sa_idx = writer_result.slides.index(ed)
+            slot_aliases_for_slide = (
+                writer_result.slot_aliases[sa_idx]
+                if sa_idx < len(writer_result.slot_aliases) else []
+            )
+        except ValueError:
+            slot_aliases_for_slide = []
+        slide_dicts.append({
+            "slideNumber":  ed.slide_index,
+            "lines":        f.lines,
+            "slot_aliases": slot_aliases_for_slide,
+            "_editorial_prose": ed.prose,
+        })
 
-    slides = data.get("slides", [])
-    if len(slides) < 1:
-        raise CarouselShapeError(
-            "writer returned no slides",
-            build_shape_diagnostics(
-                requested_content_slides=n_slides,
-                returned_content_slides=0,
-                slides=[],
-            ),
-        )
+    data = {
+        "cover_title":              writer_result.cover_title,
+        "label":                    writer_result.label,
+        "caption_body":             writer_result.caption_body,
+        "visual_subject":           writer_result.visual_subject,
+        "subject_type":             writer_result.subject_type,
+        "fallback_query":           writer_result.fallback_query,
+        "source_aliases":           writer_result.source_aliases,
+        "context_words":            writer_result.context_words,
+        "negative_terms":           writer_result.negative_terms,
+        "preferred_image_types":    writer_result.preferred_image_types,
+        "avoid_image_types":        writer_result.avoid_image_types,
+        "image_queries":            writer_result.image_queries,
+        "visual_fallback_queries":  writer_result.visual_fallback_queries,
+        "cover_slot_aliases":       writer_result.cover_slot_aliases,
+        "slides":                   slide_dicts,
+        "dropped_facts":            writer_result.dropped_facts,
+    }
 
-    # Log any explicit dropped_facts the writer surfaced from over-dense beats.
-    dropped_facts = data.get("dropped_facts") or []
-    if isinstance(dropped_facts, list) and dropped_facts:
-        _log(f"     [INFO] Writer reported dropped_facts (beat too dense for one slide):")
-        for df in dropped_facts:
-            _log(f"            - {df}")
-
-    # n_slides is the content-only count (see Slide-count contract).
+    # n_slides is content-only (see Slide-count contract).
     _enforce_carousel_shape(data, requested_content_slides=n_slides)
-    slides = data["slides"]
 
-    # Validate line character rules. Warn-only -- never silently rewrite.
-    # Sonnet's output is the truth; if a line is awkward, that is a brief
-    # or render concern, not something a second model should "fix".
-    warnings = _validate_lines(slides)
+    warnings = _validate_lines(slide_dicts)
     for w in warnings:
         _log(f"     [line warn] {w}")
     data["_line_warnings"] = warnings
 
-    # Hard-fail if any line exceeds the renderer's cap. Better to abort
-    # than ship a layout-broken carousel that wraps mid-name.
-    _assert_lines_within_render_cap(slides)
+    _assert_lines_within_render_cap(slide_dicts)
 
-    pricing = {"input": 3.00, "output": 15.00}
-    cost = (res.usage.input_tokens / 1_000_000) * pricing["input"] + \
-           (res.usage.output_tokens / 1_000_000) * pricing["output"]
-    usage = {
-        "model": "claude-sonnet-4-6",
-        "input_tokens": res.usage.input_tokens,
-        "output_tokens": res.usage.output_tokens,
-        "cost_usd": round(cost, 5),
-    }
-    return data, usage
+    if writer_result.dropped_facts:
+        _log("     [INFO] Writer reported dropped_facts (beat too dense for one slide):")
+        for df in writer_result.dropped_facts:
+            _log(f"            - {df}")
+
+    return data, [usage_a, usage_b]
 
 
 # ------------------------------------------------------------------ #
@@ -664,7 +669,9 @@ def main() -> int:
     _log(f"     Brief:  \"{args.brief}\"")
     _log(f"     Type:   {args.type}  (target {total_slides_arg} slides total)")
     try:
-        data, usage = generate_content(args.brief, n_slides, api_key, format_type=args.type)
+        data, usage_records = generate_content(
+            args.brief, n_slides, api_key, format_type=args.type,
+        )
     except CarouselShapeError as shape_err:
         _log(f"\nERROR: CONTENT_SHAPE_MISMATCH - {shape_err}")
         _log(f"       Diagnostics: {json.dumps(shape_err.diagnostics, ensure_ascii=False)}")
@@ -680,7 +687,38 @@ def main() -> int:
             result="shape_failed",
         )
         return 1
-    _log(f"     {usage['input_tokens']:,} in / {usage['output_tokens']:,} out  ~${usage['cost_usd']:.4f}")
+    except (FactPreservationError, LineFitError) as fit_err:
+        _log(f"\nERROR: CONTENT_SHAPE_MISMATCH - fitter failed: {fit_err}")
+        _write_quality_ledger_entry(
+            ledger_path=quality_ledger_path,
+            post_id="fitter-failed",
+            format_type=args.type,
+            cover_title="(fitter failed)",
+            slide_count=0,
+            line_warnings=[],
+            dropped_facts=[],
+            image_coverage={"image": 0, "typography": 0, "cover_failed": False},
+            result="fitter_failed",
+        )
+        return 1
+
+    total_cost = sum(u["cost_usd"]      for u in usage_records)
+    in_tokens  = sum(u["input_tokens"]  for u in usage_records)
+    out_tokens = sum(u["output_tokens"] for u in usage_records)
+    _log(
+        f"     {in_tokens:,} in / {out_tokens:,} out  ~${total_cost:.4f}  "
+        f"({len(usage_records)} stages)"
+    )
+
+    # Per-stage cost split for the ledger.
+    editorial_cost = next(
+        (u["cost_usd"] for u in usage_records if u.get("stage") == "editorial"),
+        0.0,
+    )
+    fitter_cost = next(
+        (u["cost_usd"] for u in usage_records if u.get("stage") == "fitter"),
+        0.0,
+    )
 
     cover_title  = data["cover_title"]
     label        = args.label.upper() if args.label else data.get("label", "FACTJOT").upper()
@@ -830,7 +868,7 @@ def main() -> int:
         if args.dry_run:
             _log("\n[DRY RUN] Caption preview:")
             _log(caption[:500])
-            _log(f"\n     Total slides: {total_slides}  |  Cost: ${usage['cost_usd']:.4f}")
+            _log(f"\n     Total slides: {total_slides}  |  Cost: ${total_cost:.4f}")
             _write_quality_ledger_entry(
                 ledger_path=quality_ledger_path,
                 post_id=post_id,
@@ -841,7 +879,9 @@ def main() -> int:
                 dropped_facts=data.get("dropped_facts") or [],
                 image_coverage=image_coverage,
                 result="dry_run",
-                editorial_cost_usd=usage.get("cost_usd", 0.0),
+                editorial_cost_usd=editorial_cost,
+                fitter_cost_usd=fitter_cost,
+                fitter_attempts=1,
             )
             return 0
 
@@ -894,7 +934,9 @@ def main() -> int:
                 dropped_facts=data.get("dropped_facts") or [],
                 image_coverage=image_coverage,
                 result="published",
-                editorial_cost_usd=usage.get("cost_usd", 0.0),
+                editorial_cost_usd=editorial_cost,
+                fitter_cost_usd=fitter_cost,
+                fitter_attempts=1,
             )
         else:
             err = publish_result.get("error", "(no error key in result)")
@@ -914,7 +956,9 @@ def main() -> int:
                 dropped_facts=data.get("dropped_facts") or [],
                 image_coverage=image_coverage,
                 result="publish_failed",
-                editorial_cost_usd=usage.get("cost_usd", 0.0),
+                editorial_cost_usd=editorial_cost,
+                fitter_cost_usd=fitter_cost,
+                fitter_attempts=1,
             )
             return 1
 
