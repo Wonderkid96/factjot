@@ -48,7 +48,8 @@ PROVIDER_TRUST: dict[str, int] = {
     "pexels":             5,
 }
 
-MIN_SCORE: int = 20
+MIN_SCORE:    int = 20   # named-subject rounds (R1/R2): alias bonus reachable
+MIN_SCORE_R3: int = 8    # visual fallback round: no alias gate, lower floor
 MAX_REUSES:  int = 1   # same URL never repeated in a carousel
 
 
@@ -324,7 +325,7 @@ class ImageSourcer:
 
             log.debug("IMAGE slot=%d pool_size=%d (round=%d)", i, len(raw_pool), relaxation_round)
 
-            chosen = self._select_for_slot(i, query, raw_pool, intent, post_id)
+            chosen = self._select_for_slot(i, query, raw_pool, intent, post_id, relaxation_round)
 
             # Typography breaks the consecutive chain — the same image may
             # appear again on the next slot without being flagged consecutive.
@@ -351,6 +352,7 @@ class ImageSourcer:
         raw_pool: list,
         intent: ImageIntent,
         post_id: str,
+        relaxation_round: int = 1,
     ) -> str:
         """Run the full selection pipeline for one slot. Returns data URL or "".
 
@@ -366,6 +368,9 @@ class ImageSourcer:
             chosen = self._pick_reuse()
             log.debug("IMAGE slot=%d EMPTY_POOL → %s", slot, "reuse" if chosen else "typography")
             return chosen
+
+        is_r3 = (relaxation_round == 3)
+        min_score = MIN_SCORE_R3 if is_r3 else MIN_SCORE
 
         # [A] Hard filter: overused or consecutive
         eligible = [
@@ -438,11 +443,17 @@ class ImageSourcer:
                 log.debug("IMAGE slot=%d haiku_pick=%d consecutive → skip", slot, pick_idx)
                 continue
 
-            # MIN_SCORE is a warning when Haiku is confident; a block otherwise
-            if sc < MIN_SCORE and confidence != "high":
+            # MIN_SCORE is a warning when Haiku is confident; a block otherwise.
+            # On R3 (visual fallback) the alias bonus is unreachable, so the floor
+            # drops and Haiku "medium" is allowed to bypass alongside "high".
+            confident_enough = (
+                confidence == "high"
+                or (is_r3 and confidence == "medium")
+            )
+            if sc < min_score and not confident_enough:
                 log.debug(
-                    "IMAGE slot=%d haiku_pick=%d score=%d < MIN_SCORE confidence=%s → skip",
-                    slot, pick_idx, sc, confidence,
+                    "IMAGE slot=%d haiku_pick=%d score=%d < min(%d) confidence=%s round=%d → skip",
+                    slot, pick_idx, sc, min_score, confidence, relaxation_round,
                 )
                 continue
 
@@ -471,7 +482,7 @@ class ImageSourcer:
                 continue
             if self._use_count.get(c.url, 0) >= MAX_REUSES or c.url == self._last_url:
                 continue
-            if sc < MIN_SCORE:
+            if sc < min_score:
                 break  # sorted descending; nothing below will qualify
             try:
                 cached, credit = self._fetcher.commit_candidate(c, query, self.topic, post_id, slot)

@@ -35,6 +35,7 @@ from playwright.sync_api import sync_playwright
 from pipelines.news.ship_news_post import (
     render_cover_slide,
     render_news_slide,
+    render_story_frame,
     _log,
 )
 from src.content.hashtag_builder import build_hashtags
@@ -72,7 +73,18 @@ Red keyword markup:
 - Example: "Iran sets up [r]new authority[/r] over the strait."
 - Count [r]...[/r] tags in the character limit but they are short so it is fine
 
-Cover title: 3-5 words, punchy, no full stop. Sets up the story without spoiling it.
+Cover title: 5 to 9 words. No full stop. Must contain a verb or a sting,
+not a noun phrase. Sets up the story without spoiling it.
+Banned shapes (chant-style, all rejected):
+- "the X with no Y"
+- "no X no Y"
+- "X-free Y"
+- "the Y that X" where Y is vague (the thing that, the one that, the X that)
+The title should sound like a sentence in factjot's voice, not a tagline.
+Good: "openai built a phone that refuses apps".
+Good: "the software that jailed the post office workers".
+Bad: "the phone with no apps".
+Bad: "no apps no store".
 Category label: 1-3 words in capitals. Any subject is valid — SPORT, POLITICS, CRIME, CULTURE, FOOD, DESIGN, MUSIC, INTERNET HISTORY, AVIATION, SCIENCE, or anything else that fits.
 
 Final slide (CTA): a thought-provoking question or reflection the reader wants to debate.
@@ -521,6 +533,17 @@ def main() -> int:
                 slide_paths.append(out_path)
                 _log(f"     slide {idx} done")
 
+            # 9:16 story frame wrapping the cover slide. Without this the
+            # story falls back to the raw 4:5 cover slide stretched into 9:16.
+            story_path = tmp_dir / "story.png"
+            render_story_frame(
+                cover_path=cover_path,
+                out_path=story_path,
+                repo_root=repo_root,
+                browser=browser,
+            )
+            _log("     story frame done")
+
             browser.close()
 
         # Build caption + hashtags
@@ -538,6 +561,7 @@ def main() -> int:
         save_dir.mkdir(parents=True, exist_ok=True)
         for p in slide_paths:
             shutil.copy(p, save_dir / p.name)
+        shutil.copy(story_path, save_dir / story_path.name)
         _log(f"\n     Slides saved to: {save_dir.resolve()}")
 
         if args.dry_run:
@@ -586,14 +610,19 @@ def main() -> int:
                 }],
             )
 
-        # Story: cover image + link back to carousel
+        # Story: 9:16 story frame + link back to carousel
         story_result = {"ok": False, "error": "no media id"}
         if ig_media_id and image_urls:
-            permalink    = publisher.ig_permalink(ig_media_id)
-            story_result = publisher.post_to_stories(
-                image_url=image_urls[0],
-                link_url=permalink,
-            )
+            try:
+                story_hosted = image_host.upload(story_path)
+                story_url    = story_hosted.public_url
+                permalink    = publisher.ig_permalink(ig_media_id)
+                story_result = publisher.post_to_stories(
+                    image_url=story_url,
+                    link_url=permalink,
+                )
+            except Exception as exc:
+                story_result = {"ok": False, "error": f"story upload failed: {exc}"}
         if story_result.get("ok"):
             _log(f"Story posted — ig_media_id: {story_result['ig_media_id']}")
         else:

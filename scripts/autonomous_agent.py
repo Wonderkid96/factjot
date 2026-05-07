@@ -535,9 +535,13 @@ CORE_PROMPT = textwrap.dedent("""\
 
     Prefer carousel when unsure.
     Prefer carousel for lists.
-    Prefer carousel for current stories.
-    Prefer carousel for tech, business, shutdowns, product failures,
-    regulation, tribunals, and odd internet stories.
+
+    Format choice is driven by the angle, not the topic.
+    Tech, business, shutdowns, product failures, regulation, tribunals,
+    and odd internet stories can all be reels OR carousels. Pick whichever
+    fits the angle:
+    - one striking fact, one mechanism, one decision  → reel
+    - multiple parts, a comparison, a timeline, a list → carousel
 
     LIST POSTS
 
@@ -710,9 +714,11 @@ MODE_NOTES = {
         - stories needing too much context
         - stories with weak sourcing
 
-        If you use a current story, prefer carousel over reel. Reel is
-        only valid if the story has one clean surprising fact, works in
+        If you use a current story, choose the format that fits the angle.
+        A reel works when the story has one clean surprising fact, fits in
         70-120 words, needs no heavy context, and the visual is obvious.
+        A carousel works when the story needs multiple beats, comparison,
+        or timeline. Do not default to carousel just because it is news.
     """),
     "evening": textwrap.dedent("""\
 

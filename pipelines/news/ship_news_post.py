@@ -595,6 +595,68 @@ def render_cover_slide(
 
 
 # ------------------------------------------------------------------ #
+# Story frame -- 1080x1920 9:16 wrapper around the cover slide.
+# Blurred cover as full-bleed bg, cover slide itself as a centred card.
+# ------------------------------------------------------------------ #
+
+def render_story_frame(
+    cover_path: Path,
+    out_path: Path,
+    repo_root: Path,
+    browser,
+) -> None:
+    """Render a 1080x1920 story frame wrapping the carousel cover slide.
+
+    Story image = the cover slide composited inside a 9:16 frame with the
+    factjot wordmark + NEW POST pill above it, and the same cover blurred
+    behind. Matches the reel story's design language.
+    """
+    cover_url   = _inline_asset(cover_path)
+    serif_url   = _inline_asset(repo_root / "assets/fonts/InstrumentSerif-Regular.ttf")
+    mono_url    = _inline_asset(repo_root / "assets/fonts/JetBrainsMono-Bold.ttf")
+
+    html = f"""<!doctype html><html><head><meta charset="utf-8"/><style>
+    {_font_faces(serif_url, mono_url, "")}
+    :root{{--near-black:#0B0B0C;--off-white:#EDE8DD;--accent:#E6352A;--white:#FFFFFF;}}
+    *{{box-sizing:border-box;margin:0;padding:0;}}
+    html,body{{width:1080px;height:1920px;overflow:hidden;background:var(--near-black);color:var(--white);font-family:"Instrument Serif",Georgia,serif;-webkit-font-smoothing:antialiased;}}
+    .bg-blur{{position:absolute;inset:0;background:url("{cover_url}") center/cover no-repeat;filter:blur(28px) saturate(0.7) brightness(0.45);transform:scale(1.12);z-index:0;}}
+    .bg-overlay{{position:absolute;inset:0;background:rgba(11,11,12,0.62);z-index:1;}}
+    .grain{{position:absolute;inset:0;z-index:5;opacity:0.06;mix-blend-mode:overlay;background-image:url("{_GRAIN_SVG}");pointer-events:none;}}
+    .frame{{position:absolute;inset:0;z-index:10;padding:280px 60px 280px 60px;display:flex;flex-direction:column;justify-content:flex-start;align-items:center;gap:32px;}}
+    .header{{width:880px;align-self:center;display:flex;align-items:center;justify-content:space-between;flex:0 0 auto;}}
+    .wordmark{{font-family:"Instrument Serif",Georgia,serif;font-weight:400;font-size:52px;letter-spacing:-0.01em;line-height:1;color:var(--off-white);text-shadow:1px 1px 0 rgba(0,0,0,0.45);}}
+    .wordmark .ital{{font-style:italic;}}
+    .wordmark .dot{{color:var(--accent);}}
+    .new-post-badge{{background:var(--accent);color:var(--off-white);font-family:"JetBrains Mono",ui-monospace,monospace;font-weight:700;font-size:22px;letter-spacing:0.24em;padding:12px 22px 14px;border-radius:9999px;text-transform:uppercase;line-height:1;}}
+    .card-wrapper{{width:100%;display:flex;justify-content:center;align-items:flex-start;flex:1 1 auto;}}
+    .slide-card{{width:880px;aspect-ratio:4 / 5;border-radius:24px;overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,0.65),0 6px 20px rgba(0,0,0,0.45);border:1px solid rgba(255,255,255,0.10);position:relative;}}
+    .slide-card img{{width:100%;height:100%;object-fit:cover;display:block;}}
+    </style></head><body>
+    <div class="bg-blur"></div>
+    <div class="bg-overlay"></div>
+    <div class="grain"></div>
+    <div class="frame">
+      <div class="header">
+        <span class="wordmark">fact<span class="ital">jot</span><span class="dot">.</span></span>
+        <div class="new-post-badge">NEW POST</div>
+      </div>
+      <div class="card-wrapper">
+        <div class="slide-card">
+          <img src="{cover_url}" alt=""/>
+        </div>
+      </div>
+    </div>
+    </body></html>"""
+
+    page = browser.new_page(viewport={"width": 1080, "height": 1920}, device_scale_factor=2)
+    page.set_content(html, wait_until="networkidle")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    page.screenshot(path=str(out_path), full_page=False, clip={"x": 0, "y": 0, "width": 1080, "height": 1920})
+    page.close()
+
+
+# ------------------------------------------------------------------ #
 # Content slides -- black background, white text, red key words
 # ------------------------------------------------------------------ #
 
