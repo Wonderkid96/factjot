@@ -124,6 +124,7 @@ class CarouselDraftGenerator:
             hook = self._strip_markup(slides[0]) if slides else ""
             caption = self._caption(chunk)
             anchor_claim = chunk[0].claim if chunk else ""
+            avg_confidence = sum(f.confidence for f in chunk) / len(chunk) if chunk else 0.0
             hashtags = build_hashtags(
                 summary=anchor_claim,
                 topic=topic,
