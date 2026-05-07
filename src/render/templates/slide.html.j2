@@ -21,6 +21,14 @@
     font-weight: 700;
     font-style: normal;
   }
+  {% if font_archivo_black %}
+  @font-face {
+    font-family: "Archivo Black";
+    src: url("{{ font_archivo_black }}") format("truetype");
+    font-weight: 900;
+    font-style: normal;
+  }
+  {% endif %}
 
   :root {
     --paper: #F4F1E9;
@@ -170,29 +178,33 @@
   }
 
   .headline {
-    font-family: "Instrument Serif", Georgia, serif;
-    font-weight: 400;
+    font-family: "Archivo Black", "Inter", system-ui, sans-serif;
+    font-weight: 900;
     font-size: {{ headline_size }}px;
     line-height: {{ headline_line_height }};
-    letter-spacing: -0.012em;
-    color: var(--white);
+    letter-spacing: -0.01em;
+    text-transform: lowercase;
+    color: var(--off-white);
     text-wrap: balance;
     padding-bottom: 6px;
-    text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.52);
+    text-shadow: 0 0 28px rgba(0,0,0,0.9), 0 0 56px rgba(0,0,0,0.55);
   }
 
   .headline em {
-    font-style: italic;
-    font-weight: 400;
-    color: var(--white);
+    font-style: normal;
+    font-weight: 900;
+    color: inherit;
   }
 
   .headline em.accent {
+    font-style: normal;
+    font-weight: 900;
     color: var(--accent);
   }
 
   .headline .period {
     color: var(--accent);
+    font-weight: 900;
   }
 
   .footnote {

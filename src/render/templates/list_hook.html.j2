@@ -18,6 +18,13 @@
     src: url("{{ font_mono_bold }}") format("truetype");
     font-weight: 700; font-style: normal;
   }
+  {% if font_archivo_black %}
+  @font-face {
+    font-family: "Archivo Black";
+    src: url("{{ font_archivo_black }}") format("truetype");
+    font-weight: 900; font-style: normal;
+  }
+  {% endif %}
 
   :root {
     --paper: #F4F1E9; --ink: #0A0A0A; --near-black: #0B0B0C;
@@ -94,15 +101,18 @@
   }
 
   .title {
-    font-family: "Instrument Serif", Georgia, serif;
-    font-style: italic; font-weight: 400;
-    font-size: 132px; line-height: 0.95;
-    letter-spacing: -0.02em;
-    color: var(--white);
+    font-family: "Archivo Black", "Inter", system-ui, sans-serif;
+    font-weight: 900;
+    font-size: 132px; line-height: 0.96;
+    letter-spacing: -0.01em;
+    text-transform: lowercase;
+    color: var(--off-white);
     text-wrap: balance;
-    text-shadow: 2px 2px 0 rgba(0,0,0,0.52);
+    text-shadow: 0 0 28px rgba(0,0,0,0.9), 0 0 56px rgba(0,0,0,0.55);
   }
-  .title .accent-period { color: var(--accent); font-style: italic; }
+  .title em { font-style: normal; font-weight: 900; color: inherit; }
+  .title em.accent, .title .accent { color: var(--accent); font-weight: 900; }
+  .title .accent-period { color: var(--accent); font-weight: 900; }
 
   .subtitle {
     font-family: "Instrument Serif", Georgia, serif;

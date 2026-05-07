@@ -30,6 +30,7 @@ log = logging.getLogger(__name__)
 TOKEN_RE = re.compile(r"(\[/?[ih]\])")
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 LOGO_PATH = Path("assets/logo/factjot_mark.png")
+ARCHIVO_BLACK_PATH = Path("assets/fonts/ArchivoBlack-Regular.ttf")
 
 
 class BrandKitRenderer:
@@ -170,6 +171,7 @@ class BrandKitRenderer:
             font_serif_regular=self._asset_url(ty["headline_font"]),
             font_serif_italic=self._asset_url(ty["headline_italic_font"]),
             font_mono_bold=self._asset_url(ty["label_font"]),
+            font_archivo_black=self._asset_url(str(ARCHIVO_BLACK_PATH)) if ARCHIVO_BLACK_PATH.exists() else None,
             image_url=self._asset_url(str(bg_path)),
             wordmark_image_url=self._asset_url(str(LOGO_PATH)) if LOGO_PATH.exists() else "",
             headline_html=headline_html,
@@ -268,6 +270,7 @@ class BrandKitRenderer:
             font_serif_regular=self._asset_url(ty["headline_font"]),
             font_serif_italic=self._asset_url(ty["headline_italic_font"]),
             font_mono_bold=self._asset_url(ty["label_font"]),
+            font_archivo_black=self._asset_url(str(ARCHIVO_BLACK_PATH)) if ARCHIVO_BLACK_PATH.exists() else None,
             image_url=self._asset_url(str(bg_path)),
             wordmark_image_url=self._asset_url(str(LOGO_PATH)) if LOGO_PATH.exists() else "",
             quote_html=safe,

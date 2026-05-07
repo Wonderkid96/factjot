@@ -18,6 +18,13 @@
     src: url("{{ font_mono_bold }}") format("truetype");
     font-weight: 700; font-style: normal;
   }
+  {% if font_archivo_black %}
+  @font-face {
+    font-family: "Archivo Black";
+    src: url("{{ font_archivo_black }}") format("truetype");
+    font-weight: 900; font-style: normal;
+  }
+  {% endif %}
 
   :root {
     --near-black: #0B0B0C;
@@ -119,18 +126,25 @@
   }
 
   .quote {
-    font-family: "Instrument Serif", Georgia, serif;
-    font-style: italic;
-    font-weight: 400;
+    font-family: "Archivo Black", "Inter", system-ui, sans-serif;
+    font-weight: 900;
     font-size: {{ quote_size }}px;
     line-height: {{ quote_line_height }};
     letter-spacing: -0.01em;
-    color: var(--white);
+    text-transform: lowercase;
+    color: var(--off-white);
     text-wrap: balance;
     max-width: 880px;
-    text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.52);
+    text-shadow: 0 0 28px rgba(0,0,0,0.9), 0 0 56px rgba(0,0,0,0.55);
   }
-  .quote .accent-period { color: var(--accent); }
+  .quote em {
+    font-style: normal;
+    font-weight: 900;
+    color: inherit;
+  }
+  .quote em.accent,
+  .quote .accent { color: var(--accent); font-weight: 900; }
+  .quote .accent-period { color: var(--accent); font-weight: 900; }
 
   .attribution {
     margin-top: 36px;
