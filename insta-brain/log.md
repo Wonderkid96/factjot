@@ -1,5 +1,6 @@
 # factjot brain log
 
+- 2026-05-07 09:30 WORKFLOW FAILED: .github/workflows/news-carousel.yml | run=25487300891 | trigger=workflow_dispatch | ref=main
 - 2026-05-07 09:29 reel 3e876be4fbf024 published (technology, ig_media=17949958722152379)
 - 2026-05-07 09:12 WORKFLOW FAILED: .github/workflows/autonomous-reel.yml | run=25486789219 | trigger=workflow_dispatch | ref=main
 - 2026-05-07 09:03 WORKFLOW FAILED: .github/workflows/carousel-morning.yml | run=25486320097 | trigger=workflow_dispatch | ref=main
