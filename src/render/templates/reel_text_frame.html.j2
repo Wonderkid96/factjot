@@ -147,29 +147,29 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* Story title card · Instrument Serif · centred · below label         */
-  /* TOP is fixed so it never bleeds into the label area.                */
+  /* Hook title · matches the thumbnail's headline area for cohesion     */
+  /* between cover and reel-start. Space Grotesk SemiBold for now;        */
+  /* may move to Archivo Black later when the burn-in pass lands.        */
+  /* Anchored to the 4:5 grid window safe area (y=285..1635).             */
   /* ------------------------------------------------------------------ */
   .hook {
     position: absolute;
     top: 50%;
-    left: 50%;
-    transform: translate(-50%, -54%);   /* slightly above centre - visual weight below */
-    width: 84%;
-    text-align: center;
-    font-family: "Instrument Serif", Georgia, serif;
-    font-weight: 400;
+    left: 72px;
+    right: 72px;
+    transform: translateY(-50%);
+    text-align: left;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 600;
     font-size: {{ hook_size }}px;
-    line-height: 1.0;
-    letter-spacing: -0.020em;
+    line-height: 1.02;
+    letter-spacing: -0.018em;
+    color: var(--off-white);
     text-wrap: balance;
-    text-shadow:
-      2px 2px 0 rgba(0,0,0,0.70),
-      0 4px 24px rgba(0,0,0,0.65),
-      0 8px 48px rgba(0,0,0,0.45);
+    text-shadow: 3px 3px 0 rgba(0,0,0,0.55);
   }
-  .hook em { font-style: italic; }
-  .hook em.accent { color: var(--accent); }
+  .hook em { font-style: normal; font-weight: 600; color: inherit; }
+  .hook em.accent { color: var(--accent); font-weight: 600; }
 
   /* ------------------------------------------------------------------ */
   /* Kinetic subtitles · Space Grotesk SemiBold · top-left anchored      */
