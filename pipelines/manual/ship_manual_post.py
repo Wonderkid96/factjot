@@ -91,10 +91,42 @@ Final slide (CTA): a thought-provoking question or reflection the reader wants t
 Same format: 3 lines, 28-42 characters each. Do NOT reference the source or say "follow for more"."""
 
 
+TYPE_GUIDANCE: dict[str, str] = {
+    "fact": (
+        "POST TYPE: FACT CAROUSEL.\n"
+        "Single subject deep dive. The carousel must move forward across\n"
+        "slides: setup, mechanism, consequence, contradiction, sting.\n"
+        "No filler, no recap. One subject. Evergreen, not topical.\n"
+    ),
+    "news": (
+        "POST TYPE: NEWS / CURRENT CAROUSEL.\n"
+        "A current or recent story (last 30 days). Lead with the named\n"
+        "entities and the specific weird angle the brief identifies.\n"
+        "Do NOT explain the news in general terms. Assume the viewer\n"
+        "knows roughly what is going on; you are pointing at the angle.\n"
+        "Voice stays dry. Do not slip into newsreader register.\n"
+    ),
+    "list": (
+        "POST TYPE: LIST CAROUSEL.\n"
+        "Cover + 5 items + closing = 7 slides total. Each item slide\n"
+        "names ONE specific item from the brief and gives one line of\n"
+        "angle (why it belongs in this list). Item ordering is intentional.\n"
+        "Closing slide should make the 5 items feel like a pattern, not\n"
+        "a coincidence. Do not summarise the list in the closing line.\n"
+    ),
+}
+
+
+def _type_guidance(format_type: str) -> str:
+    return TYPE_GUIDANCE.get(format_type, TYPE_GUIDANCE["fact"])
+
+
 CONTENT_PROMPT = """\
 {brand_voice}
 
 ---
+
+{type_guidance}
 
 You are writing a factjot carousel post. The brief is:
 
@@ -331,7 +363,9 @@ def _repair_slides(slides: list[dict], warnings: list[str], api_key: str) -> lis
     return slides
 
 
-def generate_content(brief: str, n_slides: int, api_key: str) -> tuple[dict, dict]:
+def generate_content(
+    brief: str, n_slides: int, api_key: str, format_type: str = "fact",
+) -> tuple[dict, dict]:
     """Write the carousel slides + cover + caption + image metadata.
 
     Uses Sonnet 4.6 because this is the final reader-facing copy; editorial
@@ -339,10 +373,15 @@ def generate_content(brief: str, n_slides: int, api_key: str) -> tuple[dict, dic
     flattened the language at the 28-42 char constraint. The repair pass
     below stays on Haiku because that is a constrained-fit task, not an
     editorial one.
+
+    `format_type` selects the writer guidance (fact / news / list).
+    Structural rules (lines per slide, char limits, image queries) are
+    shared across all three.
     """
     client  = Anthropic(api_key=api_key)
     prompt  = CONTENT_PROMPT.format(
         brand_voice=BRAND_VOICE,
+        type_guidance=_type_guidance(format_type),
         brief=brief,
         n_slides=n_slides,
     )
@@ -408,7 +447,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Post a branded carousel from a brief")
     parser.add_argument("--brief",   required=True, help="Plain-English description of what to post")
     parser.add_argument("--label",   default=None,  help="Override category label on cover (e.g. 'AVIATION')")
-    parser.add_argument("--slides",  type=int, default=6, help="Number of content slides (2-8, default 6)")
+    parser.add_argument("--slides",  type=int, default=0,
+                        help="Number of slides total (cover + content). 0 = default per --type "
+                             "(fact/news=6, list=7).")
+    parser.add_argument("--type",    default="fact", choices=["fact", "news", "list"],
+                        help="Carousel sub-type. Switches writer guidance + default slide count.")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -421,7 +464,14 @@ def main() -> int:
         _lg.setLevel(_logging.DEBUG)
         _lg.addHandler(_h)
 
-    n_slides = max(2, min(8, args.slides))
+    # Slide count: cover + content. The writer prompt expects n_slides
+    # CONTENT slides (cover added on top in the render loop). Default
+    # depends on the carousel sub-type.
+    if args.slides > 0:
+        total_slides_arg = max(3, min(8, args.slides))
+    else:
+        total_slides_arg = 7 if args.type == "list" else 6
+    n_slides = total_slides_arg - 1   # CONTENT slides only
 
     repo_root = Path(__file__).resolve().parents[2]
     api_key   = os.getenv("ANTHROPIC_API_KEY", "").strip()
@@ -432,8 +482,9 @@ def main() -> int:
 
     # ---- 1. Generate content ----
     _log(f"\n[1/4] Generating content from brief...")
-    _log(f"     Brief: \"{args.brief}\"")
-    data, usage = generate_content(args.brief, n_slides, api_key)
+    _log(f"     Brief:  \"{args.brief}\"")
+    _log(f"     Type:   {args.type}  (target {total_slides_arg} slides total)")
+    data, usage = generate_content(args.brief, n_slides, api_key, format_type=args.type)
     _log(f"     {usage['input_tokens']:,} in / {usage['output_tokens']:,} out  ~${usage['cost_usd']:.4f}")
 
     cover_title  = data["cover_title"]

@@ -1,25 +1,28 @@
 """Autonomous agent for the factjot Instagram account.
 
-Sandboxed: the model has NO shell access and NO filesystem access. It can
-only call three typed tools:
+Sandboxed: the model has NO shell access and NO filesystem access. It
+calls a small set of typed tools:
 
   - list_unposted_topics()  -> compact summary of recent posts (post bank)
   - run_reel(...)           -> compose + publish one reel
   - run_carousel(...)       -> compose + publish one carousel
-                              (use a list-style brief for ranked posts)
+                              (writer prompt switches by --type)
+  - skip(reason)            -> abort this run cleanly with no post
 
 The pipelines themselves (make_reel.py, ship_manual_post.py) run with
 full repo access in the host process. Only the model's view is restricted.
 
-Three post modes via --post-mode:
-  morning  - standard autonomous flow, picks the strongest idea available
-  lunch    - same flow, may also consider current/under-the-radar news
-             but only if the story passes the same quality bar
-  evening  - standard autonomous flow
+Five post modes via --post-mode. Each mode exposes ONLY the tools it
+needs and a sharpened, format-locked prompt:
 
-Lists are not tied to lunch. A list-style carousel may be the strongest
-idea in any mode; in that case the agent calls run_carousel with a
-list-style brief.
+  reel_morning  - 09:00 BST  evergreen reel (run_reel only)
+  news          - 12:30 BST  news / current carousel (run_carousel only)
+  list          - 15:30 BST  list carousel (run_carousel only)
+  reel_evening  - 18:00 BST  evergreen reel (run_reel only)
+  fact          - 20:30 BST  fact carousel, single subject (run_carousel only)
+
+Better to skip a slot than ship a weak post. Each mode must call `skip`
+with a one-line reason if nothing clears the quality gate.
 """
 from __future__ import annotations
 
@@ -53,7 +56,26 @@ SYSTEM = textwrap.dedent("""\
     Be concise. British English. No em dashes.
 """)
 
-VALID_MODES = ("morning", "lunch", "evening")
+VALID_MODES = ("reel_morning", "news", "list", "reel_evening", "fact")
+
+# Which carousel writer prompt does this mode want?
+# (run_reel modes are absent here.)
+MODE_FORMAT_TYPE: dict[str, str] = {
+    "news": "news",
+    "list": "list",
+    "fact": "fact",
+}
+
+# Which tools is each mode allowed to call?
+# Locked at the loadout level: tools not listed here are not even shown
+# to the model. list_unposted_topics + skip are universal.
+MODE_TOOLS: dict[str, tuple[str, ...]] = {
+    "reel_morning": ("list_unposted_topics", "run_reel",     "skip"),
+    "reel_evening": ("list_unposted_topics", "run_reel",     "skip"),
+    "news":         ("list_unposted_topics", "run_carousel", "skip"),
+    "list":         ("list_unposted_topics", "run_carousel", "skip"),
+    "fact":         ("list_unposted_topics", "run_carousel", "skip"),
+}
 
 
 # ------------------------------------------------------------------ #
@@ -179,12 +201,13 @@ def run_reel(args: dict, dry_run: bool) -> str:
     return _run_pipeline(cmd)
 
 
-def run_carousel(args: dict, dry_run: bool) -> str:
+def run_carousel(args: dict, dry_run: bool, format_type: str = "fact") -> str:
     cmd = [
         "python3", "-u", "pipelines/manual/ship_manual_post.py",
         "--brief",  args["brief"],
         "--label",  args["label"],
         "--slides", str(args.get("slides", 6)),
+        "--type",   format_type,
     ]
     if dry_run:
         cmd.append("--dry-run")
@@ -259,11 +282,10 @@ TOOLS = [
     {
         "name": "run_carousel",
         "description": (
-            "Compose and publish one carousel. Use for editorial posts, "
-            "current stories, explainers, comparisons, timelines, or "
-            "list-style ranked posts (e.g. 'Five tech products that "
-            "arrived already dead'). The pipeline writes the slides, "
-            "sources images, and uploads to Instagram. Call exactly ONCE."
+            "Compose and publish one carousel. The writer prompt and slide "
+            "count are decided by the run mode (news / list / fact), not "
+            "by this call. You only supply the brief, the label, and the "
+            "number of slides. Call exactly ONCE."
         ),
         "input_schema": {
             "type": "object",
@@ -285,8 +307,8 @@ TOOLS = [
                 "slides": {
                     "type": "integer",
                     "description": (
-                        "Number of slides. Default 6. For a 5-item list use "
-                        "7 (cover + 5 items + closing)."
+                        "Number of slides. Default 6. Use 7 only for a "
+                        "5-item list (cover + 5 items + closing)."
                     ),
                 },
             },
@@ -294,16 +316,44 @@ TOOLS = [
             "additionalProperties": False,
         },
     },
+    {
+        "name": "skip",
+        "description": (
+            "Abort this run with no post. Use ONLY when no candidate "
+            "clears the quality gate. Better to skip a slot than ship a "
+            "weak post. The next slot will fire normally."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string",
+                    "description": "One-line reason for skipping. Logged for audit.",
+                },
+            },
+            "required": ["reason"],
+            "additionalProperties": False,
+        },
+    },
 ]
 
 
-def execute_tool(name: str, args: dict, dry_run: bool) -> str:
+def tools_for_mode(mode: str) -> list[dict]:
+    """Return only the tool schemas the given mode is allowed to call."""
+    allowed = set(MODE_TOOLS[mode])
+    return [t for t in TOOLS if t["name"] in allowed]
+
+
+def execute_tool(name: str, args: dict, dry_run: bool, mode: str) -> str:
     if name == "list_unposted_topics":
         return build_history_summary()
+    if name == "skip":
+        return f"SKIPPED: {args.get('reason', '(no reason given)')}"
     if name == "run_reel":
         return run_reel(args, dry_run)
     if name == "run_carousel":
-        return run_carousel(args, dry_run)
+        format_type = MODE_FORMAT_TYPE.get(mode, "fact")
+        return run_carousel(args, dry_run, format_type)
     return f"ERROR: unknown tool {name}"
 
 
@@ -311,7 +361,7 @@ def execute_tool(name: str, args: dict, dry_run: bool) -> str:
 # Prompt
 # ------------------------------------------------------------------ #
 
-CORE_PROMPT = textwrap.dedent("""\
+SHARED_CORE = textwrap.dedent("""\
     You are running the factjot Instagram account (@factjot).
 
     Your job is to publish one strong post that feels strange, sharp,
@@ -327,28 +377,8 @@ CORE_PROMPT = textwrap.dedent("""\
     The post should feel like:
     'Here is something ridiculous and true. Do what you want with that.'
 
-    AVAILABLE TOOLS
-
-    - list_unposted_topics() - the post bank. Call FIRST.
-    - run_reel(script, title, topic, tone_override, hint) - one reel.
-    - run_carousel(brief, label, slides) - one carousel. Use this for
-      editorial posts, explainers, comparisons, current stories, and
-      list-style ranked posts.
-
-    You have NO file access, NO shell access, NO repo browsing. The tools
-    above are the only things you can do.
-
-    ONE POST ONLY
-
-    Make one autonomous decision:
-    - what to post
-    - what format to use
-    - what angle to take
-
-    Call exactly one posting tool.
-    Do not retry.
-    Do not post something merely adequate.
-    Adequate is failure.
+    You have NO file access, NO shell access, NO repo browsing. Your
+    tools are listed in the MODE block below. Nothing else exists.
 
     DUPLICATE GUARD - HARD RULE
 
@@ -511,66 +541,56 @@ CORE_PROMPT = textwrap.dedent("""\
     The narrator should sound like someone calmly pointing at reality
     and asking why everyone is pretending this is normal.
 
-    FORMAT CHOICE
+    SKIP RULE - HARD RULE
 
-    Pick the format that makes the idea strongest.
+    Better to miss this slot than ship a weak post.
+    If no candidate clears the quality gate, call the `skip` tool with
+    a one-line reason. Do not call the posting tool with a weak idea.
+    The next slot will fire normally.
 
-    Use a Reel when:
-    - there is one clean striking fact
-    - it works in 70 to 120 words
-    - it can be understood instantly
-    - the visual direction is obvious
-    - it does not need much context
+    UNIVERSAL POSTING RULES
 
-    Use a carousel when:
-    - the idea needs context
-    - the idea has multiple moving parts
-    - the idea benefits from a timeline
-    - the idea is a comparison
-    - the idea is editorial
-    - the idea is current or under-the-radar news
-    - the idea is a list or ranking
-    - the idea is stronger as 'here are the pieces' rather than one
-      spoken narration
+    - Call list_unposted_topics() FIRST.
+    - Call exactly one of: the posting tool, OR `skip`. Never both.
+    - Do not retry on failure.
+    - Do not use em dashes.
+    - Do not use hashtags unless the pipeline adds them itself.
+    - Only post facts that are specific, named, and well-documented.
+    - Prefer facts tied to a named event, person, study, company,
+      product, object, animal, law, place, or date.
+    - Avoid anything attributed only to 'scientists say', 'studies show',
+      'people believe', or 'experts claim'.
 
-    Prefer carousel when unsure.
-    Prefer carousel for lists.
+    Final test before posting:
+    If this appeared in your own feed, would you stop scrolling because
+    the idea itself is weird, not because the wording is loud?
+    If the answer is no, skip.
+""")
 
-    Format choice is driven by the angle, not the topic.
-    Tech, business, shutdowns, product failures, regulation, tribunals,
-    and odd internet stories can all be reels OR carousels. Pick whichever
-    fits the angle:
-    - one striking fact, one mechanism, one decision  → reel
-    - multiple parts, a comparison, a timeline, a list → carousel
 
-    LIST POSTS
+REEL_PROMPT = textwrap.dedent("""\
 
-    Lists are valid in any mode.
-    Choose a list-style carousel when:
-    - a ranking, comparison, or strange collection is the strongest idea
-    - the post collects weird products, failures, obscure examples,
-      internet things, business stories, strange laws, or scientific
-      examples
+    MODE: EVERGREEN REEL
 
-    List rules:
-    - Prefer 5 items unless the idea genuinely needs 10.
-    - Every item must be specific and verifiable.
-    - Do not invent rankings.
-    - Biggest, oldest, fastest, most expensive, first, last, and longest
-      must be factually defensible.
-    - Best, worst, most pointless, strangest, dumbest, and most cursed
-      must be framed as editorial judgement, not objective fact.
-    - Do not repeat a previous list topic, even reworded.
-    - Do not reuse too many items from a previous list.
-    - No generic listicles.
-    - No BuzzFeed wording.
-    - If the list would look normal on a generic trivia account, reject it.
+    Format is locked: this slot publishes a reel and only a reel.
 
-    To post a list, call run_carousel with a brief that:
-    - names the list title
-    - lists every item explicitly
-    - states the editorial framing
-    - explains what the viewer should understand by the end
+    AVAILABLE TOOLS
+    - list_unposted_topics()
+    - run_reel(script, title, topic, tone_override, hint)
+    - skip(reason)
+
+    EVERGREEN ONLY
+
+    No news. No current events. No this-week stories. No anything that
+    needs the viewer to know what just happened in the world. The reel
+    must work the same way next year as it does today.
+
+    Good evergreen subjects:
+    - history (named people, named events, with a specific weird angle)
+    - science / biology / earth / ocean / space (one striking mechanism)
+    - obscure technology, lost or abandoned
+    - animal behaviour with a specific named species
+    - bureaucratic absurdities, old laws, old rulings, old experiments
 
     REEL RULES
 
@@ -587,152 +607,250 @@ CORE_PROMPT = textwrap.dedent("""\
     - No fake suspense.
     - No motivational framing.
     - No fake profundity.
-    - No hashtags unless the pipeline adds them itself.
 
-    For Reels, after writing the script, produce a ranked list of 4 to 6
-    footage search strings tuned to how stock libraries and image APIs
-    actually index content.
-    Search strings should separate:
-    - era
-    - setting
-    - subject
-    - object
-    - mood
-    - composition
-    Where the best visual is oblique rather than literal, use oblique
-    search terms. Include relevant open-source library search URLs from
-    sources like Wikimedia Commons, NASA image library, Wellcome
-    Collection, or Internet Archive where the imagery is likely more
-    accurate or interesting than generic stock.
+    FOOTAGE QUERIES
 
-    CAROUSEL RULES
-
-    - 6 slides by default.
-    - 7 slides for a 5-item list: cover, 5 items, closing.
-    - Every slide must have a job.
-    - No filler slide.
-    - No generic setup slide.
-    - For list posts, name every item in the brief.
-    - The brief must be precise enough that the slide-writer cannot drift.
+    After writing the script, produce a ranked list of 4 to 6 footage
+    search strings tuned to how stock libraries and image APIs index
+    content. Search strings should separate era, setting, subject,
+    object, mood, composition. Where the best visual is oblique, use
+    oblique terms. Include open-source library URLs (Wikimedia Commons,
+    NASA image library, Wellcome Collection, Internet Archive) on their
+    own lines where the imagery is likely more accurate than stock.
 
     DECISION PROCESS
 
-    1. Call list_unposted_topics() first.
-    2. Generate at least 5 candidate ideas.
-    3. Reject duplicates and near-duplicates using the post bank.
-    4. For each remaining candidate, identify the actual weird bit.
-    5. Reject anything where the weird bit is vague, generic, or just the
-       main event itself.
-    6. Apply the quality gate.
-    7. Pick the strongest remaining idea.
-    8. Choose the best format.
-    9. Before calling the posting tool, write a short decision note:
-       - chosen idea
-       - actual weird bit
-       - why it passed the quality gate
-       - why weaker candidates were rejected
-       - why the chosen format is best
-    10. Call exactly one posting tool.
-
-    If no candidate is strong enough, choose a stronger list-style
-    carousel angle rather than forcing a weak Reel.
-
-    POSTING RULES
-
-    - Call list_unposted_topics() first.
-    - Call exactly one posting tool.
-    - Do not retry on failure.
-    - Do not post generic facts.
-    - Do not post adequate facts.
-    - Do not post because the idea is easy to visualise.
-    - Do not post because the idea is safe.
-    - Do not use em dashes.
-    - Do not use hashtags unless the pipeline adds them itself.
-    - Only post facts that are specific, named, and well-documented.
-    - Prefer facts tied to a named event, person, study, company,
-      product, object, animal, law, place, or date.
-    - Avoid anything attributed only to 'scientists say', 'studies show',
-      'people believe', or 'experts claim'.
-
-    Final test before posting:
-    If this appeared in your own feed, would you stop scrolling because
-    the idea itself is weird, not because the wording is loud?
-    If the answer is no, reject it.
+    1. Call list_unposted_topics().
+    2. Generate at least 5 candidate evergreen ideas.
+    3. Reject duplicates and near-duplicates against the bank.
+    4. Reject any current/news/topical idea outright.
+    5. For each remaining candidate, name the actual weird bit.
+    6. Apply the interestingness, event-vs-angle, and quality gates.
+    7. If nothing clears the bar, call skip(reason).
+    8. Otherwise, write the script + ranked footage hints.
+    9. Write a short decision note (chosen idea, weird bit, why it
+       passed, why weaker candidates failed). Then call run_reel ONCE.
 """)
 
 
-MODE_NOTES = {
-    "morning": textwrap.dedent("""\
+NEWS_PROMPT = textwrap.dedent("""\
 
-        MODE: MORNING
+    MODE: NEWS / CURRENT CAROUSEL
 
-        Standard autonomous flow. Pick the strongest interesting post
-        available, in any format (reel / carousel / list carousel).
-        No news permission today.
-    """),
-    "lunch": textwrap.dedent("""\
+    Format is locked: this slot publishes a carousel framed around a
+    current or recent story. The pipeline writes the slides; you supply
+    the brief and the label.
 
-        MODE: LUNCH
+    AVAILABLE TOOLS
+    - list_unposted_topics()
+    - run_carousel(brief, label, slides)   [slides default 6]
+    - skip(reason)
 
-        Standard autonomous flow with one extra option: you may consider
-        current, breaking, recent, weird, or under-the-radar news from
-        your knowledge if a story passes the same quality bar.
+    Use your training knowledge to find a current or recent story. The
+    bar is the story's STRANGENESS, not its recency. A 30-day-old story
+    with a strange angle beats a today-story with a generic angle every
+    time. Prefer stories from the last 30 days; the last 7 if available.
 
-        Lunch is NOT a news slot by default. Only use a current story if
-        it is genuinely strong. If nothing current passes the bar, fall
-        back to the normal autonomous flow.
+    QUALIFYING STORY
 
-        Current story quality bar:
-        Ask: 'Would this still be interesting if it happened last year?'
-        If no, reject it.
-        Ask: 'Is there a strange, revealing, funny, bleak, surprising,
-        or useful angle?' If no, reject it.
+    Ask:
+    1. 'Would this still be interesting if it happened a year from now?'
+       If no, reject. Pure recency is not enough.
+    2. 'Is there a strange, revealing, funny, bleak, or absurd angle?'
+       If no, reject.
+    3. 'Can the angle be said in one clean sentence?'
+       If no, reject.
 
-        Look for:
-        - under-the-radar tech news
-        - weird business stories
-        - overlooked internet culture stories
-        - platform shutdowns
-        - strange product launches
-        - regulatory or tribunal stories with a specific odd angle
-        - AI stories only if genuinely strange, specific, or revealing
-        - science/space/environment stories if current and under-discussed
-        - companies quietly killing features or products
-        - obscure updates with surprisingly large consequences
+    Look for:
+    - under-the-radar tech stories with a specific odd detail
+    - weird business decisions and product failures
+    - regulatory rulings, tribunals, or trials with absurd context
+    - platform shutdowns, feature deletions, quiet recalls
+    - internet culture moments that reveal something about a system
+    - science / space / environment stories that are current and
+      under-discussed
+    - obscure updates with surprisingly large consequences
 
-        Reject:
-        - generic AI hype
-        - routine product updates
-        - bland startup news
-        - earnings reports
-        - vague 'could change everything' stories
-        - political commentary for its own sake
-        - celebrity gossip
-        - culture-war or outrage bait
-        - rumours or leaks
-        - stories that are only interesting because they trend
-        - stories needing too much context
-        - stories with weak sourcing
+    Reject:
+    - generic AI hype
+    - earnings or routine product launches
+    - vague 'could change everything' framing
+    - political outrage bait or culture-war bait
+    - celebrity gossip
+    - rumours, leaks, unverified claims
+    - tragedy treated as content
+    - anything you cannot defend factually from training knowledge
 
-        If you use a current story, choose the format that fits the angle.
-        A reel works when the story has one clean surprising fact, fits in
-        70-120 words, needs no heavy context, and the visual is obvious.
-        A carousel works when the story needs multiple beats, comparison,
-        or timeline. Do not default to carousel just because it is news.
-    """),
-    "evening": textwrap.dedent("""\
+    CAROUSEL RULES
 
-        MODE: EVENING
+    - 6 slides (cover + 5 content). Do not request 7 unless the story
+      genuinely needs it.
+    - Every slide must do work. No setup-only slides.
+    - Brief must include: the story, the angle, what the viewer should
+      understand by the end, the named entities involved, and any
+      specific dates / numbers / names that anchor it.
 
-        Standard autonomous flow. Pick the strongest interesting post
-        available, in any format (reel / carousel / list carousel).
-        No news permission today.
-    """),
+    DECISION PROCESS
+
+    1. Call list_unposted_topics().
+    2. Surface at least 4 candidate current stories from training.
+    3. Reject duplicates and near-duplicates against the bank.
+    4. For each candidate, name the actual weird bit + the angle.
+    5. Apply the qualifying-story checks and the quality gate.
+    6. If nothing clears the bar, call skip(reason).
+    7. Otherwise, write the brief + label.
+    8. Decision note (chosen story, angle, why it passed, why weaker
+       candidates failed). Call run_carousel ONCE with slides=6.
+""")
+
+
+LIST_PROMPT = textwrap.dedent("""\
+
+    MODE: LIST CAROUSEL
+
+    Format is locked: this slot publishes a list-style carousel.
+
+    AVAILABLE TOOLS
+    - list_unposted_topics()
+    - run_carousel(brief, label, slides)   [slides default 7]
+    - skip(reason)
+
+    LIST RULES
+
+    - 5 items. 7 slides total: cover, 5 items, closing.
+    - Every item must be specific, named, and verifiable.
+    - Do not invent rankings. Do not invent superlatives.
+    - 'Biggest / oldest / fastest / first / last / longest' must be
+      factually defensible from training knowledge.
+    - 'Best / worst / strangest / dumbest / most cursed' must be
+      framed as editorial judgement, not objective fact.
+    - The list must have an editorial frame, not a generic 'fun facts
+      about X' shape.
+    - No BuzzFeed shapes. No 'you won't believe number 4'. No 'top 5
+      X you forgot about'.
+    - If the list would look at home on a generic trivia account,
+      reject it.
+
+    Good list shapes:
+    - 'Five tech products that arrived already dead'
+    - 'Five regulations that exist because of one specific incident'
+    - 'Five experiments that should never have been approved'
+    - 'Five animals that solved a problem evolution did not need to'
+    - 'Five companies that refused to admit their product was finished'
+
+    Bad list shapes:
+    - 'Five amazing facts about space'
+    - 'Top 5 weirdest animals'
+    - 'Best inventions of all time'
+    - 'Things you didn't know about X'
+
+    BRIEF SHAPE
+
+    Brief MUST include:
+    - the list title (5-9 words, voice-correct, banned shapes apply)
+    - every item explicitly named, one per line, in order
+    - a one-line angle per item (why this item belongs in this list)
+    - the editorial framing (what the 5 together reveal)
+    - what the closing slide should make the viewer think
+
+    DECISION PROCESS
+
+    1. Call list_unposted_topics().
+    2. Generate at least 3 candidate list ideas.
+    3. Reject duplicates and overlap with previous lists.
+    4. For each, identify the editorial frame and the 5 items.
+    5. If you cannot defend all 5 items from training knowledge,
+       reject the list (or replace items).
+    6. Apply the interestingness + quality gates to the LIST as a whole
+       (not to each item individually).
+    7. If nothing clears the bar, call skip(reason).
+    8. Otherwise, write the brief and call run_carousel ONCE with
+       slides=7.
+""")
+
+
+FACT_PROMPT = textwrap.dedent("""\
+
+    MODE: FACT CAROUSEL
+
+    Format is locked: this slot publishes a single-subject fact
+    carousel. One subject, six slides, told properly.
+
+    AVAILABLE TOOLS
+    - list_unposted_topics()
+    - run_carousel(brief, label, slides)   [slides default 6]
+    - skip(reason)
+
+    A fact carousel is NOT a list. It is one subject with enough
+    strangeness or specificity to reward 6 slides of sustained attention.
+    Subject can be anything: a person, an event, a place, an object, an
+    invention, a phenomenon, a system, a study, a rule, an animal.
+
+    The carousel should build:
+    1. cover         - hook the subject and the question / angle
+    2. setup         - what the subject is, briefly
+    3. mechanism     - how it works / how it happened
+    4. consequence   - what it caused / what changed
+    5. contradiction - the bit that makes it strange
+    6. closing       - the line that makes the viewer think
+
+    These are illustrative slot-types, not strict labels. The point is
+    the carousel must move forward. Every slide must add information,
+    not restate the cover.
+
+    EVERGREEN
+
+    No news. No current events. The subject can be old or unfamiliar
+    but the subject's strangeness must hold up without breaking news.
+
+    Good fact subjects:
+    - Concorde, the Voynich Manuscript, Phineas Gage, Gobekli Tepe
+    - the Stanford prison experiment, the Antikythera mechanism
+    - obscure inventions, abandoned technologies, dead languages
+    - bureaucratic failures, lost lawsuits, forgotten experiments
+    - specific named animals or species with a strange behaviour
+    - geological / astronomical phenomena with a precise mechanism
+
+    Bad fact subjects:
+    - 'space is big' / 'the ocean is deep'
+    - generic 'top scientist discovers' framing
+    - subjects that boil down to one sentence (those belong in reels)
+    - subjects you can't defend factually from training knowledge
+
+    BRIEF SHAPE
+
+    Brief MUST include:
+    - the subject (canonical proper name)
+    - the angle (the weird bit, the contradiction, the consequence)
+    - the 5 beats the carousel should hit, in order
+    - what the closing slide should make the viewer think
+
+    DECISION PROCESS
+
+    1. Call list_unposted_topics().
+    2. Generate at least 4 candidate fact subjects.
+    3. Reject duplicates and near-duplicates against the bank.
+    4. For each, identify the weird bit and the 5 beats it would carry.
+    5. Reject any subject whose strangeness is exhausted in 1-2 slides
+       (those belong in a reel slot, not here).
+    6. Apply the quality gate.
+    7. If nothing clears the bar, call skip(reason).
+    8. Otherwise, write the brief and call run_carousel ONCE with
+       slides=6.
+""")
+
+
+MODE_PROMPTS: dict[str, str] = {
+    "reel_morning": REEL_PROMPT,
+    "reel_evening": REEL_PROMPT,
+    "news":         NEWS_PROMPT,
+    "list":         LIST_PROMPT,
+    "fact":         FACT_PROMPT,
 }
 
 
 def build_prompt(mode: str) -> str:
-    return CORE_PROMPT + MODE_NOTES[mode]
+    return SHARED_CORE + MODE_PROMPTS[mode]
 
 
 # ------------------------------------------------------------------ #
@@ -764,12 +882,14 @@ def main(argv: list[str] | None = None) -> int:
 
     client   = anthropic.Anthropic(api_key=api_key)
     prompt   = build_prompt(mode)
+    tools    = tools_for_mode(mode)
     messages: list[dict] = [{"role": "user", "content": prompt}]
 
     total_input  = 0
     total_output = 0
     final_status = "unknown"
     exit_code    = 0
+    skipped      = False
 
     try:
         for turn in range(MAX_TURNS):
@@ -777,7 +897,7 @@ def main(argv: list[str] | None = None) -> int:
                 model=MODEL,
                 max_tokens=4096,
                 system=SYSTEM,
-                tools=TOOLS,
+                tools=tools,
                 messages=messages,
             )
             usage = getattr(response, "usage", None)
@@ -802,12 +922,21 @@ def main(argv: list[str] | None = None) -> int:
                 if block.type != "tool_use":
                     continue
                 print(f"\n[tool] {block.name}({list(block.input.keys())})", flush=True)
-                output = execute_tool(block.name, block.input, dry_run)
+                if block.name == "skip":
+                    reason = block.input.get("reason", "(no reason given)")
+                    print(f"\n[SKIP] mode={mode} reason={reason}", flush=True)
+                    final_status = "skipped"
+                    skipped = True
+                    break
+                output = execute_tool(block.name, block.input, dry_run, mode)
                 tool_results.append({
                     "type":        "tool_result",
                     "tool_use_id": block.id,
                     "content":     output,
                 })
+
+            if skipped:
+                break
 
             messages.append({"role": "user", "content": tool_results})
         else:
