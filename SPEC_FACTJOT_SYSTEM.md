@@ -2,7 +2,7 @@
 
 ## 1. Status, owner, and what this document is
 
-**Status:** Approved by Toby, 2026-05-06.
+**Status:** Approved by Toby, 2026-05-06. Architecture-revised 2026-05-07 (autonomous-only switch). See section 4 and 6.1.
 **Owner:** Toby Johnson (TJCreate), Lincoln UK.
 **Scope:** Top-level system constitution for the factjot repository.
 **Replaces:** Nothing. This is the first system-level spec. SPEC_IMAGE_PIPELINE.md continues as a sub-spec.
@@ -50,23 +50,33 @@ If a behaviour is shared across two or more pipelines, it belongs in `src/`, not
 
 ---
 
-## 4. Current pipelines
+## 4. Current pipelines (revised 2026-05-07)
 
-The factjot system currently runs five pipelines. They share infrastructure but have distinct product roles.
+The factjot system runs a single autonomous workflow that fires three times a day. The agent (Sonnet 4.6) picks the format per fire and dispatches through the active autonomous publishing path.
 
-| Pipeline | Folder | Product role | Trigger |
+The active autonomous publishing path exposes two publishing tools and one state/dedupe tool:
+
+| Tool | Type | Pipeline target | Notes |
 |---|---|---|---|
-| Reels | `pipelines/reel/` | Daily short-form video, single q3 fact, voiceover, footage, captions, story | Autonomous, daily 12:00 BST |
-| Scheduled fact carousel | `pipelines/carousel/` | Daily morning carousel, topic-based fact slides | Autonomous, daily 10:00 BST |
-| List carousel | `pipelines/list/` | Daily evening list post, pre-resolved packs (e.g. films), TMDB-driven | Autonomous, daily 18:00 BST |
-| News carousel | `pipelines/news/` | Conditional carousel reacting to a breaking story | Autonomous, daily 14:00 BST, fires only if breaking-story gate passes |
-| Manual / editorial carousel | `pipelines/manual/` | Custom editorial carousel from a written brief | Editorial, on demand |
+| `run_reel` | publishing | `pipelines/reel/make_reel.py` | Short-form video, voiceover, footage, branded thumbnail + story, YouTube cross-post. Script provided directly by the agent (`--script`). |
+| `run_carousel` | publishing | `pipelines/manual/ship_manual_post.py` | Carousel from a written brief: editorial, comparison, timeline, current story, or list-style ranking. Brief provided directly by the agent. |
+| `list_unposted_topics` | state / dedupe | reads `insta-brain/data/posted.jsonl` | Returns a compact summary of recent posts so the agent can apply the prompt-level duplicate guard. Not a pipeline; never publishes anything. |
 
-**The manual / editorial carousel is the current problem area.** Image quality, subject accuracy, and visual coherence have failed there in ways the autonomous pipelines have not. Most active spec work today (SPEC_IMAGE_PIPELINE.md, this document) is motivated by manual carousel failures.
+Legacy scripts may remain on disk but are not called by current workflows. The autonomous workflow (`autonomous-reel.yml`) is the only intentional poster.
 
-The manual pipeline is, however, only one pipeline inside the wider system. Fixes here must not regress the autonomous pipelines, and the autonomous pipelines remain the system's daily output regardless of manual-pipeline state.
+**Deleted on 2026-05-07** (architecture switch from multi-cron to autonomous-only):
 
-Future pipelines (Stories on carousel posts, TikTok crossposting, new editorial formats) will be added under `pipelines/<name>/` following section 15.
+| Former pipeline | Status |
+|---|---|
+| Scheduled fact carousel (`pipelines/carousel/ship_first_post.py`) | Workflow deleted. Script remains on disk but no cron calls it. The agent's `run_carousel` is intended to cover carousel needs going forward. |
+| List carousel (`pipelines/list/ship_list_post.py`) | Workflow deleted. Pre-built list packs unused. List-style content is intended to be posted via `run_carousel` with a list-style brief. |
+| News carousel (`pipelines/news/ship_news_post.py`) | Workflow deleted. The agent has lunch-mode news permission and writes its own news brief if a story passes the quality bar. The renderer code in this file is still imported by the manual pipeline (known dual-role mismatch flagged in section 10.1). |
+| Reddit-discovery cron (`weekly-plan.yml`) | Deleted. The agent now sources ideas directly from Sonnet's knowledge under the prompt's INTERESTINGNESS / EVENT-VS-ANGLE / QUALITY gates. The legacy `rare_fact_bank.py` and `discovered_facts.jsonl` are dormant. |
+| News watcher, daily metrics, reset-and-relaunch | Deleted. Token refresh + IG metrics fetch now run as soft steps inside `autonomous-reel.yml`. |
+
+The architectural principles in sections 5, 7, 8, 9, 11 still hold. Lifecycle stages, shared-module rules, media-intent contract, ledger discipline, and the brain-as-source-of-truth principle survive the architectural change. What changed is the cadence and active path count, not the structure.
+
+**Editorial mode survives** as a posture, not a pipeline. New formats and post types still graduate from editorial-mode visual inspection to autonomous fire (per section 15). The autonomous agent inherits the obligation: every post is read by Toby on the live feed before agent decisions are tuned further.
 
 ---
 
@@ -98,34 +108,34 @@ A pipeline that skips Verify is not a pipeline, it is a content laundromat. A pi
 
 Every pipeline runs in one of two modes. The mode determines whether human approval is in the loop.
 
-### 6.1 Autonomous mode
+### 6.1 Autonomous mode (revised 2026-05-07)
 
-Used by stable scheduled pipelines that have proven their visual and factual quality over time. Currently:
+Used by the single autonomous workflow that posts three times a day:
 
-- Reels (`pipelines/reel/`)
-- Scheduled fact carousel (`pipelines/carousel/`)
-- List carousel (`pipelines/list/`)
-- News carousel (`pipelines/news/`), when its breaking-story gate passes
+- `autonomous-reel.yml` (the only intentional poster), three modes: `morning` / `lunch` / `evening`.
+- Lunch mode additionally has permission to use a current/breaking story if it passes the same quality bar; otherwise lunch falls back to the standard evergreen flow.
 
 Autonomous mode runs on this stack:
 
-- **GitHub Actions is the production scheduler and the sole posting environment.** It runs 24/7 regardless of Toby's Mac. Every autonomous post leaves the system from a GitHub Actions runner, not from a local machine.
-- **cron-job.org is the primary trigger.** It hits GitHub's workflow dispatch API at the scheduled UTC times via a fine-grained PAT.
-- **GitHub's built-in cron is the backup trigger.** It is unreliable on its own but useful as belt-and-braces alongside cron-job.org.
-- **Backup crons at +45 min** catch cases where both primary triggers slip.
-- **launchd jobs are disabled.** Local launchd-based publishing is legacy. Re-enabling launchd without first disabling the GitHub workflows will cause double-posts.
-- **Queue-based local publishing** (`scripts/publish_due.py`, `review_queue.py`) is also legacy. The README still describes it; the live system does not use it.
+- **GitHub Actions is the production scheduler and the sole posting environment.** It runs 24/7 regardless of Toby's Mac. Every autonomous post leaves the system from a GitHub Actions runner.
+- **GitHub's built-in cron** fires the workflow at 09:00 / 12:00 / 17:00 UTC (10:00 / 13:00 / 18:00 BST). The cron-job.org backup, the +45-min belt-and-braces crons, and the legacy `CRON_TRIGGER_PAT` were all removed.
+- **launchd jobs are disabled.** Local launchd-based publishing is legacy. Re-enabling launchd without first disabling the GitHub workflow will cause double-posts.
+- **Queue-based local publishing** (`scripts/publish_due.py`, `review_queue.py`) is legacy. The README still describes it; the live system does not use it.
 
-GitHub Actions is the production reality. README.md currently still describes the older launchd + queue-based local publishing flow as if it were live. README.md is to be updated after this spec is approved so that GHA is presented as the production scheduler and the legacy local flow is clearly marked as inactive. CLAUDE.md's "Key source files" table also contains stale paths under `scripts/` for entrypoints that have moved to `pipelines/<name>/`; this is in the same documentation-drift cleanup.
+The agent is the single decision-maker. Its tool surface is sandboxed: `list_unposted_topics`, `run_reel`, `run_carousel`. No other tools, no shell, no file access. The pipelines those tools invoke run with full repo access, but only the agent decides what to write and which format to call.
 
-Safety in autonomous mode lives entirely in code:
+Safety in autonomous mode lives in code AND prompt:
 
-- Idempotency check before every post (`check_posted_today.py`).
-- Ledger checks before generation (no repost, no image reuse, no footage reuse).
-- Hard validation gates on media (licence, provider, subject match).
-- Dry-run discipline for any change to a pipeline.
+- Prompt-level duplicate guard (the agent reads the post bank summary on every run and rejects near-duplicates).
+- Hard validation gates on media (licence, provider, subject match) in `src/research/`.
+- Round-aware image fallback (R3 routes through stock-friendly providers; see SPEC_IMAGE_PIPELINE.md section 6.1).
+- Step-level workflow timeouts so a hung install or pipeline cannot consume the full 45-min job budget silently.
+- Live-streamed pipeline output (no more silent subprocess hangs).
+- Per-run cost capture (`data/ledgers/api_usage_costs.jsonl`).
 - Failure logging to the brain log on any workflow error.
-- A single concurrency group across posting workflows so two triggers cannot publish in parallel.
+- A single concurrency group (`factjot-publish`, `cancel-in-progress: false`) so two triggers cannot publish in parallel; the second queues.
+
+Per-pipeline daily caps (the old "1 reel per day, 1 carousel per day" guards in `make_reel.py`, `ship_first_post.py`, `ship_list_post.py`) were removed on 2026-05-07. The agent's prompt-level duplicate guard is now the only dedup layer; the per-pipeline caps were causing legitimate format-switch fall-backs to be blocked.
 
 ### 6.2 Editorial approval mode
 
@@ -350,22 +360,22 @@ A change that writes to a ledger inconsistently with its invariant is a system b
 
 These rules apply across the whole system. They are not negotiable. Most are duplicated in CLAUDE.md and the brain. They are stated here as principles, not duplicated word for word.
 
-1. **Truth.** Every published fact is verified. ≥ 2 reputable sources, confidence ≥ 0.65, source-text supported. Reddit is a lead, never proof.
-2. **Reddit-only fact origin.** Facts come from Reddit posts with real citations. Claude may write a `reel_script` from a Reddit-sourced fact, never invent the fact itself.
-3. **No repost.** Hash-checked against `posted.jsonl` before generation.
-4. **No image reuse across posts.** Hash-checked against `used_images.jsonl`. Within a single carousel, reuse is governed by SPEC_IMAGE_PIPELINE.md.
-5. **No footage reuse across reels.** Hash-checked against `used_footage_urls.jsonl`.
+1. **Truth.** Truth remains a system invariant: posts should be specific, named, well-documented, and defensible against reputable sources. Current autonomous implementation relies primarily on prompt-level selection (the agent's INTERESTINGNESS / EVENT-VS-ANGLE / QUALITY gates and the "specific, named, well-documented" requirement in POSTING RULES) rather than code-enforced source verification. This is an accepted short-term gap, not the desired long-term standard. The previous "≥ 2 reputable sources, confidence ≥ 0.65, source-text supported" code gate was tied to the deleted Reddit-discovery pipeline; restoring a code-level verification path is open work.
+2. **Fact origin.** Legacy Reddit-only fact origin applied to the deleted discovery pipeline (`discover_facts.py`, `rare_fact_bank.py`, `discovered_facts.jsonl`). In the autonomous system, the agent may choose subjects directly, but claims should remain specific, named, well-documented, and suitable for later source-backed verification. If live research or citation tooling is added, claims should be checked against reputable sources before publication. The legacy fact bank and discovered-facts ledger remain on disk but are dormant; the autonomous reel path provides `--script` directly and bypasses `_pick_fact()`.
+3. **No repost.** The agent's duplicate guard reads the last 30 entries of `insta-brain/data/posted.jsonl` and rejects topic / angle / list-idea / ranking / "same subject framed differently" overlaps. Prompt-level enforcement today; a code-level guard may be added if duplicate risk increases (see invariant 10).
+4. **No image reuse across posts.** Hash-checked against `data/ledgers/used_images.jsonl`. Within a single carousel, reuse is governed by SPEC_IMAGE_PIPELINE.md.
+5. **No footage reuse across reels.** Hash-checked against `data/ledgers/used_footage_urls.jsonl`.
 6. **No empty image boxes.** A slide either shows a real image or uses an intentional typography-only layout. Never an empty photo rectangle, blank image slot, or near-invisible placeholder.
 7. **British English.** All copy, all captions, all comments.
 8. **No em dashes.** Anywhere, ever. Including YAML workflow comments.
-9. **Three brand fonts only.** Instrument Serif, Space Grotesk SemiBold, JetBrains Mono Bold.
-10. **Idempotency.** No pipeline publishes twice on the same day for the same slot. Checked before every post.
-11. **Concurrency.** All publishing workflows share one concurrency group. Two triggers cannot publish in parallel.
-12. **Append-only ledgers**, with the one named exception in section 11.2.
+9. **Four brand fonts only.** Instrument Serif (display), Space Grotesk SemiBold (body), JetBrains Mono Bold (labels), Archivo Black (caption / video burn-in only, scoped strictly).
+10. **Idempotency.** Idempotency remains a system invariant: the system should not publish duplicate or near-duplicate posts, including same-day duplicates. Current autonomous implementation uses the `posted.jsonl` post bank and the prompt-level duplicate guard. A future code-level guard may be needed if duplicate risk increases. Per-pipeline daily caps were removed 2026-05-07 because they were blocking legitimate format-switch fall-backs.
+11. **Concurrency.** The single posting workflow uses `concurrency.group: factjot-publish` with `cancel-in-progress: false`. Overlapping triggers queue.
+12. **Append-only ledgers**, with the one named exception in section 11.2 (`reel_performance.jsonl` is mutable for live metrics).
 13. **Image pipeline changes require plan mode.** Any change to image sourcer, fetcher, candidate selection, or fallback logic begins in plan mode. See SPEC_IMAGE_PIPELINE.md.
 14. **Never force-push to main.** Force-push silently deletes state commits written by running workflows. The 2026-05-05 triple-post incident was caused by force-push. Large-file removal happens on a separate branch with workflows paused.
 15. **Canonical Python path locally.** `/Library/Frameworks/Python.framework/Versions/Current/bin/python3`. Bare `python3` only inside GitHub Actions.
-16. **Style tokens have one source.** All visual style tokens (palette, fonts, type scale, spacing, layout constants, format-specific values) live in `brand/brand_kit.json` and are accessed only through `src/core/brand.py`. Templates and pipelines do not duplicate, redefine, or inline these values. This is the target architecture; existing inline values in templates are tracked for migration in `SPEC_STYLE_GUIDE.md`.
+16. **Style tokens have one source.** All visual style tokens (palette, fonts, type scale, spacing, layout constants, format-specific values) live in `brand/brand_kit.json` (v2.0 since 2026-05-07) and are accessed only through `src/core/brand.py`. Templates and pipelines do not duplicate, redefine, or inline these values. This is the target architecture; existing inline values in templates are tracked for migration in `SPEC_STYLE_GUIDE.md`.
 
 ---
 
@@ -479,7 +489,7 @@ Demotion is recorded in the pipeline's sub-spec. Re-graduation follows the same 
 
 | Sub-spec | Status | Scope |
 |---|---|---|
-| `SPEC_IMAGE_PIPELINE.md` | Draft, awaiting Toby approval, 2026-05-06 | Image sourcing, candidate validation, Haiku selection, typography-only fallback, manual/news image rendering. |
+| `SPEC_IMAGE_PIPELINE.md` | Draft, awaiting Toby approval. Amended 2026-05-07 for round-aware provider override. | Image sourcing, candidate validation, Haiku selection, typography-only fallback, manual/news image rendering. |
 | `SPEC_VIDEO_PIPELINE.md` | Reserved | Reel footage sourcing, narrative beats, FFmpeg composition, voice timing, thumbnail and story rendering. |
 | `SPEC_RENDERING.md` | Reserved | Brand templates, Playwright rendering, slide and reel layout, dry-run output structure. |
 | `SPEC_STYLE_GUIDE.md` | Reserved | Single-source style guide. Full token schema for `brand/brand_kit.json`, per-format token tables, consumption contract for `src/core/brand.py`, smoke-render acceptance tests, migration plan from scattered inline values. |
