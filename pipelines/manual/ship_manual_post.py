@@ -73,7 +73,7 @@ Red keyword markup:
 - Count [r]...[/r] tags in the character limit but they are short so it is fine
 
 Cover title: 3-5 words, punchy, no full stop. Sets up the story without spoiling it.
-Category label: 1-3 words in capitals (e.g. INTERNET HISTORY, AVIATION, SCIENCE).
+Category label: 1-3 words in capitals. Any subject is valid — SPORT, POLITICS, CRIME, CULTURE, FOOD, DESIGN, MUSIC, INTERNET HISTORY, AVIATION, SCIENCE, or anything else that fits.
 
 Final slide (CTA): a thought-provoking question or reflection the reader wants to debate.
 Same format: 3 lines, 28-42 characters each. Do NOT reference the source or say "follow for more"."""
@@ -327,7 +327,7 @@ def generate_content(brief: str, n_slides: int, api_key: str) -> tuple[dict, dic
         n_slides=n_slides,
     )
     res = client.messages.create(
-        model="claude-sonnet-4-6",
+        model="claude-haiku-4-5-20251001",
         max_tokens=4000,
         temperature=0.5,
         messages=[{"role": "user", "content": prompt}],
@@ -367,11 +367,11 @@ def generate_content(brief: str, n_slides: int, api_key: str) -> tuple[dict, dic
             slides = _repair_slides(slides, warnings, api_key)
             data["slides"] = slides
 
-    pricing = {"input": 3.00, "output": 15.00}
+    pricing = {"input": 0.80, "output": 4.00}
     cost = (res.usage.input_tokens / 1_000_000) * pricing["input"] + \
            (res.usage.output_tokens / 1_000_000) * pricing["output"]
     usage = {
-        "model": "claude-sonnet-4-6",
+        "model": "claude-haiku-4-5-20251001",
         "input_tokens": res.usage.input_tokens,
         "output_tokens": res.usage.output_tokens,
         "cost_usd": round(cost, 5),
