@@ -20,7 +20,7 @@ import re
 import shutil
 import sys
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
@@ -547,6 +547,7 @@ def generate_content(
     warnings = _validate_lines(slides)
     for w in warnings:
         _log(f"     [line warn] {w}")
+    data["_line_warnings"] = warnings
 
     # Hard-fail if any line exceeds the renderer's cap. Better to abort
     # than ship a layout-broken carousel that wraps mid-name.
@@ -562,6 +563,56 @@ def generate_content(
         "cost_usd": round(cost, 5),
     }
     return data, usage
+
+
+# ------------------------------------------------------------------ #
+# Quality ledger
+# ------------------------------------------------------------------ #
+
+def _write_quality_ledger_entry(
+    *,
+    ledger_path: Path,
+    post_id: str,
+    format_type: str,
+    cover_title: str,
+    slide_count: int,
+    line_warnings: list[str],
+    dropped_facts: list[str],
+    image_coverage: dict,
+    result: str,
+    editorial_cost_usd: float = 0.0,
+    fitter_cost_usd: float = 0.0,
+    fitter_attempts: int = 0,
+    probe_attempts: int = 0,
+    total_runtime_ms: int = 0,
+) -> None:
+    """Append one structured row per run to data/ledgers/carousel_quality.jsonl.
+
+    `result` is one of: "published", "dry_run", "shape_failed",
+    "cover_failed", "publish_failed", "fitter_failed", "skipped".
+
+    Cost/latency fields default to 0 in Phase 0 (writer is single-stage,
+    no fitter, no probe) and are populated in Phase 1+2.
+    """
+    payload = {
+        "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "post_id": post_id,
+        "format_type": format_type,
+        "cover_title": cover_title,
+        "slide_count": slide_count,
+        "line_warnings": list(line_warnings),
+        "dropped_facts": list(dropped_facts),
+        "image_coverage": dict(image_coverage),
+        "result": result,
+        "editorial_cost_usd": round(editorial_cost_usd, 5),
+        "fitter_cost_usd": round(fitter_cost_usd, 5),
+        "fitter_attempts": fitter_attempts,
+        "probe_attempts": probe_attempts,
+        "total_runtime_ms": total_runtime_ms,
+    }
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    with ledger_path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
 # ------------------------------------------------------------------ #
@@ -606,11 +657,29 @@ def main() -> int:
         _log("ERROR: ANTHROPIC_API_KEY not set")
         return 1
 
+    quality_ledger_path = repo_root / "data" / "ledgers" / "carousel_quality.jsonl"
+
     # ---- 1. Generate content ----
     _log(f"\n[1/4] Generating content from brief...")
     _log(f"     Brief:  \"{args.brief}\"")
     _log(f"     Type:   {args.type}  (target {total_slides_arg} slides total)")
-    data, usage = generate_content(args.brief, n_slides, api_key, format_type=args.type)
+    try:
+        data, usage = generate_content(args.brief, n_slides, api_key, format_type=args.type)
+    except CarouselShapeError as shape_err:
+        _log(f"\nERROR: CONTENT_SHAPE_MISMATCH - {shape_err}")
+        _log(f"       Diagnostics: {json.dumps(shape_err.diagnostics, ensure_ascii=False)}")
+        _write_quality_ledger_entry(
+            ledger_path=quality_ledger_path,
+            post_id="shape-failed",
+            format_type=args.type,
+            cover_title="(shape failed)",
+            slide_count=0,
+            line_warnings=[],
+            dropped_facts=shape_err.diagnostics.get("dropped_facts") or [],
+            image_coverage={"image": 0, "typography": 0, "cover_failed": False},
+            result="shape_failed",
+        )
+        return 1
     _log(f"     {usage['input_tokens']:,} in / {usage['output_tokens']:,} out  ~${usage['cost_usd']:.4f}")
 
     cover_title  = data["cover_title"]
@@ -663,9 +732,26 @@ def main() -> int:
         visual_fallback_queries=visual_fallbacks[:total_slides],
     )
 
+    image_coverage = {
+        "image": sum(1 for u in images if u),
+        "typography": sum(1 for u in images if not u),
+        "cover_failed": not bool(images and images[0]),
+    }
+
     if not images or not images[0]:
-        _log("\nERROR: COVER_IMAGE_FAILED — no usable image found for the cover slide.")
+        _log("\nERROR: COVER_IMAGE_FAILED - no usable image found for the cover slide.")
         _log("       Run failed. Check image sourcer DEBUG logs for pool sizes and rejection reasons.")
+        _write_quality_ledger_entry(
+            ledger_path=quality_ledger_path,
+            post_id=post_id,
+            format_type=args.type,
+            cover_title=cover_title,
+            slide_count=total_slides,
+            line_warnings=data.get("_line_warnings", []),
+            dropped_facts=data.get("dropped_facts") or [],
+            image_coverage={"image": 0, "typography": total_slides, "cover_failed": True},
+            result="cover_failed",
+        )
         return 1
 
     cover_photo  = images[0]
@@ -745,6 +831,18 @@ def main() -> int:
             _log("\n[DRY RUN] Caption preview:")
             _log(caption[:500])
             _log(f"\n     Total slides: {total_slides}  |  Cost: ${usage['cost_usd']:.4f}")
+            _write_quality_ledger_entry(
+                ledger_path=quality_ledger_path,
+                post_id=post_id,
+                format_type=args.type,
+                cover_title=cover_title,
+                slide_count=total_slides,
+                line_warnings=data.get("_line_warnings", []),
+                dropped_facts=data.get("dropped_facts") or [],
+                image_coverage=image_coverage,
+                result="dry_run",
+                editorial_cost_usd=usage.get("cost_usd", 0.0),
+            )
             return 0
 
         # ---- 4. Host + publish ----
@@ -772,8 +870,8 @@ def main() -> int:
             _log(f"\nABORTED: this brief has already been posted (id={post_id}).")
             return 1
 
-        result      = publisher.publish_carousel(image_urls, caption)
-        ig_media_id = result.get("id") or result.get("ig_media_id", "")
+        publish_result = publisher.publish_carousel(image_urls, caption)
+        ig_media_id    = publish_result.get("id") or publish_result.get("ig_media_id", "")
         if ig_media_id:
             _log(f"\nPosted! Media ID: {ig_media_id}")
             brain.record_publish(
@@ -786,14 +884,38 @@ def main() -> int:
                     "sources":  [],
                 }],
             )
+            _write_quality_ledger_entry(
+                ledger_path=quality_ledger_path,
+                post_id=post_id,
+                format_type=args.type,
+                cover_title=cover_title,
+                slide_count=total_slides,
+                line_warnings=data.get("_line_warnings", []),
+                dropped_facts=data.get("dropped_facts") or [],
+                image_coverage=image_coverage,
+                result="published",
+                editorial_cost_usd=usage.get("cost_usd", 0.0),
+            )
         else:
-            err = result.get("error", "(no error key in result)")
+            err = publish_result.get("error", "(no error key in result)")
             _log(f"\nPUBLISH FAILED: {err}")
-            _log(f"     full result: {result}")
+            _log(f"     full result: {publish_result}")
             _log(f"     {len(image_urls)} image URLs were uploaded to host successfully.")
             _log(f"     IG Graph API rejected the carousel. Common causes: image-fetch")
             _log(f"     timeout from Meta side, container ERROR/EXPIRED status, token issue,")
             _log(f"     or aspect-ratio mismatch on one of the slides.")
+            _write_quality_ledger_entry(
+                ledger_path=quality_ledger_path,
+                post_id=post_id,
+                format_type=args.type,
+                cover_title=cover_title,
+                slide_count=total_slides,
+                line_warnings=data.get("_line_warnings", []),
+                dropped_facts=data.get("dropped_facts") or [],
+                image_coverage=image_coverage,
+                result="publish_failed",
+                editorial_cost_usd=usage.get("cost_usd", 0.0),
+            )
             return 1
 
         # Story: 9:16 story frame + link back to carousel

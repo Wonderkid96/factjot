@@ -66,3 +66,31 @@ def test_enforce_carousel_shape_passes_clean_data():
         "slides": [{"lines": ["one", "two", "three"]} for _ in range(5)],
     }
     _enforce_carousel_shape(data, requested_content_slides=5)
+
+
+import json
+from pipelines.manual.ship_manual_post import _write_quality_ledger_entry
+
+
+def test_quality_ledger_entry_records_run(tmp_path):
+    ledger = tmp_path / "carousel_quality.jsonl"
+    _write_quality_ledger_entry(
+        ledger_path=ledger,
+        post_id="ask-jeeves-tribute",
+        format_type="news",
+        cover_title="ask jeeves quietly logs off",
+        slide_count=6,
+        line_warnings=["slide 4 line 3: ends with weak word 'and'"],
+        dropped_facts=[],
+        image_coverage={"image": 5, "typography": 1, "cover_failed": False},
+        result="published",
+    )
+    rows = ledger.read_text().strip().splitlines()
+    assert len(rows) == 1
+    payload = json.loads(rows[0])
+    assert payload["post_id"] == "ask-jeeves-tribute"
+    assert payload["format_type"] == "news"
+    assert payload["slide_count"] == 6
+    assert payload["image_coverage"]["image"] == 5
+    assert payload["result"] == "published"
+    assert "ts" in payload
