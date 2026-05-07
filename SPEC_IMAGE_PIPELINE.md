@@ -95,9 +95,20 @@ Current and approved providers, in order of trust:
 2. Wikipedia
 3. Smithsonian Open Access
 4. Pixabay
-5. Openverse, enabled only after live verification of unauthenticated reads and licence/source reliability
+5. Pexels (added to the R3 fallback path on 2026-05-07; still excluded from R1/R2 because lifestyle stock cannot satisfy alias gates for named subjects)
+6. Openverse, enabled only after live verification of unauthenticated reads and licence/source reliability
 
 Flickr is no longer supported. The Flickr API moved to a premium-only model in 2024 and is no longer accessible to free integrations. Direct Flickr image URLs returned via Openverse also rate-limit our requests with HTTP 429.
+
+### 6.1 Round-aware provider selection (added 2026-05-07)
+
+The image sourcer (`src/research/image_sourcer.py:source_images`) runs three rounds of fetch:
+
+- **R1**: strict slot aliases. Provider order = `TOPIC_PROVIDER_ORDER[topic]` (for editorial: archive-first `commons, wiki, wiki_article, smithsonian, pixabay`).
+- **R2**: global aliases. Same provider order as R1.
+- **R3**: visual fallback (descriptive B-roll terms like "courtroom legal proceeding"). Aliases dropped. **Provider order overridden to stock-friendly** `("pexels", "pixabay", "smithsonian", "commons")`. Openverse omitted because its results are predominantly Flickr-hosted URLs that 429 our bot IP. This override is implemented via the `provider_override` kwarg threaded through `fetch_pool` and `_iter_candidates`; R1 and R2 leave it unset and fall back to the topic order.
+
+The override exists because R3 is asking different questions than R1/R2: not "find a photo of this named subject" but "find any photo whose tags match these visual concepts". Wikimedia / Wikipedia / Smithsonian title their files by subject identity, so they cannot satisfy descriptive R3 queries even when the underlying photo would have been perfect. Pexels and Pixabay tag photos by visual content, which is what R3 needs.
 
 Future, not in scope of this spec:
 
