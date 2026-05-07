@@ -179,7 +179,12 @@ jobs:
         run: |
           git config user.name  "factjot-bot"
           git config user.email "bot@factjot"
-          git add \
+          # Stage each ledger separately so a missing file (e.g. the
+          # youtube_uploads.jsonl on the very first cross-post) does
+          # not abort the whole `git add`, which would silently leave
+          # every other state file unstaged. The previous form did
+          # exactly that on 2026-05-07 14:43.
+          for f in \
             insta-brain/data/posted.jsonl \
             insta-brain/data/reels.jsonl \
             insta-brain/log.md \
@@ -188,9 +193,16 @@ jobs:
             data/ledgers/used_images.jsonl \
             data/ledgers/reel_performance.jsonl \
             data/ledgers/api_usage_costs.jsonl \
-            data/ledgers/youtube_uploads.jsonl \
-            || true
-          git diff --cached --quiet && echo "No state changes to commit." && exit 0
+            data/ledgers/youtube_uploads.jsonl
+          do
+            if [ -e "$f" ]; then
+              git add "$f" || true
+            fi
+          done
+          if git diff --cached --quiet; then
+            echo "No state changes to commit."
+            exit 0
+          fi
           git commit -m "state: autonomous post $(date -u +%Y-%m-%dT%H:%M)Z"
           git pull --rebase --autostash origin main
           git push origin main
