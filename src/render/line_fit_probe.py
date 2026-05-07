@@ -15,16 +15,23 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-# Calibrated against the 1080x1350 news template:
-# - Photo slide (.line at 48px, ~940px usable width).
+# Conservative char caps for the 1080x1350 news template:
+# - Photo slide      (.line at 48px, ~940px usable width).
 # - Typography slide (.line at 42px, ~920px usable width).
 # Both use Archivo Black 900 lowercase, letter-spacing -0.01em.
+#
+# These numbers are NOT a precise visual calibration. They are a coarse
+# upper bound; the Playwright probe in measure_lines_overflow() is the
+# ground truth for visual wrap. We held HARD_LINE_CAP at 24 for months
+# of successful posts on the photo template, so 24 is the floor we know
+# ships. Tighter caps (22) are too aggressive for the fitter to satisfy
+# without dropping content; the agent burns through max_turns retrying.
 _SLIDE_KIND_CAPS: dict[str, int] = {
-    "photo":      22,
-    "typography": 26,
+    "photo":      24,
+    "typography": 28,
 }
 
-_DEFAULT_CAP = 22  # safest of the two
+_DEFAULT_CAP = 24  # safest of the two
 
 
 def cap_for_slide_kind(slide_kind: str) -> int:
