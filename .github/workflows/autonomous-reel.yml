@@ -132,6 +132,20 @@ jobs:
           POST_MODE: ${{ steps.mode.outputs.mode }}
         run: python3 -u scripts/autonomous_agent.py --post-mode "$POST_MODE"
 
+      - name: Cross-post latest reel to YouTube as Short (soft)
+        if: ${{ success() && (inputs.dry_run != 'true') }}
+        continue-on-error: true
+        env:
+          YOUTUBE_CLIENT_ID:     ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+        run: |
+          # Only fires if the agent posted a reel this run. The script
+          # picks the latest entry from reels.jsonl and uploads its
+          # final.mp4. If the latest reel was already on YouTube (same
+          # title in youtube_uploads.jsonl), the script skips silently.
+          python3 -u scripts/upload_to_youtube.py --auto-latest --privacy public || true
+
       - name: Fetch Instagram reel performance metrics (soft)
         if: always()
         continue-on-error: true
@@ -160,6 +174,8 @@ jobs:
             data/ledgers/used_footage_urls.jsonl \
             data/ledgers/used_images.jsonl \
             data/ledgers/reel_performance.jsonl \
+            data/ledgers/api_usage_costs.jsonl \
+            data/ledgers/youtube_uploads.jsonl \
             || true
           git diff --cached --quiet && echo "No state changes to commit." && exit 0
           git commit -m "state: autonomous post $(date -u +%Y-%m-%dT%H:%M)Z"

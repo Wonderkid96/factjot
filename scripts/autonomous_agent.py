@@ -37,8 +37,13 @@ MAX_TURNS = 12
 MODEL     = "claude-sonnet-4-6"
 HISTORY_LIMIT = 30
 
-REPO_ROOT  = Path(__file__).resolve().parent.parent
-POSTED_LOG = REPO_ROOT / "insta-brain" / "data" / "posted.jsonl"
+# Anthropic Sonnet 4.6 pricing (USD per million tokens, May 2026).
+PRICE_INPUT_PER_M  = 3.00
+PRICE_OUTPUT_PER_M = 15.00
+
+REPO_ROOT   = Path(__file__).resolve().parent.parent
+POSTED_LOG  = REPO_ROOT / "insta-brain" / "data" / "posted.jsonl"
+COST_LEDGER = REPO_ROOT / "data" / "ledgers" / "api_usage_costs.jsonl"
 
 SYSTEM = textwrap.dedent("""\
     You are running the factjot Instagram account (@factjot).
@@ -581,39 +586,95 @@ def main(argv: list[str] | None = None) -> int:
     prompt   = build_prompt(mode)
     messages: list[dict] = [{"role": "user", "content": prompt}]
 
-    for turn in range(MAX_TURNS):
-        response = client.messages.create(
-            model=MODEL,
-            max_tokens=4096,
-            system=SYSTEM,
-            tools=TOOLS,
-            messages=messages,
+    total_input  = 0
+    total_output = 0
+    final_status = "unknown"
+    exit_code    = 0
+
+    try:
+        for turn in range(MAX_TURNS):
+            response = client.messages.create(
+                model=MODEL,
+                max_tokens=4096,
+                system=SYSTEM,
+                tools=TOOLS,
+                messages=messages,
+            )
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                total_input  += getattr(usage, "input_tokens",  0) or 0
+                total_output += getattr(usage, "output_tokens", 0) or 0
+
+            messages.append({"role": "assistant", "content": response.content})
+
+            if response.stop_reason == "end_turn":
+                print("\n[autonomous-agent] finished (end_turn).", flush=True)
+                final_status = "end_turn"
+                break
+            if response.stop_reason != "tool_use":
+                print(f"[autonomous-agent] unexpected stop_reason: {response.stop_reason}", flush=True)
+                final_status = f"stop_{response.stop_reason}"
+                exit_code = 1
+                break
+
+            tool_results = []
+            for block in response.content:
+                if block.type != "tool_use":
+                    continue
+                print(f"\n[tool] {block.name}({list(block.input.keys())})", flush=True)
+                output = execute_tool(block.name, block.input, dry_run)
+                tool_results.append({
+                    "type":        "tool_result",
+                    "tool_use_id": block.id,
+                    "content":     output,
+                })
+
+            messages.append({"role": "user", "content": tool_results})
+        else:
+            print(f"[autonomous-agent] hit max turns ({MAX_TURNS}).", flush=True)
+            final_status = "max_turns"
+    finally:
+        _log_cost(mode, dry_run, total_input, total_output, final_status)
+
+    return exit_code
+
+
+def _log_cost(mode: str, dry_run: bool, input_tokens: int, output_tokens: int, status: str) -> None:
+    """Append per-run cost estimate to data/ledgers/api_usage_costs.jsonl."""
+    from datetime import datetime, timezone
+    cost_in  = input_tokens  / 1_000_000 * PRICE_INPUT_PER_M
+    cost_out = output_tokens / 1_000_000 * PRICE_OUTPUT_PER_M
+    total    = round(cost_in + cost_out, 6)
+    record = {
+        "timestamp":     datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+        "source":        "autonomous_agent",
+        "mode":          mode,
+        "dry_run":       dry_run,
+        "model":         MODEL,
+        "input_tokens":  input_tokens,
+        "output_tokens": output_tokens,
+        "stop_status":   status,
+        "cost_estimate_usd": {
+            "anthropic_input":  round(cost_in, 6),
+            "anthropic_output": round(cost_out, 6),
+            "total":            total,
+        },
+        "pricing_meta": {
+            "input_per_million_usd":  PRICE_INPUT_PER_M,
+            "output_per_million_usd": PRICE_OUTPUT_PER_M,
+        },
+    }
+    try:
+        COST_LEDGER.parent.mkdir(parents=True, exist_ok=True)
+        with COST_LEDGER.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record) + "\n")
+        print(
+            f"[cost] in={input_tokens} out={output_tokens} "
+            f"total=${total:.4f} (mode={mode}, model={MODEL})",
+            flush=True,
         )
-        messages.append({"role": "assistant", "content": response.content})
-
-        if response.stop_reason == "end_turn":
-            print("\n[autonomous-agent] finished (end_turn).", flush=True)
-            return 0
-        if response.stop_reason != "tool_use":
-            print(f"[autonomous-agent] unexpected stop_reason: {response.stop_reason}", flush=True)
-            return 1
-
-        tool_results = []
-        for block in response.content:
-            if block.type != "tool_use":
-                continue
-            print(f"\n[tool] {block.name}({list(block.input.keys())})", flush=True)
-            output = execute_tool(block.name, block.input, dry_run)
-            tool_results.append({
-                "type":        "tool_result",
-                "tool_use_id": block.id,
-                "content":     output,
-            })
-
-        messages.append({"role": "user", "content": tool_results})
-
-    print(f"[autonomous-agent] hit max turns ({MAX_TURNS}).", flush=True)
-    return 0
+    except Exception as exc:
+        print(f"[cost] failed to write ledger: {exc}", flush=True)
 
 
 if __name__ == "__main__":

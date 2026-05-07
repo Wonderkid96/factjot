@@ -7,3 +7,5 @@ edge-tts>=7.0.0
 playwright>=1.59.0
 Jinja2>=3.1.6
 anthropic>=0.40.0
+google-api-python-client>=2.151.0
+google-auth-oauthlib>=1.2.1
