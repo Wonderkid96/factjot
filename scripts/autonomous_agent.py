@@ -187,6 +187,22 @@ def _run_pipeline(cmd: list[str]) -> str:
     return f"exit_code={rc}\n\n{head}"
 
 
+def _tag_failure_kind(raw: str, kind_map: list[tuple[str, str]]) -> str:
+    """Prefix a `FAILURE_KIND: <kind>` line to the subprocess output.
+
+    `kind_map` is a list of (sentinel_substring, kind_name) pairs,
+    checked in order. The first matching sentinel wins. If none match
+    and `exit_code=0` is in the output, the result is tagged as `none`.
+    Otherwise the kind is `unknown`.
+    """
+    for sentinel, kind in kind_map:
+        if sentinel in raw:
+            return f"FAILURE_KIND: {kind}\n\n{raw}"
+    if "exit_code=0" in raw:
+        return f"FAILURE_KIND: none\n\n{raw}"
+    return f"FAILURE_KIND: unknown\n\n{raw}"
+
+
 def run_reel(args: dict, dry_run: bool) -> str:
     cmd = [
         "python3", "-u", "pipelines/reel/make_reel.py",
@@ -198,7 +214,15 @@ def run_reel(args: dict, dry_run: bool) -> str:
     ]
     if dry_run:
         cmd.append("--dry-run")
-    return _run_pipeline(cmd)
+    raw = _run_pipeline(cmd)
+    return _tag_failure_kind(raw, [
+        ("ERROR: TTS returned no word timing", "tts_failed"),
+        ("ERROR: could not find any footage",  "no_footage"),
+        ("reel FAILED ffmpeg",                 "ffmpeg_failed"),
+        ("reel FAILED video upload",           "video_upload_failed"),
+        ("reel FAILED publish",                "publish_failed"),
+        ("exit_code=10",                       "lock_contention"),
+    ])
 
 
 def run_carousel(args: dict, dry_run: bool, format_type: str = "fact") -> str:
@@ -211,7 +235,12 @@ def run_carousel(args: dict, dry_run: bool, format_type: str = "fact") -> str:
     ]
     if dry_run:
         cmd.append("--dry-run")
-    return _run_pipeline(cmd)
+    raw = _run_pipeline(cmd)
+    return _tag_failure_kind(raw, [
+        ("CONTENT_SHAPE_MISMATCH", "content_shape_mismatch"),
+        ("COVER_IMAGE_FAILED",     "cover_image_failed"),
+        ("PUBLISH FAILED",         "publish_failed"),
+    ])
 
 
 # ------------------------------------------------------------------ #
