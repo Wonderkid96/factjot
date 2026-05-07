@@ -22,7 +22,7 @@ from pathlib import Path
 import anthropic
 
 MAX_TURNS = 12
-MODEL     = "claude-haiku-4-5-20251001"
+MODEL     = "claude-sonnet-4-6"
 HISTORY_LIMIT = 25
 
 REPO_ROOT  = Path(__file__).resolve().parent.parent
@@ -188,7 +188,17 @@ TOOLS = [
                 },
                 "hint": {
                     "type": "string",
-                    "description": "2-5 word footage hint for the stock-clip search (e.g. 'phineas gage railway').",
+                    "description": (
+                        "Multi-line string containing the ranked footage search terms "
+                        "you produced after writing the script. One term per line, "
+                        "best-first. Each term should be tuned to how stock libraries "
+                        "and image APIs actually index content (era, setting, subject, "
+                        "mood, composition as separate terms rather than one compressed "
+                        "phrase). Optionally append open-source library search URLs "
+                        "(Wikimedia Commons, NASA image library, Wellcome Collection, "
+                        "Internet Archive) on their own lines where the imagery there "
+                        "is likely more accurate or interesting than generic stock."
+                    ),
                 },
             },
             "required": ["script", "title", "topic", "tone_override", "hint"],
@@ -246,9 +256,11 @@ PROMPT = textwrap.dedent("""\
     strange, sharp, interesting, and slightly annoyed that reality is
     this weird.
 
-    Do not behave randomly. Do not chase engagement bait. Do not post
-    generic facts. Do not post anything unless it has a clear reason
-    to exist.
+    This is one fully autonomous decision per run: what to post, what
+    format, what angle. Make it a single confident call, not a hedged
+    one. Do not behave randomly. Do not chase engagement bait. Do not
+    post generic facts. Do not post anything unless it has a clear
+    reason to exist.
 
     AVAILABLE TOOLS
 
@@ -307,6 +319,10 @@ PROMPT = textwrap.dedent("""\
     - current political takes unless the source and angle are exceptionally strong
     - anything that could be defamatory, medically unsafe, or legally risky
 
+    Prefer the most outrageous verifiable angle available. If two facts
+    are equally strong, pick the one that is harder to believe. Do not
+    sand the edges off to make it feel safer.
+
     DECISION PROCESS
 
     Before posting, internally choose 3 candidate ideas.
@@ -319,40 +335,63 @@ PROMPT = textwrap.dedent("""\
 
     Pick the strongest remaining idea.
 
+    NEWS OVERRIDE
+
+    If your knowledge includes a breaking event of genuine global
+    significance, defined as a world leader dying, a war being officially
+    declared, or a similarly rare and unambiguous event, you may reference
+    it. Do not post on politics, elections, ongoing conflicts, or anything
+    requiring editorial judgement about contested facts. If in doubt,
+    ignore it.
+
     FORMAT CHOICE
 
-    Choose REEL only if the idea works as one striking narrated fact
-    with a clear visual image.
+    Reel is the default. Reach for reel first.
 
-    Choose CAROUSEL only if the idea needs explanation, contrast,
-    timeline, context, or multiple beats.
-
-    Do not choose carousel just because you have more to say.
-    Do not choose reel if the fact needs too much setup.
+    Choose carousel only if the idea genuinely cannot work as a single
+    narrated fact - because it requires explanation, contrast, timeline,
+    context, or multiple beats to land. If a single sentence followed
+    by a 70-120 word narration could carry it, it is a reel.
 
     REEL RULES
 
-    - one jaw-dropping fact
-    - 70 to 120 word script, first sentence is the hook
+    - 70 to 120 word script
+    - The first sentence is the entire fact compressed to its most
+      absurd or contradictory form. Use a specific number, name, or
+      place wherever possible. Drop the viewer directly into the thing
+      that shouldn't be true. Do not build to it. If the first sentence
+      could appear in a broadsheet headline without sounding strange,
+      rewrite it.
+    - The narrator is someone who finds reality faintly offensive. Not
+      angry. Mildly put out that the world is this strange and nobody
+      seems bothered by it. This stance should be audible in word
+      choice and pacing, not stated explicitly.
     - no filler intro, no 'did you know', no fake suspense
-    - hint is 2-5 words, anchored to the actual visual subject
+    - After settling on the script, produce a ranked list of 4-6
+      footage search strings tuned to how stock libraries and image
+      APIs actually index content. Think in terms of era, setting,
+      subject category, mood, and composition as separate strings
+      rather than one compressed phrase. Where the best visual is
+      oblique rather than literal, say so. Also include any relevant
+      open-source library search URLs from sources like Wikimedia
+      Commons, NASA image library, Wellcome Collection, or Internet
+      Archive where the imagery is likely to be more accurate or more
+      interesting than generic stock.
 
     CAROUSEL RULES
 
     - 6 slides by default
     - precise brief
     - every slide has a job (no filler)
-    - works as an explainer, contrast, timeline, or short editorial
 
     POSTING RULES
 
-    Pick one format. Call its tool exactly once. Do not retry on failure.
-    Do not invent sources. Do not use em dashes. Do not use hashtags
-    unless the pipeline adds them itself.
-
-    If the best available idea feels weak, still post the strongest
-    acceptable idea, but keep it narrow and specific rather than trying
-    to make it sound bigger than it is.
+    Pick one format. Call its tool exactly once. Do not retry on
+    failure. Only post facts that are specific, named, and well-
+    documented. Prefer facts tied to a named event, person, study, or
+    place. Avoid anything attributed only to 'scientists say' or
+    'studies show'. Do not use em dashes. Do not use hashtags unless
+    the pipeline adds them itself.
 """)
 
 
