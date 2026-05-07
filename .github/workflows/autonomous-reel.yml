@@ -1,19 +1,19 @@
-name: Autonomous Reel — Claude Agent (manual only)
+name: Autonomous Post — Claude Agent (manual)
 
-# Claude Code CLI is dropped into the repo environment with Bash access.
-# No script guidance. No fact bank constraint. The agent reads the repo,
-# decides what to post, and calls make_reel.py with its own content.
+# Claude Code CLI is dropped into the repo with Bash access.
+# No topic constraint. No template. The agent reads the repo, decides what
+# to post and in what format (reel or carousel), then calls the pipeline.
 #
 # Requires ANTHROPIC_API_KEY secret.
-# Default: dry-run ON for safety — review output before posting live.
+# Default: dry-run OFF — this is the live autonomous post.
 
 on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Dry run — compose video but skip upload and publish"
+        description: "Dry run — compose content but skip upload and publish"
         type: boolean
-        default: true
+        default: false
         required: false
 
 concurrency:
@@ -99,32 +99,45 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           claude --print \
-            "You are running the factjot Instagram Reel account (@factjot).
+            "You are running the factjot Instagram account (@factjot).
 
-          Your job: post something genuinely interesting. Complete creative freedom — no topic constraint, no template.
+          Your job: post something genuinely interesting. Complete creative freedom. No topic constraint. No template.
 
-          The factjot voice is dry, direct, occasionally condescending, faintly contemptuous of people who don't find things interesting. British English. No em dashes. No corporate enthusiasm.
+          The factjot voice is dry, direct, faintly contemptuous of people who don't find things interesting. British English. No em dashes. No corporate enthusiasm.
 
-          To understand the project better, read CLAUDE.md. To see what has already been posted, read insta-brain/data/posted.jsonl.
+          First, read CLAUDE.md to understand the project. Then read insta-brain/data/posted.jsonl to see what has already been posted. Choose something that is not already covered.
 
-          When you have decided what to post, call make_reel.py like this:
+          You may post in either format. Choose whichever suits the content.
+
+          --- REEL ---
+          A single striking fact, narrated to camera. Best for: a jaw-dropping claim, a moment in history, something visual.
 
             python3 -u pipelines/reel/make_reel.py \\
-              --script \"your script here\" \\
-              --title \"your hook title\" \\
+              --script \"70-120 word script, first sentence is the most surprising\" \\
+              --title \"hook title\" \\
               --topic <history|science|biology|ocean|earth|space|technology> \\
               --tone-override <shocking|curious|sober|wholesome> \\
-              --hint \"2-5 word footage search hint\" \\
+              --hint \"2-5 word footage hint\" \\
               $([ \"\$DRY_RUN\" = \"true\" ] && echo \"--dry-run\")
 
-          The script should be 70-120 words. Lead with the most surprising sentence. Do not build toward it." \
+          --- CAROUSEL ---
+          A news story, explainer, or editorial take. Best for: current events, a subject with multiple angles, anything that needs more than one sentence.
+
+            python3 -u pipelines/manual/ship_manual_post.py \\
+              --brief \"plain-English description of what to post, 2-4 sentences\" \\
+              --label \"CATEGORY IN CAPS\" \\
+              --slides 6 \\
+              $([ \"\$DRY_RUN\" = \"true\" ] && echo \"--dry-run\")
+
+          Pick one format. Run it once. Do not retry on failure." \
             --allowedTools "Bash" \
-            --max-turns 30
+            --max-turns 40
 
       - name: Capture failure to brain log
         if: failure()
         env:
           WORKFLOW_FILE: .github/workflows/autonomous-reel.yml
+          WORKFLOW_DISPLAY: autonomous-post
           RUN_ID: ${{ github.run_id }}
           TRIGGER: ${{ github.event_name }}
           REF: ${{ github.ref_name }}
@@ -141,8 +154,9 @@ jobs:
             insta-brain/log.md \
             insta-brain/MEMORY_INDEX.md \
             data/ledgers/used_footage_urls.jsonl \
+            data/ledgers/used_images.jsonl \
             || true
           git diff --cached --quiet && echo "No state changes to commit." && exit 0
-          git commit -m "state: autonomous reel $(date -u +%Y-%m-%dT%H:%M)Z"
+          git commit -m "state: autonomous post $(date -u +%Y-%m-%dT%H:%M)Z"
           git pull --rebase --autostash origin main
           git push origin main
