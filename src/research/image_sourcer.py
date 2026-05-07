@@ -49,7 +49,7 @@ PROVIDER_TRUST: dict[str, int] = {
 }
 
 MIN_SCORE: int = 20
-MAX_REUSES:  int = 2   # same URL allowed at most this many times per carousel
+MAX_REUSES:  int = 1   # same URL never repeated in a carousel
 
 
 # ------------------------------------------------------------------ #
@@ -213,6 +213,7 @@ class ImageSourcer:
         post_id:  str,
         max_pool: int | None = None,
         per_slot_aliases: "list[list[str] | None] | None" = None,
+        visual_fallback_queries: "list[str] | None" = None,
     ) -> list[str]:
         """Return one base64 data URL per query slot.
 
@@ -244,6 +245,7 @@ class ImageSourcer:
             else:
                 log.debug("IMAGE slot=%d aliases=global", i)
 
+            relaxation_round = 1
             raw_pool = self._fetcher.fetch_pool(
                 query          = query,
                 topic          = self.topic,
@@ -257,7 +259,60 @@ class ImageSourcer:
                 max_pool       = pool_size,
             )
 
-            log.debug("IMAGE slot=%d pool_size=%d", i, len(raw_pool))
+            # Gate relaxation: if the strict slot gate found nothing, retry
+            # with progressively looser alias constraints before giving up.
+            if not raw_pool and slot_override:
+                # Round 2: slot aliases found nothing — try global aliases instead.
+                relaxation_round = 2
+                log.debug("IMAGE slot=%d RELAX_R2 → global aliases", i)
+                raw_pool = self._fetcher.fetch_pool(
+                    query          = query,
+                    topic          = self.topic,
+                    post_id        = post_id,
+                    slide_index    = i,
+                    intent_text    = intent.fallback_query or query,
+                    source_aliases = intent.source_aliases or None,
+                    negative_terms = intent.negative_terms or None,
+                    context_words  = intent.context_words  or None,
+                    extra_fallbacks= extra_fallbacks,
+                    max_pool       = pool_size,
+                )
+
+
+            if not raw_pool:
+                # Round 3: use the Sonnet-generated visual fallback query for this slot.
+                # These are descriptive stock-photography terms ("smartphone screen apps")
+                # not subject names, so the query terms themselves gate relevance.
+                vfq = (
+                    visual_fallback_queries[i]
+                    if visual_fallback_queries and i < len(visual_fallback_queries)
+                    else ""
+                )
+                if vfq:
+                    relaxation_round = 3
+                    log.debug("IMAGE slot=%d RELAX_R3 → visual fallback %r", i, vfq)
+                    raw_pool = self._fetcher.fetch_pool(
+                        query          = vfq,
+                        topic          = self.topic,
+                        post_id        = post_id,
+                        slide_index    = i,
+                        intent_text    = vfq,
+                        source_aliases = None,
+                        negative_terms = intent.negative_terms or None,
+                        context_words  = None,
+                        extra_fallbacks= None,
+                        max_pool       = min(pool_size, 20),
+                    )
+                    # Only allow images not yet used in this carousel.
+                    if raw_pool:
+                        raw_pool = [c for c in raw_pool if self._use_count.get(c.url, 0) == 0]
+                        if not raw_pool:
+                            log.debug("IMAGE slot=%d RELAX_R3_EXHAUSTED → typography", i)
+                            data_urls.append("")
+                            self._last_url = ""
+                            continue
+
+            log.debug("IMAGE slot=%d pool_size=%d (round=%d)", i, len(raw_pool), relaxation_round)
 
             chosen = self._select_for_slot(i, query, raw_pool, intent, post_id)
 

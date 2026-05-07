@@ -123,6 +123,7 @@ class ImageFetcher:
     NASA_SEARCH = "https://images-api.nasa.gov/search"
     SMITHSONIAN_SEARCH = "https://api.si.edu/openaccess/api/v1.0/search"
     INATURALIST_SEARCH = "https://api.inaturalist.org/v1/taxa"
+    FLICKR_SEARCH      = "https://www.flickr.com/services/rest/"
 
     MIN_IMAGE_BYTES = 12 * 1024
     MIN_IMAGE_DIM = 480
@@ -150,9 +151,9 @@ class ImageFetcher:
         #   get a Flickr API key or if Openverse adds a non-Flickr CDN proxy for full images.
         # wiki_article: fetches all inline photos from the Wikipedia article body,
         #   not just the lead image. Yields cockpit, cabin, historical, and detail shots.
-        "editorial": ("commons", "wiki", "wiki_article", "smithsonian", "pixabay"),
+        "editorial": ("commons", "wiki", "wiki_article", "smithsonian", "flickr", "pixabay"),
     }
-    DEFAULT_PROVIDER_ORDER = ("pexels", "pixabay", "openverse", "wiki", "commons", "inaturalist", "nasa", "smithsonian")
+    DEFAULT_PROVIDER_ORDER = ("pexels", "pixabay", "flickr", "openverse", "wiki", "commons", "inaturalist", "nasa", "smithsonian")
     # Keep the system flexible: Pexels/Pixabay first, but allow fallbacks.
     # Relevance is handled via stronger query variants + soft metadata checks.
     SPACE_POSITIVE_TERMS = {
@@ -481,6 +482,7 @@ class ImageFetcher:
         sources_by_name = {
             "pexels": self._pexels_candidates,
             "pixabay": self._pixabay_candidates,
+            "flickr": self._flickr_candidates,
             "openverse": self._openverse_candidates,
             "inaturalist": self._inaturalist_candidates,
             "nasa": self._nasa_candidates,
@@ -546,6 +548,48 @@ class ImageFetcher:
                 credit_name=author,
                 credit_url=page_url,
                 meta_text=" ".join([str(hit.get("tags", "")), author]),
+            )
+
+    def _flickr_candidates(self, term: str, topic: str = "") -> Iterator[_Candidate]:
+        api_key = os.getenv("FLICKR_API_KEY", "").strip()
+        if not api_key:
+            return
+        resp = self.session.get(
+            self.FLICKR_SEARCH,
+            params={
+                "method":       "flickr.photos.search",
+                "api_key":      api_key,
+                "text":         term,
+                "license":      "4,5,9,10",   # CC-BY, CC-BY-SA, CC0, PDM
+                "sort":         "relevance",
+                "extras":       "url_b,tags,description,owner_name",
+                "per_page":     self.MAX_RESULTS_PER_PROVIDER,
+                "format":       "json",
+                "nojsoncallback": 1,
+            },
+            timeout=10,
+        )
+        if not resp.ok:
+            return
+        photos = resp.json().get("photos", {}).get("photo", [])
+        for photo in photos[: self.MAX_RESULTS_PER_PROVIDER]:
+            url = photo.get("url_b")
+            if not url:
+                continue
+            title = str(photo.get("title", ""))
+            tags  = str(photo.get("tags", ""))
+            desc  = str((photo.get("description") or {}).get("_content", ""))
+            owner = str(photo.get("ownername", ""))
+            meta  = f"{title} {tags} {desc}".strip()
+            page_url = (
+                f"https://www.flickr.com/photos/{photo.get('owner', '')}"
+                f"/{photo.get('id', '')}"
+            )
+            yield from self._make_candidate(
+                "flickr", url,
+                credit_name=owner,
+                credit_url=page_url,
+                meta_text=meta,
             )
 
     def _openverse_candidates(self, term: str, topic: str = "") -> Iterator[_Candidate]:
@@ -632,6 +676,7 @@ class ImageFetcher:
             "commons-logo", "wikimedia-logo", "-icon", "icon-",
             "flag_of", "coat_of", "symbol", "route_", "route-",
             "silhouette", "diagram", "scheme", "map", "blank", "signature",
+            "screenshot", "infobox", "table", "template", "talk_page",
         )
         file_titles = [
             img["title"] for img in page.get("images", [])

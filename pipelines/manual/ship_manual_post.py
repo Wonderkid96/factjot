@@ -207,6 +207,20 @@ Example for Concorde: ["diagram", "map", "illustration", "airshow crowd",
 For fallback_query: the canonical proper name alone, 1-4 words.
 Used when a slot query finds nothing. Example: "Concorde aircraft".
 
+For visual_fallback_queries: one short stock-photography search term per slot
+(cover first, then content slides, in the same order as image_queries).
+Used when both the slot query AND the global aliases find nothing.
+These must be purely visual and descriptive -- never brand names, never the
+subject's own name. Describe what kind of image would feel thematically right
+for that slide even if it doesn't show the actual subject.
+- Good: "smartphone screen apps icons", "computer chip circuit board",
+  "tech factory assembly line", "artificial intelligence network nodes",
+  "person using phone coffee shop", "silicon wafer semiconductor"
+- Bad: "OpenAI logo", "Sam Altman", "MediaTek chip" (too subject-specific,
+  will find nothing or find junk if the subject has no stock coverage)
+Keep each query 3-6 words. Vary them across slides -- do not repeat the
+same phrase. These are the last resort before a slide becomes typography-only.
+
 Return JSON only:
 {{
   "cover_title": "3-5 word punchy title",
@@ -221,6 +235,7 @@ Return JSON only:
   "preferred_image_types": ["type1", "type2", ...],
   "avoid_image_types": ["type1", "type2", ...],
   "image_queries": ["query for cover", "query for slide 1", ...],
+  "visual_fallback_queries": ["fallback for cover", "fallback for slide 1", ...],
   "cover_slot_aliases": ["NamedEntityForCover"],
   "slides": [
     {{"slideNumber": 1, "lines": ["...", "...", "..."], "slot_aliases": ["NamedEntity"]}}
@@ -441,10 +456,14 @@ def main() -> int:
     while len(per_slot_aliases) < total_slides:
         per_slot_aliases.append(None)
     post_id = re.sub(r"[^a-z0-9]+", "-", cover_title.lower())[:30]
+    visual_fallbacks = data.get("visual_fallback_queries", [])
+    while len(visual_fallbacks) < total_slides:
+        visual_fallbacks.append("")
     sourcer = ImageSourcer(topic="editorial", use_fresh_ledger=args.dry_run)
     images  = sourcer.source_images(
         queries[:total_slides], intent, post_id,
         per_slot_aliases=per_slot_aliases[:total_slides],
+        visual_fallback_queries=visual_fallbacks[:total_slides],
     )
 
     if not images or not images[0]:
