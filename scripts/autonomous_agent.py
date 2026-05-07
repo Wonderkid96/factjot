@@ -128,18 +128,41 @@ def build_history_summary(limit: int = HISTORY_LIMIT) -> str:
 # ------------------------------------------------------------------ #
 
 def _run_pipeline(cmd: list[str]) -> str:
+    """Run a pipeline subprocess and stream its output line-by-line.
+
+    Streaming is critical for diagnosing hangs: if a pipeline gets stuck
+    on a network call we want to see the last printed step in the
+    GitHub Actions log immediately, not after the subprocess returns.
+    """
     print(f"\n$ {' '.join(repr(c) if (' ' in c or len(c) > 80) else c for c in cmd)}", flush=True)
+    captured: list[str] = []
     try:
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=2400, cwd=str(REPO_ROOT),
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            cwd=str(REPO_ROOT),
+            bufsize=1,
         )
+    except Exception as exc:
+        return f"ERROR: failed to start pipeline: {exc}"
+
+    try:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            line = line.rstrip()
+            print(f"  | {line}", flush=True)
+            captured.append(line)
+        rc = proc.wait(timeout=2400)
     except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=10)
         return "ERROR: pipeline timed out after 40 minutes"
-    output = (result.stdout + result.stderr).strip()
-    if output:
-        print(output[:4000], flush=True)
-    head = output[:7000] if output else "(no output)"
-    return f"exit_code={result.returncode}\n\n{head}"
+
+    output = "\n".join(captured).strip()
+    head = output[-7000:] if output else "(no output)"
+    return f"exit_code={rc}\n\n{head}"
 
 
 def run_reel(args: dict, dry_run: bool) -> str:
