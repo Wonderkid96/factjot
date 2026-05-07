@@ -32,8 +32,17 @@ from googleapiclient.http import MediaFileUpload
 
 REPO_ROOT     = Path(__file__).resolve().parent.parent
 REELS_LEDGER  = REPO_ROOT / "insta-brain" / "data" / "reels.jsonl"
-REEL_CACHE    = REPO_ROOT / "data" / "cache" / "reels"
 YT_LEDGER     = REPO_ROOT / "data" / "ledgers" / "youtube_uploads.jsonl"
+
+# Resolve the reel output dir from src.core.paths so we stay in sync if
+# it ever moves (currently REPO_ROOT/output/reel/{reel_id}/final.mp4).
+import sys as _sys
+_sys.path.insert(0, str(REPO_ROOT))
+try:
+    from src.core.paths import REELS_CACHE as _REELS_CACHE
+except Exception:
+    _REELS_CACHE = REPO_ROOT / "output" / "reel"
+REEL_CACHE = _REELS_CACHE
 
 TOKEN_URI     = "https://oauth2.googleapis.com/token"
 SCOPES        = ["https://www.googleapis.com/auth/youtube.upload"]
@@ -127,11 +136,28 @@ def _resolve_video_path(arg_path: str | None, reel_meta: dict | None) -> Path:
         if not p.exists():
             raise FileNotFoundError(f"Video not found: {p}")
         return p
-    if reel_meta and reel_meta.get("reel_id"):
-        candidate = REEL_CACHE / reel_meta["reel_id"] / "final.mp4"
-        if candidate.exists():
-            return candidate
-    raise FileNotFoundError("No video path provided and could not auto-resolve from reels.jsonl")
+    if reel_meta:
+        # Prefer the out_dir recorded in reels.jsonl when present (most
+        # reliable, survives path refactors). Fall back to constructing
+        # from REELS_CACHE / reel_id / final.mp4.
+        candidates: list[Path] = []
+        out_dir = reel_meta.get("out_dir")
+        if out_dir:
+            p = Path(out_dir)
+            if not p.is_absolute():
+                p = REPO_ROOT / p
+            candidates.append(p / "final.mp4")
+        if reel_meta.get("reel_id"):
+            candidates.append(REEL_CACHE / reel_meta["reel_id"] / "final.mp4")
+        for c in candidates:
+            if c.exists():
+                return c
+        tried = "\n  tried: " + "\n  tried: ".join(str(c) for c in candidates)
+        raise FileNotFoundError(
+            f"Latest reel ({reel_meta.get('reel_id')}) is in reels.jsonl "
+            f"but final.mp4 was not on disk.{tried}"
+        )
+    raise FileNotFoundError("No video path provided and reels.jsonl is empty.")
 
 
 def _ensure_shorts_tag(description: str) -> str:
