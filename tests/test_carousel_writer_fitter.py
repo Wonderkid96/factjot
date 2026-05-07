@@ -123,3 +123,28 @@ def test_fitter_accepts_clean_output(monkeypatch):
     )
     assert len(fits) == 1
     assert fits[0].lines == ["phineas gage,", "took a rod", "in 1848"]
+
+
+def test_fitter_exception_carries_partial_usage(monkeypatch):
+    """When the fitter raises, callers must be able to read the partial
+    cost so the carousel_quality.jsonl ledger reflects honest spend."""
+    fake = MagicMock()
+    fake.messages.create.return_value = _mock_anthropic_response({
+        "slides": [
+            {"slide_index": 2, "lines": ["phineas gage", "took a rod", "to the head"]}
+        ]
+    })
+    monkeypatch.setattr("src.content.carousel_writer.Anthropic", lambda api_key: fake)
+    with pytest.raises(FactPreservationError) as exc:
+        fit_slide_lines(
+            editorial_slides=[EditorialSlide(
+                slide_index=2,
+                prose="Phineas Gage survived an iron rod through his skull in 1848.",
+            )],
+            hard_cap=24,
+            api_key="dummy",
+        )
+    assert exc.value.usage["stage"] == "fitter"
+    assert exc.value.usage["input_tokens"] == 100
+    assert exc.value.usage["output_tokens"] == 200
+    assert exc.value.usage["cost_usd"] > 0

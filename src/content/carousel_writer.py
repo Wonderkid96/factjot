@@ -67,11 +67,26 @@ class WriterResult:
 
 
 class FactPreservationError(RuntimeError):
-    """Raised when the fitter changes a fact, name, date or number."""
+    """Raised when the fitter changes a fact, name, date or number.
+
+    Carries a `usage` dict (Haiku call that produced the bad output) so
+    callers can ledger the cost honestly even though the run failed.
+    """
+
+    def __init__(self, message: str, *, usage: dict[str, Any] | None = None):
+        super().__init__(message)
+        self.usage = usage or {}
 
 
 class LineFitError(RuntimeError):
-    """Raised when the fitter cannot produce 3 lines under the cap."""
+    """Raised when the fitter cannot produce 3 lines under the cap.
+
+    Carries a `usage` dict for the same reason as FactPreservationError.
+    """
+
+    def __init__(self, message: str, *, usage: dict[str, Any] | None = None):
+        super().__init__(message)
+        self.usage = usage or {}
 
 
 # ------------------------------------------------------------------ #
@@ -297,12 +312,29 @@ def fit_slide_lines(
         temperature=0.1,
         messages=[{"role": "user", "content": prompt}],
     )
+
+    # Compute usage upfront so we can attach it to any raised exception
+    # (callers ledger the partial cost on failed runs).
+    pricing = {"input": 0.80, "output": 4.00}
+    cost = (
+        res.usage.input_tokens / 1_000_000 * pricing["input"]
+        + res.usage.output_tokens / 1_000_000 * pricing["output"]
+    )
+    _usage_so_far = {
+        "model": "claude-haiku-4-5-20251001",
+        "stage": "fitter",
+        "input_tokens": res.usage.input_tokens,
+        "output_tokens": res.usage.output_tokens,
+        "cost_usd": round(cost, 5),
+    }
+
     data = _parse_json_payload(res.content[0].text)
 
     fits_raw = data.get("slides") or []
     if len(fits_raw) != len(editorial_slides):
         raise LineFitError(
-            f"fitter returned {len(fits_raw)} slides, expected {len(editorial_slides)}"
+            f"fitter returned {len(fits_raw)} slides, expected {len(editorial_slides)}",
+            usage=_usage_so_far,
         )
 
     fits: list[SlideFit] = []
@@ -310,13 +342,15 @@ def fit_slide_lines(
         lines = list(out.get("lines") or [])
         if len(lines) != 3:
             raise LineFitError(
-                f"slide {inp.slide_index}: fitter returned {len(lines)} lines"
+                f"slide {inp.slide_index}: fitter returned {len(lines)} lines",
+                usage=_usage_so_far,
             )
         for line in lines:
             stripped = re.sub(r"\[/?r\]", "", line).strip()
             if len(stripped) > hard_cap:
                 raise LineFitError(
-                    f"slide {inp.slide_index}: line {len(stripped)} > cap {hard_cap}: {stripped!r}"
+                    f"slide {inp.slide_index}: line {len(stripped)} > cap {hard_cap}: {stripped!r}",
+                    usage=_usage_so_far,
                 )
         joined_in = inp.prose
         joined_out = " ".join(lines)
@@ -325,7 +359,8 @@ def fit_slide_lines(
         missing_numbers = in_numbers - out_numbers
         if missing_numbers:
             raise FactPreservationError(
-                f"slide {inp.slide_index}: fitter dropped numbers {sorted(missing_numbers)}"
+                f"slide {inp.slide_index}: fitter dropped numbers {sorted(missing_numbers)}",
+                usage=_usage_so_far,
             )
         in_propers = {
             w.rstrip(".,;:!?")
@@ -340,15 +375,11 @@ def fit_slide_lines(
         if missing_propers:
             raise FactPreservationError(
                 f"slide {inp.slide_index}: fitter dropped proper nouns "
-                f"{sorted(missing_propers)}"
+                f"{sorted(missing_propers)}",
+                usage=_usage_so_far,
             )
         fits.append(SlideFit(slide_index=inp.slide_index, lines=lines))
 
-    pricing = {"input": 0.80, "output": 4.00}
-    cost = (
-        res.usage.input_tokens / 1_000_000 * pricing["input"]
-        + res.usage.output_tokens / 1_000_000 * pricing["output"]
-    )
     usage = {
         "model": "claude-haiku-4-5-20251001",
         "stage": "fitter",

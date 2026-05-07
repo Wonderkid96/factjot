@@ -61,10 +61,21 @@ class CarouselShapeError(RuntimeError):
 
     Carries a structured diagnostics payload so the autonomous agent
     can surface it in its tool result.
+
+    `usage` is a dict of any partial cost incurred before the shape
+    check ran, so the quality ledger can record honest spend even on
+    failed runs.
     """
 
-    def __init__(self, message: str, diagnostics: dict[str, Any]):
+    def __init__(
+        self,
+        message: str,
+        diagnostics: dict[str, Any],
+        *,
+        usage: dict[str, Any] | None = None,
+    ):
         self.diagnostics = diagnostics
+        self.usage = usage or {}
         summary = (
             f"{message} "
             f"(requested_content_slides={diagnostics.get('requested_content_slides')}, "

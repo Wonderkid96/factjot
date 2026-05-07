@@ -284,6 +284,10 @@ def generate_content(
             )
             fitter_costs_sum += float(usage_b.get("cost_usd", 0.0) or 0.0)
         except (FactPreservationError, LineFitError) as exc:
+            # Failed attempts still cost us tokens. Attribute them so the
+            # ledger reflects honest spend.
+            attempt_usage = getattr(exc, "usage", {}) or {}
+            fitter_costs_sum += float(attempt_usage.get("cost_usd", 0.0) or 0.0)
             last_err = exc
             feedback = str(exc)
             _log(f"     [fitter retry {attempt}] {exc}")
@@ -318,26 +322,33 @@ def generate_content(
         _log(f"     [fitter retry {attempt}] visual wrap detected:\n{feedback}")
     else:
         raise LineFitError(
-            f"fitter could not produce a non-wrapping deck after 3 attempts: {last_err}"
+            f"fitter could not produce a non-wrapping deck after 3 attempts: {last_err}",
+            usage={
+                "stage": "fitter",
+                "cost_usd": round(fitter_costs_sum, 5),
+                "fitter_attempts": fitter_attempts,
+                "editorial_cost_usd": float(usage_a.get("cost_usd", 0.0) or 0.0),
+            },
         )
 
     # Reshape into the dict form the rest of the pipeline already speaks.
+    # writer_result.slot_aliases is parallel to writer_result.slides by
+    # construction in write_editorial_slides, so zip them rather than
+    # using list.index() (which would silently misroute on any future
+    # writer that produced two EditorialSlide rows with the same fields).
+    if len(writer_result.slot_aliases) < len(writer_result.slides):
+        # Pad to the slides length so zip never starves; missing entries
+        # become empty alias lists (the same fallback as the previous code).
+        writer_result.slot_aliases = (
+            list(writer_result.slot_aliases)
+            + [[] for _ in range(len(writer_result.slides) - len(writer_result.slot_aliases))]
+        )
     fitted_by_index = {f.slide_index: f for f in fits}
     slide_dicts: list[dict] = []
-    for ed in writer_result.slides:
+    for ed, slot_aliases_for_slide in zip(writer_result.slides, writer_result.slot_aliases):
         f = fitted_by_index.get(ed.slide_index)
         if f is None:
             raise LineFitError(f"fitter dropped slide_index={ed.slide_index}")
-        # Stage A's slot_aliases list is parallel to its slides list, so
-        # the writer-result index (not slide_index) keys it.
-        try:
-            sa_idx = writer_result.slides.index(ed)
-            slot_aliases_for_slide = (
-                writer_result.slot_aliases[sa_idx]
-                if sa_idx < len(writer_result.slot_aliases) else []
-            )
-        except ValueError:
-            slot_aliases_for_slide = []
         slide_dicts.append({
             "slideNumber":  ed.slide_index,
             "lines":        f.lines,
@@ -365,7 +376,17 @@ def generate_content(
     }
 
     # n_slides is content-only (see Slide-count contract).
-    _enforce_carousel_shape(data, requested_content_slides=n_slides)
+    try:
+        _enforce_carousel_shape(data, requested_content_slides=n_slides)
+    except CarouselShapeError as shape_err:
+        # Attach what was already spent so the ledger row is honest.
+        shape_err.usage = {
+            "editorial_cost_usd": float(usage_a.get("cost_usd", 0.0) or 0.0),
+            "fitter_cost_usd":    round(fitter_costs_sum, 5),
+            "fitter_attempts":    fitter_attempts,
+            "probe_attempts":     probe_attempts,
+        }
+        raise
 
     warnings = _validate_lines(slide_dicts)
     for w in warnings:
@@ -496,6 +517,7 @@ def main() -> int:
     except CarouselShapeError as shape_err:
         _log(f"\nERROR: CONTENT_SHAPE_MISMATCH - {shape_err}")
         _log(f"       Diagnostics: {json.dumps(shape_err.diagnostics, ensure_ascii=False)}")
+        partial = shape_err.usage or {}
         _write_quality_ledger_entry(
             ledger_path=quality_ledger_path,
             post_id="shape-failed",
@@ -506,10 +528,29 @@ def main() -> int:
             dropped_facts=shape_err.diagnostics.get("dropped_facts") or [],
             image_coverage={"image": 0, "typography": 0, "cover_failed": False},
             result="shape_failed",
+            editorial_cost_usd=float(partial.get("editorial_cost_usd", 0.0) or 0.0),
+            fitter_cost_usd=float(partial.get("fitter_cost_usd", 0.0) or 0.0),
+            fitter_attempts=int(partial.get("fitter_attempts", 0) or 0),
+            probe_attempts=int(partial.get("probe_attempts", 0) or 0),
         )
         return 1
     except (FactPreservationError, LineFitError) as fit_err:
         _log(f"\nERROR: CONTENT_SHAPE_MISMATCH - fitter failed: {fit_err}")
+        partial = getattr(fit_err, "usage", {}) or {}
+        # The fitter attaches different shapes depending on where it raised:
+        # the per-attempt usage from fit_slide_lines (just stage/cost_usd) vs
+        # the aggregated usage from the retry-exhausted "else" branch
+        # (editorial_cost_usd / fitter_cost_usd / fitter_attempts).
+        if "editorial_cost_usd" in partial:
+            ed_cost = float(partial.get("editorial_cost_usd", 0.0) or 0.0)
+            fit_cost = float(partial.get("fitter_cost_usd", 0.0) or 0.0)
+            fit_n = int(partial.get("fitter_attempts", 0) or 0)
+        else:
+            # Single-attempt failure (the retry loop didn't even start).
+            # Stage A by definition succeeded since fit was called.
+            ed_cost = 0.0
+            fit_cost = float(partial.get("cost_usd", 0.0) or 0.0)
+            fit_n = 1
         _write_quality_ledger_entry(
             ledger_path=quality_ledger_path,
             post_id="fitter-failed",
@@ -520,6 +561,9 @@ def main() -> int:
             dropped_facts=[],
             image_coverage={"image": 0, "typography": 0, "cover_failed": False},
             result="fitter_failed",
+            editorial_cost_usd=ed_cost,
+            fitter_cost_usd=fit_cost,
+            fitter_attempts=fit_n,
         )
         return 1
 
@@ -610,6 +654,10 @@ def main() -> int:
             dropped_facts=data.get("dropped_facts") or [],
             image_coverage={"image": 0, "typography": total_slides, "cover_failed": True},
             result="cover_failed",
+            editorial_cost_usd=editorial_cost,
+            fitter_cost_usd=fitter_cost,
+            fitter_attempts=data.get("_fitter_attempts", 1),
+            probe_attempts=data.get("_probe_attempts", 0),
         )
         return 1
 

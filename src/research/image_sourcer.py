@@ -9,7 +9,7 @@ Fallback contract:
   1. Haiku selects from the pre-filtered, scored candidate pool (primary pick).
   2. Code enforces all hard rules before and after Haiku (safety layer).
   3. Deterministic fallback: top-scoring eligible candidate with score >= MIN_SCORE.
-  4. Reuse a committed image: use_count < 2, URL != last_used_url.
+  4. Reuse a committed image: use_count < MAX_REUSES, URL != last_used_url.
   5. Typography-only slide (returns "").
   No wrong-subject image is ever selected over a typography slide.
 """
