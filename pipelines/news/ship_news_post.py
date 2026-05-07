@@ -734,7 +734,7 @@ def _render_news_slide_photo(
     .top-divider{{flex:1;height:1px;background:var(--off-white);opacity:0.32;}}
     .index{{background:rgba(255,255,255,0.12);color:var(--off-white);font-family:"JetBrains Mono",monospace;font-weight:700;font-size:24px;letter-spacing:0.04em;padding:8px 18px 10px;border-radius:999px;line-height:1;flex-shrink:0;}}
     .lines{{display:flex;flex-direction:column;gap:8px;}}
-    .line{{font-family:"Archivo Black","Inter",system-ui,sans-serif;font-weight:900;font-size:60px;line-height:1.05;letter-spacing:-0.01em;text-transform:lowercase;color:var(--off-white);text-shadow:2px 2px 0 rgba(0,0,0,0.55);}}
+    .line{{font-family:"Archivo Black","Inter",system-ui,sans-serif;font-weight:900;font-size:48px;line-height:1.08;letter-spacing:-0.01em;text-transform:lowercase;color:var(--off-white);text-shadow:2px 2px 0 rgba(0,0,0,0.55);}}
     .line .red{{color:var(--accent);font-weight:900;}}
     </style></head><body>
     <div class="stage">
@@ -776,7 +776,7 @@ def _render_news_slide_typography(
             font-weight:700;font-size:24px;letter-spacing:0.04em;padding:8px 18px 10px;border-radius:999px;line-height:1;flex-shrink:0;}}
     .lines-wrap{{flex:1;display:flex;flex-direction:column;justify-content:center;padding-right:20px;}}
     .lines{{display:flex;flex-direction:column;gap:10px;}}
-    .line{{font-family:"Archivo Black","Inter",system-ui,sans-serif;font-weight:900;font-size:64px;line-height:1.05;
+    .line{{font-family:"Archivo Black","Inter",system-ui,sans-serif;font-weight:900;font-size:52px;line-height:1.08;
            letter-spacing:-0.01em;text-transform:lowercase;color:var(--off-white);}}
     .line .red{{color:var(--accent);font-weight:900;}}
     </style></head><body>

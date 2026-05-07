@@ -690,6 +690,13 @@ NEWS_PROMPT = textwrap.dedent("""\
       understand by the end, the named entities involved, and any
       specific dates / numbers / names that anchor it.
 
+    BEAT DENSITY -- HARD RULE
+
+    Each numbered beat in the brief becomes ONE slide. Each slide carries
+    ONE thought. Do NOT pack two facts into one beat. The slide writer
+    has a 18-28 character budget per line, max 32, in Archivo Black 900.
+    If your beat needs more than 3 short sentences to express, split it.
+
     DECISION PROCESS
 
     1. Call list_unposted_topics().
@@ -752,6 +759,12 @@ LIST_PROMPT = textwrap.dedent("""\
     - a one-line angle per item (why this item belongs in this list)
     - the editorial framing (what the 5 together reveal)
     - what the closing slide should make the viewer think
+
+    BEAT DENSITY -- HARD RULE
+
+    Each item gets ONE slide. The item slide carries ONE angle on that
+    item, not two. Do not pack two items into one slide. The slide writer
+    has 18-28 characters per line, max 32, in Archivo Black 900.
 
     DECISION PROCESS
 
@@ -824,6 +837,26 @@ FACT_PROMPT = textwrap.dedent("""\
     - the angle (the weird bit, the contradiction, the consequence)
     - the 5 beats the carousel should hit, in order
     - what the closing slide should make the viewer think
+
+    BEAT DENSITY -- HARD RULE
+
+    Each numbered beat in the brief becomes ONE slide. Each slide carries
+    ONE thought. So each beat must be ONE thought.
+
+    Forbidden: a beat that names two people, two events, two consequences,
+    or two anything. Example of a banned beat: "locals nicknamed it X and
+    drove on for the ride. A man named Y abandoned his car and crawled
+    off. His dog Z died. A film-maker W filmed it." That is FOUR beats
+    pretending to be one. The slide writer cannot fit them into 3 lines
+    without dropping content or producing nonsense.
+
+    If the story has 7 distinct things worth saying, write 7 beats and
+    call run_carousel with slides=8 (cover + 7). Better to have more
+    short slides than fewer crowded ones.
+
+    Each line on a slide is rendered in Archivo Black 900. The writer
+    has a budget of 18-28 characters per line, max 32. If your beat
+    needs more than 3 short sentences to express, it is too dense.
 
     DECISION PROCESS
 

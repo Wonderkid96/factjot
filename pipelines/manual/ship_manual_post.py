@@ -54,18 +54,24 @@ Voice: curious, precise, dry. A smart friend explaining something remarkable.
 Tone: confident, never sensational. Present tense where possible.
 Reading level: general audience.
 
-Slide format (strict):
-- Each slide: exactly 3 lines
-- Each line: 28 to 42 characters. Never exceed 48 characters.
-- Lines must flow as connected sentences, NOT bullet points or fragments
-- Each slide covers one coherent moment or idea
-- Front-load the most interesting element on each slide
-- No hedging, no filler, no attribution phrases ("sources say", "according to")
+Slide format (strict, tuned for Archivo Black 900):
+- Each slide: exactly 3 lines.
+- Each line: 18 to 28 characters. NEVER exceed 32 characters. Anything
+  over 32 wraps in Archivo Black at the rendered slide size and breaks
+  the layout.
+- Lines must flow as connected sentences, NOT bullet points or fragments.
+- ONE THOUGHT PER SLIDE -- HARD RULE. A slide makes ONE point. If the
+  brief beat names two people, two events, two consequences, two anything,
+  you may NOT compress them into a single slide. Either the brief beat
+  itself is wrong (push back by writing fewer slides than asked) or the
+  agent miscounted beats. Do not weld unrelated facts together.
+- Front-load the most interesting element on each slide.
+- No hedging, no filler, no attribution phrases ("sources say", "according to").
 - No em-dashes. Use commas, full stops, or parentheses instead.
 - Do not end a line with a weak connector word: a, the, and, or, of, in, to, with
-- Do not leave the final line under 12 characters
-- Do not split names, dates, numbers or key phrases across lines awkwardly
-- Prefer clean visual rhythm over exact word count
+- Do not leave the final line under 10 characters.
+- Do not split names, dates, numbers or key phrases across lines awkwardly.
+- Prefer clean visual rhythm over exact word count.
 
 Red keyword markup:
 - Wrap 1-2 key words or short phrases per line in [r]...[/r] -- rendered in red
@@ -318,26 +324,52 @@ Return JSON only, no prose."""
 
 _WEAK_ENDINGS = frozenset({"a", "the", "and", "or", "of", "in", "to", "with", "an", "at", "by", "for"})
 
+# Hard cap for a single content-slide line (Archivo Black 900 at slide size).
+# Lines over this WILL wrap visually and break the layout. Sonnet's writer
+# prompt asks for 18-28; this 32 gives a small safety margin before fail.
+HARD_LINE_CAP = 32
+
 
 def _strip_markup(text: str) -> str:
     return re.sub(r"\[/?r\]", "", text)
 
 
 def _validate_lines(slides: list[dict]) -> list[str]:
-    """Return warning strings for lines that violate character rules."""
+    """Return warning strings for lines that violate soft character rules."""
     warnings: list[str] = []
     for i, slide in enumerate(slides, 1):
         lines = slide.get("lines", [])
         for j, raw_line in enumerate(lines):
             line = _strip_markup(raw_line).strip()
-            if len(line) > 48:
-                warnings.append(f"slide {i} line {j+1}: {len(line)} chars (max 48): {line!r}")
-            if len(line) < 12 and j == len(lines) - 1:
+            if len(line) > HARD_LINE_CAP:
+                warnings.append(f"slide {i} line {j+1}: {len(line)} chars (max {HARD_LINE_CAP}): {line!r}")
+            if len(line) < 10 and j == len(lines) - 1:
                 warnings.append(f"slide {i} final line too short ({len(line)} chars): {line!r}")
             last_word = line.rstrip(".,;:!?").split()[-1].lower() if line.split() else ""
             if last_word in _WEAK_ENDINGS:
                 warnings.append(f"slide {i} line {j+1}: ends with weak word '{last_word}'")
     return warnings
+
+
+def _assert_lines_within_render_cap(slides: list[dict]) -> None:
+    """Hard-fail if any slide line exceeds HARD_LINE_CAP.
+
+    Lines over the cap visually wrap in the renderer and the carousel
+    ships looking like garbage (e.g. 'leonard coatsworth crawled off on
+    his hands and knees' breaking across four visual lines). Better to
+    abort the run and skip the slot than ship a broken layout.
+    """
+    bad: list[str] = []
+    for i, slide in enumerate(slides, 1):
+        for j, raw_line in enumerate(slide.get("lines", [])):
+            line = _strip_markup(raw_line).strip()
+            if len(line) > HARD_LINE_CAP:
+                bad.append(f"slide {i} line {j+1}: {len(line)} chars > cap {HARD_LINE_CAP}: {line!r}")
+    if bad:
+        raise RuntimeError(
+            "OVERCAP_SLIDE_LINES (Archivo Black wraps these and the layout breaks):\n"
+            + "\n".join(bad)
+        )
 
 
 def generate_content(
@@ -399,6 +431,10 @@ def generate_content(
     warnings = _validate_lines(slides)
     for w in warnings:
         _log(f"     [line warn] {w}")
+
+    # Hard-fail if any line exceeds the renderer's cap. Better to abort
+    # than ship a layout-broken carousel that wraps mid-name.
+    _assert_lines_within_render_cap(slides)
 
     pricing = {"input": 3.00, "output": 15.00}
     cost = (res.usage.input_tokens / 1_000_000) * pricing["input"] + \
@@ -622,8 +658,8 @@ def main() -> int:
 
         result      = publisher.publish_carousel(image_urls, caption)
         ig_media_id = result.get("id") or result.get("ig_media_id", "")
-        _log(f"\nPosted! Media ID: {ig_media_id}")
         if ig_media_id:
+            _log(f"\nPosted! Media ID: {ig_media_id}")
             brain.record_publish(
                 post_id=post_id,
                 ig_media_id=ig_media_id,
@@ -634,6 +670,15 @@ def main() -> int:
                     "sources":  [],
                 }],
             )
+        else:
+            err = result.get("error", "(no error key in result)")
+            _log(f"\nPUBLISH FAILED: {err}")
+            _log(f"     full result: {result}")
+            _log(f"     {len(image_urls)} image URLs were uploaded to host successfully.")
+            _log(f"     IG Graph API rejected the carousel. Common causes: image-fetch")
+            _log(f"     timeout from Meta side, container ERROR/EXPIRED status, token issue,")
+            _log(f"     or aspect-ratio mismatch on one of the slides.")
+            return 1
 
         # Story: 9:16 story frame + link back to carousel
         story_result = {"ok": False, "error": "no media id"}
