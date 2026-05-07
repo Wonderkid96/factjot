@@ -79,6 +79,7 @@ jobs:
           ffmpeg-version: release
 
       - name: Install Python dependencies
+        timeout-minutes: 4
         run: pip install -r requirements.txt
 
       - name: Cache Playwright browsers
@@ -87,13 +88,21 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+          # Fall back to the most recent Playwright cache for this OS so a
+          # requirements.txt edit (e.g. adding google-* libs for YouTube)
+          # does not cause a full Chromium re-download. Playwright ignores
+          # unrelated browser binaries, so the partial cache still helps.
+          restore-keys: |
+            playwright-chromium-${{ runner.os }}-
 
       - name: Install Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 8
         run: playwright install chromium --with-deps
 
       - name: Install Playwright system deps (cached run)
         if: steps.playwright-cache.outputs.cache-hit == 'true'
+        timeout-minutes: 3
         run: playwright install-deps chromium
 
       - name: Write .env from secrets
@@ -128,6 +137,7 @@ jobs:
         run: python3 -u pipelines/shared/refresh_token.py
 
       - name: Run autonomous Claude agent
+        timeout-minutes: 40
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           PYTHONUNBUFFERED: "1"
