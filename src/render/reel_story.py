@@ -3,11 +3,14 @@
 Posted to Instagram Stories immediately after a Reel goes live. Drives
 profile visits from viewers who see the Story but not the Reel in-feed.
 
-Design: dark background, accent gradient line, carousel header (factjot. ─── New Reel),
-red NEW REEL pill, large fact title, "↑ Watch on our profile" CTA, topic pill at bottom.
+Design: TJCreate Visual Style Guide v2.0 - stripped layout, central
+Archivo Black 900 lowercase headline + small NEW REEL pill. The Reel
+cover carries brand chrome; the story is the hook in its purest form.
+Years in the title are auto-accented red.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
@@ -17,22 +20,27 @@ from src.core.brand import (
     FONT_SERIF_REGULAR, FONT_SERIF_ITALIC,
     FONT_SANS_SEMIBOLD,
     FONT_MONO_BOLD,
+    FONT_CAPTION_BLACK,
     REEL_W, REEL_H,
     assert_fonts_present,
 )
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 
+_YEAR_RE = re.compile(r"\b(1[1-9]\d{2}|20\d{2})\b")
+
 
 def _title_to_html(title: str) -> str:
-    """Light emphasis: italicise the last word for Instrument Serif flair."""
+    """Prepare title for the Archivo Black headline.
+
+    Strips trailing period (template adds an accent dot via CSS) and wraps
+    any 4-digit year in <strong> so it renders in accent red. Matches the
+    reel thumbnail treatment so cover and story read as a pair.
+    """
     from html import escape
-    words = title.split()
-    if len(words) <= 2:
-        return escape(title)
-    plain = escape(" ".join(words[:-1]))
-    last = escape(words[-1])
-    return f"{plain} <em>{last}</em>"
+    cleaned = title.strip().rstrip(".")
+    escaped = escape(cleaned)
+    return _YEAR_RE.sub(lambda m: f"<strong>{m.group(0)}</strong>", escaped)
 
 
 def render_story(
@@ -41,7 +49,8 @@ def render_story(
     out_path: Path,
     *,
     frame_path: Path | None = None,
-    title_size: int = 96,
+    title_size: int = 132,
+    kicker: str | None = None,
 ) -> Path:
     """Render a Story PNG with optional footage frame as background."""
     assert_fonts_present()
@@ -65,11 +74,13 @@ def render_story(
         topic=topic.upper(),
         title_html=_title_to_html(title),
         title_size=title_size,
+        kicker=kicker,
         frame_url=frame_url,
         font_serif_regular=FONT_SERIF_REGULAR.as_uri(),
         font_serif_italic=FONT_SERIF_ITALIC.as_uri(),
         font_sans_semibold=FONT_SANS_SEMIBOLD.as_uri(),
         font_mono_bold=FONT_MONO_BOLD.as_uri(),
+        font_archivo_black=FONT_CAPTION_BLACK.as_uri() if FONT_CAPTION_BLACK.exists() else None,
     )
 
     with sync_playwright() as pw:

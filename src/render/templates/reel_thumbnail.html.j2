@@ -1,4 +1,21 @@
 <!doctype html>
+{# ----------------------------------------------------------------------- #}
+{# factjot. — Reel thumbnail (1080×1920)                                    #}
+{# Style: TJCreate Visual Style Guide v2.0 (Caption Type Update · 05/2026)  #}
+{#                                                                           #}
+{# Layout: masthead at the top of the 4:5 grid window, headline centred,    #}
+{# pill + counter at the bottom of the 4:5 grid window. Everything that     #}
+{# matters survives the profile-grid 4:5 crop (y=285..1635).                 #}
+{#                                                                           #}
+{# Type rule (NON-NEGOTIABLE): Archivo Black 900 is used ONLY on the         #}
+{# central headline. Every other text element is Instrument Serif (wordmark) #}
+{# or JetBrains Mono Bold (labels/metadata).                                 #}
+{#                                                                           #}
+{# Required vars: width, height, frame_url, topic, category, title_html,    #}
+{#                font_serif_regular, font_serif_italic, font_mono_bold,    #}
+{#                font_archivo_black                                         #}
+{# Optional vars: kicker, fact_number, headline_size (default 132)          #}
+{# ----------------------------------------------------------------------- #}
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -18,14 +35,27 @@
     src: url("{{ font_mono_bold }}") format("truetype");
     font-weight: 700; font-style: normal;
   }
+  {% if font_archivo_black %}
+  @font-face {
+    font-family: "Archivo Black";
+    src: url("{{ font_archivo_black }}") format("truetype");
+    font-weight: 900; font-style: normal;
+  }
+  {% endif %}
 
   :root {
-    --paper: #F4F1E9;
-    --ink: #0A0A0A;
-    --near-black: #0B0B0C;
+    --paper:     #F4F1E9;
+    --ink:       #0A0A0A;
+    --near-black:#0B0B0C;
+    --surface:   #161614;
+    --elevated:  #1E1E1B;
     --off-white: #EDE8DD;
-    --accent: #E6352A;
-    --white: #FFFFFF;
+    --muted:     #6B645A;
+    --accent:    #E6352A;
+    --lime:      #C8DB45;
+    --lilac:     #C4A9D0;
+    --sky:       #C9D8E2;
+    --white:     #FFFFFF;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -34,10 +64,11 @@
     width: {{ width }}px;
     height: {{ height }}px;
     overflow: hidden;
-    background: var(--near-black);
-    color: var(--white);
+    background: var(--ink);
+    color: var(--off-white);
     font-family: "Instrument Serif", Georgia, serif;
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
   .stage {
@@ -48,152 +79,153 @@
     isolation: isolate;
   }
 
-  /* Footage frame fills the full 9:16 canvas */
+  /* Footage frame — full-bleed across 1080×1920 */
   .photo {
     position: absolute;
     inset: 0;
     {% if frame_url %}
     background: url("{{ frame_url }}") center/cover no-repeat;
     {% else %}
-    background: linear-gradient(160deg, #1a1a1e 0%, #0D0D0F 50%, #0A0A0B 100%);
+    background:
+      radial-gradient(ellipse 90% 70% at 50% 35%, #2a1a18 0%, transparent 60%),
+      linear-gradient(170deg, #1a1a1e 0%, #0D0D0F 50%, #0A0A0B 100%);
     {% endif %}
     z-index: 0;
   }
 
-  /* Heavy top darken: covers the cropped zone AND fades into the safe
-     area's masthead band (~y=420 to y=620) so factjot. always reads. */
+  /* Heavy darken over the cropped top zone (above the 4:5 grid window) */
   .crop-darken-top {
     position: absolute;
     inset: 0 0 auto 0;
-    height: 620px;
+    height: 540px;
     background: linear-gradient(to bottom,
-      rgba(0,0,0,0.92) 0%,
-      rgba(0,0,0,0.85) 35%,
-      rgba(0,0,0,0.62) 68%,
+      rgba(0,0,0,0.96) 0%,
+      rgba(0,0,0,0.86) 40%,
+      rgba(0,0,0,0.55) 75%,
       rgba(0,0,0,0.00) 100%);
     z-index: 1;
   }
 
-  /* Heavy bottom darken: covers the cropped zone AND fades into the
-     safe area's bottom band (~y=1300 to y=1500) for pill + cornermark. */
+  /* Heavy darken over the cropped bottom zone */
   .crop-darken-bot {
     position: absolute;
     inset: auto 0 0 0;
-    height: 620px;
+    height: 540px;
     background: linear-gradient(to top,
-      rgba(0,0,0,0.92) 0%,
-      rgba(0,0,0,0.85) 35%,
-      rgba(0,0,0,0.62) 68%,
+      rgba(0,0,0,0.96) 0%,
+      rgba(0,0,0,0.86) 40%,
+      rgba(0,0,0,0.55) 75%,
       rgba(0,0,0,0.00) 100%);
     z-index: 1;
   }
 
-  /* Title scrim INSIDE the safe area so the headline always reads */
-  .title-scrim {
-    position: absolute;
-    left: 0; right: 0;
-    top: 720px;
-    height: 700px;
-    background: radial-gradient(ellipse 75% 65% at 50% 50%,
-      rgba(0,0,0,0.72) 0%,
-      rgba(0,0,0,0.42) 55%,
-      rgba(0,0,0,0.00) 100%);
-    z-index: 2;
-    pointer-events: none;
-  }
-
+  /* Grain — sits below all text */
   .grain {
     position: absolute;
     inset: 0;
-    z-index: 5;
-    opacity: 0.06;
+    z-index: 2;
+    opacity: 0.10;
     mix-blend-mode: overlay;
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='280' height='280'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.7 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='280' height='280'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.92' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.85 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
     pointer-events: none;
   }
 
-  /* Safe area: 1:1 centred on a 9:16 canvas = y=420..1500 */
+  /* SAFE AREA — 4:5 grid window. Everything brand-relevant lives here so it
+     survives the profile-grid crop (y=285..1635). */
   .safe {
     position: absolute;
     left: 0; right: 0;
-    top: 420px;
-    height: 1080px;
-    z-index: 10;
-    padding: 96px 96px 96px 96px;
+    top: 285px;
+    height: 1350px;
+    z-index: 20;
+    padding: 80px 72px 96px 72px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
   }
 
-  .safe-edge {
-    position: absolute;
-    left: 56px; right: 56px;
-    top: 458px;
-    height: 1004px;
-    border: 1px solid rgba(237, 232, 221, 0.10);
-    z-index: 9;
-    pointer-events: none;
-  }
-
+  /* MASTHEAD ROW */
   .top-row {
     display: flex;
     align-items: center;
-    gap: 22px;
+    gap: 18px;
     color: var(--off-white);
     text-shadow: 1px 1px 0 rgba(0,0,0,0.55);
   }
   .wordmark {
     font-family: "Instrument Serif", Georgia, serif;
-    font-size: 34px;
-    letter-spacing: -0.01em;
+    font-size: 38px;
+    letter-spacing: -0.02em;
     flex: 0 0 auto;
-    opacity: 0.95;
+    opacity: 0.96;
   }
   .wordmark .ital { font-style: italic; }
   .wordmark .dot  { color: var(--accent); }
-  .top-divider {
+  .top-rule {
     flex: 1 1 auto;
     height: 1px;
     background: var(--off-white);
-    opacity: 0.34;
+    opacity: 0.30;
   }
   .index {
     font-family: "JetBrains Mono", ui-monospace, monospace;
     font-weight: 700;
     font-size: 19px;
-    letter-spacing: 0.22em;
+    letter-spacing: 0.20em;
     text-transform: uppercase;
     flex: 0 0 auto;
-    opacity: 0.78;
+    opacity: 0.86;
+    white-space: nowrap;
   }
+  .index .b { opacity: 0.55; }
 
-  .middle {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-    align-self: center;
-    text-align: center;
-    width: 100%;
+  /* CENTRE — Archivo Black headline */
+  .hook {
+    align-self: stretch;
+    margin: auto 0;
+    text-align: left;
   }
-  .rule {
-    width: 56px;
-    height: 3px;
-    background: var(--accent);
-    align-self: center;
-    border-radius: 2px;
+  .kicker {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-weight: 700;
+    font-size: 22px;
+    letter-spacing: 0.20em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 28px;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.55);
   }
+  /* The ONE place Archivo Black is allowed in this template. */
   .headline {
-    font-family: "Instrument Serif", Georgia, serif;
-    font-weight: 400;
-    font-size: {{ headline_size }}px;
-    line-height: 1.04;
-    letter-spacing: -0.018em;
-    color: var(--white);
+    font-family: "Archivo Black", "Inter", system-ui, sans-serif;
+    font-weight: 900;
+    font-size: {{ headline_size or 132 }}px;
+    line-height: 0.96;
+    letter-spacing: -0.01em;
+    text-transform: lowercase;
+    color: var(--off-white);
     text-wrap: balance;
-    text-shadow: 2px 2px 0 rgba(0,0,0,0.62), 0 4px 24px rgba(0,0,0,0.45);
+    text-shadow: 3px 3px 0 rgba(0,0,0,0.55);   /* hard, short, subtle */
   }
-  .headline em { font-style: italic; font-weight: 400; }
+  .headline em {
+    font-style: normal;
+    font-weight: 900;
+    color: inherit;
+  }
+  .headline .h,
+  .headline strong {
+    font-style: normal;
+    font-weight: 900;
+    color: var(--accent);
+  }
+  .headline::after {
+    content: ".";
+    color: var(--accent);
+    font-family: "Archivo Black", "Inter", system-ui, sans-serif;
+    text-transform: none;
+  }
 
+  /* BOTTOM ROW — pill + section counter */
   .bottom-row {
     display: flex;
     align-items: flex-end;
@@ -201,29 +233,32 @@
     gap: 16px;
   }
   .pill {
-    background: var(--accent);
-    color: var(--white);
+    background: var(--surface);
+    color: var(--off-white);
+    border: 1px solid rgba(237,232,221,0.18);
     font-family: "JetBrains Mono", ui-monospace, monospace;
     font-weight: 700;
-    font-size: 18px;
-    letter-spacing: 0.30em;
-    padding: 8px 18px 10px 18px;
-    border-radius: 999px;
+    font-size: 19px;
+    letter-spacing: 0.22em;
+    padding: 11px 22px 13px;
+    border-radius: 9999px;
     text-transform: uppercase;
     line-height: 1;
     flex: 0 0 auto;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.55);
   }
-  .corner-mark {
+  .counter {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-weight: 700;
+    font-size: 19px;
+    letter-spacing: 0.20em;
+    text-transform: uppercase;
     color: var(--off-white);
-    font-family: "Instrument Serif", Georgia, serif;
-    font-size: 32px;
-    line-height: 1;
-    letter-spacing: -0.01em;
-    opacity: 0.92;
+    opacity: 0.78;
     flex: 0 0 auto;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.55);
   }
-  .corner-mark .ital { font-style: italic; }
-  .corner-mark .dot  { color: var(--accent); opacity: 1; }
+  .counter .b { opacity: 0.55; }
 </style>
 </head>
 <body>
@@ -231,24 +266,23 @@
     <div class="photo"></div>
     <div class="crop-darken-top"></div>
     <div class="crop-darken-bot"></div>
-    <div class="title-scrim"></div>
     <div class="grain"></div>
 
     <div class="safe">
       <div class="top-row">
         <span class="wordmark">fact<span class="ital">jot</span><span class="dot">.</span></span>
-        <span class="top-divider"></span>
-        <span class="index">{{ topic }}</span>
+        <span class="top-rule"></span>
+        <span class="index"><span class="b">[</span> 01 / {{ topic }} <span class="b">]</span></span>
       </div>
 
-      <div class="middle">
-        <div class="rule"></div>
+      <div class="hook">
+        {% if kicker %}<div class="kicker">{{ kicker }}</div>{% endif %}
         <h1 class="headline">{{ title_html | safe }}</h1>
       </div>
 
       <div class="bottom-row">
         <span class="pill">{{ category }}</span>
-        <span class="corner-mark">fact<span class="ital">jot</span><span class="dot">.</span></span>
+        {% if fact_number %}<span class="counter"><span class="b">[</span> №&nbsp;{{ fact_number }} <span class="b">]</span></span>{% endif %}
       </div>
     </div>
   </div>

@@ -1,4 +1,21 @@
 <!doctype html>
+{# ----------------------------------------------------------------------- #}
+{# factjot. — Reel story (1080×1920)                                        #}
+{# Style: TJCreate Visual Style Guide v2.0 (Caption Type Update · 05/2026)  #}
+{#                                                                           #}
+{# Layout: stripped — central headline only. No masthead, no pill, no CTA.   #}
+{# The story is the hook in its purest form; the Reel cover carries brand.   #}
+{#                                                                           #}
+{# Type rule (NON-NEGOTIABLE): Archivo Black 900 is used ONLY on the         #}
+{# central headline.                                                         #}
+{#                                                                           #}
+{# Required vars: width, height, frame_url, title_html,                     #}
+{#                font_serif_regular, font_serif_italic,                    #}
+{#                font_sans_semibold, font_mono_bold, font_archivo_black    #}
+{# Optional vars: kicker, title_size (default 132)                          #}
+{# Variables kept in signature for agent compatibility but unused here:     #}
+{#   topic                                                                   #}
+{# ----------------------------------------------------------------------- #}
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -6,36 +23,39 @@
   @font-face {
     font-family: "Instrument Serif";
     src: url("{{ font_serif_regular }}") format("truetype");
-    font-weight: 400;
-    font-style: normal;
+    font-weight: 400; font-style: normal;
   }
   @font-face {
     font-family: "Instrument Serif";
     src: url("{{ font_serif_italic }}") format("truetype");
-    font-weight: 400;
-    font-style: italic;
-  }
-  @font-face {
-    font-family: "Space Grotesk";
-    src: url("{{ font_sans_semibold }}") format("truetype");
-    font-weight: 600;
-    font-style: normal;
+    font-weight: 400; font-style: italic;
   }
   @font-face {
     font-family: "JetBrains Mono";
     src: url("{{ font_mono_bold }}") format("truetype");
-    font-weight: 700;
-    font-style: normal;
+    font-weight: 700; font-style: normal;
   }
+  {% if font_archivo_black %}
+  @font-face {
+    font-family: "Archivo Black";
+    src: url("{{ font_archivo_black }}") format("truetype");
+    font-weight: 900; font-style: normal;
+  }
+  {% endif %}
 
   :root {
     --paper:     #F4F1E9;
     --ink:       #0A0A0A;
     --near-black:#0B0B0C;
+    --surface:   #161614;
+    --elevated:  #1E1E1B;
     --off-white: #EDE8DD;
+    --muted:     #6B645A;
     --accent:    #E6352A;
     --lime:      #C8DB45;
     --lilac:     #C4A9D0;
+    --sky:       #C9D8E2;
+    --white:     #FFFFFF;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -44,201 +64,133 @@
     width: {{ width }}px;
     height: {{ height }}px;
     overflow: hidden;
-    background: var(--near-black);
+    background: var(--ink);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
 
   .stage {
     position: relative;
-    width: 100%;
-    height: 100%;
+    width: {{ width }}px;
+    height: {{ height }}px;
+    overflow: hidden;
+    isolation: isolate;
     {% if frame_url %}
-    background: url("{{ frame_url }}") center / cover no-repeat;
+    background: url("{{ frame_url }}") center/cover no-repeat;
     {% else %}
-    background: linear-gradient(175deg, #131315 0%, #0C0C0E 50%, #090909 100%);
+    background:
+      radial-gradient(ellipse 110% 80% at 50% 30%, #2a1a18 0%, transparent 60%),
+      linear-gradient(175deg, #131315 0%, #0C0C0E 50%, #090909 100%);
     {% endif %}
-    display: flex;
-    flex-direction: column;
   }
 
-  /* Dark overlay - sits above footage frame, below all text and branding */
+  /* Single full-canvas darken to keep the headline legible over any frame */
   .dark-overlay {
     position: absolute;
     inset: 0;
     z-index: 1;
     background: linear-gradient(
       to bottom,
-      rgba(0,0,0,0.72) 0%,
-      rgba(0,0,0,0.35) 30%,
-      rgba(0,0,0,0.35) 60%,
-      rgba(0,0,0,0.80) 100%
+      rgba(0,0,0,0.78) 0%,
+      rgba(0,0,0,0.55) 30%,
+      rgba(0,0,0,0.55) 70%,
+      rgba(0,0,0,0.85) 100%
     );
     pointer-events: none;
   }
 
-  /* Gradient accent line left edge - above overlay */
-  .accent-line {
+  /* Grain — sits below all text */
+  .grain {
     position: absolute;
-    left: 0;
-    top: 10%;
-    bottom: 10%;
-    width: 3px;
+    inset: 0;
     z-index: 2;
-    background: linear-gradient(
-      to bottom,
-      transparent 0%,
-      var(--accent) 15%,
-      var(--lime) 55%,
-      var(--lilac) 85%,
-      transparent 100%
-    );
-    opacity: 0.8;
+    opacity: 0.10;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='280' height='280'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.92' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.85 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    pointer-events: none;
   }
 
-  /* Top section - header and NEW REEL badge - above overlay */
-  .top {
-    padding: 88px 56px 0;
-    display: flex;
-    flex-direction: column;
-    gap: 48px;
-    position: relative;
-    z-index: 2;
-  }
-
-  /* carousel-style full-width header */
-  .header {
-    display: flex;
-    align-items: center;
-    width: 100%;
-  }
-  .header-wordmark {
-    font-family: "Instrument Serif", Georgia, serif;
-    font-weight: 400;
-    font-size: 28px;
-    letter-spacing: -0.02em;
-    color: var(--off-white);
-    opacity: 0.88;
-    flex: 0 0 auto;
-    white-space: nowrap;
-    text-shadow: 1px 1px 0 rgba(0,0,0,0.5);
-  }
-  .header-wordmark .reg  { font-style: normal; }
-  .header-wordmark .ital { font-style: italic; }
-  .header-wordmark .dot  { color: var(--accent); }
-  .header-sep {
-    flex: 1 1 auto;
-    height: 1px;
-    background: var(--off-white);
-    opacity: 0.22;
-    margin: 0 16px;
-  }
-  .header-label {
-    font-family: "JetBrains Mono", ui-monospace, monospace;
-    font-weight: 700;
-    font-size: 20px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--off-white);
-    opacity: 0.88;
-    flex: 0 0 auto;
-    white-space: nowrap;
-    text-shadow: 1px 1px 0 rgba(0,0,0,0.5);
-  }
-
-  /* Centre section - the fact title - above overlay */
-  .middle {
+  /* CENTRE — Archivo Black headline + NEW REEL pill, vertically centred. */
+  .center {
     position: absolute;
     top: 50%;
-    left: 56px;
-    right: 56px;
+    left: 72px;
+    right: 72px;
     transform: translateY(-50%);
+    z-index: 20;
+    text-align: left;
     display: flex;
     flex-direction: column;
-    gap: 48px;
     align-items: flex-start;
-    z-index: 2;
+    gap: 0;
   }
-
-  .fact-title {
-    font-family: "Instrument Serif", Georgia, serif;
-    font-weight: 400;
-    font-size: {{ title_size }}px;
-    line-height: 1.08;
-    letter-spacing: -0.02em;
-    color: var(--off-white);
-    text-wrap: balance;
-    text-shadow: 2px 2px 0 rgba(0,0,0,0.5);
-  }
-  .fact-title em { font-style: italic; }
-  .fact-title .accent { color: var(--accent); font-style: italic; }
-
-  .watch-cta {
-    font-family: "Space Grotesk", system-ui, sans-serif;
-    font-weight: 600;
-    font-size: 26px;
-    letter-spacing: 0.02em;
-    color: var(--off-white);
-    opacity: 0.65;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .watch-arrow {
-    font-size: 32px;
-    opacity: 0.8;
-  }
-
-  /* Bottom - topic tag - above overlay */
-  .bottom {
-    position: absolute;
-    bottom: 100px;
-    left: 56px;
-    right: 56px;
-    display: flex;
-    align-items: center;
-    z-index: 2;
-  }
-  .topic-pill {
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.14);
-    border-radius: 9999px;
-    padding: 10px 24px 12px;
+  .kicker {
     font-family: "JetBrains Mono", ui-monospace, monospace;
     font-weight: 700;
-    font-size: 20px;
-    letter-spacing: 0.20em;
+    font-size: 22px;
+    letter-spacing: 0.22em;
     text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 36px;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.55);
+  }
+  /* The ONE place Archivo Black is allowed in this template. */
+  .headline {
+    font-family: "Archivo Black", "Inter", system-ui, sans-serif;
+    font-weight: 900;
+    font-size: {{ title_size or 132 }}px;
+    line-height: 0.98;
+    letter-spacing: -0.01em;
+    text-transform: lowercase;
     color: var(--off-white);
-    opacity: 0.72;
+    text-wrap: balance;
+    text-shadow: 3px 3px 0 rgba(0,0,0,0.55);   /* hard, short, subtle */
+  }
+  .headline em {
+    font-style: normal;
+    font-weight: 900;
+    color: inherit;
+  }
+  .headline .h,
+  .headline strong {
+    font-style: normal;
+    font-weight: 900;
+    color: var(--accent);
+  }
+  .headline::after {
+    content: ".";
+    color: var(--accent);
+    font-family: "Archivo Black", "Inter", system-ui, sans-serif;
+    text-transform: none;
+  }
+
+  /* NEW REEL pill — sits below the headline, the only branding chrome on
+     the story. JetBrains Mono Bold (label role) — Archivo Black is reserved
+     for the central headline only. */
+  .new-reel-pill {
+    margin-top: 44px;
+    background: var(--accent);
+    color: var(--off-white);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-weight: 700;
+    font-size: 22px;
+    letter-spacing: 0.24em;
+    padding: 12px 22px 14px;
+    border-radius: 9999px;
+    text-transform: uppercase;
+    line-height: 1;
   }
 </style>
 </head>
 <body>
 <div class="stage">
   <div class="dark-overlay"></div>
-  <div class="accent-line"></div>
+  <div class="grain"></div>
 
-  <div class="top">
-    <div class="header">
-      <span class="header-wordmark">
-        <span class="reg">fact</span><span class="ital">jot</span><span class="dot">.</span>
-      </span>
-      <span class="header-sep"></span>
-      <span class="header-label">New Reel</span>
-    </div>
-  </div>
-
-  <div class="middle">
-    <div class="fact-title">{{ title_html | safe }}</div>
-    <div class="watch-cta">
-      <span class="watch-arrow">↑</span>
-      <span>Watch on our profile</span>
-    </div>
-  </div>
-
-  <div class="bottom">
-    <span class="topic-pill">{{ topic }}</span>
+  <div class="center">
+    {% if kicker %}<div class="kicker">{{ kicker }}</div>{% endif %}
+    <div class="headline">{{ title_html | safe }}</div>
+    <span class="new-reel-pill">New Reel</span>
   </div>
 </div>
 </body>
