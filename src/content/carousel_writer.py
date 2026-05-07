@@ -96,12 +96,12 @@ line. The next stage handles layout.
 Rules:
 - Cover title: 5-9 words, no full stop, must contain a verb or sting.
 - Each content slide: 1-2 sentences of prose, complete, factual.
-- ONE SLIDE = ONE IDEA. Do not weld two beats with "and" or semicolons.
 - Preserve specific names, dates, numbers, places.
 - If a beat is too dense to fit one slide, surface the dropped sub-fact
   in `dropped_facts` rather than welding fragments.
-- Image queries must be photographable proxies (people, devices,
-  scenes, eras), not abstract concepts.
+
+(See the BEAT DENSITY block above for what counts as one beat.)
+(See the PHOTOGRAPHABLE BEATS block above for image_query rules.)
 
 Return JSON only:
 {{

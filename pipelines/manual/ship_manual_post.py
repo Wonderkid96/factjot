@@ -55,25 +55,27 @@ from src.content.carousel_writer import (
     fit_slide_lines,
     write_editorial_slides,
 )
+from src.content.carousel_rules import (
+    BEAT_DENSITY_RULES,
+    COVER_TITLE_RULES,
+    PHOTOGRAPHABLE_BEATS_RULES,
+)
 
 # ------------------------------------------------------------------ #
 # Brand constants (sourced from brand/brand_kit.json)
 # ------------------------------------------------------------------ #
 
-BRAND_VOICE_EDITORIAL = """\
+BRAND_VOICE_EDITORIAL = f"""\
 Brand: factjot (@factjot)
 Voice: curious, precise, dry. A smart friend explaining something remarkable.
 Tone: confident, never sensational. Present tense where possible.
 Reading level: general audience.
 
 Editorial rules (Stage A - meaning only, layout handled by Stage B):
-- ONE SLIDE = ONE IDEA. ONE BEAT = ONE FACT. HARD RULE.
-- No semicolons inside a beat. No "and" welding two facts.
-- "X happened, then Y happened" is two beats, not one.
+{BEAT_DENSITY_RULES}
 - No em dashes. Commas, full stops, or parentheses instead.
 - British English. No hedging. No attribution phrases ("sources say",
   "according to").
-- Front-load the most interesting element on each slide.
 - Preserve specific names, dates, numbers, places.
 - If a beat is genuinely too dense for one slide, surface the dropped
   sub-fact in dropped_facts rather than welding fragments.
@@ -83,18 +85,12 @@ Red keyword markup:
   fitter will preserve the markup when it breaks lines.
 - Use for the most striking facts, names, numbers, turning points.
 
-Cover title: 5 to 9 words. No full stop. Must contain a verb or a
-sting, not a noun phrase. Sets up the story without spoiling it.
-Banned shapes (chant-style, all rejected):
-- "the X with no Y"
-- "no X no Y"
-- "X-free Y"
-- "the Y that X" where Y is vague.
-
+{COVER_TITLE_RULES}
 Category label: 1-3 words in capitals. Any subject is valid: SPORT,
 POLITICS, CRIME, CULTURE, FOOD, DESIGN, MUSIC, INTERNET HISTORY,
 AVIATION, SCIENCE, or anything else that fits.
 
+{PHOTOGRAPHABLE_BEATS_RULES}
 Final slide (CTA): a thought-provoking question or reflection the
 reader wants to debate. Do NOT reference the source or say "follow
 for more"."""
@@ -129,251 +125,6 @@ def _type_guidance(format_type: str) -> str:
     return TYPE_GUIDANCE.get(format_type, TYPE_GUIDANCE["fact"])
 
 
-CONTENT_PROMPT = """\
-{brand_voice}
-
----
-
-{type_guidance}
-
-You are writing a factjot carousel post. The brief is:
-
-"{brief}"
-
-Before writing the slides, resolve the visual subject. The brief may use a
-colloquial or misspelled name. Identify the canonical proper name of the subject
-(e.g. brief says "Concord plane" → visual_subject is "Concorde supersonic airliner").
-This ensures image searches find the right thing.
-
-PRESERVE SUBSTANCE -- HARD RULE.
-
-The brief contains specific facts, numbers, names, and angles. Preserve
-the SUBSTANCE of each beat. Compress EXPRESSION, not meaning. Do not
-drop the central fact to make the slide easier.
-
-If a beat genuinely cannot fit one slide:
-- use the strongest single fact from the beat,
-- and surface the loss in your decision-note for the run log
-  (return the dropped sub-facts in a top-level `dropped_facts` field
-  so the operator can see what was lost).
-Do NOT weld two unrelated fragments together to "include both".
-
-ONE SLIDE = ONE IDEA. ONE BEAT = ONE FACT. HARD RULE.
-
-- Semicolons inside a beat or a slide line are FORBIDDEN. A semicolon
-  means two facts are sharing a slide. Split or pick the stronger one.
-- If a sentence needs "and" to add a second fact ("X happened AND Y
-  happened"), that "and" begins a NEW beat. Do not weld with "and".
-- Multiple named people, multiple events, multiple consequences in one
-  slide are forbidden.
-
-BEAT-TO-SLIDE MAPPING -- HARD RULE.
-
-The brief may contain numbered beats describing what each slide should
-cover (e.g. "(1) cover hook ... (2) setup ... (3) mechanism ... (4) ...").
-If the brief contains numbered beats, you MUST follow them exactly:
-- Beat (1) -> the cover slide.
-- Beat (2) -> content slide 1.
-- Beat (3) -> content slide 2.
-- ... and so on, in order, one beat per slide.
-
-You may NOT:
-- merge two beats into one slide
-- split one beat across two slides
-- skip a beat
-- add a slide for content not in the brief
-- reorder beats
-
-If the brief specifies N beats and you produce M slides, M must equal N.
-The carousel exists to deliver the brief's argument in the brief's order.
-
-If the brief does NOT contain numbered beats, write {n_slides} content
-slides plus a cover, derived from the brief, in the order the brief
-introduces ideas. Do not improvise structure.
-
-For image_queries (one per slide including cover):
-- Queries search Wikimedia Commons and Wikipedia by file title.
-- Write SHORT, SUBJECT-FIRST phrases matching how archive files are titled.
-- Always start with the canonical proper name from visual_subject.
-- Keep each query 2-5 words. Vary aspect across slides (takeoff, cockpit, interior, crash, retirement).
-- PHOTOGRAPHABLE RULE -- HARD. Every query must describe a visible
-  object, person, or scene that an archive could realistically have a
-  photograph of. If the slide's content is an abstract concept (a
-  budget, a decision, a secrecy classification, a court ruling), the
-  image_query for that slot must NOT describe the concept. It must
-  describe a photographable proxy: the people, the device, the
-  workplace, the scene, the era.
-- Good (photographable): "Concorde takeoff", "Norden bombsight",
-  "B-17 bombardier compartment", "World War II aircraft cockpit",
-  "Hermann Lang factory worker portrait".
-- Bad (abstract / unphotographable): "Manhattan Project funding",
-  "Norden bombsight secrecy classification", "court ruling",
-  "cost-benefit analysis", "regulatory decision".
-- If you cannot think of a photographable proxy for a slide, repeat
-  the cover query rather than invent a non-photographable one.
-
-For source_aliases: list canonical name variants an image archive might use
-to tag or title a photo of this subject. Include all required aliases. Aim for
-4-12, but exceed 12 if needed to include every named entity from image_queries.
-Do not drop named entities just to satisfy a count limit. Include THREE types:
-
-1. At least 2 multi-word aliases (2+ words each, strongest for tag providers).
-   Example: "British Airways Concorde", "Air France Concorde", "BAC Concorde"
-
-2. The bare primary subject name as a single-word alias (e.g. "Concorde").
-   REQUIRED -- Wikimedia Commons filenames are sparse: "File:Concorde G-BOAG.jpg"
-   contains "Concorde" but not "aircraft", so multi-word aliases miss it entirely.
-   Single-word aliases on tag providers (Pixabay) still require a context_word
-   match before the image is accepted, so adding "Concorde" alone does NOT let in
-   photos of Place de la Concorde -- those would fail the context_word gate.
-
-3. The bare name of every named entity that appears as the subject of any
-   image_queries entry -- even if that entity is not the primary visual subject.
-   Named entities are: people, companies, organisations, products, places,
-   and named technologies (e.g. "TSMC", "MediaTek Dimensity").
-   Do NOT extract generic descriptive words. Never add as aliases: portrait,
-   chip, processor, device, concept, phone, photo, factory, office, building,
-   or any other non-specific noun. Terms like "semiconductor" or "wafer" must
-   not be added as aliases unless they are part of a specific named product or
-   named technology (e.g. "TSMC N2P" is acceptable, bare "wafer" is not).
-
-   Examples of correct extraction:
-   - image_queries entry "Sam Altman portrait" → add alias "Sam Altman"
-   - image_queries entry "MediaTek chip processor" → add alias "MediaTek"
-   - image_queries entry "TSMC semiconductor wafer" → add alias "TSMC"
-   - image_queries entry "Luxshare manufacturing factory" → add alias "Luxshare"
-   Do NOT extract: "portrait", "chip", "semiconductor", "factory".
-
-   Why: per-slide queries target different named entities across the deck. A
-   Wikipedia photo of Sam Altman has metadata "Sam Altman" -- it needs "Sam Altman"
-   as a bare alias to pass the image gate. "Sam Altman phone" requires "phone" in
-   the metadata, which a portrait image will never have.
-
-Example for Concorde: ["British Airways Concorde", "Air France Concorde",
-"BAC Concorde", "Concorde aircraft", "supersonic airliner", "Concorde"]
-
-For cover_slot_aliases: bare named entity names that the cover image_query targets.
-Same rules as slot_aliases. Omit or use [] if the cover targets the primary visual
-subject already covered by source_aliases.
-
-For each slide's slot_aliases: bare named entity names that the slide's image_query
-specifically targets. These REPLACE the global source_aliases for that slot (global
-aliases are not appended). Leave slot_aliases as [] if the slide targets the same
-subject as the overall carousel.
-
-Rules for slot_aliases and cover_slot_aliases:
-- Include only: people, companies, organisations, products, places, named technologies.
-- Do NOT include generic words: portrait, chip, processor, device, concept, phone,
-  photo, factory, office, building, designer, original, comparison, or any other
-  non-specific noun.
-- Include at least the bare proper name. One multi-word variant is acceptable.
-
-Examples:
-- image_query "Sam Altman portrait" → slot_aliases: ["Sam Altman"]
-- image_query "Jony Ive designer portrait" → slot_aliases: ["Jony Ive"]
-- image_query "Apple iPhone original 2007" → slot_aliases: ["Apple", "Apple iPhone"]
-- image_query "MediaTek chip processor" → slot_aliases: ["MediaTek"]
-- image_query "OpenAI logo" → slot_aliases: [] (global source_aliases already covers this)
-- image_query "Concorde takeoff" → slot_aliases: [] (global source_aliases already covers this)
-
-For context_words: list 4-8 words that confirm the metadata is about the
-RIGHT subject when only a single-word alias matched. These are not required
-for multi-word alias matches. Describe what the subject IS, not what it looks like.
-Example for Concorde aircraft: ["aircraft", "airliner", "aviation", "airline",
-"supersonic", "jet", "airways", "flight"]
-
-For negative_terms: list 6-12 phrases that would appear in metadata of WRONG images.
-
-PREFER COMPOUND WRONG-MEANING PHRASES over single words. Single-word
-negatives like "station", "park", "monument" collide with valid archive
-metadata. A Wikipedia photo titled "Norden Bombsight, Mare Island Naval
-Station" must NOT be rejected just because it contains "station".
-
-Good (compound, pins the wrong meaning):
-- "place de la concorde", "metro station", "train station", "bus terminal"
-- "parish church", "village green", "frigate class", "HMS"
-- "concord massachusetts", "concord grape"
-- "model kit", "toy"
-
-Acceptable (single word, only when truly unambiguous for this subject):
-- "obelisk" (when the subject is not an obelisk)
-- "diagram" or "illustration" (when you want photographs only)
-
-Bad (too generic, rejects valid archive photos):
-- "station" alone, "park" alone, "monument" alone, "square" alone,
-  "metro" alone, "platform" alone, "ship" alone
-
-Example for Concorde (aircraft, not the Paris square / metro / warship class):
-["place de la concorde", "concord massachusetts", "concord grape",
- "metro station", "obelisk", "frigate class", "model kit", "diagram"]
-
-The pipeline allows a strong multi-word alias match or an archive
-provider (Wikimedia, Wikipedia, Smithsonian, NASA) to override a
-single-word negative. Compound negatives are still hard rejects
-regardless of provider. So write compound when you can.
-
-For subject_type: one short category string that describes what kind of subject
-this is. Used to weight scoring. Choose from:
-historical aircraft, living person, historical person, animal, place, building,
-technology, invention, natural event, disaster, artwork, cultural object,
-internet culture, science concept, organisation, vehicle, spacecraft, ship, other
-
-For preferred_image_types: 4-8 short phrases describing ideal visual aspects for
-this subject. Used to boost candidate scores. Be specific to the subject.
-Example for Concorde: ["takeoff", "landing", "cockpit", "droop nose", "in flight",
-"British Airways livery", "Air France livery", "museum display"]
-
-For avoid_image_types: 4-8 short phrases describing visual types to penalise.
-Example for Concorde: ["diagram", "map", "illustration", "airshow crowd",
-"generic contrail", "generic sky", "model kit", "toy"]
-
-For fallback_query: the canonical proper name alone, 1-4 words.
-Used when a slot query finds nothing. Example: "Concorde aircraft".
-
-For visual_fallback_queries: one short stock-photography search term per slot
-(cover first, then content slides, in the same order as image_queries).
-Used when both the slot query AND the global aliases find nothing.
-These must be purely visual and descriptive -- never brand names, never the
-subject's own name. Describe what kind of image would feel thematically right
-for that slide even if it doesn't show the actual subject.
-- Good: "smartphone screen apps icons", "computer chip circuit board",
-  "tech factory assembly line", "artificial intelligence network nodes",
-  "person using phone coffee shop", "silicon wafer semiconductor"
-- Bad: "OpenAI logo", "Sam Altman", "MediaTek chip" (too subject-specific,
-  will find nothing or find junk if the subject has no stock coverage)
-Keep each query 3-6 words. Vary them across slides -- do not repeat the
-same phrase. These are the last resort before a slide becomes typography-only.
-
-Return JSON only:
-{{
-  "cover_title": "5-9 word title in voice",
-  "label": "CATEGORY LABEL",
-  "caption_body": "2-3 sentences. Human, warm. No hashtags.",
-  "visual_subject": "canonical name and type of the main subject, max 12 words",
-  "subject_type": "one category string from the list above",
-  "fallback_query": "canonical proper name, 1-4 words",
-  "source_aliases": ["multi-word alias 1", "multi-word alias 2", "single word ok"],
-  "context_words": ["word1", "word2", ...],
-  "negative_terms": ["compound wrong-meaning 1", "compound wrong-meaning 2", ...],
-  "preferred_image_types": ["type1", "type2", ...],
-  "avoid_image_types": ["type1", "type2", ...],
-  "image_queries": ["query for cover", "query for slide 1", ...],
-  "visual_fallback_queries": ["fallback for cover", "fallback for slide 1", ...],
-  "cover_slot_aliases": ["NamedEntityForCover"],
-  "dropped_facts": ["sub-fact you had to drop because beat was too dense"],
-  "slides": [
-    {{"slideNumber": 1, "lines": ["...", "...", "..."], "slot_aliases": ["NamedEntity"]}}
-  ]
-}}
-
-`dropped_facts` is OPTIONAL. Only include it if a beat had more facts
-than one slide could carry and you had to drop sub-facts to keep the
-slide coherent. The pipeline logs these so the operator can see what
-was lost. If you did not drop anything, omit the field entirely or
-return an empty list.
-
-Exactly 3 lines per slide. One image_queries entry per slide including cover.
-Return JSON only, no prose."""
 
 
 # ------------------------------------------------------------------ #

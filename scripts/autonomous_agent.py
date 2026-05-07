@@ -36,6 +36,12 @@ from pathlib import Path
 
 import anthropic
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from src.content.carousel_rules import (
+    BEAT_DENSITY_RULES,
+    PHOTOGRAPHABLE_BEATS_RULES,
+)
+
 MAX_TURNS = 12
 MODEL     = "claude-sonnet-4-6"
 HISTORY_LIMIT = 30
@@ -719,21 +725,13 @@ NEWS_PROMPT = textwrap.dedent("""\
       understand by the end, the named entities involved, and any
       specific dates / numbers / names that anchor it.
 
-    BEAT DENSITY -- HARD RULE
-
-    Each numbered beat = ONE slide = ONE fact.
-
-    Forbidden inside a beat: semicolons, "and" used to add a second fact,
-    multiple named people, multiple events, multiple consequences. Split.
+    {beat_density_rules}
 
     The slide writer renders at 16-22 chars per line, hard cap 24, in
     Archivo Black 900 at 42px. If your beat needs more than 3 short
     sentences to express, it is two beats.
 
-    PHOTOGRAPHABLE BEATS. Prefer beats whose subject is photographable.
-    Abstract beats (rulings, budgets, classifications) must be framed
-    around a concrete proxy (the people, the room, the device, the
-    document) so the image pipeline has something to find.
+    {photographable_beats_rules}
 
     DECISION PROCESS
 
@@ -798,11 +796,13 @@ LIST_PROMPT = textwrap.dedent("""\
     - the editorial framing (what the 5 together reveal)
     - what the closing slide should make the viewer think
 
-    BEAT DENSITY -- HARD RULE
+    {beat_density_rules}
 
-    Each item gets ONE slide. The item slide carries ONE angle on that
-    item, not two. Do not pack two items into one slide. The slide writer
-    has 18-28 characters per line, max 32, in Archivo Black 900.
+    Each list item gets ONE slide. The item slide carries ONE angle on
+    that item, not two. Do not pack two items into one slide. The slide
+    writer has 18-28 characters per line, max 32, in Archivo Black 900.
+
+    {photographable_beats_rules}
 
     DECISION PROCESS
 
@@ -876,18 +876,7 @@ FACT_PROMPT = textwrap.dedent("""\
     - the 5 beats the carousel should hit, in order
     - what the closing slide should make the viewer think
 
-    BEAT DENSITY -- HARD RULE
-
-    Each numbered beat in the brief becomes ONE slide. Each slide carries
-    ONE fact. So each beat must be ONE fact.
-
-    Forbidden inside a beat:
-    - Semicolons. A semicolon means two facts are sharing a beat. Split.
-    - "and" used to add a second fact. If your sentence reads "X did Y
-      AND Z happened", that is two beats. Split.
-    - Multiple named people in one beat (unless the beat is literally
-      about both at once -- e.g. "they wrote the memo together").
-    - Multiple events, multiple consequences, multiple anything.
+    {beat_density_rules}
 
     If the story has 7 distinct things worth saying, write 7 beats and
     call run_carousel with slides=8 (cover + 7). Better to have more
@@ -897,15 +886,7 @@ FACT_PROMPT = textwrap.dedent("""\
     writer has 16-22 characters per line, hard cap 24. If your beat
     needs more than 3 short sentences to express, it is two beats.
 
-    PHOTOGRAPHABLE BEATS
-
-    Prefer beats whose subject is photographable: a person, a place, a
-    device, a scene. The image pipeline cannot find archive photographs
-    of abstract concepts (a budget figure, a secrecy classification, a
-    legal ruling, a cost-benefit calculation). If a beat MUST be about
-    something abstract, frame it around a concrete proxy: the people who
-    made the decision, the room where it happened, the device that was
-    classified, the document that surfaced.
+    {photographable_beats_rules}
 
     DECISION PROCESS
 
@@ -922,12 +903,17 @@ FACT_PROMPT = textwrap.dedent("""\
 """)
 
 
+_CAROUSEL_RULE_BINDINGS = dict(
+    beat_density_rules         = BEAT_DENSITY_RULES,
+    photographable_beats_rules = PHOTOGRAPHABLE_BEATS_RULES,
+)
+
 MODE_PROMPTS: dict[str, str] = {
     "reel_morning": REEL_PROMPT,
     "reel_evening": REEL_PROMPT,
-    "news":         NEWS_PROMPT,
-    "list":         LIST_PROMPT,
-    "fact":         FACT_PROMPT,
+    "news":         NEWS_PROMPT.format(**_CAROUSEL_RULE_BINDINGS),
+    "list":         LIST_PROMPT.format(**_CAROUSEL_RULE_BINDINGS),
+    "fact":         FACT_PROMPT.format(**_CAROUSEL_RULE_BINDINGS),
 }
 
 
