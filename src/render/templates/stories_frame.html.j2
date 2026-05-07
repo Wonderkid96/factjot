@@ -86,30 +86,18 @@
     flex: 0 0 auto;
   }
 
-  /* factjot. - hard rule: white text, accent red period, always */
-  .wordmark-lockup {
-    display: flex; align-items: baseline; gap: 0;
-  }
-  .wm-img {
-    height: 60px; width: auto;
-    filter: drop-shadow(1px 1px 0 rgba(0,0,0,0.45));
-    opacity: 0.96;
-  }
-  /* Text fallback if no logo image */
-  .wm-text {
+  /* Canonical wordmark: fact[regular] jot[italic] .[red] in Instrument Serif. */
+  .wordmark {
     font-family: "Instrument Serif", Georgia, serif;
-    font-style: italic; font-weight: 400;
-    font-size: 52px; line-height: 1.0; letter-spacing: -0.01em;
-    color: var(--white);
+    font-weight: 400;
+    font-size: 52px;
+    letter-spacing: -0.01em;
+    line-height: 1;
+    color: var(--off-white);
     text-shadow: 1px 1px 0 rgba(0,0,0,0.45);
   }
-  .wm-period {
-    font-family: "Instrument Serif", Georgia, serif;
-    font-style: italic; font-weight: 400;
-    font-size: 52px; line-height: 1.0;
-    color: var(--accent);
-    text-shadow: 1px 1px 0 rgba(0,0,0,0.45);
-  }
+  .wordmark .ital { font-style: italic; }
+  .wordmark .dot  { color: var(--accent); }
 
   .new-post-badge {
     background: var(--accent);
@@ -160,13 +148,7 @@
 
   <div class="frame">
     <div class="header">
-      <div class="wordmark-lockup">
-        {% if wordmark_image_url %}
-          <img class="wm-img" src="{{ wordmark_image_url }}" alt="factjot." />
-        {% else %}
-          <span class="wm-text">factjot</span><span class="wm-period">.</span>
-        {% endif %}
-      </div>
+      <span class="wordmark">fact<span class="ital">jot</span><span class="dot">.</span></span>
       <div class="new-post-badge">NEW POST</div>
     </div>
 

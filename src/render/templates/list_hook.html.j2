@@ -83,9 +83,19 @@
     color: var(--off-white); text-transform: uppercase;
     text-shadow: 1px 1px 0 rgba(0,0,0,0.55);
   }
-  .wordmark-img { flex: 0 0 auto; height: 38px; width: auto; opacity: 0.95;
-    filter: drop-shadow(1px 1px 0 rgba(0,0,0,0.45)); }
-  .wordmark { opacity: 0.92; flex: 0 0 auto; }
+  .wordmark {
+    flex: 0 0 auto;
+    font-family: "Instrument Serif", Georgia, serif;
+    font-weight: 400;
+    font-size: 38px;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--off-white);
+    text-transform: none;
+    opacity: 0.96;
+  }
+  .wordmark .ital { font-style: italic; }
+  .wordmark .dot  { color: var(--accent); }
   .top-divider { flex: 1 1 auto; height: 1px; background: var(--off-white); opacity: 0.38; }
   .index { opacity: 0.78; flex: 0 0 auto; }
 
@@ -115,10 +125,12 @@
   .title .accent-period { color: var(--accent); font-weight: 900; }
 
   .subtitle {
-    font-family: "Instrument Serif", Georgia, serif;
-    font-style: italic; font-weight: 400;
-    font-size: 56px; line-height: 1.15;
-    color: var(--off-white); opacity: 0.92;
+    font-family: "Archivo Black", "Inter", system-ui, sans-serif;
+    font-weight: 900;
+    font-size: 38px; line-height: 1.18;
+    letter-spacing: -0.005em;
+    text-transform: lowercase;
+    color: var(--off-white); opacity: 0.86;
     text-wrap: balance;
     text-shadow: 1px 1px 0 rgba(0,0,0,0.55);
   }
@@ -155,11 +167,7 @@
 
     <div class="frame">
       <div class="top-row">
-        {% if wordmark_image_url %}
-          <img class="wordmark-img" src="{{ wordmark_image_url }}" alt="factjot" />
-        {% else %}
-          <span class="wordmark">factjot</span>
-        {% endif %}
+        <span class="wordmark">fact<span class="ital">jot</span><span class="dot">.</span></span>
         <span class="top-divider"></span>
         <span class="index">{{ index_label }}</span>
       </div>

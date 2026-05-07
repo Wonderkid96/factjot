@@ -135,17 +135,18 @@
     text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.55);
   }
   .wordmark {
-    opacity: 0.92;
     flex: 0 0 auto;
+    font-family: "Instrument Serif", Georgia, serif;
+    font-weight: 400;
+    font-size: 38px;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--off-white);
+    text-transform: none;
+    opacity: 0.96;
   }
-  .wordmark-img {
-    flex: 0 0 auto;
-    height: 38px;
-    width: auto;
-    display: block;
-    opacity: 0.95;
-    filter: drop-shadow(1px 1px 0 rgba(0, 0, 0, 0.45));
-  }
+  .wordmark .ital { font-style: italic; }
+  .wordmark .dot  { color: var(--accent); }
   .top-divider {
     flex: 1 1 auto;
     height: 1px;
@@ -247,11 +248,7 @@
 
     <div class="frame">
       <div class="top-row">
-        {% if wordmark_image_url %}
-          <img class="wordmark-img" src="{{ wordmark_image_url }}" alt="factjot" />
-        {% else %}
-          <span class="wordmark">factjot</span>
-        {% endif %}
+        <span class="wordmark">fact<span class="ital">jot</span><span class="dot">.</span></span>
         <span class="top-divider"></span>
         <span class="index">{{ index_label }}</span>
       </div>
