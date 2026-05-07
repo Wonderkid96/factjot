@@ -52,7 +52,7 @@ If a behaviour is shared across two or more pipelines, it belongs in `src/`, not
 
 ## 4. Current pipelines (revised 2026-05-07)
 
-The factjot system runs a single autonomous workflow that fires three times a day. The agent (Sonnet 4.6) picks the format per fire and dispatches through the active autonomous publishing path.
+The factjot system runs a single autonomous workflow that fires five times a day. Each fire is locked to one format (see §6.1). The agent (Sonnet 4.6) writes the brief or script for that slot's format and calls the matching pipeline tool, or calls `skip` if nothing clears the quality gate.
 
 The active autonomous publishing path exposes two publishing tools and one state/dedupe tool:
 
@@ -70,7 +70,7 @@ Legacy scripts may remain on disk but are not called by current workflows. The a
 |---|---|
 | Scheduled fact carousel (`pipelines/carousel/ship_first_post.py`) | Workflow deleted. Script remains on disk but no cron calls it. The agent's `run_carousel` is intended to cover carousel needs going forward. |
 | List carousel (`pipelines/list/ship_list_post.py`) | Workflow deleted. Pre-built list packs unused. List-style content is intended to be posted via `run_carousel` with a list-style brief. |
-| News carousel (`pipelines/news/ship_news_post.py`) | Workflow deleted. The agent has lunch-mode news permission and writes its own news brief if a story passes the quality bar. The renderer code in this file is still imported by the manual pipeline (known dual-role mismatch flagged in section 10.1). |
+| News carousel (`pipelines/news/ship_news_post.py`) | Workflow deleted. News is now a dedicated autonomous slot (12:30 BST) calling `run_carousel` with `--type news`. The renderer code in this file is still imported by the manual pipeline (known dual-role mismatch flagged in section 10.1). |
 | Reddit-discovery cron (`weekly-plan.yml`) | Deleted. The agent now sources ideas directly from Sonnet's knowledge under the prompt's INTERESTINGNESS / EVENT-VS-ANGLE / QUALITY gates. The legacy `rare_fact_bank.py` and `discovered_facts.jsonl` are dormant. |
 | News watcher, daily metrics, reset-and-relaunch | Deleted. Token refresh + IG metrics fetch now run as soft steps inside `autonomous-reel.yml`. |
 
@@ -108,24 +108,37 @@ A pipeline that skips Verify is not a pipeline, it is a content laundromat. A pi
 
 Every pipeline runs in one of two modes. The mode determines whether human approval is in the loop.
 
-### 6.1 Autonomous mode (revised 2026-05-07)
+### 6.1 Autonomous mode (revised 2026-05-07, format-locked 2026-05-07b)
 
-Used by the single autonomous workflow that posts three times a day:
+Used by the single autonomous workflow that posts five times a day. Each slot is locked to one format. The agent does not choose format at runtime; the cron determines the mode and the mode determines the tools and prompt.
 
-- `autonomous-reel.yml` (the only intentional poster), three modes: `morning` / `lunch` / `evening`.
-- Lunch mode additionally has permission to use a current/breaking story if it passes the same quality bar; otherwise lunch falls back to the standard evergreen flow.
+| Mode | BST | UTC cron | Format |
+|---|---|---|---|
+| `reel_morning` | 09:00 | `0 8 * * *`   | Evergreen reel |
+| `news`         | 12:30 | `30 11 * * *` | News / current carousel |
+| `list`         | 15:30 | `30 14 * * *` | List carousel |
+| `reel_evening` | 18:00 | `0 17 * * *`  | Evergreen reel |
+| `fact`         | 20:30 | `30 19 * * *` | Fact carousel (single subject) |
+
+Crons are UTC and tracked to BST in summer. In winter (GMT) they fire at the same UK clock time, since UTC == GMT.
+
+The agent's tool surface is sandboxed AND mode-filtered. `list_unposted_topics` and `skip` are universal. `run_reel` is exposed only on `reel_morning` and `reel_evening`. `run_carousel` is exposed only on `news`, `list`, and `fact`, and the mode determines the writer-prompt sub-type (`--type news|list|fact`). A wrong-format call is impossible: the model never sees the tool.
+
+If no candidate clears the quality gate, the agent calls `skip` with a one-line reason and the slot is left empty. Better to miss a slot than ship a weak post.
 
 Autonomous mode runs on this stack:
 
 - **GitHub Actions is the production scheduler and the sole posting environment.** It runs 24/7 regardless of Toby's Mac. Every autonomous post leaves the system from a GitHub Actions runner.
-- **GitHub's built-in cron** fires the workflow at 09:00 / 12:00 / 17:00 UTC (10:00 / 13:00 / 18:00 BST). The cron-job.org backup, the +45-min belt-and-braces crons, and the legacy `CRON_TRIGGER_PAT` were all removed.
+- **GitHub's built-in cron** fires the workflow at 08:00 / 11:30 / 14:30 / 17:00 / 19:30 UTC (09:00 / 12:30 / 15:30 / 18:00 / 20:30 BST). No backup cron and no legacy `CRON_TRIGGER_PAT`.
 - **launchd jobs are disabled.** Local launchd-based publishing is legacy. Re-enabling launchd without first disabling the GitHub workflow will cause double-posts.
 - **Queue-based local publishing** (`scripts/publish_due.py`, `review_queue.py`) is legacy. The README still describes it; the live system does not use it.
 
-The agent is the single decision-maker. Its tool surface is sandboxed: `list_unposted_topics`, `run_reel`, `run_carousel`. No other tools, no shell, no file access. The pipelines those tools invoke run with full repo access, but only the agent decides what to write and which format to call.
+The agent is the single decision-maker within its slot. The pipelines its tools invoke (`make_reel.py`, `ship_manual_post.py`) run with full repo access, but only the agent decides the subject, angle, and copy.
 
 Safety in autonomous mode lives in code AND prompt:
 
+- Format lock per slot (mode-filtered tool exposure). The agent cannot post out-of-format.
+- Skip-on-weak (the agent calls `skip(reason)` if nothing clears the gate; the slot is left empty).
 - Prompt-level duplicate guard (the agent reads the post bank summary on every run and rejects near-duplicates).
 - Hard validation gates on media (licence, provider, subject match) in `src/research/`.
 - Round-aware image fallback (R3 routes through stock-friendly providers; see SPEC_IMAGE_PIPELINE.md section 6.1).
