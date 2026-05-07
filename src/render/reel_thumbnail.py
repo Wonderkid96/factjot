@@ -43,14 +43,13 @@ def render_thumbnail(
     out_path: Path,
     *,
     frame_path: Path | None = None,
-    title_size: int = 108,
+    title_size: int = 78,
 ) -> Path:
     """Render a thumbnail PNG with optional footage frame as background.
 
-    When `frame_path` is provided the footage still is used as the CSS
-    background-image behind the branded overlay (header, title, play icon).
-    This gives the thumbnail real visual context while keeping factjot.
-    branding legible on top.
+    Framed like a carousel slide so the profile grid reads as one visual
+    system: factjot. ─── TOPIC header, accent pill with the topic, smaller
+    Instrument Serif headline, factjot. corner-mark bottom-right.
     """
     assert_fonts_present()
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -67,12 +66,14 @@ def render_thumbnail(
     else:
         frame_url = None
 
+    topic_label = topic.upper()
     html = template.render(
         width=REEL_W,
         height=REEL_H,
-        topic=topic.upper(),
+        topic=topic_label,
+        category=topic_label,
         title_html=_title_to_html(title),
-        title_size=title_size,
+        headline_size=title_size,
         frame_url=frame_url,
         font_serif_regular=FONT_SERIF_REGULAR.as_uri(),
         font_serif_italic=FONT_SERIF_ITALIC.as_uri(),

@@ -121,20 +121,42 @@ def _int_to_words(n: int) -> str:
 
 
 def _year_to_words(y: int) -> str:
-    """Render a year as a native English year-reading (e.g. 1919 → 'nineteen nineteen')."""
+    """Render a year as a native English year-reading (e.g. 1919 → 'nineteen nineteen').
+
+    factjot voice avoids 'oh' in years (sounds American/casual). 1901 reads
+    as 'nineteen hundred and one', not 'nineteen oh one'. Years where the
+    last two digits are >=10 use the natural 'eighteen fifteen' form.
+    """
     if 1100 <= y <= 1999:
         hi, lo = y // 100, y % 100
         hi_w = _int_to_words(hi)
         if lo == 0:
             return hi_w + ' hundred'
         if lo < 10:
-            return hi_w + ' oh ' + _int_to_words(lo)
+            return hi_w + ' hundred and ' + _int_to_words(lo)
         return hi_w + ' ' + _int_to_words(lo)
     if 2000 <= y <= 2009:
         return 'two thousand' + (' and ' + _int_to_words(y % 100) if y % 100 else '')
     if 2010 <= y <= 2099:
         return 'twenty ' + _int_to_words(y % 100)
     return _int_to_words(y)
+
+
+# Words that, when they immediately precede a 4-digit number, mean it is
+# NOT a year (model number, room, version, code, etc). Match is anchored
+# to end-of-prefix so only the directly preceding token counts.
+_NOT_YEAR_PREFIX = re.compile(
+    r'\b(?:model|room|version|chapter|page|figure|table|fig|code|serial|type|no|v)\.?\s*$',
+    re.IGNORECASE,
+)
+
+
+def _year_or_integer(m: re.Match) -> str:
+    n = int(m.group(1))
+    prefix = m.string[max(0, m.start() - 24):m.start()]
+    if _NOT_YEAR_PREFIX.search(prefix):
+        return _int_to_words(n)
+    return _year_to_words(n)
 
 
 def normalise_for_tts(text: str) -> str:
@@ -179,10 +201,11 @@ def normalise_for_tts(text: str) -> str:
         text, flags=re.IGNORECASE,
     )
 
-    # 4-digit years (1000–2099) as standalone tokens → year reading
+    # 4-digit years (1000–2099) as standalone tokens → year reading,
+    # unless preceded by a non-year context word (model, version, room…).
     text = re.sub(
         r'(?<!\d)([12]\d{3})(?!\d)',
-        lambda m: _year_to_words(int(m.group(1))),
+        _year_or_integer,
         text,
     )
 
