@@ -53,3 +53,33 @@ def test_negative_term_hits_compound_phrase():
         negative_terms=["place de la concorde", "obelisk"],
     )
     assert "place de la concorde" in hits
+
+
+from unittest.mock import MagicMock
+from src.research.image_sourcer import ImageSourcer, MAX_REUSES
+
+
+def test_max_reuses_allows_second_use_per_carousel():
+    """SPEC section 10: 'same URL is capped at 2 uses per carousel'.
+
+    Implementation contract: a URL with _use_count == 1 must remain
+    eligible (so _pick_reuse can return it). With MAX_REUSES == 1 the
+    URL would already be ineligible at count 1; with MAX_REUSES == 2
+    it stays eligible for the second use.
+    """
+    assert MAX_REUSES >= 2, (
+        f"MAX_REUSES={MAX_REUSES} blocks second use; "
+        "SPEC_IMAGE_PIPELINE.md section 10 requires up to 2 uses per carousel."
+    )
+
+    sourcer = ImageSourcer(topic="editorial", use_fresh_ledger=True)
+    sourcer._use_count["data:image/jpeg;base64,fake"] = 1
+    eligible_at_count_1 = (
+        sourcer._use_count.get("data:image/jpeg;base64,fake", 0) < MAX_REUSES
+    )
+    assert eligible_at_count_1 is True
+    sourcer._use_count["data:image/jpeg;base64,fake"] = 2
+    eligible_at_count_2 = (
+        sourcer._use_count.get("data:image/jpeg;base64,fake", 0) < MAX_REUSES
+    )
+    assert eligible_at_count_2 is False

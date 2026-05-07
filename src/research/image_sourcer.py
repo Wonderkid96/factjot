@@ -50,7 +50,11 @@ PROVIDER_TRUST: dict[str, int] = {
 
 MIN_SCORE:    int = 20   # named-subject rounds (R1/R2): alias bonus reachable
 MIN_SCORE_R3: int = 8    # visual fallback round: no alias gate, lower floor
-MAX_REUSES:  int = 1   # same URL never repeated in a carousel
+# Cap matches SPEC_IMAGE_PIPELINE.md section 10: same URL up to 2 uses
+# per carousel. Eligibility is `_use_count[url] < MAX_REUSES`, so a value
+# of 2 lets a URL be used once normally then once more as a reuse fallback
+# when the alternative is typography-only.
+MAX_REUSES:  int = 2
 
 
 # ------------------------------------------------------------------ #

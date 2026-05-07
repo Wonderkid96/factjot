@@ -129,12 +129,6 @@ def test_weak_candidate_returns_empty_string():
 # Test 3: one good image cannot fill many slides - consecutive + reuse limits
 # ------------------------------------------------------------------ #
 
-@pytest.mark.xfail(
-    reason="Will pass once Phase 3.4 of the content quality recovery sets "
-           "MAX_REUSES = 2 (matching SPEC_IMAGE_PIPELINE section 10). "
-           "Current MAX_REUSES = 1 makes _pick_reuse unreachable.",
-    strict=False,
-)
 def test_one_image_cannot_fill_many_slides():
     url_a = "http://example.com/a.jpg"
     intent = _aviation_intent()
