@@ -85,6 +85,42 @@ def _latest_reel_meta() -> dict | None:
     return last
 
 
+def _already_uploaded(reel_id: str | None) -> bool:
+    """True if reel_id is already in youtube_uploads.jsonl."""
+    if not reel_id or not YT_LEDGER.exists():
+        return False
+    with YT_LEDGER.open("r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                if json.loads(line).get("source_reel_id") == reel_id:
+                    return True
+            except json.JSONDecodeError:
+                continue
+    return False
+
+
+def _is_fresh(reel_meta: dict | None, max_age_minutes: int = 30) -> bool:
+    """True if reel was posted in the last `max_age_minutes`.
+
+    Used as a guard so the YouTube cross-post step in the workflow
+    doesn't re-upload an old reel when the agent just posted a
+    carousel and reels.jsonl wasn't touched.
+    """
+    timestamp = (reel_meta or {}).get("published_at") or (reel_meta or {}).get("posted_at")
+    if not timestamp:
+        return False
+    from datetime import datetime, timezone, timedelta
+    try:
+        posted = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    age = datetime.now(timezone.utc) - posted
+    return age <= timedelta(minutes=max_age_minutes)
+
+
 def _resolve_video_path(arg_path: str | None, reel_meta: dict | None) -> Path:
     if arg_path:
         p = Path(arg_path).expanduser().resolve()
@@ -166,9 +202,30 @@ def main(argv: list[str]) -> int:
                         default=DEFAULT_PRIVACY)
     parser.add_argument("--auto-latest", action="store_true",
                         help="Resolve video + title from the most recent reels.jsonl entry")
+    parser.add_argument("--max-age-minutes", type=int, default=30,
+                        help="With --auto-latest, skip if the latest reel is older than this (default: 30)")
     args = parser.parse_args(argv)
 
     reel_meta = _latest_reel_meta() if args.auto_latest else None
+
+    if args.auto_latest:
+        if not reel_meta:
+            print("[youtube] no entries in reels.jsonl, nothing to upload. skipping.")
+            return 0
+        if not _is_fresh(reel_meta, args.max_age_minutes):
+            ts = reel_meta.get("published_at") or reel_meta.get("posted_at")
+            print(
+                f"[youtube] latest reel {reel_meta.get('reel_id')!r} "
+                f"published_at={ts!r} is older than {args.max_age_minutes} min - "
+                "agent likely posted a carousel this run. skipping."
+            )
+            return 0
+        if _already_uploaded(reel_meta.get("reel_id")):
+            print(
+                f"[youtube] reel {reel_meta.get('reel_id')!r} already in "
+                "youtube_uploads.jsonl. skipping to avoid duplicate."
+            )
+            return 0
 
     try:
         video_path = _resolve_video_path(args.video_path, reel_meta)
