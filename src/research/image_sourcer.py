@@ -302,18 +302,37 @@ class ImageSourcer:
             else:
                 log.debug("IMAGE slot=%d aliases=global", i)
 
+            slot_intent = _classify_slot_intent(
+                slide_text   = "",  # not yet plumbed through; refined later.
+                query        = query,
+                slot_aliases = slot_override,
+            )
+            log.debug("IMAGE slot=%d intent=%s", i, slot_intent)
+
+            if slot_intent == "entity":
+                slot_provider_order: tuple[str, ...] | None = None
+            elif slot_intent == "scene":
+                slot_provider_order = (
+                    "pexels", "pixabay", "smithsonian", "commons", "wiki", "wiki_article",
+                )
+            else:  # abstract
+                slot_provider_order = (
+                    "pexels", "pixabay", "smithsonian", "commons",
+                )
+
             relaxation_round = 1
             raw_pool = self._fetcher.fetch_pool(
-                query          = query,
-                topic          = self.topic,
-                post_id        = post_id,
-                slide_index    = i,
-                intent_text    = intent.fallback_query or query,
-                source_aliases = effective_aliases,
-                negative_terms = intent.negative_terms or None,
-                context_words  = intent.context_words  or None,
-                extra_fallbacks= extra_fallbacks,
-                max_pool       = pool_size,
+                query             = query,
+                topic             = self.topic,
+                post_id           = post_id,
+                slide_index       = i,
+                intent_text       = intent.fallback_query or query,
+                source_aliases    = effective_aliases,
+                negative_terms    = intent.negative_terms or None,
+                context_words     = intent.context_words  or None,
+                extra_fallbacks   = extra_fallbacks,
+                max_pool          = pool_size,
+                provider_override = slot_provider_order,
             )
 
             # Gate relaxation: if the strict slot gate found nothing, retry
