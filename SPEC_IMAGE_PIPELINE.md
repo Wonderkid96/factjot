@@ -187,6 +187,13 @@ Haiku is the judgement layer. Code is the safety layer. Haiku is called only aft
 - If Haiku confidence is `medium` or `low`, the MIN_SCORE floor is enforced.
 - If Haiku's full ordered list fails the floor at medium/low confidence, the slot falls back per section 12.
 
+**`relax=True` (readable_list profile, added 2026-05-08):**
+
+- `ImageSourcer(relax=True)` lowers the **R3 floor only** from `MIN_SCORE_R3=8` to `MIN_SCORE_R3_RELAXED=6`. R1 and R2 floors are unchanged.
+- Threaded by `pipelines/manual/ship_manual_post.py` when `--layout-mode=readable_list` (i.e. list and news slots via the autonomous agent).
+- Rationale: list item slides like "Refrigerator Safety Act 1956" have weak literal subject-term matches in stock metadata, so the strict R3 floor was rejecting candidates Haiku correctly judged as serviceable. The relaxed floor lets a Haiku `medium` pick at score 6-7 commit instead of the typography fallback. compact_legacy callers (fact slot, direct CLI) leave `relax=False` and keep the strict floor.
+- Out of scope for the relax flag in this iteration: the `no_subject_term_in_meta` POOL_REJECT remains a hard reject; only the score floor moved.
+
 ---
 
 ## 9. Deterministic scoring role

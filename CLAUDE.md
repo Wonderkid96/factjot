@@ -159,6 +159,8 @@ Source of truth: `brand/brand_kit.json` (v2.0) consumed via `src/core/brand.py`.
 | JetBrains Mono Bold | Labels, badges, tags |
 | Archivo Black 900 | Short-form video burn-in subtitles only, never elsewhere |
 
+Carousel body copy honours the Space Grotesk rule when `layout_mode=readable_list` (used by the list and news slots). The fact slot still renders body in Archivo Black 900 via the `compact_legacy` profile pending a separate font decision; see §10.
+
 Wordmark: `fact[regular] jot[italic] .[red]`. Canonical inline 3-part HTML across every template; the legacy PNG fallback was removed 2026-05-07.
 
 Brand colours: PAPER `#F4F1E9`, INK `#0A0A0A` (open decision, see §4), ACCENT `#E6352A`, LIME `#C8DB45`, LILAC `#C4A9D0`. v2 additions: SKY `#C9D8E2`, AVAILABLE `#80EF80`, surface tokens `dark_bg`, `surface`, `elevated`, brand gradient at 90°.
@@ -167,7 +169,24 @@ Shadow: hard drop `2px 2px 0 rgba(0,0,0,0.5)`, no blur.
 
 ---
 
-## 10. Where things live
+## 10. Carousel layout profiles
+
+Source of truth: `src/content/carousel_rules.py` -> `LAYOUT_PROFILES`.
+Two profiles. Pick by `--layout-mode` on `pipelines/manual/ship_manual_post.py`, or let the agent's `run_carousel` derive it from `format_type`.
+
+| Profile | Body font | Container | Char cap | Used by |
+|---|---|---|---|---|
+| `compact_legacy` | Archivo Black 900 (48px / 42px) | anchored bottom-left | 24 hard | fact slot; default for `--type=fact|news` direct CLI |
+| `readable_list` | Space Grotesk SemiBold | half-box bottom 50%, JS auto-fit (64 -> 28 px) | 56 hard | list slot, news slot |
+
+Routing:
+- Agent `run_carousel(format_type=list|news)` appends `--layout-mode readable_list`. Fact stays default. Reels never read layout_mode.
+- Direct CLI without `--layout-mode` defaults to `compact_legacy` for any sub-type.
+- compact_legacy is byte-identical to pre-2026-05-08 output. Existing fact carousels render unchanged.
+
+Image scoring under `readable_list` runs `ImageSourcer(relax=True)`: R3 score floor drops 8 -> 6 to admit moderately-confident candidates on item slides where named-subject metadata is weak. compact_legacy callers leave `relax=False`.
+
+## 11. Where things live
 
 - **Pipelines:** `pipelines/{reel,manual,news,carousel,list,shared}/`. Only `reel/make_reel.py` and `manual/ship_manual_post.py` are intentional production entry points (autonomous workflow calls them via the agent's `run_reel` / `run_carousel` tools). Other pipeline files are legacy; see `docs/PIPELINE_OPERATIONS_REFERENCE.md` §2.
 - **Shared modules:** `src/{core,research,content,verification,render,publish,utils}/`. Responsibilities table in `SPEC_FACTJOT_SYSTEM.md` §7.
@@ -179,7 +198,7 @@ Shadow: hard drop `2px 2px 0 rgba(0,0,0,0.5)`, no blur.
 
 ---
 
-## 11. Legacy and dormant code
+## 12. Legacy and dormant code
 
 These exist on disk but no scheduled workflow calls them. Do not re-introduce a scheduled cron without first disabling the autonomous workflow, or double-posting will follow.
 
@@ -192,7 +211,7 @@ These exist on disk but no scheduled workflow calls them. Do not re-introduce a 
 
 ---
 
-## 12. Fix philosophy
+## 13. Fix philosophy
 
 Every fix must be a long-term structural fix, not a temporary patch. A patch that suppresses a symptom will reappear elsewhere. Before shipping, ask: does this remove the root cause, or hide it? If it hides it, keep digging.
 
@@ -200,7 +219,7 @@ If you discover a new failure mode, append to `insta-brain/gotchas.md` before cl
 
 ---
 
-## 13. Debugging workflow failures
+## 14. Debugging workflow failures
 
 1. Open `github.com/Wonderkid96/factjot` → Actions → failed run → step logs.
 2. Common causes:
@@ -212,7 +231,7 @@ If you discover a new failure mode, append to `insta-brain/gotchas.md` before cl
 
 ---
 
-## 14. Open work
+## 15. Open work
 
 - `ROADMAP.md` tracks deferred phases (currently Phase 8, vision-based frame selector). Do not pick up without explicit instruction.
 - TikTok: app submitted for review 2026-05-02; not yet wired into the autonomous workflow.
