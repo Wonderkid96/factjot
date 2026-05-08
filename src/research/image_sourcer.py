@@ -280,6 +280,12 @@ class ImageSourcer:
         self._last_meta:     str                   = ""
         self._good_images:   list[tuple[str, str]] = []  # (data_url, source_url)
 
+        # Read-only audit trail of per-slot decisions, populated as
+        # source_images() runs. Each entry is a dict; see _record_slot.
+        # Callers (e.g. list-mode validation in ship_manual_post.py) read
+        # this to enforce per-item alias match and de-duplicate by URL.
+        self.last_run_decisions: list[dict] = []
+
     def source_images(
         self,
         queries:  list[str],
@@ -303,6 +309,8 @@ class ImageSourcer:
 
         log.debug("IMAGE provider_order=%s topic=%s", self._fetcher._provider_order(self.topic), self.topic)
 
+        # Reset the audit trail for this run; populated as we go.
+        self.last_run_decisions = []
         data_urls: list[str] = []
 
         for i, query in enumerate(queries):
@@ -413,6 +421,11 @@ class ImageSourcer:
                             log.debug("IMAGE slot=%d RELAX_R3_EXHAUSTED → typography", i)
                             data_urls.append("")
                             self._last_url = ""
+                            self._record_slot(
+                                slot=i, query=query, outcome="typography",
+                                relaxation_round=3,
+                                reason="r3_exhausted",
+                            )
                             continue
 
             log.debug("IMAGE slot=%d pool_size=%d (round=%d)", i, len(raw_pool), relaxation_round)
@@ -437,6 +450,43 @@ class ImageSourcer:
     # Internal helpers
     # ------------------------------------------------------------------ #
 
+    def _record_slot(
+        self,
+        *,
+        slot: int,
+        query: str,
+        outcome: str,
+        chosen_url: str = "",
+        chosen_meta: str = "",
+        chosen_provider: str = "",
+        score: int | None = None,
+        confidence: str = "",
+        relaxation_round: int = 0,
+        reason: str = "",
+    ) -> None:
+        """Append one read-only decision row to last_run_decisions.
+
+        outcome values:
+          - "haiku_pick"        - Haiku selected and committed
+          - "deterministic"     - Haiku failed; deterministic fallback used
+          - "reuse"             - recycled an earlier carousel image
+          - "typography"        - no image; slide is typography-only
+        """
+        while len(self.last_run_decisions) < slot:
+            self.last_run_decisions.append({"slot": len(self.last_run_decisions), "outcome": "skipped"})
+        self.last_run_decisions.append({
+            "slot": slot,
+            "query": query,
+            "outcome": outcome,
+            "chosen_url": chosen_url,
+            "chosen_meta": chosen_meta,
+            "chosen_provider": chosen_provider,
+            "score": score,
+            "confidence": confidence,
+            "relaxation_round": relaxation_round,
+            "reason": reason,
+        })
+
     def _select_for_slot(
         self,
         slot: int,
@@ -459,6 +509,14 @@ class ImageSourcer:
         if not raw_pool:
             chosen = self._pick_reuse()
             log.debug("IMAGE slot=%d EMPTY_POOL → %s", slot, "reuse" if chosen else "typography")
+            self._record_slot(
+                slot=slot, query=query,
+                outcome=("reuse" if chosen else "typography"),
+                chosen_url=("" if not chosen else self._last_url),
+                chosen_meta=("" if not chosen else self._last_meta),
+                relaxation_round=relaxation_round,
+                reason="empty_pool",
+            )
             return chosen
 
         is_r3 = (relaxation_round == 3)
@@ -477,6 +535,14 @@ class ImageSourcer:
         if not eligible:
             chosen = self._pick_reuse()
             log.debug("IMAGE slot=%d all_hard_rejected → %s", slot, "reuse" if chosen else "typography")
+            self._record_slot(
+                slot=slot, query=query,
+                outcome=("reuse" if chosen else "typography"),
+                chosen_url=("" if not chosen else self._last_url),
+                chosen_meta=("" if not chosen else self._last_meta),
+                relaxation_round=relaxation_round,
+                reason="all_hard_rejected",
+            )
             return chosen
 
         # [B] Score all eligible candidates, sorted best-first
@@ -560,6 +626,14 @@ class ImageSourcer:
                     "IMAGE slot=%d HAIKU pick=%d [%s] score=%d confidence=%s %s",
                     slot, pick_idx, credit["provider"], sc, confidence, credit["reason"],
                 )
+                self._record_slot(
+                    slot=slot, query=query, outcome="haiku_pick",
+                    chosen_url=c.url, chosen_meta=c.meta,
+                    chosen_provider=credit.get("provider", c.provider),
+                    score=sc, confidence=confidence,
+                    relaxation_round=relaxation_round,
+                    reason=credit.get("reason", ""),
+                )
                 return data_url
             except Exception as exc:
                 log.warning("IMAGE slot=%d haiku_pick=%d commit_failed: %s", slot, pick_idx, exc)
@@ -587,6 +661,14 @@ class ImageSourcer:
                     "IMAGE slot=%d DETERMINISTIC [%s] score=%d %s",
                     slot, credit["provider"], sc, credit["reason"],
                 )
+                self._record_slot(
+                    slot=slot, query=query, outcome="deterministic",
+                    chosen_url=c.url, chosen_meta=c.meta,
+                    chosen_provider=credit.get("provider", c.provider),
+                    score=sc, confidence=confidence,
+                    relaxation_round=relaxation_round,
+                    reason=credit.get("reason", ""),
+                )
                 return data_url
             except Exception as exc:
                 log.warning("IMAGE slot=%d deterministic commit_failed: %s", slot, exc)
@@ -594,6 +676,14 @@ class ImageSourcer:
         # [F] Last resort: reuse an earlier committed image, or typography-only
         chosen = self._pick_reuse()
         log.debug("IMAGE slot=%d ALL_FAILED → %s", slot, "reuse" if chosen else "typography")
+        self._record_slot(
+            slot=slot, query=query,
+            outcome=("reuse" if chosen else "typography"),
+            chosen_url=("" if not chosen else self._last_url),
+            chosen_meta=("" if not chosen else self._last_meta),
+            relaxation_round=relaxation_round,
+            reason="haiku_and_deterministic_failed",
+        )
         return chosen
 
     def _commit(self, url: str, meta: str, data_url: str) -> None:

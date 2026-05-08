@@ -485,12 +485,29 @@ ITEM FIELDS (all required):
 - concrete_fact (string): one extra hard fact (date, place, scale,
   outcome). Max {hard_cap} chars. Must add new information; do not
   restate name or rank_reason.
-- image_query (string): 2-5 words, photographable proxy, subject-first.
+- image_query (string): 2-5 words. MUST start with the item name
+  verbatim (or its canonical short form). Add 1-2 visual context
+  words after. The image is item-specific, not list-themed. No
+  generic "engineering disaster", "factory fire", "warehouse"
+  queries; those will be rejected and the slide will fall to
+  typography. Examples:
+    Chernobyl disaster -> "Chernobyl reactor disaster"
+    Deepwater Horizon blowout -> "Deepwater Horizon oil rig fire"
+    Space Shuttle Challenger -> "Space Shuttle Challenger explosion"
+    Hubble Space Telescope mirror flaw -> "Hubble Space Telescope"
+    Mars Climate Orbiter -> "Mars Climate Orbiter NASA"
 
 CLOSING SLIDE (NOT a list item):
 
 - closing.lines: EXACTLY 3 strings. Target 30-50 chars per line, max
-  {hard_cap}. A one-line takeaway, not a moral argument.
+  {hard_cap}. Summarise the ranking by stating a pattern about the
+  five items themselves. The closer is structural, not moral.
+  FORBIDDEN closer shapes:
+    - rhetorical questions ("who chose...?", "what if...?")
+    - moral imperatives ("we must...", "the world should...")
+    - "the lesson is...", "the takeaway is..."
+    - second person hectoring ("you have to...")
+    - vague universals ("everyone knows...")
 - closing.image_query: 2-5 words, photographable proxy.
 
 COVER:
@@ -508,6 +525,17 @@ LAYOUT - HARD RULES (the pipeline rejects anything outside these):
 - No em dashes. No semicolons inside fields. Commas, full stops,
   parentheses only.
 - British English.
+
+WORDING RULES (rendered fields only):
+
+- Use "about" not "approximately". Drop "roughly", "reportedly",
+  "generally" unless meaningfully load-bearing.
+- Lead with the noun. Active verbs. Past tense for past events.
+- No filler ("on that day", "as a result", "in the end",
+  "ultimately", "essentially").
+- Keep specifics: numbers, dates, places, currencies. Do NOT
+  paraphrase a hard fact into a soft one.
+- Each rendered field is one short clause, not a paragraph.
 
 Return JSON only. No prose around it.
 
@@ -542,6 +570,266 @@ Return JSON only. No prose around it.
 
 Return EXACTLY {n_items} items in items[].
 """
+
+
+LIST_POLISH_PROMPT = """\
+Polish the wording in these structured list fields for a factjot
+ranked-list carousel. The structure is FROZEN: do not change the
+shape, the names, the ranks, or the count of items.
+
+HARD RULES:
+
+- Do NOT change item names. Names are immutable.
+- Do NOT change ranks.
+- Do NOT add new facts or numbers; only rewrite existing wording.
+- Do NOT remove specifics (numbers, dates, places, currencies).
+- Use "about" instead of "approximately".
+- Drop stiff filler: "on that day", "in the end", "as a result",
+  "reportedly", "generally", "ultimately", "essentially".
+  Keep "roughly" only when it materially softens a number.
+- Active voice. Lead with the noun. Past tense for past events.
+- British English. No em dashes.
+- Each rendered field stays under {hard_cap} characters
+  (markup-stripped).
+- Do NOT change image_query values. Pass them through unchanged.
+
+CLOSING SLIDE (closing.lines):
+
+- Summarise the ranking by stating a pattern about the five items
+  themselves. The closer is structural, not moral.
+- FORBIDDEN: rhetorical questions, moral imperatives, "the lesson
+  is...", "the takeaway is...", second-person hectoring, vague
+  universals ("everyone knows...").
+- Exactly 3 lines, each <= {hard_cap} chars.
+
+INPUT:
+{payload_json}
+
+Return JSON only, no prose around it. The shape:
+
+{{
+  "items": [
+    {{ "rank": 1, "name": "...", "rank_reason": "polished",
+       "concrete_fact": "polished", "image_query": "..." }}
+  ],
+  "closing": {{ "lines": ["polished line 1", "polished line 2", "polished line 3"],
+               "image_query": "..." }}
+}}
+"""
+
+
+def _polish_list_wording(data: dict, api_key: str) -> tuple[dict, dict]:
+    """Second-stage polish pass on rendered list fields only.
+
+    Calls Haiku 4.5 with the structured items + closing and returns
+    polished versions. Names, ranks, and image_query are forced back
+    from the original payload to guarantee structural immutability,
+    even if the model tries to drift.
+
+    Returns (polished_data, usage_record). On parse failure or
+    empty/malformed output the original `data` is returned unchanged
+    along with the usage record (so cost is still accounted for).
+    """
+    from anthropic import Anthropic
+
+    profile = get_profile("readable_list")
+    payload = {"items": data["items"], "closing": data["closing"]}
+    prompt = LIST_POLISH_PROMPT.format(
+        hard_cap=profile["hard_cap"],
+        payload_json=json.dumps(payload, ensure_ascii=False, indent=2),
+    )
+    client = Anthropic(api_key=api_key)
+    res = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=2000,
+        temperature=0.2,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    pricing = {"input": 1.00, "output": 5.00}
+    cost = (
+        res.usage.input_tokens / 1_000_000 * pricing["input"]
+        + res.usage.output_tokens / 1_000_000 * pricing["output"]
+    )
+    usage = {
+        "model": "claude-haiku-4-5-20251001",
+        "stage": "fitter",
+        "input_tokens": res.usage.input_tokens,
+        "output_tokens": res.usage.output_tokens,
+        "cost_usd": round(cost, 5),
+    }
+
+    try:
+        polished = _parse_json_payload(res.content[0].text)
+    except Exception as exc:  # noqa: BLE001 - any parse error returns unchanged
+        _log(f"     [polish-pass] JSON parse failed, keeping original wording: {exc}")
+        return data, usage
+
+    polished_items = polished.get("items") or []
+    polished_closing = polished.get("closing") or {}
+
+    if len(polished_items) == len(data["items"]):
+        for orig, new in zip(data["items"], polished_items):
+            new["rank"] = orig["rank"]
+            new["name"] = orig["name"]
+            new["image_query"] = orig.get("image_query") or new.get("image_query", "")
+        data["items"] = polished_items
+
+    cl_lines = polished_closing.get("lines")
+    if isinstance(cl_lines, list) and len(cl_lines) == 3:
+        polished_closing["image_query"] = (
+            data["closing"].get("image_query")
+            or polished_closing.get("image_query", "")
+        )
+        data["closing"] = polished_closing
+
+    return data, usage
+
+
+# ------------------------------------------------------------------ #
+# Per-list-item image validation
+# ------------------------------------------------------------------ #
+
+_LIST_IMAGE_STOPWORDS = frozenset({
+    "the", "a", "an", "of", "and", "or", "in", "to", "with", "at",
+    "by", "for", "from", "on", "that", "this", "these", "those",
+    "are", "was", "were", "is", "be", "been",
+})
+
+
+def _hash_data_url(data_url: str) -> str:
+    """Stable identity for a base64 data URL (used for dedup).
+
+    Two slides that committed the SAME image (same provider, same
+    fetched bytes) will hash identically. This is robust even when
+    the upstream URL differs, because we hash the cached bytes.
+    """
+    if not data_url:
+        return ""
+    import hashlib
+    payload = data_url.split(",", 1)[-1]
+    return hashlib.sha1(payload.encode("ascii", errors="ignore")).hexdigest()
+
+
+def _item_aliases_for_image(item: dict) -> list[str]:
+    """Aliases the chosen image's metadata must contain to count as
+    a match for this list item.
+
+    Combines the item name (whole phrase, plus each significant
+    token), and the item's image_query terms. Lowercased, stop-words
+    dropped, single-character / two-character tokens dropped.
+    """
+    out: list[str] = []
+    name = (item.get("name") or "").strip().lower()
+    if name:
+        out.append(name)
+        for tok in re.split(r"[^a-z0-9]+", name):
+            if len(tok) >= 3 and tok not in _LIST_IMAGE_STOPWORDS:
+                out.append(tok)
+    iq = (item.get("image_query") or "").strip().lower()
+    for tok in re.split(r"[^a-z0-9]+", iq):
+        if len(tok) >= 3 and tok not in _LIST_IMAGE_STOPWORDS:
+            out.append(tok)
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for t in out:
+        if t and t not in seen:
+            seen.add(t)
+            deduped.append(t)
+    return deduped
+
+
+def _image_meta_matches_item(meta: str, item: dict) -> tuple[bool, list[str]]:
+    """Return (matched, hits) where hits are the aliases found in meta.
+
+    Matching is case-insensitive substring across the metadata
+    string the sourcer logs. A single token hit is enough; the
+    pipeline already gates on subject-term presence at score time,
+    so this is a final no-wrong-image safety net.
+    """
+    if not meta:
+        return False, []
+    meta_lc = meta.lower()
+    aliases = _item_aliases_for_image(item)
+    hits = [a for a in aliases if a in meta_lc]
+    return bool(hits), hits
+
+
+def _validate_list_images(
+    images: list[str],
+    decisions: list[dict],
+    items: list[dict],
+) -> tuple[list[str], list[dict]]:
+    """Caller-side image validation for list mode.
+
+    Two rules, in order:
+      1. Item slides only: image metadata must contain the item
+         name or a derived alias. If not, the slide goes typography
+         (rejecting "visually dramatic but wrong" images, e.g. a
+         Chernobyl photo on a Challenger slide).
+      2. No duplicate images across the carousel. Slide hashes are
+         compared on the committed bytes; first occurrence wins,
+         later duplicates go typography.
+
+    Cover (slot 0) and closing (last slot) are exempt from rule 1
+    (they have no item) but participate in rule 2.
+
+    Returns (filtered_images, audit_per_slot). The audit is suitable
+    for logging and for inclusion in list_data.json.
+    """
+    audit: list[dict] = []
+    filtered: list[str] = list(images)
+    n = len(filtered)
+    seen_hashes: dict[str, int] = {}
+
+    for slot in range(n):
+        url = filtered[slot]
+        decision = decisions[slot] if slot < len(decisions) else {}
+        slot_audit: dict = {
+            "slot": slot,
+            "image_query": decision.get("query", ""),
+            "image_meta": decision.get("chosen_meta", "")[:140],
+            "image_provider": decision.get("chosen_provider", ""),
+            "selection_outcome": decision.get("outcome", ""),
+            "selection_reason": decision.get("reason", ""),
+            "match_status": "n/a",
+            "dedupe_status": "n/a",
+            "outcome": "kept",
+        }
+
+        if not url:
+            slot_audit["outcome"] = "typography_input"
+            audit.append(slot_audit)
+            continue
+
+        is_item_slide = 1 <= slot <= len(items)
+        if is_item_slide:
+            item = items[slot - 1]
+            matched, hits = _image_meta_matches_item(
+                decision.get("chosen_meta", ""), item,
+            )
+            slot_audit["item_name"] = item.get("name", "")
+            slot_audit["aliases_checked"] = _item_aliases_for_image(item)[:5]
+            slot_audit["aliases_matched"] = hits
+            slot_audit["match_status"] = "match" if matched else "mismatch"
+            if not matched:
+                filtered[slot] = ""
+                slot_audit["outcome"] = "rejected_alias_mismatch"
+                slot_audit["dedupe_status"] = "skipped_after_reject"
+                audit.append(slot_audit)
+                continue
+
+        h = _hash_data_url(url)
+        if h and h in seen_hashes:
+            filtered[slot] = ""
+            slot_audit["outcome"] = "rejected_duplicate"
+            slot_audit["dedupe_status"] = f"duplicate_of_slot_{seen_hashes[h]}"
+        elif h:
+            seen_hashes[h] = slot
+            slot_audit["dedupe_status"] = "unique"
+
+        audit.append(slot_audit)
+
+    return filtered, audit
 
 
 def _generate_list_content(
@@ -599,6 +887,25 @@ def _generate_list_content(
         }
         raise
 
+    # Wording polish pass: Haiku 4.5 rewrites rendered fields and the
+    # closer. Names, ranks, and image_query are forced back to the
+    # originals inside _polish_list_wording, so structural drift is
+    # impossible. Re-validate after the pass and surface any failure
+    # the same way the first call would.
+    data, polish_usage = _polish_list_wording(data, api_key)
+    try:
+        _enforce_list_shape(
+            data, requested_items=n_items, hard_cap=profile["hard_cap"],
+        )
+    except CarouselShapeError as shape_err:
+        shape_err.usage = {
+            "editorial_cost_usd": float(usage["cost_usd"]),
+            "fitter_cost_usd":    float(polish_usage["cost_usd"]),
+            "fitter_attempts":    1,
+            "probe_attempts":     0,
+        }
+        raise
+
     items   = data["items"]
     closing = data["closing"]
 
@@ -617,7 +924,7 @@ def _generate_list_content(
     data["_fitter_attempts"] = 1
     data["_probe_attempts"] = 0
 
-    return data, [usage]
+    return data, [usage, polish_usage]
 
 
 def generate_content(
@@ -1027,6 +1334,13 @@ def main() -> int:
                  "item": s.get("item")}
                 for s in slides
             ],
+            # _image_audit is populated AFTER content generation,
+            # right after the sourcer runs. On runs that abort before
+            # the sourcer completes (cover gate aborts in the
+            # validation block, etc.) this key may be absent. The
+            # writer updates list_data.json once more in the live
+            # publish path so the audit lands eventually.
+            "image_audit": data.get("_image_audit", []),
         }
         (save_dir / "list_data.json").write_text(
             json.dumps(list_payload, ensure_ascii=False, indent=2),
@@ -1064,6 +1378,57 @@ def main() -> int:
         per_slot_aliases=per_slot_aliases[:total_slides],
         visual_fallback_queries=visual_fallbacks[:total_slides],
     )
+
+    # List-mode image quality gate: per-item alias match + carousel-wide
+    # de-duplication. Wrong-but-dramatic images (Chernobyl photo on a
+    # Challenger slide) and reused images (one fire photo across two
+    # slides) are forced to typography. The cover and closing are
+    # exempt from alias check but still subject to dedup.
+    image_audit: list[dict] = []
+    if args.type == "list" and isinstance(data.get("items"), list):
+        images, image_audit = _validate_list_images(
+            images=images,
+            decisions=getattr(sourcer, "last_run_decisions", []),
+            items=data["items"],
+        )
+        _log(f"\n     Image validation (list mode):")
+        for row in image_audit:
+            tag = row.get("outcome", "?")
+            slot = row.get("slot", "?")
+            meta = (row.get("image_meta") or "")[:80]
+            extra = ""
+            if row.get("match_status") == "mismatch":
+                extra = (
+                    f" item={row.get('item_name','')!r}"
+                    f" aliases_checked={row.get('aliases_checked', [])}"
+                )
+            elif row.get("match_status") == "match":
+                extra = f" matched={row.get('aliases_matched', [])}"
+            if row.get("dedupe_status", "").startswith("duplicate_of_slot_"):
+                extra += f" {row['dedupe_status']}"
+            _log(
+                f"       slot {slot}: {tag} | {row.get('image_provider','')} "
+                f"q={row.get('image_query','')!r}{extra}"
+            )
+            if meta:
+                _log(f"         meta: {meta}")
+        data["_image_audit"] = image_audit
+        # Re-save list_data.json with the image audit so cover-gate
+        # aborts still leave a fully-populated payload behind for
+        # inspection. The early-save (before sourcing) is a safety
+        # net; this overwrite is the canonical version.
+        list_path = save_dir / "list_data.json"
+        try:
+            existing = json.loads(list_path.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            existing = {}
+        existing["image_audit"] = image_audit
+        existing["items"] = data.get("items", existing.get("items"))
+        existing["closing"] = data.get("closing", existing.get("closing"))
+        list_path.write_text(
+            json.dumps(existing, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
 
     image_coverage = {
         "image": sum(1 for u in images if u),
