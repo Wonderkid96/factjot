@@ -157,6 +157,18 @@ jobs:
           POST_MODE: ${{ steps.mode.outputs.mode }}
         run: python3 -u scripts/autonomous_agent.py --post-mode "$POST_MODE"
 
+      - name: Upload rendered slides + reel as artefact (dry-run only)
+        if: ${{ always() && inputs.dry_run == 'true' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendered-output-${{ steps.mode.outputs.mode }}-${{ github.run_id }}
+          path: |
+            output/manual/**
+            output/reel/**
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Cross-post latest reel to YouTube as Short (soft)
         if: ${{ success() && (inputs.dry_run != 'true') && startsWith(steps.mode.outputs.mode, 'reel_') }}
         continue-on-error: true
