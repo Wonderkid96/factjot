@@ -5,6 +5,12 @@
 - 2026-05-08 15:16 token refreshed: new expiry ~59 days
 - 2026-05-08 15:12 WORKFLOW FAILED: .github/workflows/autonomous-reel.yml | run=25562964155 | trigger=schedule | ref=main
 - 2026-05-08 15:05 token refreshed: new expiry ~60 days
+- 2026-05-08 17:59 reel ABORTED — short duration 33.9s for In 1518 hundreds of people in Strasbourg began dancing uncon
+- 2026-05-08 17:47 reel ABORTED — short duration 34.5s for Mary Mallon, known as Typhoid Mary, was an asymptomatic carr
+- 2026-05-08 17:23 reel FAILED ffmpeg — fact='Some people with damage to the primary visual cortex insist ' error=FFmpeg failed (exit 254). See ffmpeg_debug.txt (command) and ffmpeg_compose_stderr.log (stderr tail below).
+ffmpeg version 8.1.1 Copyright (c) 2000-2026 the FFmpeg developers
+  built with Apple clang version 21.0.0 (clang-2100.0.123.102)
+  configuration: --prefix=/opt/homebrew/Cellar/ffmpeg/8.1.1 --
 - 2026-05-08 16:59 reel ABORTED — short duration 31.7s for Australia drifts north at roughly 7 centimetres a year. It h
 - 2026-05-08 16:37 reel ABORTED — short duration 31.8s for Australia drifts north at roughly 7 centimetres a year. It h
 - 2026-05-08 14:31 token refreshed: new expiry ~59 days

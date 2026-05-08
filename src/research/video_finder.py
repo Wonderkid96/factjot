@@ -544,17 +544,8 @@ def _try_all_sources(
     used_source_urls: set of already-downloaded remote URLs - sources skip these
                       so we never download the same content for different queries.
     """
-    slug = hashlib.sha1(query.encode()).hexdigest()[:10]
-    out_path = out_dir / f"footage_{slug}.mp4"
-
     _use_archival = _topic_allows_archival(topic, allow_archival)
     min_bytes = _MIN_BYTES_ARK if _use_archival else _MIN_BYTES_HD
-
-    # Return from cache only if not already used elsewhere in this batch
-    if out_path.exists() and out_path.stat().st_size >= min_bytes:
-        if exclude_paths is None or str(out_path) not in exclude_paths:
-            print(f"  [video] cached: {out_path.name}")
-            return out_path
 
     sources = _build_source_list(topic, allow_archival=_use_archival)
     for name, fn in sources:
@@ -563,6 +554,16 @@ def _try_all_sources(
             if not url:
                 continue
             print(f"  [video] {name}: {url[:80]}")
+            # Path key must be URL-based, not query-based. Query-based paths can
+            # collide across different queries and later retries may overwrite or
+            # delete a clip already selected for composition.
+            out_path = out_dir / f"footage_{hashlib.sha1(url.encode()).hexdigest()[:10]}.mp4"
+            if out_path.exists() and out_path.stat().st_size >= min_bytes:
+                if exclude_paths is None or str(out_path) not in exclude_paths:
+                    print(f"  [video] cached: {out_path.name}")
+                    if used_source_urls is not None:
+                        used_source_urls.add(url)
+                    return out_path
             if _download_mp4(url, out_path, min_bytes=min_bytes):
                 if used_source_urls is not None:
                     used_source_urls.add(url)

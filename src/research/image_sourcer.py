@@ -348,6 +348,7 @@ class ImageSourcer:
         per_slot_aliases: "list[list[str] | None] | None" = None,
         per_slot_text: "list[str] | None" = None,
         visual_fallback_queries: "list[str] | None" = None,
+        smoke_mode: bool = False,
     ) -> list[str]:
         """Return one base64 data URL per query slot.
 
@@ -481,6 +482,16 @@ class ImageSourcer:
                 else ""
             )
             if vfq:
+                if smoke_mode:
+                    log.debug("IMAGE slot=%d SMOKE_SKIP_R3", i)
+                    self._last_url = ""
+                    self._record_slot(
+                        slot=i, query=query, outcome="typography",
+                        relaxation_round=3,
+                        reason="smoke_mode_skip_r3",
+                    )
+                    data_urls.append("")
+                    continue
                 relaxation_round = 3
                 log.debug("IMAGE slot=%d RELAX_R3 → visual fallback %r", i, vfq)
                 r3_provider_order = _r3_provider_order_for_query(vfq)

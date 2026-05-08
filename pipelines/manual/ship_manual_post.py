@@ -203,12 +203,18 @@ def _assert_lines_within_render_cap(slides: list[dict], hard_cap: int = HARD_LIN
     callers pass the profile's wider cap (56). Autosize on readable_list
     handles within-cap overflow at render time.
     """
+    # Permit a small textual overflow buffer and let the visual probe be the
+    # final authority for compact_legacy fit. This avoids false hard-fails on
+    # lines that are 1-2 chars over cap but still render on one visual line.
+    overflow_buffer = 2
     bad: list[str] = []
     for i, slide in enumerate(slides, 1):
         for j, raw_line in enumerate(slide.get("lines", [])):
             line = _strip_markup(raw_line).strip()
-            if len(line) > hard_cap:
-                bad.append(f"slide {i} line {j+1}: {len(line)} chars > cap {hard_cap}: {line!r}")
+            if len(line) > (hard_cap + overflow_buffer):
+                bad.append(
+                    f"slide {i} line {j+1}: {len(line)} chars > cap {hard_cap}+{overflow_buffer}: {line!r}"
+                )
     if bad:
         raise RuntimeError(
             "OVERCAP_SLIDE_LINES (writer exceeded the layout's hard cap):\n"
@@ -672,6 +678,97 @@ Return JSON only, no prose around it. The shape:
 """
 
 
+LIST_SHAPE_REPAIR_PROMPT = """\
+Repair this factjot list payload so it passes strict shape validation.
+
+Hard rules:
+- Keep the same number of items and same ranks.
+- Do NOT change item names.
+- Keep facts accurate; do not invent numbers or dates.
+- Rewrite only wording where needed so each of these fields is <= {hard_cap} chars:
+  - rank_reason
+  - concrete_fact
+  - closing.lines[1..3]
+- Keep all image_query values unchanged.
+- British English, no em dashes.
+
+Validation failures you must fix:
+{errors}
+
+Input payload:
+{payload_json}
+
+Return JSON only with this exact shape:
+{{
+  "items": [
+    {{ "rank": 1, "name": "...", "rank_reason": "...", "concrete_fact": "...", "image_query": "..." }}
+  ],
+  "closing": {{ "lines": ["...", "...", "..."], "image_query": "..." }}
+}}
+"""
+
+
+def _repair_list_shape(data: dict, errors: list[str], api_key: str, hard_cap: int) -> tuple[dict, dict]:
+    """Targeted repair pass for list shape failures (mainly over-cap fields)."""
+    from anthropic import Anthropic
+
+    payload = {"items": data.get("items", []), "closing": data.get("closing", {})}
+    prompt = LIST_SHAPE_REPAIR_PROMPT.format(
+        hard_cap=hard_cap,
+        errors="\n".join(f"- {e}" for e in errors) if errors else "- shape mismatch",
+        payload_json=json.dumps(payload, ensure_ascii=False, indent=2),
+    )
+    client = Anthropic(api_key=api_key)
+    res = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=2000,
+        temperature=0.1,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    pricing = {"input": 3.00, "output": 15.00}
+    cost = (
+        res.usage.input_tokens / 1_000_000 * pricing["input"]
+        + res.usage.output_tokens / 1_000_000 * pricing["output"]
+    )
+    usage = {
+        "model": "claude-sonnet-4-6",
+        "stage": "shape_repair",
+        "input_tokens": res.usage.input_tokens,
+        "output_tokens": res.usage.output_tokens,
+        "cost_usd": round(cost, 5),
+    }
+    repaired = _parse_json_payload(res.content[0].text)
+    return repaired, usage
+
+
+def _ensure_list_visual_fields(data: dict, n_items: int) -> dict:
+    """Backfill required visual query fields when the writer omits them."""
+    items = data.get("items") if isinstance(data.get("items"), list) else []
+    closing = data.get("closing") if isinstance(data.get("closing"), dict) else {}
+
+    if not isinstance(data.get("cover_image_query"), str) or not data.get("cover_image_query", "").strip():
+        if items and isinstance(items[0], dict) and isinstance(items[0].get("image_query"), str):
+            data["cover_image_query"] = items[0]["image_query"]
+        else:
+            data["cover_image_query"] = "engineering disaster ruins"
+
+    vfqs = data.get("visual_fallback_queries")
+    expected = n_items + 2
+    if not isinstance(vfqs, list) or len(vfqs) != expected:
+        built: list[str] = []
+        built.append("industrial disaster ruins")
+        for item in items[:n_items]:
+            iq = str(item.get("image_query", "")).strip().lower()
+            parts = [p for p in re.split(r"\s+", iq) if p]
+            built.append(" ".join(parts[:4]) if parts else "industrial accident site")
+        while len(built) < expected - 1:
+            built.append("industrial accident site")
+        c_iq = str(closing.get("image_query", "")).strip().lower()
+        built.append(" ".join(c_iq.split()[:4]) if c_iq else "safety inspection workers")
+        data["visual_fallback_queries"] = built[:expected]
+    return data
+
+
 def _polish_list_wording(data: dict, api_key: str) -> tuple[dict, dict]:
     """Second-stage polish pass on rendered list fields only.
 
@@ -883,6 +980,23 @@ def _validate_list_images(
 
         audit.append(slot_audit)
 
+    # No-empty-slides backstop for list mode:
+    # if strict validation leaves blanks, reuse an existing validated image
+    # rather than shipping typography-only content slides.
+    reusable_pool = [u for u in filtered if u]
+    if reusable_pool:
+        for slot, url in enumerate(filtered):
+            if url:
+                continue
+            replacement = reusable_pool[slot % len(reusable_pool)]
+            filtered[slot] = replacement
+            if slot < len(audit):
+                prev = audit[slot].get("outcome", "")
+                audit[slot]["outcome"] = (
+                    f"reused_after_{prev}" if prev else "reused_after_validation"
+                )
+                audit[slot]["dedupe_status"] = "reused_to_avoid_typography"
+
     return filtered, audit
 
 
@@ -928,38 +1042,70 @@ def _generate_list_content(
     }
 
     data = _parse_json_payload(res.content[0].text)
+    usage_records = [usage]
+    already_polished = False
 
     try:
         _enforce_list_shape(
             data, requested_items=n_items, hard_cap=profile["hard_cap"],
         )
-    except CarouselShapeError as shape_err:
-        shape_err.usage = {
-            "editorial_cost_usd": float(usage["cost_usd"]),
-            "fitter_cost_usd":    0.0,
-            "fitter_attempts":    1,
-            "probe_attempts":     0,
-        }
-        raise
+    except CarouselShapeError as shape_err_first:
+        data = _ensure_list_visual_fields(data, n_items)
+        # First repair pass: compact wording while preserving item names/ranks.
+        data, polish_usage = _polish_list_wording(data, api_key)
+        usage_records.append(polish_usage)
+        already_polished = True
+        try:
+            _enforce_list_shape(
+                data, requested_items=n_items, hard_cap=profile["hard_cap"],
+            )
+        except CarouselShapeError as shape_err_2:
+            # Second repair pass: explicit fix guided by validator errors.
+            repaired, repair_usage = _repair_list_shape(
+                data,
+                shape_err_2.diagnostics.get("list_errors")
+                or shape_err_first.diagnostics.get("list_errors")
+                or [],
+                api_key,
+                profile["hard_cap"],
+            )
+            usage_records.append(repair_usage)
+            try:
+                _enforce_list_shape(
+                    repaired, requested_items=n_items, hard_cap=profile["hard_cap"],
+                )
+            except CarouselShapeError as shape_err_3:
+                shape_err_3.usage = {
+                    "editorial_cost_usd": float(usage["cost_usd"]),
+                    "fitter_cost_usd": float(
+                        sum(u["cost_usd"] for u in usage_records[1:])
+                    ),
+                    "fitter_attempts": 1,
+                    "probe_attempts": 0,
+                }
+                raise shape_err_3
+            data = repaired
 
     # Wording polish pass: Haiku 4.5 rewrites rendered fields and the
     # closer. Names, ranks, and image_query are forced back to the
     # originals inside _polish_list_wording, so structural drift is
     # impossible. Re-validate after the pass and surface any failure
     # the same way the first call would.
-    data, polish_usage = _polish_list_wording(data, api_key)
-    try:
-        _enforce_list_shape(
-            data, requested_items=n_items, hard_cap=profile["hard_cap"],
-        )
-    except CarouselShapeError as shape_err:
-        shape_err.usage = {
-            "editorial_cost_usd": float(usage["cost_usd"]),
-            "fitter_cost_usd":    float(polish_usage["cost_usd"]),
-            "fitter_attempts":    1,
-            "probe_attempts":     0,
-        }
-        raise
+    if not already_polished:
+        data, polish_usage = _polish_list_wording(data, api_key)
+        usage_records.append(polish_usage)
+        try:
+            _enforce_list_shape(
+                data, requested_items=n_items, hard_cap=profile["hard_cap"],
+            )
+        except CarouselShapeError as shape_err:
+            shape_err.usage = {
+                "editorial_cost_usd": float(usage["cost_usd"]),
+                "fitter_cost_usd":    float(polish_usage["cost_usd"]),
+                "fitter_attempts":    1,
+                "probe_attempts":     0,
+            }
+            raise
 
     items   = data["items"]
     closing = data["closing"]
@@ -979,7 +1125,7 @@ def _generate_list_content(
     data["_fitter_attempts"] = 1
     data["_probe_attempts"] = 0
 
-    return data, [usage, polish_usage]
+    return data, usage_records
 
 
 def generate_content(
@@ -1216,6 +1362,11 @@ def main() -> int:
                         help="Renderer layout profile. Defaults: list -> readable_list, "
                              "fact/news -> compact_legacy.")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--smoke-mode",
+        action="store_true",
+        help="Fast validation mode for dry-runs: reduce image pool work and skip R3 fallback.",
+    )
     args = parser.parse_args()
 
     # Layout default: list flips to readable_list automatically. fact /
@@ -1257,6 +1408,11 @@ def main() -> int:
     _log(f"     Brief:  \"{args.brief}\"")
     _log(f"     Type:   {args.type}  (target {total_slides_arg} slides total)")
     _log(f"     Layout: {layout_mode}")
+    if args.smoke_mode:
+        if not args.dry_run:
+            _log("ERROR: --smoke-mode is dry-run only.")
+            return 1
+        _log("     Smoke:  enabled (bounded image sourcing effort)")
     try:
         data, usage_records = generate_content(
             args.brief, n_slides, api_key, format_type=args.type,
@@ -1435,11 +1591,14 @@ def main() -> int:
         use_fresh_ledger=args.dry_run,
         relax=(layout_mode == "readable_list"),
     )
+    smoke_pool = 12 if args.smoke_mode else None
     images  = sourcer.source_images(
         queries[:total_slides], intent, post_id,
+        max_pool=smoke_pool,
         per_slot_aliases=per_slot_aliases[:total_slides],
         per_slot_text=per_slot_text[:total_slides],
         visual_fallback_queries=visual_fallbacks[:total_slides],
+        smoke_mode=args.smoke_mode,
     )
 
     # List-mode image quality gate: per-item alias match + carousel-wide

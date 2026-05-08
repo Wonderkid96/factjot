@@ -138,6 +138,10 @@ $PY pipelines/reel/make_reel.py --list-facts
 
 # Manual carousel (current autonomous carousel path)
 $PY pipelines/carousel/ship_carousel_post.py --dry-run
+$PY pipelines/carousel/ship_carousel_post.py --type list --brief "..." --dry-run --smoke-mode
+
+# Manual reel (script/title driven)
+$PY pipelines/reel/make_reel.py --script "..." --title "..." --topic science --tone-override curious --dry-run
 
 # Stop a stuck local reel job
 scripts/kill_local_reel_jobs.sh
@@ -191,7 +195,7 @@ Image scoring under `readable_list` runs `ImageSourcer(relax=True)`: R3 score fl
 
 - **Pipelines:** `pipelines/{reel,manual,news,carousel,list,shared}/`. Only `reel/make_reel.py` and `carousel/ship_carousel_post.py` are intentional production entry points (autonomous workflow calls them via the agent's `run_reel` / `run_carousel` tools). Other pipeline files are legacy; see `docs/PIPELINE_OPERATIONS_REFERENCE.md` §2.
 - **Shared modules:** `src/{core,research,content,verification,render,publish,utils}/`. Responsibilities table in `SPEC_FACTJOT_SYSTEM.md` §7.
-- **Workflows:** `.github/workflows/`. Active posting workflows are `autonomous-reel.yml` (scheduled reels/list/fact) and `news-watcher.yml` (breaking news watcher-triggered posts). `test.yml` runs PR pytest, `pages.yml` builds docs.
+- **Workflows:** `.github/workflows/`. Active posting workflows are `autonomous-reel.yml` (scheduled reels/list/fact), `news-watcher.yml` (breaking news watcher-triggered posts), and `manual-run.yml` (workflow_dispatch prompt-driven manual reel/carousel runs). `test.yml` runs PR pytest, `pages.yml` builds docs.
 - **State (git-tracked):** `insta-brain/data/posted.jsonl`, `insta-brain/data/reels.jsonl`, `data/ledgers/used_images.jsonl`, `data/ledgers/used_footage_urls.jsonl`, `data/ledgers/api_usage_costs.jsonl`, `data/ledgers/youtube_uploads.jsonl`, `data/ledgers/reel_performance.jsonl` (mutable). Invariant each ledger guards: `SPEC_FACTJOT_SYSTEM.md` §11.2.
 - **Brain:** `insta-brain/`. `gotchas.md` is mandatory reading.
 - **Per-run output:** `output/<pipeline>/...` (gitignored, local only).

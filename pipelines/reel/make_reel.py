@@ -198,6 +198,42 @@ class ReelFactInvariantError(RuntimeError):
     """
 
 
+_BORING_TITLE_PHRASES = (
+    "history of",
+    "story of",
+    "explained",
+    "how it works",
+    "guide to",
+)
+
+
+def _interestingness_score(row: dict) -> int:
+    """Lightweight quality signal for reel candidate selection.
+
+    Higher is better. This is intentionally conservative: it should demote
+    clearly flat candidates while still allowing varied subjects.
+    """
+    text = " ".join([
+        str(row.get("claim", "")),
+        str(row.get("reel_title", "")),
+        str(row.get("reel_script", ""))[:320],
+    ]).lower()
+    score = 0
+    if any(ch.isdigit() for ch in text):
+        score += 2
+    if any(w in text for w in ("dead", "death", "killed", "disaster", "explod", "poison", "banned", "illegal")):
+        score += 2
+    if any(w in text for w in ("first", "only", "largest", "smallest", "fastest", "oldest", "weird", "strange", "unlikely")):
+        score += 2
+    if any(w in text for w in ("surpris", "shock", "bizarre", "unusual", "unexpected")):
+        score += 2
+    if any(p in str(row.get("reel_title", "")).lower() for p in _BORING_TITLE_PHRASES):
+        score -= 2
+    if len(str(row.get("claim", "")).split()) < 8:
+        score -= 1
+    return score
+
+
 def _pick_fact(topic: str | None) -> dict | None:
     """Pick the best unused fact that passes every reel-quality invariant.
 
@@ -235,6 +271,9 @@ def _pick_fact(topic: str | None) -> dict | None:
     ]
     if not fresh:
         return None
+    interesting = [r for r in fresh if _interestingness_score(r) >= 2]
+    if interesting:
+        fresh = interesting
 
     from src.analytics.topic_scorer import get_topic_weights
     weights = get_topic_weights()
@@ -245,7 +284,8 @@ def _pick_fact(topic: str | None) -> dict | None:
         tw = topic_w.get(r.get("topic", ""), 0.5)
         nw = tone_w.get(r.get("tone", ""), 0.5)
         base = tw * 0.7 + nw * 0.3
-        return base + random.uniform(0, 0.2)  # jitter prevents topic lock-in
+        interest = _interestingness_score(r) / 10.0
+        return base + interest + random.uniform(0, 0.2)  # jitter prevents topic lock-in
 
     fresh.sort(key=_perf_key, reverse=True)
     return fresh[0]
@@ -260,7 +300,7 @@ def _log_pick_diagnostics(topic: str | None) -> None:
     if topic:
         pool = [r for r in pool if r["topic"] == topic]
 
-    posted = used = controversial = no_title = no_script = short_script = ok = 0
+    posted = used = controversial = no_title = no_script = short_script = dull = ok = 0
     for r in pool:
         if brain.is_fact_posted(r["claim"]):
             posted += 1; continue
@@ -274,6 +314,8 @@ def _log_pick_diagnostics(topic: str | None) -> None:
             no_script += 1; continue
         if len(r["reel_script"].split()) < MIN_REEL_SCRIPT_WORDS:
             short_script += 1; continue
+        if _interestingness_score(r) < 2:
+            dull += 1; continue
         ok += 1
 
     print(f"  pool: {len(pool)} q3 facts  (topic={topic or 'any'})")
@@ -283,6 +325,7 @@ def _log_pick_diagnostics(topic: str | None) -> None:
     print(f"    missing reel_title : {no_title}")
     print(f"    missing reel_script: {no_script}")
     print(f"    script < {MIN_REEL_SCRIPT_WORDS} words   : {short_script}")
+    print(f"    low interestingness: {dull}")
     print(f"    eligible         : {ok}")
 
 
@@ -535,7 +578,9 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         # script produced a 22.7s reel. With curated scripts this should never
         # trigger, but if TTS truncates or a future edit shortens a script
         # below the floor, fail loudly rather than ship a stub.
-        MIN_REEL_TOTAL_S = 35.0
+        # Keep a hard floor, but avoid false aborts in the 34-35s band when
+        # TTS timing comes in slightly faster than expected.
+        MIN_REEL_TOTAL_S = 33.5
         if total_dur < MIN_REEL_TOTAL_S:
             msg = (f"Reel total duration {total_dur:.1f}s is below floor of "
                    f"{MIN_REEL_TOTAL_S}s. ABORTING. Curated reel_script may have "

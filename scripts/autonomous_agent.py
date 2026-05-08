@@ -40,6 +40,7 @@ from src.content.carousel_rules import (
     BEAT_DENSITY_RULES,
     PHOTOGRAPHABLE_BEATS_RULES,
 )
+from src.research.story_scout import ranked_candidates_for_mode
 
 # Cap the agent loop to keep cost predictable when the carousel pipeline
 # is failing repeatedly. A successful run typically uses 2-4 turns; 12
@@ -84,10 +85,10 @@ MODE_FORMAT_TYPE: dict[str, str] = {
 # Locked at the loadout level: tools not listed here are not even shown
 # to the model. list_unposted_topics + skip are universal.
 MODE_TOOLS: dict[str, tuple[str, ...]] = {
-    "reel_morning": ("list_unposted_topics", "run_reel",     "skip"),
-    "reel_evening": ("list_unposted_topics", "run_reel",     "skip"),
-    "list":         ("list_unposted_topics", "run_carousel", "skip"),
-    "fact":         ("list_unposted_topics", "run_carousel", "skip"),
+    "reel_morning": ("list_unposted_topics", "list_story_candidates", "run_reel", "skip"),
+    "reel_evening": ("list_unposted_topics", "list_story_candidates", "run_reel", "skip"),
+    "list":         ("list_unposted_topics", "list_story_candidates", "run_carousel", "skip"),
+    "fact":         ("list_unposted_topics", "list_story_candidates", "run_carousel", "skip"),
 }
 
 
@@ -217,8 +218,9 @@ def _tag_failure_kind(raw: str, kind_map: list[tuple[str, str]]) -> str:
 
 
 def run_reel(args: dict, dry_run: bool) -> str:
+    py = sys.executable or "python3"
     cmd = [
-        "python3", "-u", "pipelines/reel/make_reel.py",
+        py, "-u", "pipelines/reel/make_reel.py",
         "--script",        args["script"],
         "--title",         args["title"],
         "--topic",         args["topic"],
@@ -239,8 +241,9 @@ def run_reel(args: dict, dry_run: bool) -> str:
 
 
 def run_carousel(args: dict, dry_run: bool, format_type: str = "fact") -> str:
+    py = sys.executable or "python3"
     cmd = [
-        "python3", "-u", "pipelines/carousel/ship_carousel_post.py",
+        py, "-u", "pipelines/carousel/ship_carousel_post.py",
         "--brief",  args["brief"],
         "--label",  args["label"],
         "--slides", str(args.get("slides", 6)),
@@ -274,6 +277,19 @@ TOOLS = [
             "subject keywords`. Use this to reject any candidate that "
             "overlaps a previous topic, angle, list idea, ranking, or "
             "subject, even when reworded. Call this FIRST."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "list_story_candidates",
+        "description": (
+            "Return ranked story candidates from the Story Scout pre-selection layer. "
+            "Candidates are Reddit-first, scored for hook strength, novelty against post "
+            "history, and visual potential. Call this before drafting."
         ),
         "input_schema": {
             "type": "object",
@@ -394,6 +410,17 @@ def tools_for_mode(mode: str) -> list[dict]:
 def execute_tool(name: str, args: dict, dry_run: bool, mode: str) -> str:
     if name == "list_unposted_topics":
         return build_history_summary()
+    if name == "list_story_candidates":
+        rows = ranked_candidates_for_mode(mode=mode, top_n=12)
+        if not rows:
+            return "(no candidates found)"
+        lines = []
+        for i, row in enumerate(rows, 1):
+            lines.append(
+                f"{i}. [{row['source']}] ({row['topic']}) score={row['total_score']:.3f} "
+                f"title={row['title']} | weird_bit={row['weird_bit']}"
+            )
+        return "\n".join(lines)
     if name == "skip":
         return f"SKIPPED: {args.get('reason', '(no reason given)')}"
     if name == "run_reel":
@@ -668,7 +695,8 @@ REEL_PROMPT = textwrap.dedent("""\
     DECISION PROCESS
 
     1. Call list_unposted_topics().
-    2. Generate at least 5 candidate evergreen ideas.
+    2. Call list_story_candidates().
+    3. Generate at least 5 candidate evergreen ideas from scout results.
     3. Reject duplicates and near-duplicates against the bank.
     4. Reject any current/news/topical idea outright.
     5. For each remaining candidate, name the actual weird bit.
@@ -748,7 +776,8 @@ NEWS_PROMPT = textwrap.dedent("""\
     DECISION PROCESS
 
     1. Call list_unposted_topics().
-    2. Surface at least 4 candidate current stories from training.
+    2. Call list_story_candidates().
+    3. Surface at least 4 candidate current stories from scout results.
     3. Reject duplicates and near-duplicates against the bank.
     4. For each candidate, name the actual weird bit + the angle.
     5. Apply the qualifying-story checks and the quality gate.
@@ -856,7 +885,8 @@ LIST_PROMPT = textwrap.dedent("""\
     DECISION PROCESS
 
     1. Call list_unposted_topics().
-    2. Generate at least 3 candidate superlative lists.
+    2. Call list_story_candidates().
+    3. Generate at least 3 candidate superlative lists from scout results.
     3. Reject duplicates and overlap with previous lists.
        Reject any candidate that is a conceptual / thematic
        essay disguised as a list.
@@ -943,7 +973,8 @@ FACT_PROMPT = textwrap.dedent("""\
     DECISION PROCESS
 
     1. Call list_unposted_topics().
-    2. Generate at least 4 candidate fact subjects.
+    2. Call list_story_candidates().
+    3. Generate at least 4 candidate fact subjects from scout results.
     3. Reject duplicates and near-duplicates against the bank.
     4. For each, identify the weird bit and the 5 beats it would carry.
     5. Reject any subject whose strangeness is exhausted in 1-2 slides

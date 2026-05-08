@@ -19,6 +19,30 @@ Automated Instagram carousel pipeline. One daily post under [@factjot](https://i
 
 ---
 
+## Manual prompt runs (GitHub Actions)
+
+Use workflow dispatch on `.github/workflows/manual-run.yml` when you want Claude-style "run this prompt now" execution without touching schedule wiring.
+
+- `pipeline=carousel_fact|carousel_list|carousel_news` with `brief` input runs `pipelines/carousel/ship_carousel_post.py`.
+- `pipeline=reel` with `script` + `title` runs `pipelines/reel/make_reel.py`.
+- Keep `dry_run=true` for previews; set `dry_run=false` only when ready to publish.
+- For local list validation speed, use `--smoke-mode` with dry-run (`pipelines/carousel/ship_carousel_post.py --type list --brief "..." --dry-run --smoke-mode`).
+- Rendered artefacts are uploaded as a workflow artifact and written under `output/{manual,news,reel}/...`.
+
+---
+
+## Quick troubleshooting (current pipelines)
+
+| Symptom | Expected guardrail | Action |
+|---|---|---|
+| `RuntimeError: OVERCAP_SLIDE_LINES` | `compact_legacy` cap blocked an unreadable slide | Shorten the brief wording and re-run. The gate is working as intended. |
+| Reel aborts `below floor` duration | Reel quality gate rejected too-short composition | Re-run with a longer script or richer topic facts; keep floor unchanged. |
+| List dry-run takes too long in image sourcing | Multi-round provider search still active | Keep run as dry-run and inspect logs/artifacts; if repeated, re-run with a more concrete brief. |
+| No breaking-news post appears | Watcher found no qualifying Guardian story | Run `news-watcher.yml` manually with `article_url` input to force a test post path. |
+| Workflow succeeds but no state commit | No tracked ledger files changed | This is normal; no action needed. |
+
+---
+
 ## How autonomous posting works (in plain English) [LEGACY trigger description]
 
 > **[LEGACY]** This section describes the original local-launchd flow. The Graph API mechanics (imgbb upload, `/media` child containers, `/media` carousel parent, `/media_publish`) are still accurate. The trigger is no longer launchd; GitHub Actions fires `pipelines/<name>/ship_*.py` entrypoints on cron. See `CLAUDE.md` "Daily automation" for the current flow.

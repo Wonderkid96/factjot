@@ -1,0 +1,246 @@
+name: Manual Prompt Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      pipeline:
+        description: "Pipeline to run"
+        type: choice
+        options:
+          - carousel_fact
+          - carousel_list
+          - carousel_news
+          - reel
+        default: carousel_fact
+        required: true
+      brief:
+        description: "Carousel brief (required for carousel_* modes)"
+        type: string
+        required: false
+      label:
+        description: "Carousel label (optional)"
+        type: string
+        required: false
+      slides:
+        description: "Total carousel slides (0 uses default per type)"
+        type: string
+        default: "0"
+        required: false
+      script:
+        description: "Reel script (required for reel)"
+        type: string
+        required: false
+      title:
+        description: "Reel title (required for reel)"
+        type: string
+        required: false
+      topic:
+        description: "Reel topic (used by reel mode)"
+        type: choice
+        options:
+          - history
+          - science
+          - biology
+          - ocean
+          - earth
+          - space
+          - technology
+        default: science
+        required: false
+      tone_override:
+        description: "Reel tone override"
+        type: choice
+        options:
+          - shocking
+          - curious
+          - sober
+          - wholesome
+        default: curious
+        required: false
+      hint:
+        description: "Reel footage hint queries (optional)"
+        type: string
+        required: false
+      dry_run:
+        description: "Dry run only (recommended true)"
+        type: boolean
+        default: true
+        required: false
+
+concurrency:
+  group: factjot-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  run_manual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install FFmpeg
+        timeout-minutes: 3
+        uses: FedericoCarboni/setup-ffmpeg@v3
+        with:
+          ffmpeg-version: release
+
+      - name: Install Python dependencies
+        timeout-minutes: 4
+        run: pip install -r requirements.txt
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            playwright-chromium-${{ runner.os }}-
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 8
+        run: playwright install chromium --with-deps
+
+      - name: Install Playwright system deps (cached run)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        timeout-minutes: 6
+        run: playwright install-deps chromium
+
+      - name: Write .env from secrets
+        run: |
+          cat > .env << 'ENVEOF'
+          INSTAGRAM_ACCOUNT_ID=${{ secrets.INSTAGRAM_ACCOUNT_ID }}
+          FACEBOOK_PAGE_ID=${{ secrets.FACEBOOK_PAGE_ID }}
+          META_ACCESS_TOKEN=${{ secrets.META_ACCESS_TOKEN }}
+          META_GRAPH_VERSION=${{ secrets.META_GRAPH_VERSION }}
+          META_APP_SECRET=${{ secrets.META_APP_SECRET }}
+          META_APP_ID=${{ secrets.META_APP_ID }}
+          META_GRAPH_HOST=${{ secrets.META_GRAPH_HOST }}
+          IMGBB_API_KEY=${{ secrets.IMGBB_API_KEY }}
+          PEXELS_API_KEY=${{ secrets.PEXELS_API_KEY }}
+          TMDB_READ_TOKEN=${{ secrets.TMDB_READ_TOKEN }}
+          TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}
+          OMDB_API_KEY=${{ secrets.OMDB_API_KEY }}
+          ELEVENLABS_API_KEY=${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE=${{ secrets.ELEVENLABS_VOICE }}
+          COVERR_API_KEY=${{ secrets.COVERR_API_KEY }}
+          PIXABAY_API_KEY=${{ secrets.PIXABAY_API_KEY }}
+          IMAGE_HOST=${{ secrets.IMAGE_HOST }}
+          MUSIC_CREDIT=${{ secrets.MUSIC_CREDIT }}
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+          TIMEZONE=UTC
+          ENVEOF
+
+      - name: Pull latest state
+        run: git pull --rebase --autostash origin main 2>/dev/null || true
+
+      - name: Run selected manual pipeline
+        env:
+          PIPELINE: ${{ inputs.pipeline }}
+          BRIEF: ${{ inputs.brief }}
+          LABEL: ${{ inputs.label }}
+          SLIDES: ${{ inputs.slides }}
+          SCRIPT: ${{ inputs.script }}
+          TITLE: ${{ inputs.title }}
+          TOPIC: ${{ inputs.topic }}
+          TONE: ${{ inputs.tone_override }}
+          HINT: ${{ inputs.hint }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if [ "$PIPELINE" = "reel" ]; then
+            if [ -z "${SCRIPT}" ] || [ -z "${TITLE}" ]; then
+              echo "reel mode requires both script and title inputs."
+              exit 1
+            fi
+            CMD=(python3 -u pipelines/reel/make_reel.py --script "$SCRIPT" --title "$TITLE" --topic "$TOPIC" --tone-override "$TONE")
+            if [ -n "${HINT}" ]; then
+              CMD+=(--hint "$HINT")
+            fi
+            if [ "$DRY_RUN" = "true" ]; then
+              CMD+=(--dry-run)
+            fi
+            "${CMD[@]}"
+            exit 0
+          fi
+
+          if [ -z "${BRIEF}" ]; then
+            echo "carousel modes require brief input."
+            exit 1
+          fi
+          case "$PIPELINE" in
+            carousel_fact) CTYPE="fact" ;;
+            carousel_list) CTYPE="list" ;;
+            carousel_news) CTYPE="news" ;;
+            *) echo "unknown pipeline: $PIPELINE"; exit 1 ;;
+          esac
+
+          CMD=(python3 -u pipelines/carousel/ship_carousel_post.py --type "$CTYPE" --brief "$BRIEF")
+          if [ -n "${LABEL}" ]; then
+            CMD+=(--label "$LABEL")
+          fi
+          if [ -n "${SLIDES}" ] && [ "${SLIDES}" != "0" ]; then
+            CMD+=(--slides "$SLIDES")
+          fi
+          if [ "$DRY_RUN" = "true" ]; then
+            CMD+=(--dry-run)
+          fi
+          "${CMD[@]}"
+
+      - name: Upload rendered output artefact
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual-run-output-${{ inputs.pipeline }}-${{ github.run_id }}
+          path: |
+            output/manual/**
+            output/news/**
+            output/reel/**
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Commit and push state
+        if: always()
+        run: |
+          git config user.name  "factjot-bot"
+          git config user.email "bot@factjot"
+          for f in \
+            insta-brain/data/posted.jsonl \
+            insta-brain/data/reels.jsonl \
+            insta-brain/log.md \
+            insta-brain/MEMORY_INDEX.md \
+            data/ledgers/used_footage_urls.jsonl \
+            data/ledgers/used_images.jsonl \
+            data/ledgers/reel_performance.jsonl \
+            data/ledgers/api_usage_costs.jsonl \
+            data/ledgers/youtube_uploads.jsonl \
+            data/ledgers/carousel_quality.jsonl \
+            data/ledgers/news_posts.jsonl
+          do
+            if [ -e "$f" ]; then
+              git add "$f" || true
+            fi
+          done
+          if git diff --cached --quiet; then
+            echo "No state changes to commit."
+            exit 0
+          fi
+          git commit -m "state: manual run $(date -u +%Y-%m-%dT%H:%M)Z"
+          git pull --rebase --autostash origin main
+          git push origin main
