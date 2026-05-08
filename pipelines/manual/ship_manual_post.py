@@ -116,9 +116,18 @@ TYPE_GUIDANCE: dict[str, str] = {
         "Render shape: cover + content slides matching the brief's beats.\n"
     ),
     "list": (
-        "POST TYPE: LIST CAROUSEL.\n"
+        "POST TYPE: RANKED / SUPERLATIVE LIST CAROUSEL.\n"
         "Render shape: cover + one slide per list item + closing.\n"
-        "Each item slide carries exactly ONE specific list item from the brief.\n"
+        "Each item slide carries exactly ONE named entry from the brief.\n"
+        "The slide must read as a ranked entry, not a paragraph:\n"
+        "  line 1 = the named entry (treated as the item title; the\n"
+        "           writer should wrap the name in [r]...[/r]).\n"
+        "  line 2 = the rank reason from the brief (one hard number\n"
+        "           or fact that earns the spot).\n"
+        "  line 3 = the concrete fact from the brief.\n"
+        "Do not narrate setup -> mechanism -> consequence. Do not\n"
+        "merge two items into one slide. The closing slide is a\n"
+        "one-line takeaway, not a moral argument.\n"
     ),
 }
 

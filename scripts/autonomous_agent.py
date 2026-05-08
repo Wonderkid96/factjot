@@ -766,7 +766,9 @@ LIST_PROMPT = textwrap.dedent("""\
 
     MODE: LIST CAROUSEL
 
-    Format is locked: this slot publishes a list-style carousel.
+    Format is locked: this slot publishes a ranked / curated
+    superlative list. Each item is a standalone ranked entry,
+    not a chapter in a thematic essay.
 
     AVAILABLE TOOLS
     - list_unposted_topics()
@@ -776,62 +778,100 @@ LIST_PROMPT = textwrap.dedent("""\
     LIST RULES
 
     - 5 items. 7 slides total: cover, 5 items, closing.
-    - Every item must be specific, named, and verifiable.
-    - Do not invent rankings. Do not invent superlatives.
-    - 'Biggest / oldest / fastest / first / last / longest' must be
-      factually defensible from training knowledge.
-    - 'Best / worst / strangest / dumbest / most cursed' must be
-      framed as editorial judgement, not objective fact.
-    - The list must have an editorial frame, not a generic 'fun facts
-      about X' shape.
-    - No BuzzFeed shapes. No 'you won't believe number 4'. No 'top 5
-      X you forgot about'.
-    - If the list would look at home on a generic trivia account,
-      reject it.
+    - The list MUST be a superlative or ranking shape:
+      biggest, deadliest, most expensive, smallest, oldest,
+      fastest, strangest, worst, most bizarre, most profitable,
+      etc. The cover names the superlative explicitly.
+    - Every item must be a single named, googleable thing
+      (a specific disaster, film, animal, country, law, recall,
+      product, building, accident, person). One concrete proper
+      noun per item, not a concept.
+    - 'Biggest / oldest / fastest / first / last / longest /
+      deadliest / most expensive' must be factually defensible
+      from training knowledge. Do not invent rankings.
+    - 'Best / worst / strangest / most bizarre' are editorial
+      judgement; pick items the choice is defensible for.
+    - No connective theme requiring every slide to argue a
+      mechanism. If two items only make sense together, the
+      list is wrong.
+    - No BuzzFeed shapes. No 'you won't believe number 4'.
+    - If the list would look at home on a generic trivia
+      account, reject it AND if it would only make sense as an
+      essay, also reject it.
 
-    Good list shapes:
-    - 'Five tech products that arrived already dead'
+    Good list shapes (curated superlative / ranking):
+    - 'Five deadliest engineering disasters'
+    - 'Five most expensive movie flops'
+    - 'Five strangest laws still on the books'
+    - 'Five smallest countries in the world'
+    - 'Five worst product recalls in history'
+    - 'Five largest animals ever recorded'
+    - 'Five most profitable films of all time'
+    - 'Five most bizarre historical events'
+    - 'Five oldest companies still trading'
+
+    Bad list shapes (rejected):
+    - 'Five fixes that became the thing they were meant to solve'
+    - 'Five moments when success hid the real failure'
     - 'Five regulations that exist because of one specific incident'
-    - 'Five experiments that should never have been approved'
-    - 'Five animals that solved a problem evolution did not need to'
-    - 'Five companies that refused to admit their product was finished'
-
-    Bad list shapes:
+    - 'Five inventions that became the thing they were meant to fix'
     - 'Five amazing facts about space'
     - 'Top 5 weirdest animals'
-    - 'Best inventions of all time'
     - 'Things you didn't know about X'
+
+    Test before accepting a list:
+    - Could a viewer screenshot any one item slide and have it
+      stand on its own? If items only make sense in sequence,
+      reject the list.
+    - Does the cover include a clear superlative word
+      (most / biggest / deadliest / etc.)? If not, reject.
 
     BRIEF SHAPE
 
     Brief MUST include:
-    - the list title (5-9 words, voice-correct, banned shapes apply)
-    - every item explicitly named, one per line, in order
-    - a one-line angle per item (why this item belongs in this list)
-    - the editorial framing (what the 5 together reveal)
-    - what the closing slide should make the viewer think
+    - the list title (5-9 words, voice-correct, includes the
+      superlative in plain English, banned shapes apply)
+    - the ranking criterion in one sentence (e.g. 'ranked by
+      total inflation-adjusted box office loss', 'by recorded
+      death toll', 'by surface area in km^2')
+    - 5 items, in order, each with:
+        * NAME: the single proper-noun subject
+        * RANK REASON: one number / fact that earns it the spot
+          (e.g. '$200M loss', 'killed 1,134 workers', '0.49 km^2')
+        * CONCRETE FACT: one extra hard fact about it (date,
+          place, scale, outcome)
+        * WHY IT BELONGS: one short clause tying it to the
+          superlative
+    - what the closing slide should leave the viewer thinking
+      (a one-line takeaway, NOT a moral argument)
 
     {beat_density_rules}
 
-    Each list item gets ONE slide. The item slide carries ONE angle on
-    that item, not two. Do not pack two items into one slide. The slide
-    writer has 18-28 characters per line, max 32, in Archivo Black 900.
+    Each list item gets ONE slide. That slide carries ONE
+    item: its name (red, treated as the item title), the rank
+    reason, and the concrete fact. Do not narrate a setup ->
+    mechanism -> consequence arc. Do not pack two items in one
+    slide. Item slides should read like ranked entries, not
+    paragraphs.
 
     {photographable_beats_rules}
 
     DECISION PROCESS
 
     1. Call list_unposted_topics().
-    2. Generate at least 3 candidate list ideas.
+    2. Generate at least 3 candidate superlative lists.
     3. Reject duplicates and overlap with previous lists.
-    4. For each, identify the editorial frame and the 5 items.
-    5. If you cannot defend all 5 items from training knowledge,
-       reject the list (or replace items).
-    6. Apply the interestingness + quality gates to the LIST as a whole
-       (not to each item individually).
+       Reject any candidate that is a conceptual / thematic
+       essay disguised as a list.
+    4. For each survivor, name the superlative and the 5
+       items with their rank reason and one concrete fact.
+    5. If you cannot defend the ranking of all 5 items from
+       training knowledge, reject the list (or replace items).
+    6. Apply the interestingness + quality gates to the LIST
+       as a whole (not to each item individually).
     7. If nothing clears the bar, call skip(reason).
-    8. Otherwise, write the brief and call run_carousel ONCE with
-       slides=7.
+    8. Otherwise, write the brief and call run_carousel ONCE
+       with slides=7.
 """)
 
 
