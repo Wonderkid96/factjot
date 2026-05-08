@@ -125,6 +125,28 @@ def test_fitter_accepts_clean_output(monkeypatch):
     assert fits[0].lines == ["phineas gage,", "took a rod", "in 1848"]
 
 
+def test_parse_json_payload_handles_trailing_commentary():
+    """Haiku sometimes appends explanatory text after the JSON object.
+    The parser must extract the first valid object regardless. This is
+    the actual production failure observed on run 25541381828.
+    """
+    from src.content.carousel_writer import _parse_json_payload
+    raw = (
+        '{"slides": [{"slide_index": 2, "lines": ["a", "b", "c"]}]}\n\n'
+        "I tightened slide 2 by dropping the redundant clause and "
+        "moved the date marker to the second line."
+    )
+    out = _parse_json_payload(raw)
+    assert out["slides"][0]["slide_index"] == 2
+
+
+def test_parse_json_payload_handles_fenced_block():
+    from src.content.carousel_writer import _parse_json_payload
+    raw = '```json\n{"slides": [{"slide_index": 2, "lines": ["a", "b", "c"]}]}\n```'
+    out = _parse_json_payload(raw)
+    assert out["slides"][0]["slide_index"] == 2
+
+
 def test_fitter_exception_carries_partial_usage(monkeypatch):
     """When the fitter raises, callers must be able to read the partial
     cost so the carousel_quality.jsonl ledger reflects honest spend."""

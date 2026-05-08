@@ -147,16 +147,31 @@ cover in `slides` (its text is in `cover_title`).
 
 
 def _parse_json_payload(raw: str) -> dict:
-    """Tolerantly extract a JSON object from a model response."""
+    """Tolerantly extract the first JSON object from a model response.
+
+    Models occasionally append commentary or explanatory text after the
+    JSON. The previous fallback (raw[first_{ : last_}+1]) spans across
+    that commentary and re-fails with `Extra data`. raw_decode skips
+    leading whitespace, parses the first JSON object, and returns it
+    regardless of what follows.
+    """
     raw = raw.strip()
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        fenced = re.search(r"```(?:json)?\s*(\{[\s\S]*\})\s*```", raw, re.IGNORECASE)
-        if fenced:
+    decoder = json.JSONDecoder()
+    # Try a fenced ```json block first - it's the most reliable signal.
+    fenced = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", raw, re.IGNORECASE)
+    if fenced:
+        try:
             return json.loads(fenced.group(1))
-        s, e = raw.find("{"), raw.rfind("}")
-        return json.loads(raw[s : e + 1])
+        except json.JSONDecodeError:
+            pass  # fall through to raw_decode
+    # Locate the first '{' and parse just the JSON object that starts there.
+    start = raw.find("{")
+    if start == -1:
+        raise json.JSONDecodeError("no JSON object found", raw, 0)
+    obj, _end = decoder.raw_decode(raw[start:])
+    if not isinstance(obj, dict):
+        raise json.JSONDecodeError("expected JSON object", raw, start)
+    return obj
 
 
 def write_editorial_slides(
