@@ -158,7 +158,7 @@ jobs:
         run: python3 -u scripts/autonomous_agent.py --post-mode "$POST_MODE"
 
       - name: Upload rendered slides + reel as artefact (dry-run only)
-        if: ${{ always() && inputs.dry_run == 'true' }}
+        if: ${{ always() && inputs.dry_run }}
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
