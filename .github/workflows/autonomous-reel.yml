@@ -1,6 +1,6 @@
 name: Autonomous Post (factjot agent)
 
-# Five scheduled autonomous posts a day, plus manual dispatch. Each slot
+# Four scheduled autonomous posts a day, plus manual dispatch. Each slot
 # is locked to one format and one writer prompt:
 #
 #   reel_morning  09:00 BST  evergreen reel

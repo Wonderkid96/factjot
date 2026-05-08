@@ -52,7 +52,7 @@ If a behaviour is shared across two or more pipelines, it belongs in `src/`, not
 
 ## 4. Current pipelines (revised 2026-05-07)
 
-The factjot system runs a single autonomous workflow that fires five times a day. Each fire is locked to one format (see §6.1). The agent (Sonnet 4.6) writes the brief or script for that slot's format and calls the matching pipeline tool, or calls `skip` if nothing clears the quality gate.
+The factjot system runs scheduled autonomous evergreen slots via `autonomous-reel.yml`, and runs breaking-news publishing via `news-watcher.yml` when watcher criteria are met. Each fire is locked to one format (see §6.1). The agent (Sonnet 4.6) writes the brief or script for that slot's format and calls the matching pipeline tool, or calls `skip` if nothing clears the quality gate.
 
 The active autonomous publishing path exposes two publishing tools and one state/dedupe tool:
 
@@ -62,7 +62,7 @@ The active autonomous publishing path exposes two publishing tools and one state
 | `run_carousel` | publishing | `pipelines/carousel/ship_carousel_post.py` | Carousel from a written brief: editorial, comparison, timeline, current story, or list-style ranking. Brief provided directly by the agent. |
 | `list_unposted_topics` | state / dedupe | reads `insta-brain/data/posted.jsonl` | Returns a compact summary of recent posts so the agent can apply the prompt-level duplicate guard. Not a pipeline; never publishes anything. |
 
-Legacy scripts may remain on disk but are not called by current workflows. The autonomous workflow (`autonomous-reel.yml`) is the only intentional poster.
+Legacy scripts may remain on disk but are not called by current workflows. Active posting is handled by `autonomous-reel.yml` (scheduled evergreen) and `news-watcher.yml` (watcher-triggered breaking news).
 
 **Deleted on 2026-05-07** (architecture switch from multi-cron to autonomous-only):
 

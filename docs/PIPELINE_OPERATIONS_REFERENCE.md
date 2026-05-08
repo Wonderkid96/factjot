@@ -75,7 +75,7 @@ Work tracked in **`docs/superpowers/plans/2026-05-07-autonomous-content-quality-
 
 ## 5. Operational gaps to be aware of
 
-- **`carousel_quality.jsonl`:** written by `ship_carousel_post.py` (via the manual module); it is **not** listed in the `autonomous-reel.yml` state-commit `git add` loop. If you want that ledger versioned from CI, add it explicitly (and accept noise) or rely on local / other backup.
+- **`carousel_quality.jsonl`:** written by `ship_carousel_post.py` (via the manual module) and staged in the `autonomous-reel.yml` state-commit `git add` loop.
 - **Dry-run contracts:** `ship_carousel_post.py` uses `--dry-run`; the agent respects **`DRY_RUN=true`** in the environment (`scripts/autonomous_agent.py`), not a `--dry-run` flag for the agent process.
 - **Docs drift:** `insta-brain/` and parts of `README.md` may still describe old `scripts/*.py` paths, deleted workflows, or queue-based publishing. Treat **`SPEC_FACTJOT_SYSTEM.md`**, root **`CLAUDE.md`**, and this file** as the architecture prompts to reconcile against; brain notes are not always migrated.
 

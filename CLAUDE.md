@@ -160,7 +160,7 @@ Source of truth: `brand/brand_kit.json` (v2.0) consumed via `src/core/brand.py`.
 | JetBrains Mono Bold | Labels, badges, tags |
 | Archivo Black 900 | Short-form video burn-in subtitles only, never elsewhere |
 
-Carousel body copy honours the Space Grotesk rule when `layout_mode=readable_list` (used by the list and news slots). The fact slot still renders body in Archivo Black 900 via the `compact_legacy` profile pending a separate font decision; see §10.
+Carousel body copy honours the Space Grotesk rule when `layout_mode=readable_list` (used by the list slot, and available for news when explicitly selected). The fact slot still renders body in Archivo Black 900 via the `compact_legacy` profile pending a separate font decision; see §10.
 
 Wordmark: `fact[regular] jot[italic] .[red]`. Canonical inline 3-part HTML across every template; the legacy PNG fallback was removed 2026-05-07.
 
@@ -178,7 +178,7 @@ Two profiles. Pick by `--layout-mode` on `pipelines/carousel/ship_carousel_post.
 | Profile | Body font | Container | Char cap | Used by |
 |---|---|---|---|---|
 | `compact_legacy` | Archivo Black 900 (48px / 42px) | anchored bottom-left | 24 hard | fact slot; default for `--type=fact|news` direct CLI |
-| `readable_list` | Space Grotesk SemiBold | half-box bottom 50%, JS auto-fit (64 -> 28 px) | 56 hard | list slot and watcher-triggered news |
+| `readable_list` | Space Grotesk SemiBold | half-box bottom 50%, JS auto-fit (64 -> 28 px) | 56 hard | list slot; optional for news when explicitly selected |
 
 Routing:
 - Agent `run_carousel(format_type=list)` appends `--layout-mode readable_list`. Fact stays default. Reels never read layout_mode.

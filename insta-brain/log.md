@@ -5,6 +5,8 @@
 - 2026-05-08 15:16 token refreshed: new expiry ~59 days
 - 2026-05-08 15:12 WORKFLOW FAILED: .github/workflows/autonomous-reel.yml | run=25562964155 | trigger=schedule | ref=main
 - 2026-05-08 15:05 token refreshed: new expiry ~60 days
+- 2026-05-08 16:59 reel ABORTED — short duration 31.7s for Australia drifts north at roughly 7 centimetres a year. It h
+- 2026-05-08 16:37 reel ABORTED — short duration 31.8s for Australia drifts north at roughly 7 centimetres a year. It h
 - 2026-05-08 14:31 token refreshed: new expiry ~59 days
 - 2026-05-08 14:19 token refreshed: new expiry ~59 days
 - 2026-05-08 13:47 token refreshed: new expiry ~59 days
