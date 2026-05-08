@@ -433,14 +433,22 @@ def find_videos(
             clip_set.add(str(c.path))
             print(f"  [video] PROMOTED score={c.score:.2f} ✓ {c.path.name}")
 
-    # Pass 3: safety pool — only if still underfilled after promotion
+    # Pass 3: safety pool — only if still underfilled after promotion.
+    # Honour the dedup ledger here too: previous reels record safety stems
+    # and absolute paths so the same generic clip does not reappear across
+    # reels (e.g. a single surgery b-roll being picked five reels in a row).
     while len(clips) < count and safety_idx < len(safety):
         candidate = safety[safety_idx]
         safety_idx += 1
-        if str(candidate) not in clip_set:
-            _push_clip(candidate, 0.20)
-            clip_set.add(str(candidate))
-            print(f"  [video] SAFETY ✓ {candidate.name}")
+        if str(candidate) in clip_set:
+            continue
+        if candidate.stem in _blocked_stems or str(candidate) in used_source_urls:
+            print(f"  [video] SAFETY skip (already used): {candidate.name}")
+            continue
+        _push_clip(candidate, 0.20)
+        clip_set.add(str(candidate))
+        used_source_urls.add(str(candidate))
+        print(f"  [video] SAFETY ✓ {candidate.name}")
 
     print(f"  [video] -> {len(clips)} clips ready for composition")
     if used_source_registry is not None:

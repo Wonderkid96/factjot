@@ -287,6 +287,61 @@ def _log_pick_diagnostics(topic: str | None) -> None:
 
 
 # ------------------------------------------------------------------ #
+# Footage dedup ledger
+# ------------------------------------------------------------------ #
+
+def _append_footage_ledger(
+    *,
+    dry_run: bool,
+    ledger_path: Path,
+    registry: set[str],
+    footage_clips: list[Path],
+    reel_id: str,
+    reel_title: str,
+    topic: str,
+) -> bool:
+    """Append used-footage entries for a successful reel.
+
+    DRY-RUN does not write — preview renders must not permanently mark
+    footage as used. Existing keys (url, filename, reel_id) are kept for
+    backwards compatibility; new optional metadata is additive.
+
+    Returns True if the ledger was written, False on dry-run skip.
+    """
+    if dry_run:
+        print("  [footage] DRY-RUN — not writing footage dedup ledger")
+        return False
+    now_iso = datetime.now(timezone.utc).isoformat()
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    with ledger_path.open("a") as fh:
+        for url in sorted(registry):
+            entry: dict = {
+                "url": url,
+                "reel_id": reel_id,
+                "reel_title": reel_title,
+                "topic": topic,
+                "published_at": now_iso,
+            }
+            # Provider-prefixed registry entries (e.g. "pexels:12345") carry
+            # the provider and id; raw http(s) URLs do not.
+            if ":" in url and not url.startswith(("http://", "https://")):
+                provider, _, vid_id = url.partition(":")
+                if provider and vid_id:
+                    entry["provider"] = provider
+                    entry["provider_video_id"] = vid_id
+            fh.write(json.dumps(entry) + "\n")
+        for clip in footage_clips:
+            fh.write(json.dumps({
+                "filename": clip.stem,
+                "reel_id": reel_id,
+                "reel_title": reel_title,
+                "topic": topic,
+                "published_at": now_iso,
+            }) + "\n")
+    return True
+
+
+# ------------------------------------------------------------------ #
 # Main pipeline
 # ------------------------------------------------------------------ #
 
@@ -493,14 +548,11 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         allow_archival = bool(fact.get("allow_archival", False))
         print(f"\nFinding {n_clips} footage clips (allow_archival={allow_archival})...")
 
-        # Load global footage registry — prevents the same clip appearing in two different reels.
-        # Auto-reset: if reels.jsonl is empty (all reels deleted/fresh start), the dedup
-        # ledger would only block footage from deleted reels. Clear it automatically.
-        from src.core.paths import USED_FOOTAGE, REELS_LEDGER
-        _reels_empty = not REELS_LEDGER.exists() or REELS_LEDGER.stat().st_size == 0
-        if _reels_empty and USED_FOOTAGE.exists() and USED_FOOTAGE.stat().st_size > 0:
-            print("  [footage] reels.jsonl is empty — resetting footage dedup ledger for fresh start")
-            USED_FOOTAGE.write_text("")
+        # Load global footage registry. This prevents the same clip appearing in
+        # different reels. Do not auto-clear this ledger based on reels.jsonl state;
+        # if a genuine reset is needed, truncate manually:
+        #     : > data/ledgers/used_footage_urls.jsonl
+        from src.core.paths import USED_FOOTAGE
         global_footage_registry: set[str] = set()   # blocked URLs + video IDs
         blocked_footage_filenames: set[str] = set() # blocked filename stems
 
@@ -760,12 +812,16 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
 
         # Persist footage dedup ledger — log both URLs and filenames so future
         # reels can block by content (filename) not just by source URL.
-        USED_FOOTAGE.parent.mkdir(parents=True, exist_ok=True)
-        with USED_FOOTAGE.open("a") as _reg_f:
-            for _url in sorted(global_footage_registry):
-                _reg_f.write(json.dumps({"url": _url, "reel_id": reel_id}) + "\n")
-            for _clip in footage_clips:
-                _reg_f.write(json.dumps({"filename": _clip.stem, "reel_id": reel_id}) + "\n")
+        # DRY-RUN does NOT write (see _append_footage_ledger).
+        _append_footage_ledger(
+            dry_run=dry_run,
+            ledger_path=USED_FOOTAGE,
+            registry=global_footage_registry,
+            footage_clips=list(footage_clips),
+            reel_id=reel_id,
+            reel_title=fact.get("reel_title") or "",
+            topic=ftopic,
+        )
 
         print(f"\nReel composed: {final_mp4}")
         print(f"  size: {final_mp4.stat().st_size / 1024 / 1024:.1f} MB")
