@@ -1,5 +1,6 @@
 # factjot brain log
 
+- 2026-05-08 13:47 token refreshed: new expiry ~59 days
 - 2026-05-08 13:36 token refreshed: new expiry ~59 days
 - 2026-05-08 13:19 token refreshed: new expiry ~59 days
 - 2026-05-08 13:13 token refreshed: new expiry ~59 days
