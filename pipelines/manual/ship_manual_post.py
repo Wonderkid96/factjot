@@ -1394,6 +1394,9 @@ def main() -> int:
             # writer updates list_data.json once more in the live
             # publish path so the audit lands eventually.
             "image_audit": data.get("_image_audit", []),
+            "cover_image_status": data.get("_cover_image_status", "pending"),
+            "cover_image_query": data.get("_cover_image_query", data.get("cover_image_query", "")),
+            "cover_fallback_reason": data.get("_cover_fallback_reason", ""),
         }
         (save_dir / "list_data.json").write_text(
             json.dumps(list_payload, ensure_ascii=False, indent=2),
@@ -1478,6 +1481,13 @@ def main() -> int:
         existing["image_audit"] = image_audit
         existing["items"] = data.get("items", existing.get("items"))
         existing["closing"] = data.get("closing", existing.get("closing"))
+        # cover_image_status is set later (in the cover-policy block);
+        # if the audit re-save fires AFTER that block, this picks up
+        # the latest. If it fires before, the field stays "pending"
+        # and gets overwritten on the live-publish save.
+        existing["cover_image_status"] = data.get("_cover_image_status", existing.get("cover_image_status", "pending"))
+        existing["cover_image_query"] = data.get("_cover_image_query", existing.get("cover_image_query", ""))
+        existing["cover_fallback_reason"] = data.get("_cover_fallback_reason", existing.get("cover_fallback_reason", ""))
         list_path.write_text(
             json.dumps(existing, ensure_ascii=False, indent=2),
             encoding="utf-8",
@@ -1489,25 +1499,88 @@ def main() -> int:
         "cover_failed": not bool(images and images[0]),
     }
 
+    # Cover-image policy:
+    #   list mode -> typography-only cover fallback (the item slides are
+    #     what carry the value; do not abort the whole run for a missing
+    #     cover photo).
+    #   fact / news -> existing hard-fail behaviour, unchanged.
+    cover_image_query = (queries[0] if queries else "")
+    cover_decision = (
+        getattr(sourcer, "last_run_decisions", [{}])[0]
+        if getattr(sourcer, "last_run_decisions", None)
+        else {}
+    )
+    cover_fallback_reason = ""
     if not images or not images[0]:
-        _log("\nERROR: COVER_IMAGE_FAILED - no usable image found for the cover slide.")
-        _log("       Run failed. Check image sourcer DEBUG logs for pool sizes and rejection reasons.")
-        _write_quality_ledger_entry(
-            ledger_path=quality_ledger_path,
-            post_id=post_id,
-            format_type=args.type,
-            cover_title=cover_title,
-            slide_count=total_slides,
-            line_warnings=data.get("_line_warnings", []),
-            dropped_facts=data.get("dropped_facts") or [],
-            image_coverage={"image": 0, "typography": total_slides, "cover_failed": True},
-            result="cover_failed",
-            editorial_cost_usd=editorial_cost,
-            fitter_cost_usd=fitter_cost,
-            fitter_attempts=data.get("_fitter_attempts", 1),
-            probe_attempts=data.get("_probe_attempts", 0),
+        if args.type == "list":
+            cover_image_status = "typography_fallback"
+            cover_fallback_reason = (
+                cover_decision.get("selection_reason")
+                or cover_decision.get("reason")
+                or "no_cover_image_pool"
+            )
+            _log(
+                "\n[cover] LIST_MODE_TYPOGRAPHY_FALLBACK"
+                f" status=typography_fallback"
+                f" cover_image_query={cover_image_query!r}"
+                f" reason={cover_fallback_reason!r}"
+            )
+            # Ensure images[0] exists and is empty so render_cover_slide
+            # gets the empty url; the cover renderer's dark base layer +
+            # gradients render cleanly without a photo.
+            if not images:
+                images = [""] * total_slides
+            else:
+                images[0] = ""
+            image_coverage["cover_failed"] = False  # not a failure for list
+            image_coverage["cover_typography_fallback"] = True
+        else:
+            _log("\nERROR: COVER_IMAGE_FAILED - no usable image found for the cover slide.")
+            _log("       Run failed. Check image sourcer DEBUG logs for pool sizes and rejection reasons.")
+            _write_quality_ledger_entry(
+                ledger_path=quality_ledger_path,
+                post_id=post_id,
+                format_type=args.type,
+                cover_title=cover_title,
+                slide_count=total_slides,
+                line_warnings=data.get("_line_warnings", []),
+                dropped_facts=data.get("dropped_facts") or [],
+                image_coverage={"image": 0, "typography": total_slides, "cover_failed": True},
+                result="cover_failed",
+                editorial_cost_usd=editorial_cost,
+                fitter_cost_usd=fitter_cost,
+                fitter_attempts=data.get("_fitter_attempts", 1),
+                probe_attempts=data.get("_probe_attempts", 0),
+            )
+            return 1
+    else:
+        cover_image_status = "selected"
+        _log(
+            f"\n[cover] status=selected"
+            f" cover_image_query={cover_image_query!r}"
+            f" provider={cover_decision.get('chosen_provider', '')!r}"
         )
-        return 1
+    data["_cover_image_status"] = cover_image_status
+    data["_cover_image_query"] = cover_image_query
+    data["_cover_fallback_reason"] = cover_fallback_reason
+
+    # Re-save list_data.json with the resolved cover status so dry-run
+    # inspection sees the final policy outcome (selected /
+    # typography_fallback) rather than the "pending" placeholder
+    # written by the audit-aware re-save above.
+    if args.type == "list" and isinstance(data.get("items"), list):
+        list_path = save_dir / "list_data.json"
+        try:
+            existing = json.loads(list_path.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            existing = {}
+        existing["cover_image_status"] = cover_image_status
+        existing["cover_image_query"] = cover_image_query
+        existing["cover_fallback_reason"] = cover_fallback_reason
+        list_path.write_text(
+            json.dumps(existing, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
 
     cover_photo  = images[0]
     content_imgs = images[1:] if len(images) > 1 else images
