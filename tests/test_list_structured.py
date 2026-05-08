@@ -52,6 +52,10 @@ def _good_payload(n_items: int = 5) -> dict:
             "lines": ["one", "two", "three"],
             "image_query": "thoughtful closing visual",
         },
+        # cover + items + closing = n_items + 2 fallback queries
+        "visual_fallback_queries": [
+            f"fallback {i}" for i in range(n_items + 2)
+        ],
     }
 
 
@@ -269,6 +273,34 @@ def test_validator_rejects_missing_closing_image_query():
     with pytest.raises(CarouselShapeError) as exc:
         _enforce_list_shape(payload, requested_items=5, hard_cap=56)
     assert any("closing.image_query" in e for e in exc.value.diagnostics["list_errors"])
+
+
+def test_validator_rejects_missing_visual_fallback_queries():
+    payload = _good_payload()
+    payload.pop("visual_fallback_queries")
+    with pytest.raises(CarouselShapeError) as exc:
+        _enforce_list_shape(payload, requested_items=5, hard_cap=56)
+    assert any("visual_fallback_queries" in e for e in exc.value.diagnostics["list_errors"])
+
+
+def test_validator_rejects_wrong_number_of_visual_fallback_queries():
+    # Expect cover + 5 items + closing = 7 fallback queries.
+    payload = _good_payload()
+    payload["visual_fallback_queries"] = ["only", "five", "of", "the", "seven"]
+    with pytest.raises(CarouselShapeError) as exc:
+        _enforce_list_shape(payload, requested_items=5, hard_cap=56)
+    msg = "\n".join(exc.value.diagnostics["list_errors"])
+    assert "visual_fallback_queries" in msg
+    assert "7" in msg  # expected count
+
+
+def test_validator_rejects_blank_visual_fallback_query_entry():
+    payload = _good_payload()
+    payload["visual_fallback_queries"][2] = "   "
+    with pytest.raises(CarouselShapeError) as exc:
+        _enforce_list_shape(payload, requested_items=5, hard_cap=56)
+    msg = "\n".join(exc.value.diagnostics["list_errors"])
+    assert "visual_fallback_queries[2]" in msg
 
 
 def test_validator_collects_multiple_errors_in_one_payload():

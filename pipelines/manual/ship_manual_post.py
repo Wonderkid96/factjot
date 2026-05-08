@@ -322,6 +322,27 @@ def _enforce_list_shape(data: dict, *, requested_items: int, hard_cap: int) -> N
     if not isinstance(cover_iq, str) or not cover_iq.strip():
         bad.append("cover_image_query: empty or not a string")
 
+    # visual_fallback_queries: one stock-friendly query per slide,
+    # in order [cover, item 1, ..., item N, closing]. The sourcer
+    # uses these on R3 fallback when item-name searches return
+    # nothing from archive providers.
+    expected_n_fallbacks = requested_items + 2
+    vfqs = data.get("visual_fallback_queries")
+    if not isinstance(vfqs, list):
+        bad.append("visual_fallback_queries: missing or not a list")
+    elif len(vfqs) != expected_n_fallbacks:
+        bad.append(
+            f"visual_fallback_queries: expected exactly "
+            f"{expected_n_fallbacks} (cover + {requested_items} items "
+            f"+ closing), got {len(vfqs)}"
+        )
+    else:
+        for i, q in enumerate(vfqs):
+            if not isinstance(q, str) or not q.strip():
+                bad.append(
+                    f"visual_fallback_queries[{i}]: empty or not a string"
+                )
+
     if bad:
         diag = {
             "requested_content_slides": requested_items + 1,
@@ -517,6 +538,28 @@ COVER:
   No full stop.
 - cover_image_query: 2-5 words, photographable proxy.
 
+VISUAL FALLBACK QUERIES (separate from image_query above):
+
+The image_query above leads with the item name and is tried FIRST
+against archive providers (Wikimedia Commons, Wikipedia,
+Smithsonian). When that returns nothing, the sourcer falls back
+to a generic, stock-friendly query for that slide. You must
+provide one fallback per slide.
+
+- visual_fallback_queries: ARRAY of EXACTLY {n_fallbacks} strings,
+  in order: cover, item 1, item 2, ..., item N, closing.
+- 2-4 words per fallback. Stock-photography vocabulary. Subject
+  type, setting, era. Do NOT use the entity name; that's already
+  the primary query and we need a different shape here.
+- Examples (for a "worst product recalls" list):
+    cover         -> "product recall warehouse shelves"
+    Takata        -> "car airbag close up"
+    Samsung Note 7-> "smartphone battery fire"
+    Vioxx         -> "pill bottles pharmacy shelf"
+    Firestone     -> "damaged car tyre close up"
+    Peanut Corp   -> "peanut butter factory food safety"
+    closing       -> "product safety inspection warehouse"
+
 LAYOUT - HARD RULES (the pipeline rejects anything outside these):
 
 - name, rank_reason, concrete_fact each must be <= {hard_cap}
@@ -565,10 +608,17 @@ Return JSON only. No prose around it.
     "lines": ["one", "two", "three"],
     "image_query": "thoughtful closing visual"
   }},
+  "visual_fallback_queries": [
+    "cover fallback (stock-friendly)",
+    "item 1 fallback (stock-friendly)",
+    "...",
+    "closing fallback (stock-friendly)"
+  ],
   "dropped_facts": []
 }}
 
-Return EXACTLY {n_items} items in items[].
+Return EXACTLY {n_items} items in items[] AND EXACTLY {n_fallbacks}
+strings in visual_fallback_queries[].
 """
 
 
@@ -592,6 +642,8 @@ HARD RULES:
 - Each rendered field stays under {hard_cap} characters
   (markup-stripped).
 - Do NOT change image_query values. Pass them through unchanged.
+- Do NOT touch visual_fallback_queries; they are not part of this
+  polish payload at all.
 
 CLOSING SLIDE (closing.lines):
 
@@ -850,6 +902,7 @@ def _generate_list_content(
         brand_voice_editorial=BRAND_VOICE_EDITORIAL,
         brief=brief,
         n_items=n_items,
+        n_fallbacks=n_items + 2,  # cover + items + closing
         hard_cap=profile["hard_cap"],
     )
     res = client.messages.create(
