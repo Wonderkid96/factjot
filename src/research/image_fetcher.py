@@ -299,7 +299,13 @@ class ImageFetcher:
 
     def __init__(self, cache_dir: str | None = None,
                  target_size: tuple[int, int] = (1080, 1350),
-                 ledger: UsedImageLedger | None = None) -> None:
+                 ledger: UsedImageLedger | None = None,
+                 relax: bool = False) -> None:
+        """`relax=True` softens the strictest metadata gate
+        (no_subject_term_in_meta) from a hard reject into a soft pass,
+        so candidates can still reach the deterministic scorer + Haiku
+        selector. Threaded from ImageSourcer when readable_list is in
+        play; compact_legacy callers leave it False."""
         from src.core.paths import IMAGES_CACHE
         load_dotenv()
         self.cache_dir = Path(cache_dir) if cache_dir else IMAGES_CACHE
@@ -310,6 +316,7 @@ class ImageFetcher:
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": "factjot-bot/1.0 (educational carousel renderer)"})
         self.ledger = ledger or UsedImageLedger()
+        self.relax = relax
 
     # ----- public API -----
 
@@ -998,14 +1005,28 @@ class ImageFetcher:
         if subject_terms and meta:
             hit = next((t for t in subject_terms if t in meta), None)
             if not hit:
+                # readable_list relax: forward the candidate to the
+                # deterministic scorer + Haiku selector instead of
+                # rejecting on a literal-keyword miss. Pexels metadata
+                # rarely contains brand-specific keywords (e.g. "OpenAI",
+                # "GPT-4o") even when the image clearly fits the subject,
+                # so this gate is over-strict for any subject that isn't
+                # a famous person or place. Score will naturally be
+                # lower because the alias bonus is unreachable.
+                if self.relax:
+                    return True, f"soft_no_subject_term_relaxed terms={subject_terms[:3]}"
                 return False, f"no_subject_term_in_meta terms={subject_terms[:3]}"
         elif subject_terms and not meta:
             if cand.provider != "nasa":
+                if self.relax:
+                    return True, "soft_no_meta_relaxed"
                 return False, "no_meta_subject_terms_require_nasa"
 
         if not subject_terms and meta and expanded_terms:
             hit = next((t for t in expanded_terms if t in meta), None)
             if not hit:
+                if self.relax:
+                    return True, f"soft_no_expanded_term_relaxed terms={expanded_terms[:3]}"
                 return False, f"no_expanded_term_in_meta terms={expanded_terms[:3]}"
 
         ok = self._space_check(cand, topic_low, meta)

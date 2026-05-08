@@ -146,12 +146,16 @@ def _strip_markup(text: str) -> str:
     return re.sub(r"\[/?r\]", "", text)
 
 
-def _validate_lines(slides: list[dict]) -> list[str]:
+def _validate_lines(slides: list[dict], hard_cap: int = HARD_LINE_CAP) -> list[str]:
     """Return warning strings for lines that violate soft character rules.
 
     Hard-cap violations are surfaced here AND raised by
     _assert_lines_within_render_cap. Soft warnings cover orphans and
     weak endings; they do not block publish.
+
+    `hard_cap` defaults to compact_legacy's 24; readable_list callers
+    pass the profile cap (56) so the line_warnings ledger does not spam
+    false-positive overcap entries.
     """
     warnings: list[str] = []
     for i, slide in enumerate(slides, 1):
@@ -159,8 +163,8 @@ def _validate_lines(slides: list[dict]) -> list[str]:
         for j, raw_line in enumerate(lines):
             line  = _strip_markup(raw_line).strip()
             words = line.split()
-            if len(line) > HARD_LINE_CAP:
-                warnings.append(f"slide {i} line {j+1}: {len(line)} chars (max {HARD_LINE_CAP}): {line!r}")
+            if len(line) > hard_cap:
+                warnings.append(f"slide {i} line {j+1}: {len(line)} chars (max {hard_cap}): {line!r}")
             if len(line) < 8 and j == len(lines) - 1:
                 warnings.append(f"slide {i} final line too short ({len(line)} chars): {line!r}")
             # Anti-orphan: a line must have >= 3 words, OR be a single
@@ -401,7 +405,9 @@ def generate_content(
     slides = data["slides"]
 
     # Soft warnings (orphans, weak endings, final-line-too-short).
-    warnings = _validate_lines(slides)
+    # hard_cap is profile-driven so readable_list does not raise false
+    # warnings against the legacy 24-char limit.
+    warnings = _validate_lines(slides, hard_cap=profile["hard_cap"])
     for w in warnings:
         _log(f"     [line warn] {w}")
     data["_line_warnings"] = warnings

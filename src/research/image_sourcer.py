@@ -270,7 +270,9 @@ class ImageSourcer:
             ledger = UsedImageLedger(path=tmp)
         else:
             ledger = UsedImageLedger()
-        self._fetcher = ImageFetcher(ledger=ledger)
+        # Forward relax to the fetcher so the metadata gates honour it
+        # too, not just the score floor on the sourcer side.
+        self._fetcher = ImageFetcher(ledger=ledger, relax=relax)
 
         # Per-run tracking
         self._use_count:     dict[str, int]        = {}
