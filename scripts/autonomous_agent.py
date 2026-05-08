@@ -249,10 +249,10 @@ def run_carousel(args: dict, dry_run: bool, format_type: str = "fact") -> str:
         "--slides", str(args.get("slides", 6)),
         "--type",   format_type,
     ]
-    # readable_list opt-in: list slot gets the new half-box / Space
-    # Grotesk / autosize layout. fact + news keep compact_legacy
-    # (the CLI default when --layout-mode is omitted).
-    if format_type == "list":
+    # readable_list opt-in: list and news slots get the new half-box /
+    # Space Grotesk / autosize layout. fact stays on compact_legacy
+    # for now (the CLI default when --layout-mode is omitted).
+    if format_type in ("list", "news"):
         cmd.extend(["--layout-mode", "readable_list"])
     if dry_run:
         cmd.append("--dry-run")
