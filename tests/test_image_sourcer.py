@@ -324,3 +324,86 @@ def test_alias_matches_multi_word_any_order():
     assert _alias_matches("Concord Massachusetts", "massachusetts concord town") is True
     assert _alias_matches("Concord Massachusetts", "concorde g-boag.jpg") is False
     assert _alias_matches("Concord grape", "concord grape concordgrapes2.jpg") is True
+
+
+def test_r3_fallback_runs_after_non_empty_pool_selection_failure():
+    intent = _aviation_intent()
+    cand_r1 = _make_candidate(
+        provider="wikimedia_commons",
+        url="http://example.com/r1.jpg",
+        meta="concorde aircraft archive shot",
+        allow_reason="alias='Concorde aircraft' (multi-word)",
+    )
+    cand_r3 = _make_candidate(
+        provider="pexels",
+        url="http://example.com/r3.jpg",
+        meta="aircraft cockpit controls close up",
+        allow_reason="pass_intent_terms",
+    )
+    sourcer = _make_sourcer()
+    sourcer._fetcher.fetch_pool = MagicMock(side_effect=[[cand_r1], [cand_r3]])
+    sourcer._select_for_slot = MagicMock(side_effect=["", "data:image/jpeg;base64,recovered"])
+
+    result = sourcer.source_images(
+        queries=["Takata airbag recall"],
+        intent=intent,
+        post_id="test-post",
+        visual_fallback_queries=["car airbag close up"],
+    )
+
+    assert result == ["data:image/jpeg;base64,recovered"]
+    assert sourcer._fetcher.fetch_pool.call_count == 2
+    assert sourcer._fetcher.fetch_pool.call_args_list[1].kwargs["query"] == "car airbag close up"
+    assert sourcer._fetcher.fetch_pool.call_args_list[1].kwargs["provider_override"] == (
+        "pexels", "pixabay", "smithsonian", "commons",
+    )
+    assert sourcer._select_for_slot.call_count == 2
+
+
+def test_r3_fallback_still_allows_typography_when_no_candidate_commits():
+    intent = _aviation_intent()
+    cand_r1 = _make_candidate(
+        provider="wikimedia_commons",
+        url="http://example.com/r1.jpg",
+        meta="concorde aircraft archive shot",
+        allow_reason="alias='Concorde aircraft' (multi-word)",
+    )
+    cand_r3 = _make_candidate(
+        provider="pexels",
+        url="http://example.com/r3.jpg",
+        meta="aircraft cockpit controls close up",
+        allow_reason="pass_intent_terms",
+    )
+    sourcer = _make_sourcer()
+    sourcer._fetcher.fetch_pool = MagicMock(side_effect=[[cand_r1], [cand_r3]])
+    sourcer._select_for_slot = MagicMock(side_effect=["", ""])
+
+    result = sourcer.source_images(
+        queries=["Takata airbag recall"],
+        intent=intent,
+        post_id="test-post",
+        visual_fallback_queries=["car airbag close up"],
+    )
+
+    assert result == [""]
+    assert sourcer._fetcher.fetch_pool.call_count == 2
+    assert sourcer._select_for_slot.call_count == 2
+
+
+def test_scene_slot_drops_global_alias_gate():
+    intent = _aviation_intent()
+    sourcer = _make_sourcer()
+    sourcer._fetcher.fetch_pool = MagicMock(return_value=[])
+    sourcer._select_for_slot = MagicMock(return_value="")
+
+    sourcer.source_images(
+        queries=["smartphone chat app"],
+        intent=intent,
+        post_id="test-post",
+        per_slot_aliases=[None],
+        per_slot_text=["person looking at phone screen"],
+        visual_fallback_queries=["phone chat screen close up"],
+    )
+
+    first_call = sourcer._fetcher.fetch_pool.call_args_list[0]
+    assert first_call.kwargs["source_aliases"] is None

@@ -439,11 +439,12 @@ BEAT-TO-SLIDE MAPPING:
   sub-fact in dropped_facts rather than welding fragments.
 
 IMAGE QUERIES (one per slide including cover):
-- Photographable proxies. People, devices, scenes, eras. NOT abstract
-  concepts (no "ruling", "budget", "classification" - describe the
-  people, the room, the era instead).
-- 2-5 words per query, subject-first.
-- For named entities, lead with the canonical proper name.
+- Use literal, search-friendly phrasing, not creative metaphors.
+- Photographable proxies only: people, devices, rooms, scenes, eras.
+  NOT abstract terms (no "ruling", "budget", "classification").
+- 4-9 words per query, subject-first, concrete nouns included.
+- For named entities, start with the canonical proper name and then add
+  2-4 context words (place, object, action, era).
 
 Return JSON only. No prose around it.
 
@@ -507,8 +508,9 @@ ITEM FIELDS (all required):
   outcome). Max {hard_cap} chars. Must add new information; do not
   restate name or rank_reason.
 - image_query (string): 2-5 words. MUST start with the item name
-  verbatim (or its canonical short form). Add 1-2 visual context
-  words after. The image is item-specific, not list-themed. No
+-  verbatim (or its canonical short form). Add 3-6 visual context
+  words after. Keep phrasing literal and search-friendly, not
+  clever or metaphorical. The image is item-specific, not list-themed. No
   generic "engineering disaster", "factory fire", "warehouse"
   queries; those will be rejected and the slide will fall to
   typography. Examples:
@@ -1362,6 +1364,10 @@ def main() -> int:
         [cover_sa if cover_sa else None]
         + [sa if sa else None for sa in slide_sa]
     )
+    per_slot_text: list[str] = (
+        [cover_title]
+        + [" ".join(s.get("lines", [])) for s in slides]
+    )
     _log(f"     SlotAliases: {per_slot_aliases}")
 
     # post_id / save_dir are defined up here (rather than just before the
@@ -1432,6 +1438,7 @@ def main() -> int:
     images  = sourcer.source_images(
         queries[:total_slides], intent, post_id,
         per_slot_aliases=per_slot_aliases[:total_slides],
+        per_slot_text=per_slot_text[:total_slides],
         visual_fallback_queries=visual_fallbacks[:total_slides],
     )
 

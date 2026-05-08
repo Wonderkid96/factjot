@@ -1,7 +1,7 @@
 # Pipeline operations reference
 
 **Purpose:** Single place for what actually runs in production after the 2026 content quality recovery, how it was verified, and where to look for cleanup candidates.  
-**Last updated:** 2026-05-07
+**Last updated:** 2026-05-08
 
 For **files that may be archived or removed** (with evidence and caveats), use the repo root **`CLEANUP_AUDIT.md`**. This document does not duplicate that inventory line-by-line.
 
@@ -11,7 +11,8 @@ For **files that may be archived or removed** (with evidence and caveats), use t
 
 | Workflow | Role |
 |----------|------|
-| `.github/workflows/autonomous-reel.yml` | Only intentional poster: scheduled + `workflow_dispatch`. Resolves mode, runs agent, optional YouTube cross-post, reel metrics, failure log, state push. |
+| `.github/workflows/autonomous-reel.yml` | Scheduled evergreen poster: `reel_morning`, `list`, `reel_evening`, `fact` via autonomous agent. |
+| `.github/workflows/news-watcher.yml` | Breaking-news watcher: polls Guardian RSS and triggers news publish only when a qualifying story is found. |
 | `.github/workflows/test.yml` | PR and non-main pushes: `pytest tests/ -v` only. Does not execute pipeline entrypoints. |
 | `.github/workflows/pages.yml` | Builds `docs/` for GitHub Pages. No Instagram or pipeline posting. |
 
@@ -26,11 +27,15 @@ For **files that may be archived or removed** (with evidence and caveats), use t
 | Slot | Pipeline | Layout profile |
 |------|----------|----------------|
 | `reel_morning`, `reel_evening` | `pipelines/reel/make_reel.py` | n/a (reel) |
-| `news` | `pipelines/manual/ship_manual_post.py` | `readable_list` (since 2026-05-08) |
-| `list` | `pipelines/manual/ship_manual_post.py` | `readable_list` (since 2026-05-08) |
-| `fact` | `pipelines/manual/ship_manual_post.py` | `compact_legacy` |
+| `list` | `pipelines/carousel/ship_carousel_post.py` | `readable_list` (since 2026-05-08) |
+| `fact` | `pipelines/carousel/ship_carousel_post.py` | `compact_legacy` |
 
-Routing lives in `scripts/autonomous_agent.py:run_carousel`: the agent appends `--layout-mode readable_list` for `format_type in ("list", "news")`. Direct CLI invocations of `ship_manual_post.py` without `--layout-mode` default to `compact_legacy` for any sub-type, including news. See CLAUDE.md §10 and `src/content/carousel_rules.py:LAYOUT_PROFILES` for the per-profile font / cap / autosize details.
+Routing lives in `scripts/autonomous_agent.py:run_carousel`: the agent appends `--layout-mode readable_list` for `format_type == "list"`. Direct CLI invocations of `ship_carousel_post.py` without `--layout-mode` default to `compact_legacy` for any sub-type, including news. See CLAUDE.md §10 and `src/content/carousel_rules.py:LAYOUT_PROFILES` for the per-profile font / cap / autosize details.
+
+**Breaking-news path (watcher-triggered, unscheduled):**
+- Watcher: `pipelines/news/check_guardian_rss.py`
+- Publisher entrypoint: `pipelines/news/ship_news_breaking.py` (canonical wrapper)
+- Pipeline implementation: `pipelines/news/ship_news_post.py`
 
 **Other steps in `autonomous-reel.yml` (direct `python3` calls):**
 
@@ -40,7 +45,7 @@ Routing lives in `scripts/autonomous_agent.py:run_carousel`: the agent appends `
 - `pipelines/shared/log_workflow_failure.py` (on failure)
 
 **Indirect but required on the carousel path:**  
-`pipelines/manual/ship_manual_post.py` imports render helpers from **`pipelines/news/ship_news_post.py`** (dual role: news CLI + shared renderer). Do not delete `ship_news_post.py` without replacing that import path.
+`pipelines/carousel/ship_carousel_post.py` wraps `pipelines/manual/ship_manual_post.py`, which imports render helpers from **`pipelines/news/ship_news_post.py`** (dual role: news CLI + shared renderer). Do not delete `ship_news_post.py` without replacing that import path.
 
 ---
 
@@ -70,8 +75,8 @@ Work tracked in **`docs/superpowers/plans/2026-05-07-autonomous-content-quality-
 
 ## 5. Operational gaps to be aware of
 
-- **`carousel_quality.jsonl`:** written by `ship_manual_post.py`; it is **not** listed in the `autonomous-reel.yml` state-commit `git add` loop. If you want that ledger versioned from CI, add it explicitly (and accept noise) or rely on local / other backup.
-- **Dry-run contracts:** `ship_manual_post.py` uses `--dry-run`; the agent respects **`DRY_RUN=true`** in the environment (`scripts/autonomous_agent.py`), not a `--dry-run` flag for the agent process.
+- **`carousel_quality.jsonl`:** written by `ship_carousel_post.py` (via the manual module); it is **not** listed in the `autonomous-reel.yml` state-commit `git add` loop. If you want that ledger versioned from CI, add it explicitly (and accept noise) or rely on local / other backup.
+- **Dry-run contracts:** `ship_carousel_post.py` uses `--dry-run`; the agent respects **`DRY_RUN=true`** in the environment (`scripts/autonomous_agent.py`), not a `--dry-run` flag for the agent process.
 - **Docs drift:** `insta-brain/` and parts of `README.md` may still describe old `scripts/*.py` paths, deleted workflows, or queue-based publishing. Treat **`SPEC_FACTJOT_SYSTEM.md`**, root **`CLAUDE.md`**, and this file** as the architecture prompts to reconcile against; brain notes are not always migrated.
 
 ---

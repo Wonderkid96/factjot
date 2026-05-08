@@ -1,5 +1,10 @@
 import pytest
-from src.research.image_sourcer import _classify_slot_intent
+from src.research.image_sourcer import (
+    _classify_slot_intent,
+    _literalise_slot_text_query,
+    _meta_matches_query,
+    _r3_provider_order_for_query,
+)
 
 
 def test_classifies_named_entity_query_as_entity():
@@ -27,6 +32,38 @@ def test_classifies_abstract_concept_as_abstract():
         slot_aliases=[],
     )
     assert intent == "abstract"
+
+
+def test_classifies_capitalised_named_subject_from_slide_text():
+    intent = _classify_slot_intent(
+        slide_text="Deepwater Horizon exploded in 2010",
+        query="offshore drilling accident",
+        slot_aliases=[],
+    )
+    assert intent == "entity"
+
+
+def test_r3_provider_order_prefers_archives_for_named_queries():
+    order = _r3_provider_order_for_query("OpenAI logo")
+    assert order[:3] == ("commons", "wiki", "wiki_article")
+
+
+def test_r3_provider_order_prefers_stock_for_descriptive_queries():
+    order = _r3_provider_order_for_query("smartphone chat app")
+    assert order[:2] == ("pexels", "pixabay")
+
+
+def test_literalise_slot_text_query_prefers_content_words():
+    q = _literalise_slot_text_query(
+        "OpenAI rolled back GPT-4o after users reported sycophantic answers.",
+    )
+    assert "openai" in q
+    assert "rolled" in q or "rollback" in q
+
+
+def test_meta_matches_query_requires_meaningful_overlap():
+    assert _meta_matches_query("OpenAI office San Francisco", "OpenAI logo") is True
+    assert _meta_matches_query("red sports car closeup", "OpenAI logo") is False
 
 
 from src.research.image_fetcher import _negative_term_hits

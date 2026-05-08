@@ -10,7 +10,7 @@ explicitly told NOT to change facts, names, dates, numbers, or
 entities. A FactPreservationError is raised if entity identity drifts.
 
 Phase 1 of the content quality recovery. Replaces the single-stage
-generate_content() in pipelines/manual/ship_manual_post.py which
+generate_content() in pipelines/carousel/ship_carousel_post.py which
 mixed editorial decisions with line geometry.
 """
 from __future__ import annotations

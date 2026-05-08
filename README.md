@@ -9,11 +9,11 @@ Automated Instagram carousel pipeline. One daily post under [@factjot](https://i
 > This document is partly legacy. The system has changed since several sections below were written. Until this README is fully updated, treat the following as authoritative:
 >
 > - **Production scheduler is GitHub Actions, not local launchd.** The launchd plist install steps, `scripts/publish_due.py`, `scripts/review_queue.py`, and the queue-based "approve then publish" flow described in this README are **legacy** unless explicitly revived. Autonomous posting now happens entirely from GitHub Actions runners. See `CLAUDE.md` "Daily automation" and `SPEC_FACTJOT_SYSTEM.md` section 6 for the current flow.
-> - **Pipeline entrypoints live under `pipelines/<name>/`, not `scripts/`.** Most rows in this README's "Scripts" table point at `scripts/<name>.py` paths that no longer exist there. The current entrypoints are `pipelines/carousel/ship_first_post.py`, `pipelines/list/ship_list_post.py`, `pipelines/reel/make_reel.py`, `pipelines/news/ship_news_post.py`, `pipelines/manual/ship_manual_post.py`, plus shared operational scripts in `pipelines/shared/`.
-> - **Manual / editorial carousels are gated, autonomous pipelines are not.** Approval today means a human inspecting rendered output before publish, only for editorial content. The repeating scheduled pipelines (reels, fact carousel, list carousel, news carousel) post autonomously without a queue. The old queue/approve-and-ship rhythm is legacy.
+> - **Pipeline entrypoints live under `pipelines/<name>/`, not `scripts/`.** Most rows in this README's "Scripts" table point at `scripts/<name>.py` paths that no longer exist there. The current entrypoints are `pipelines/carousel/ship_carousel_post.py`, `pipelines/reel/make_reel.py`, plus shared operational scripts in `pipelines/shared/`.
+> - **Manual / editorial carousels are gated, autonomous pipelines are not.** Approval today means a human inspecting rendered output before publish, only for editorial content. Scheduled autonomous pipelines are reels, fact carousel, and list carousel; breaking news posts are watcher-triggered, not scheduled. The old queue/approve-and-ship rhythm is legacy.
 > - **Higher authority on current architecture:** `SPEC_FACTJOT_SYSTEM.md` (system constitution) and `CLAUDE.md` (project operating rules). On any conflict, prefer the spec, then `CLAUDE.md`, then this README.
 > - **Image provider order and manual carousel image behaviour are owned by `SPEC_IMAGE_PIPELINE.md`.** The "Image source coverage" list further down may be stale and is being deferred to the spec.
-> - **`pipelines/news/ship_news_post.py` currently has dual responsibility** as both the news pipeline entrypoint and the renderer used by the manual carousel pipeline. This is a known architecture risk to be untangled later, not something to change in passing.
+> - **`pipelines/news/ship_news_post.py` currently has dual responsibility** as the breaking-news implementation and the renderer used by the manual carousel pipeline. The canonical workflow entrypoint is `pipelines/news/ship_news_breaking.py` (wrapper). This remains a known architecture risk to untangle deliberately, not in passing.
 >
 > Sections describing the older flow are tagged **[LEGACY]** below. They are kept for reference, not because they reflect today's behaviour.
 
@@ -143,7 +143,7 @@ See `.env.example`. Bot will refuse to publish unless `INSTAGRAM_ACCOUNT_ID`, `M
 > | `scripts/auto_schedule_weekly.py` | `pipelines/shared/auto_schedule_weekly.py` |
 > | `scripts/refresh_token.py` | `pipelines/shared/refresh_token.py` |
 >
-> Posting entrypoints (which the table below does not list) are in `pipelines/<pipeline>/`: `ship_first_post.py` (carousel), `ship_list_post.py` (list), `make_reel.py` (reel), `ship_news_post.py` (news, also currently used as the manual carousel renderer), `ship_manual_post.py` (manual).
+> Posting entrypoints (which the table below does not list) are in `pipelines/<pipeline>/`: `ship_carousel_post.py` (carousel), `make_reel.py` (reel), `ship_news_breaking.py` (watcher-triggered breaking news). Legacy files remain on disk (`ship_first_post.py`, `ship_list_post.py`, `ship_news_post.py`, `ship_manual_post.py`) but are not scheduled autonomous production entrypoints.
 >
 > `scripts/run_pipeline.py`, `scripts/fetch_metrics.py`, and `scripts/weekly_report.py` are not in the live `scripts/` directory. Their successors (where they exist) are in `pipelines/reel/fetch_reel_metrics.py` and the `weekly-plan.yml` workflow. The "Auto-fired by launchd" notes are legacy.
 >
@@ -189,7 +189,7 @@ Insta-bot/
 │   ├── carousel/                  # ship_first_post.py (morning fact carousel) + helpers
 │   ├── list/                      # ship_list_post.py (evening list) + pack tooling
 │   ├── news/                      # ship_news_post.py (news + currently shared as manual renderer)
-│   ├── manual/                    # ship_manual_post.py (editorial brief carousels)
+│   ├── manual/                    # ship_manual_post.py (legacy module wrapped by ship_carousel_post.py)
 │   └── shared/                    # cross-pipeline ops (publish, token, idempotency, status, etc.)
 ├── output/                        # per-run rendered artefacts (gitignored, local only)
 ├── data/                          # repo-tracked state (ledgers + caches)

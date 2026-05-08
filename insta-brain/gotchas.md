@@ -59,6 +59,9 @@ This file must be committed after every reel or the same clip will appear in con
 **The brain and image_fetcher previously wrote to two different paths.**
 `brain.py` used `data/used_images.jsonl`; `image_fetcher.py` used `data/ledgers/used_images.jsonl` (via paths.py). Neither checked the other's records. Fixed 2026-05-03: `brain.py` now uses `UsedImageLedger()` with no path argument, deferring to paths.py like everything else.
 
+**News/list cover queries can be over-constrained by global aliases.**
+`ship_carousel_post.py` (via the wrapped manual module) sends global `source_aliases` to slot 0 when `cover_slot_aliases` is empty. For scene-style cover queries (for example "smartphone chat app"), strict alias gates can reject every candidate (`POOL_REJECT no_alias_match`) even when content slots recover via R3. List mode survives this with typography cover fallback; news/fact hard-fail on `COVER_IMAGE_FAILED`. If a news dry-run shows `image_coverage` high but cover still fails, inspect slot 0 alias gating first.
+
 ---
 
 ## Duplicate post prevention

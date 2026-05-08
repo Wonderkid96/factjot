@@ -80,6 +80,12 @@ _SCENE_TOKENS = frozenset({
     "site", "scene", "queue", "bridge", "tunnel",
 })
 
+_QUERY_STOPWORDS = frozenset({
+    "the", "a", "an", "of", "and", "or", "in", "on", "to", "for",
+    "with", "at", "by", "from", "as", "is", "was", "were", "be",
+    "this", "that", "these", "those",
+})
+
 
 def _classify_slot_intent(
     *,
@@ -116,6 +122,53 @@ def _classify_slot_intent(
     if any(w[:1].isupper() and len(w) > 2 for w in slide_text.split()):
         return "entity"
     return "scene"
+
+
+def _r3_provider_order_for_query(query: str) -> tuple[str, ...]:
+    """Pick R3 provider order based on fallback query shape.
+
+    Descriptive B-roll queries work best on stock providers first.
+    Named-entity fallback queries (for example 'OpenAI logo') should
+    check archives first because identity-labelled media is more likely
+    there than in stock libraries.
+    """
+    q = (query or "").strip()
+    if not q:
+        return ("pexels", "pixabay", "smithsonian", "commons")
+    has_upper = any(ch.isupper() for ch in q)
+    q_lc = q.lower()
+    looks_named_or_logo = has_upper or (" logo" in q_lc) or ("gpt" in q_lc)
+    if looks_named_or_logo:
+        return ("commons", "wiki", "wiki_article", "smithsonian", "pexels", "pixabay")
+    return ("pexels", "pixabay", "smithsonian", "commons")
+
+
+def _literalise_slot_text_query(slot_text: str, max_terms: int = 7) -> str:
+    """Build a literal fallback query from slide text.
+
+    Purpose: reduce overly creative phrasing from writer prompts by providing
+    a deterministic, content-word query fallback.
+    """
+    tokens = re.findall(r"[A-Za-z0-9][A-Za-z0-9\-]+", (slot_text or "").lower())
+    kept = [t for t in tokens if len(t) >= 4 and t not in _QUERY_STOPWORDS]
+    # Keep first occurrences in order.
+    out: list[str] = []
+    for tok in kept:
+        if tok not in out:
+            out.append(tok)
+        if len(out) >= max_terms:
+            break
+    return " ".join(out)
+
+
+def _meta_matches_query(meta: str, query: str) -> bool:
+    """True when candidate metadata shares at least one meaningful query token."""
+    meta_tokens = set(re.findall(r"[a-z0-9][a-z0-9\-]+", (meta or "").lower()))
+    query_tokens = {
+        t for t in re.findall(r"[a-z0-9][a-z0-9\-]+", (query or "").lower())
+        if len(t) >= 4 and t not in _QUERY_STOPWORDS
+    }
+    return bool(meta_tokens & query_tokens)
 
 
 # ------------------------------------------------------------------ #
@@ -262,7 +315,7 @@ class ImageSourcer:
         """`relax=True` lowers the R3 score floor (8 -> 6) for list-style
         carousels where item slides have weaker subject-term metadata
         matches. compact_legacy callers leave this False; the autonomous
-        agent's list slot threads it in via ship_manual_post.py."""
+        agent's list slot threads it in via ship_carousel_post.py."""
         self.topic = topic
         self.relax = relax
         if use_fresh_ledger:
@@ -282,7 +335,7 @@ class ImageSourcer:
 
         # Read-only audit trail of per-slot decisions, populated as
         # source_images() runs. Each entry is a dict; see _record_slot.
-        # Callers (e.g. list-mode validation in ship_manual_post.py) read
+        # Callers (e.g. list-mode validation in ship_carousel_post.py) read
         # this to enforce per-item alias match and de-duplicate by URL.
         self.last_run_decisions: list[dict] = []
 
@@ -293,6 +346,7 @@ class ImageSourcer:
         post_id:  str,
         max_pool: int | None = None,
         per_slot_aliases: "list[list[str] | None] | None" = None,
+        per_slot_text: "list[str] | None" = None,
         visual_fallback_queries: "list[str] | None" = None,
     ) -> list[str]:
         """Return one base64 data URL per query slot.
@@ -305,8 +359,6 @@ class ImageSourcer:
         """
 
         pool_size = max_pool if max_pool is not None else self.MAX_POOL
-        extra_fallbacks = [q for q in [intent.fallback_query, intent.visual_subject] if q]
-
         log.debug("IMAGE provider_order=%s topic=%s", self._fetcher._provider_order(self.topic), self.topic)
 
         # Reset the audit trail for this run; populated as we go.
@@ -321,18 +373,38 @@ class ImageSourcer:
                 if per_slot_aliases and i < len(per_slot_aliases)
                 else None
             )
-            effective_aliases = slot_override if slot_override else (intent.source_aliases or None)
-            if slot_override:
-                log.debug("IMAGE slot=%d aliases=slot(%s)", i, slot_override)
-            else:
-                log.debug("IMAGE slot=%d aliases=global", i)
-
+            slot_text = (
+                per_slot_text[i]
+                if per_slot_text and i < len(per_slot_text)
+                else ""
+            )
             slot_intent = _classify_slot_intent(
-                slide_text   = "",  # not yet plumbed through; refined later.
+                slide_text   = slot_text,
                 query        = query,
                 slot_aliases = slot_override,
             )
             log.debug("IMAGE slot=%d intent=%s", i, slot_intent)
+            slot_literal_query = _literalise_slot_text_query(slot_text)
+            slot_extra_fallbacks = [
+                q for q in [intent.fallback_query, intent.visual_subject, slot_literal_query] if q
+            ]
+
+            # Scene/abstract slots are visual-B-roll oriented. Applying global
+            # entity aliases there can zero the pool (for example generic cover
+            # queries that should match scene photos). Keep explicit per-slot
+            # aliases, but drop global aliases for scene/abstract routing.
+            if slot_override:
+                effective_aliases = slot_override
+            elif slot_intent in ("scene", "abstract"):
+                effective_aliases = None
+            else:
+                effective_aliases = intent.source_aliases or None
+            if slot_override:
+                log.debug("IMAGE slot=%d aliases=slot(%s)", i, slot_override)
+            elif effective_aliases:
+                log.debug("IMAGE slot=%d aliases=global", i)
+            else:
+                log.debug("IMAGE slot=%d aliases=none", i)
 
             if slot_intent == "entity":
                 slot_provider_order: tuple[str, ...] | None = None
@@ -345,7 +417,6 @@ class ImageSourcer:
                     "pexels", "pixabay", "smithsonian", "commons",
                 )
 
-            relaxation_round = 1
             raw_pool = self._fetcher.fetch_pool(
                 query             = query,
                 topic             = self.topic,
@@ -355,10 +426,11 @@ class ImageSourcer:
                 source_aliases    = effective_aliases,
                 negative_terms    = intent.negative_terms or None,
                 context_words     = intent.context_words  or None,
-                extra_fallbacks   = extra_fallbacks,
+                extra_fallbacks   = slot_extra_fallbacks,
                 max_pool          = pool_size,
                 provider_override = slot_provider_order,
             )
+            relaxation_round = 1
 
             # Gate relaxation: if the strict slot gate found nothing, retry
             # with progressively looser alias constraints before giving up.
@@ -375,69 +447,79 @@ class ImageSourcer:
                     source_aliases = intent.source_aliases or None,
                     negative_terms = intent.negative_terms or None,
                     context_words  = intent.context_words  or None,
-                    extra_fallbacks= extra_fallbacks,
+                    extra_fallbacks= slot_extra_fallbacks,
                     max_pool       = pool_size,
                 )
 
+            if raw_pool:
+                log.debug("IMAGE slot=%d pool_size=%d (round=%d)", i, len(raw_pool), relaxation_round)
+                chosen = self._select_for_slot(i, query, raw_pool, intent, post_id, relaxation_round)
+                if chosen:
+                    data_urls.append(chosen)
+                    continue
+                # _select_for_slot records a terminal decision. We are
+                # escalating to R3, so drop interim decisions for this slot
+                # to keep last_run_decisions aligned with the final outcome.
+                while self.last_run_decisions and self.last_run_decisions[-1].get("slot") == i:
+                    self.last_run_decisions.pop()
 
-            if not raw_pool:
-                # Round 3: use the Sonnet-generated visual fallback query for this slot.
-                # These are descriptive stock-photography terms ("smartphone screen apps")
-                # not subject names, so the query terms themselves gate relevance.
-                #
-                # R3 routes through a stock-friendly provider order: Pexels and
-                # Pixabay first (their tag indexing matches descriptive B-roll
-                # terms), Smithsonian and Commons as long-shot fallbacks. The
-                # editorial topic order is archive-first, which is correct for
-                # R1/R2 named-subject queries but pointless on R3 because
-                # archives title files by subject identity, not visual content.
-                # Openverse omitted: known to return Flickr-hosted URLs that
-                # 429 our bot IP, so it adds latency without coverage.
-                vfq = (
-                    visual_fallback_queries[i]
-                    if visual_fallback_queries and i < len(visual_fallback_queries)
-                    else ""
+            # Round 3: use the Sonnet-generated visual fallback query for this slot.
+            # These are descriptive stock-photography terms ("smartphone screen apps")
+            # not subject names, so the query terms themselves gate relevance.
+            #
+            # R3 routes through a stock-friendly provider order: Pexels and
+            # Pixabay first (their tag indexing matches descriptive B-roll
+            # terms), Smithsonian and Commons as long-shot fallbacks. The
+            # editorial topic order is archive-first, which is correct for
+            # R1/R2 named-subject queries but pointless on R3 because
+            # archives title files by subject identity, not visual content.
+            # Openverse omitted: known to return Flickr-hosted URLs that
+            # 429 our bot IP, so it adds latency without coverage.
+            vfq = (
+                visual_fallback_queries[i]
+                if visual_fallback_queries and i < len(visual_fallback_queries)
+                else ""
+            )
+            if vfq:
+                relaxation_round = 3
+                log.debug("IMAGE slot=%d RELAX_R3 → visual fallback %r", i, vfq)
+                r3_provider_order = _r3_provider_order_for_query(vfq)
+                raw_pool = self._fetcher.fetch_pool(
+                    query             = vfq,
+                    topic             = self.topic,
+                    post_id           = post_id,
+                    slide_index       = i,
+                    intent_text       = vfq,
+                    source_aliases    = None,
+                    negative_terms    = intent.negative_terms or None,
+                    context_words     = None,
+                    extra_fallbacks   = None,
+                    max_pool          = min(pool_size, 20),
+                    provider_override = r3_provider_order,
                 )
-                if vfq:
-                    relaxation_round = 3
-                    log.debug("IMAGE slot=%d RELAX_R3 → visual fallback %r", i, vfq)
-                    raw_pool = self._fetcher.fetch_pool(
-                        query             = vfq,
-                        topic             = self.topic,
-                        post_id           = post_id,
-                        slide_index       = i,
-                        intent_text       = vfq,
-                        source_aliases    = None,
-                        negative_terms    = intent.negative_terms or None,
-                        context_words     = None,
-                        extra_fallbacks   = None,
-                        max_pool          = min(pool_size, 20),
-                        provider_override = ("pexels", "pixabay", "smithsonian", "commons"),
-                    )
-                    # Only allow images not yet used in this carousel.
+                # Only allow images not yet used in this carousel.
+                if raw_pool:
+                    raw_pool = [c for c in raw_pool if self._use_count.get(c.url, 0) == 0]
                     if raw_pool:
-                        raw_pool = [c for c in raw_pool if self._use_count.get(c.url, 0) == 0]
-                        if not raw_pool:
-                            log.debug("IMAGE slot=%d RELAX_R3_EXHAUSTED → typography", i)
-                            data_urls.append("")
-                            self._last_url = ""
-                            self._record_slot(
-                                slot=i, query=query, outcome="typography",
-                                relaxation_round=3,
-                                reason="r3_exhausted",
-                            )
+                        log.debug("IMAGE slot=%d pool_size=%d (round=%d)", i, len(raw_pool), relaxation_round)
+                        chosen = self._select_for_slot(i, query, raw_pool, intent, post_id, relaxation_round)
+                        if chosen:
+                            data_urls.append(chosen)
                             continue
-
-            log.debug("IMAGE slot=%d pool_size=%d (round=%d)", i, len(raw_pool), relaxation_round)
-
-            chosen = self._select_for_slot(i, query, raw_pool, intent, post_id, relaxation_round)
+                        while self.last_run_decisions and self.last_run_decisions[-1].get("slot") == i:
+                            self.last_run_decisions.pop()
+                    else:
+                        log.debug("IMAGE slot=%d RELAX_R3_EXHAUSTED", i)
 
             # Typography breaks the consecutive chain — the same image may
             # appear again on the next slot without being flagged consecutive.
-            if not chosen:
-                self._last_url = ""
-
-            data_urls.append(chosen)
+            self._last_url = ""
+            self._record_slot(
+                slot=i, query=query, outcome="typography",
+                relaxation_round=(3 if vfq else relaxation_round),
+                reason="no_image_after_r1_r2_r3",
+            )
+            data_urls.append("")
 
         n_image = sum(1 for url in data_urls if url)
         log.debug(
@@ -612,11 +694,14 @@ class ImageSourcer:
                 or (is_r3 and confidence == "medium")
             )
             if sc < min_score and not confident_enough:
-                log.debug(
-                    "IMAGE slot=%d haiku_pick=%d score=%d < min(%d) confidence=%s round=%d → skip",
-                    slot, pick_idx, sc, min_score, confidence, relaxation_round,
-                )
-                continue
+                if is_r3 and _meta_matches_query(c.meta, query):
+                    pass
+                else:
+                    log.debug(
+                        "IMAGE slot=%d haiku_pick=%d score=%d < min(%d) confidence=%s round=%d → skip",
+                        slot, pick_idx, sc, min_score, confidence, relaxation_round,
+                    )
+                    continue
 
             try:
                 cached, credit = self._fetcher.commit_candidate(c, query, self.topic, post_id, slot)
@@ -652,7 +737,8 @@ class ImageSourcer:
             if self._use_count.get(c.url, 0) >= MAX_REUSES or c.url == self._last_url:
                 continue
             if sc < min_score:
-                break  # sorted descending; nothing below will qualify
+                if not (is_r3 and _meta_matches_query(c.meta, query)):
+                    break  # sorted descending; nothing below will qualify
             try:
                 cached, credit = self._fetcher.commit_candidate(c, query, self.topic, post_id, slot)
                 data_url = f"data:image/jpeg;base64,{base64.b64encode(cached.read_bytes()).decode()}"

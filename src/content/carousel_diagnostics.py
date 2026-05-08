@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 # Hard cap for a single slide line at the rendered template size. Mirrors
-# HARD_LINE_CAP in pipelines/manual/ship_manual_post.py so diagnostics can
+# HARD_LINE_CAP in pipelines/carousel/ship_carousel_post.py so diagnostics can
 # be built before the pipeline-level assert runs. Phase 2 replaces this
 # with a per-slide-kind cap from src/render/line_fit_probe.py.
 HARD_LINE_CAP = 24

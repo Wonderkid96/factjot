@@ -66,7 +66,7 @@ When in doubt, plan mode. Tightly scoped fixes inside one pipeline that do not t
 
 **`pipelines/news/ship_news_post.py` has a dual role.** It is both:
 1. The deleted news-pipeline's CLI entry point (no scheduled workflow calls it now).
-2. The renderer used by the autonomous carousel pipeline. `pipelines/manual/ship_manual_post.py` imports its render helpers, and dry-run previews from the manual pipeline currently land in `output/news/...`.
+2. The renderer used by the autonomous carousel pipeline. `pipelines/carousel/ship_carousel_post.py` wraps `pipelines/manual/ship_manual_post.py`, which imports these render helpers. Dry-run previews from the manual module currently land in `output/news/...`.
 
 An edit for one purpose can silently affect the other. Inspect both manual and news rendered output before shipping any change here. Tracked in `SPEC_FACTJOT_SYSTEM.md` §10.1; will be untangled in a deliberate split.
 
@@ -80,15 +80,16 @@ An edit for one purpose can silently affect the other. Inspect both manual and n
 
 ## 5. What this project is
 
-Fully automated Instagram account (@factjot). One workflow (`autonomous-reel.yml`) fires five times a day on GitHub-hosted cron. Each fire is locked to one format. The agent (Sonnet 4.6) writes the brief or script and calls one of `run_reel` / `run_carousel`, or `skip` if nothing clears the quality gate. **The Mac does not need to be on.**
+Fully automated Instagram account (@factjot). Scheduled evergreen slots run via `autonomous-reel.yml` on GitHub-hosted cron, and breaking news runs via `news-watcher.yml` when Guardian watcher criteria are met. The agent (Sonnet 4.6) writes the brief or script and calls one of `run_reel` / `run_carousel`, or `skip` if nothing clears the quality gate. **The Mac does not need to be on.**
 
 | Mode | BST | UTC cron | Format |
 |---|---|---|---|
 | `reel_morning` | 09:00 | `0 8 * * *`   | Evergreen reel |
-| `news`         | 12:30 | `30 11 * * *` | News / current carousel |
 | `list`         | 15:30 | `30 14 * * *` | List carousel |
 | `reel_evening` | 18:00 | `0 17 * * *`  | Evergreen reel |
 | `fact`         | 20:30 | `30 19 * * *` | Fact carousel (single subject) |
+
+Breaking news is unscheduled: `news-watcher.yml` polls Guardian RSS and only triggers `pipelines/news/ship_news_breaking.py` when a qualifying story is found.
 
 Crons are UTC, tracked to BST in summer. UK clocks fall back in October; UTC equals GMT then, so posts fire at the same UK clock time year-round without intervention.
 
@@ -136,7 +137,7 @@ $PY pipelines/reel/make_reel.py --topic earth
 $PY pipelines/reel/make_reel.py --list-facts
 
 # Manual carousel (current autonomous carousel path)
-$PY pipelines/manual/ship_manual_post.py --dry-run
+$PY pipelines/carousel/ship_carousel_post.py --dry-run
 
 # Stop a stuck local reel job
 scripts/kill_local_reel_jobs.sh
@@ -172,15 +173,15 @@ Shadow: hard drop `2px 2px 0 rgba(0,0,0,0.5)`, no blur.
 ## 10. Carousel layout profiles
 
 Source of truth: `src/content/carousel_rules.py` -> `LAYOUT_PROFILES`.
-Two profiles. Pick by `--layout-mode` on `pipelines/manual/ship_manual_post.py`, or let the agent's `run_carousel` derive it from `format_type`.
+Two profiles. Pick by `--layout-mode` on `pipelines/carousel/ship_carousel_post.py`, or let the agent's `run_carousel` derive it from `format_type`.
 
 | Profile | Body font | Container | Char cap | Used by |
 |---|---|---|---|---|
 | `compact_legacy` | Archivo Black 900 (48px / 42px) | anchored bottom-left | 24 hard | fact slot; default for `--type=fact|news` direct CLI |
-| `readable_list` | Space Grotesk SemiBold | half-box bottom 50%, JS auto-fit (64 -> 28 px) | 56 hard | list slot, news slot |
+| `readable_list` | Space Grotesk SemiBold | half-box bottom 50%, JS auto-fit (64 -> 28 px) | 56 hard | list slot and watcher-triggered news |
 
 Routing:
-- Agent `run_carousel(format_type=list|news)` appends `--layout-mode readable_list`. Fact stays default. Reels never read layout_mode.
+- Agent `run_carousel(format_type=list)` appends `--layout-mode readable_list`. Fact stays default. Reels never read layout_mode.
 - Direct CLI without `--layout-mode` defaults to `compact_legacy` for any sub-type.
 - compact_legacy is byte-identical to pre-2026-05-08 output. Existing fact carousels render unchanged.
 
@@ -188,9 +189,9 @@ Image scoring under `readable_list` runs `ImageSourcer(relax=True)`: R3 score fl
 
 ## 11. Where things live
 
-- **Pipelines:** `pipelines/{reel,manual,news,carousel,list,shared}/`. Only `reel/make_reel.py` and `manual/ship_manual_post.py` are intentional production entry points (autonomous workflow calls them via the agent's `run_reel` / `run_carousel` tools). Other pipeline files are legacy; see `docs/PIPELINE_OPERATIONS_REFERENCE.md` §2.
+- **Pipelines:** `pipelines/{reel,manual,news,carousel,list,shared}/`. Only `reel/make_reel.py` and `carousel/ship_carousel_post.py` are intentional production entry points (autonomous workflow calls them via the agent's `run_reel` / `run_carousel` tools). Other pipeline files are legacy; see `docs/PIPELINE_OPERATIONS_REFERENCE.md` §2.
 - **Shared modules:** `src/{core,research,content,verification,render,publish,utils}/`. Responsibilities table in `SPEC_FACTJOT_SYSTEM.md` §7.
-- **Workflows:** `.github/workflows/`. Three are active: `autonomous-reel.yml` (poster), `test.yml` (PR pytest), `pages.yml` (docs). Anything else means double-post risk; see `docs/PIPELINE_OPERATIONS_REFERENCE.md` §1.
+- **Workflows:** `.github/workflows/`. Active posting workflows are `autonomous-reel.yml` (scheduled reels/list/fact) and `news-watcher.yml` (breaking news watcher-triggered posts). `test.yml` runs PR pytest, `pages.yml` builds docs.
 - **State (git-tracked):** `insta-brain/data/posted.jsonl`, `insta-brain/data/reels.jsonl`, `data/ledgers/used_images.jsonl`, `data/ledgers/used_footage_urls.jsonl`, `data/ledgers/api_usage_costs.jsonl`, `data/ledgers/youtube_uploads.jsonl`, `data/ledgers/reel_performance.jsonl` (mutable). Invariant each ledger guards: `SPEC_FACTJOT_SYSTEM.md` §11.2.
 - **Brain:** `insta-brain/`. `gotchas.md` is mandatory reading.
 - **Per-run output:** `output/<pipeline>/...` (gitignored, local only).

@@ -1,7 +1,7 @@
 """Single source of truth for carousel content rules.
 
 Phase 4 of the content quality recovery: removes the drift between
-ship_manual_post.py BRAND_VOICE_EDITORIAL, autonomous_agent.py
+ship_carousel_post.py BRAND_VOICE_EDITORIAL, autonomous_agent.py
 MODE_PROMPTS, and src/content/carousel_writer.py prompt templates.
 """
 from __future__ import annotations

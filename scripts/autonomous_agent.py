@@ -9,14 +9,13 @@ calls a small set of typed tools:
                               (writer prompt switches by --type)
   - skip(reason)            -> abort this run cleanly with no post
 
-The pipelines themselves (make_reel.py, ship_manual_post.py) run with
+The pipelines themselves (make_reel.py, ship_carousel_post.py) run with
 full repo access in the host process. Only the model's view is restricted.
 
-Five post modes via --post-mode. Each mode exposes ONLY the tools it
+Four post modes via --post-mode. Each mode exposes ONLY the tools it
 needs and a sharpened, format-locked prompt:
 
   reel_morning  - 09:00 BST  evergreen reel (run_reel only)
-  news          - 12:30 BST  news / current carousel (run_carousel only)
   list          - 15:30 BST  list carousel (run_carousel only)
   reel_evening  - 18:00 BST  evergreen reel (run_reel only)
   fact          - 20:30 BST  fact carousel, single subject (run_carousel only)
@@ -72,12 +71,11 @@ SYSTEM = textwrap.dedent("""\
     Be concise. British English. No em dashes.
 """)
 
-VALID_MODES = ("reel_morning", "news", "list", "reel_evening", "fact")
+VALID_MODES = ("reel_morning", "list", "reel_evening", "fact")
 
 # Which carousel writer prompt does this mode want?
 # (run_reel modes are absent here.)
 MODE_FORMAT_TYPE: dict[str, str] = {
-    "news": "news",
     "list": "list",
     "fact": "fact",
 }
@@ -88,7 +86,6 @@ MODE_FORMAT_TYPE: dict[str, str] = {
 MODE_TOOLS: dict[str, tuple[str, ...]] = {
     "reel_morning": ("list_unposted_topics", "run_reel",     "skip"),
     "reel_evening": ("list_unposted_topics", "run_reel",     "skip"),
-    "news":         ("list_unposted_topics", "run_carousel", "skip"),
     "list":         ("list_unposted_topics", "run_carousel", "skip"),
     "fact":         ("list_unposted_topics", "run_carousel", "skip"),
 }
@@ -243,7 +240,7 @@ def run_reel(args: dict, dry_run: bool) -> str:
 
 def run_carousel(args: dict, dry_run: bool, format_type: str = "fact") -> str:
     cmd = [
-        "python3", "-u", "pipelines/manual/ship_manual_post.py",
+        "python3", "-u", "pipelines/carousel/ship_carousel_post.py",
         "--brief",  args["brief"],
         "--label",  args["label"],
         "--slides", str(args.get("slides", 6)),
@@ -966,7 +963,6 @@ _CAROUSEL_RULE_BINDINGS = dict(
 MODE_PROMPTS: dict[str, str] = {
     "reel_morning": REEL_PROMPT,
     "reel_evening": REEL_PROMPT,
-    "news":         NEWS_PROMPT.format(**_CAROUSEL_RULE_BINDINGS),
     "list":         LIST_PROMPT.format(**_CAROUSEL_RULE_BINDINGS),
     "fact":         FACT_PROMPT.format(**_CAROUSEL_RULE_BINDINGS),
 }
