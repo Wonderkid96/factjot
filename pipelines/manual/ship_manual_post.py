@@ -216,6 +216,129 @@ def _assert_lines_within_render_cap(slides: list[dict], hard_cap: int = HARD_LIN
         )
 
 
+LIST_ITEM_REQUIRED_FIELDS = ("rank", "name", "rank_reason", "concrete_fact", "image_query")
+
+
+def _items_to_render_slides(items: list[dict], closing: dict) -> list[dict]:
+    """Convert structured list items into the renderer's flat-line shape.
+
+    Each item becomes one content slide with deterministic 3-line output:
+        line 1 = "[r]{name}[/r]"   (the renderer treats [r] as accent colour)
+        line 2 = rank_reason
+        line 3 = concrete_fact
+
+    The closing slide stays freeform 3-line. The original structured item
+    is preserved on the slide dict as `slide["item"]` so dry-run output
+    and a future renderer redesign can read the typed fields directly.
+    """
+    rendered: list[dict] = []
+    for item in items:
+        rendered.append({
+            "slideNumber": int(item["rank"]) + 1,
+            "lines": [
+                f"[r]{item['name']}[/r]",
+                item["rank_reason"],
+                item["concrete_fact"],
+            ],
+            "slot_aliases": [item["name"]],
+            "item": dict(item),
+        })
+    rendered.append({
+        "slideNumber": len(items) + 2,
+        "lines": list(closing["lines"]),
+        "slot_aliases": [],
+    })
+    return rendered
+
+
+def _enforce_list_shape(data: dict, *, requested_items: int, hard_cap: int) -> None:
+    """Hard-fail if list-mode writer output is malformed.
+
+    Validates the structured list schema BEFORE the adapter runs, so a
+    bad item never reaches the renderer. Each item must have all five
+    required fields, ranks must be 1..N in order, and the three
+    rendered fields (name, rank_reason, concrete_fact) must each fit
+    `hard_cap` chars individually. The closing block and cover image
+    query are also validated.
+    """
+    bad: list[str] = []
+
+    items = data.get("items")
+    if not isinstance(items, list):
+        bad.append("items: missing or not a list")
+        items = []
+    elif len(items) != requested_items:
+        bad.append(
+            f"items: expected exactly {requested_items}, got {len(items)}"
+        )
+
+    for idx, item in enumerate(items, 1):
+        if not isinstance(item, dict):
+            bad.append(f"item {idx}: not an object")
+            continue
+        missing = [f for f in LIST_ITEM_REQUIRED_FIELDS if f not in item]
+        if missing:
+            bad.append(f"item {idx}: missing fields {missing}")
+            continue
+        rank = item["rank"]
+        if not isinstance(rank, int) or isinstance(rank, bool):
+            bad.append(f"item {idx}: rank is not an integer (got {rank!r})")
+        elif rank != idx:
+            bad.append(f"item {idx}: rank={rank} but expected {idx}")
+        for field in ("name", "rank_reason", "concrete_fact", "image_query"):
+            value = item.get(field)
+            if not isinstance(value, str) or not value.strip():
+                bad.append(f"item {idx}: {field} is empty or not a string")
+                continue
+            if field != "image_query" and len(_strip_markup(value)) > hard_cap:
+                bad.append(
+                    f"item {idx}: {field} is "
+                    f"{len(_strip_markup(value))} chars > cap {hard_cap}: {value!r}"
+                )
+
+    closing = data.get("closing")
+    if not isinstance(closing, dict):
+        bad.append("closing: missing or not an object")
+    else:
+        cl_lines = closing.get("lines")
+        if not isinstance(cl_lines, list) or len(cl_lines) != 3:
+            bad.append(
+                f"closing.lines: expected exactly 3 strings, got {cl_lines!r}"
+            )
+        else:
+            for i, line in enumerate(cl_lines, 1):
+                if not isinstance(line, str) or not line.strip():
+                    bad.append(f"closing.lines[{i}]: empty or not a string")
+                elif len(_strip_markup(line)) > hard_cap:
+                    bad.append(
+                        f"closing.lines[{i}]: "
+                        f"{len(_strip_markup(line))} chars > cap {hard_cap}"
+                    )
+        cl_iq = closing.get("image_query")
+        if not isinstance(cl_iq, str) or not cl_iq.strip():
+            bad.append("closing.image_query: empty or not a string")
+
+    cover_iq = data.get("cover_image_query")
+    if not isinstance(cover_iq, str) or not cover_iq.strip():
+        bad.append("cover_image_query: empty or not a string")
+
+    if bad:
+        diag = {
+            "requested_content_slides": requested_items + 1,
+            "returned_content_slides": (len(items) if isinstance(items, list) else 0) + (1 if isinstance(closing, dict) else 0),
+            "overlong_lines": [],
+            "bad_line_count": [],
+            "list_errors": bad,
+            "items": items,
+            "closing": closing,
+        }
+        raise CarouselShapeError(
+            "list writer output failed shape validation:\n  "
+            + "\n  ".join(bad),
+            diag,
+        )
+
+
 def _enforce_carousel_shape(data: dict, *, requested_content_slides: int) -> None:
     """Hard-fail if the writer returned the wrong shape.
 
@@ -330,6 +453,173 @@ optional - omit or empty list if you didn't drop anything.
 """
 
 
+LIST_CONTENT_PROMPT = """\
+{brand_voice_editorial}
+
+---
+
+POST TYPE: RANKED / SUPERLATIVE LIST CAROUSEL.
+
+You are writing a factjot ranked list. The brief is:
+
+"{brief}"
+
+OUTPUT SHAPE: a STRUCTURED list with EXACTLY {n_items} items. Each item
+is a standalone ranked entry. Items must NOT depend on each other.
+The pipeline assembles the slide deterministically from your fields,
+so you cannot turn an item into prose. Do not write a setup-mechanism-
+consequence arc. Do not weld two items together with connective tissue.
+
+ITEM FIELDS (all required):
+
+- rank (integer 1..{n_items}): 1 is the headline entry. For
+  "smallest"/"oldest"/"shortest" superlatives, rank 1 is still the
+  most extreme entry that earns the slot.
+- name (string): the proper-noun subject. Max {hard_cap} chars.
+  Do NOT include any [r]...[/r] markup. The pipeline wraps the whole
+  name in the accent colour automatically.
+- rank_reason (string): one-line reason this entry earns its rank.
+  Lead with the hard number or fact (e.g. "$24B in recall costs",
+  "killed 1,134 workers", "0.49 km^2 land area"). Max {hard_cap}
+  chars. No setup, no narrative, no semicolons, no "this is".
+- concrete_fact (string): one extra hard fact (date, place, scale,
+  outcome). Max {hard_cap} chars. Must add new information; do not
+  restate name or rank_reason.
+- image_query (string): 2-5 words, photographable proxy, subject-first.
+
+CLOSING SLIDE (NOT a list item):
+
+- closing.lines: EXACTLY 3 strings. Target 30-50 chars per line, max
+  {hard_cap}. A one-line takeaway, not a moral argument.
+- closing.image_query: 2-5 words, photographable proxy.
+
+COVER:
+
+- cover_title: 5-9 words. MUST include the superlative in plain English
+  (most / biggest / deadliest / smallest / oldest / fastest / etc.).
+  No full stop.
+- cover_image_query: 2-5 words, photographable proxy.
+
+LAYOUT - HARD RULES (the pipeline rejects anything outside these):
+
+- name, rank_reason, concrete_fact each must be <= {hard_cap}
+  characters individually.
+- Lowercase preferred (renderer text-transforms regardless).
+- No em dashes. No semicolons inside fields. Commas, full stops,
+  parentheses only.
+- British English.
+
+Return JSON only. No prose around it.
+
+{{
+  "cover_title": "5-9 word title with a superlative",
+  "label": "CATEGORY LABEL",
+  "caption_body": "2-3 sentences. Human, warm. No hashtags.",
+  "visual_subject": "canonical name and type of the main subject",
+  "subject_type": "one category string",
+  "fallback_query": "1-4 words",
+  "source_aliases": ["alias1", "..."],
+  "context_words": ["word1", "..."],
+  "negative_terms": ["wrong-meaning 1", "..."],
+  "preferred_image_types": ["type1", "..."],
+  "avoid_image_types": ["type1", "..."],
+  "cover_image_query": "subject for cover",
+  "items": [
+    {{
+      "rank": 1,
+      "name": "Takata airbag recall",
+      "rank_reason": "$24B in recall costs",
+      "concrete_fact": "Over 100M vehicles recalled worldwide",
+      "image_query": "car airbag deployment"
+    }}
+  ],
+  "closing": {{
+    "lines": ["one", "two", "three"],
+    "image_query": "thoughtful closing visual"
+  }},
+  "dropped_facts": []
+}}
+
+Return EXACTLY {n_items} items in items[].
+"""
+
+
+def _generate_list_content(
+    brief: str, n_items: int, api_key: str, layout_mode: str,
+) -> tuple[dict, list[dict]]:
+    """List-mode writer: returns structured items, not prose lines.
+
+    Sonnet emits the item fields directly; the adapter
+    `_items_to_render_slides()` then maps them onto the renderer's
+    existing 3-line slide shape. The original structured items
+    survive on `data["items"]` and on `slide["item"]` for inspection.
+    """
+    from anthropic import Anthropic
+
+    profile = get_profile(layout_mode)
+    client = Anthropic(api_key=api_key)
+    prompt = LIST_CONTENT_PROMPT.format(
+        brand_voice_editorial=BRAND_VOICE_EDITORIAL,
+        brief=brief,
+        n_items=n_items,
+        hard_cap=profile["hard_cap"],
+    )
+    res = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=4000,
+        temperature=0.5,
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    pricing = {"input": 3.00, "output": 15.00}
+    cost = (
+        res.usage.input_tokens / 1_000_000 * pricing["input"]
+        + res.usage.output_tokens / 1_000_000 * pricing["output"]
+    )
+    usage = {
+        "model": "claude-sonnet-4-6",
+        "stage": "editorial",
+        "input_tokens": res.usage.input_tokens,
+        "output_tokens": res.usage.output_tokens,
+        "cost_usd": round(cost, 5),
+    }
+
+    data = _parse_json_payload(res.content[0].text)
+
+    try:
+        _enforce_list_shape(
+            data, requested_items=n_items, hard_cap=profile["hard_cap"],
+        )
+    except CarouselShapeError as shape_err:
+        shape_err.usage = {
+            "editorial_cost_usd": float(usage["cost_usd"]),
+            "fitter_cost_usd":    0.0,
+            "fitter_attempts":    1,
+            "probe_attempts":     0,
+        }
+        raise
+
+    items   = data["items"]
+    closing = data["closing"]
+
+    rendered_slides = _items_to_render_slides(items, closing)
+    data["slides"] = rendered_slides
+    data["image_queries"] = (
+        [data["cover_image_query"]]
+        + [item["image_query"] for item in items]
+        + [closing["image_query"]]
+    )
+
+    warnings = _validate_lines(rendered_slides, hard_cap=profile["hard_cap"])
+    for w in warnings:
+        _log(f"     [line warn] {w}")
+    data["_line_warnings"] = warnings
+    data["_fitter_attempts"] = 1
+    data["_probe_attempts"] = 0
+
+    return data, [usage]
+
+
 def generate_content(
     brief: str, n_slides: int, api_key: str, format_type: str = "fact",
     layout_mode: str = "compact_legacy",
@@ -357,7 +647,24 @@ def generate_content(
       - readable_list uses the wider 30-50 / hard-cap-56 shape; the
         renderer auto-fits the largest body size that fits the
         half-box, so the line-fit probe is skipped.
+
+    For format_type == "list" the writer emits a structured items
+    array (rank/name/rank_reason/concrete_fact/image_query) instead
+    of freeform lines. See `_generate_list_content` and
+    `_items_to_render_slides`. The structured items survive on
+    `data["items"]` and on each `slide["item"]` for inspection.
     """
+    if format_type == "list":
+        # n_slides here is content-slide count = items + closing.
+        # The structured list shape requires that count to be exactly
+        # items + 1 (the closing slide).
+        return _generate_list_content(
+            brief=brief,
+            n_items=max(1, n_slides - 1),
+            api_key=api_key,
+            layout_mode=layout_mode,
+        )
+
     from anthropic import Anthropic
 
     profile = get_profile(layout_mode)
@@ -817,6 +1124,36 @@ def main() -> int:
             shutil.copy(p, save_dir / p.name)
         shutil.copy(story_path, save_dir / story_path.name)
         _log(f"\n     Slides saved to: {save_dir.resolve()}")
+
+        # Persist the structured payload for list mode so the typed
+        # items survive next to the rendered slides for inspection.
+        # For other formats the structured items don't exist; the
+        # rendered lines are the source of truth.
+        if args.type == "list" and isinstance(data.get("items"), list):
+            list_payload = {
+                "cover_title": cover_title,
+                "label": label,
+                "cover_image_query": data.get("cover_image_query"),
+                "items": data["items"],
+                "closing": data.get("closing"),
+                "rendered_slides": [
+                    {"slideNumber": s.get("slideNumber"),
+                     "lines": s.get("lines"),
+                     "item": s.get("item")}
+                    for s in slides
+                ],
+            }
+            (save_dir / "list_data.json").write_text(
+                json.dumps(list_payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            _log(f"     Structured list data: {(save_dir / 'list_data.json').name}")
+            _log(f"     Items ({len(data['items'])}):")
+            for it in data["items"]:
+                _log(f"       {it.get('rank')}. {it.get('name')}")
+                _log(f"          rank_reason:   {it.get('rank_reason')}")
+                _log(f"          concrete_fact: {it.get('concrete_fact')}")
+                _log(f"          image_query:   {it.get('image_query')}")
 
         if args.dry_run:
             _log("\n[DRY RUN] Caption preview:")
