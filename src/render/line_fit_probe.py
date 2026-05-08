@@ -27,11 +27,11 @@ from typing import Any
 # ships. Tighter caps (22) are too aggressive for the fitter to satisfy
 # without dropping content; the agent burns through max_turns retrying.
 _SLIDE_KIND_CAPS: dict[str, int] = {
-    "photo":      24,
-    "typography": 28,
+    "photo":      26,
+    "typography": 30,
 }
 
-_DEFAULT_CAP = 24  # safest of the two
+_DEFAULT_CAP = 26  # safest of the two
 
 
 def cap_for_slide_kind(slide_kind: str) -> int:

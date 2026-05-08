@@ -146,32 +146,63 @@ cover in `slides` (its text is in `cover_title`).
 """
 
 
+def _strip_trailing_commas(s: str) -> str:
+    """Remove trailing commas before `]` and `}` (a common Haiku output quirk).
+
+    Haiku occasionally emits `[a, b, c,]` or `{..., "x": 1,}`, which is valid
+    JavaScript object-literal syntax but invalid JSON. The fix is a localised
+    regex pass that only touches commas immediately followed (after optional
+    whitespace) by `]` or `}`. We do NOT try to rewrite content inside string
+    literals - we only strip whitespace-comma-bracket sequences that occur
+    outside strings.
+    """
+    return re.sub(r",(\s*[}\]])", r"\1", s)
+
+
 def _parse_json_payload(raw: str) -> dict:
     """Tolerantly extract the first JSON object from a model response.
 
-    Models occasionally append commentary or explanatory text after the
-    JSON. The previous fallback (raw[first_{ : last_}+1]) spans across
-    that commentary and re-fails with `Extra data`. raw_decode skips
-    leading whitespace, parses the first JSON object, and returns it
-    regardless of what follows.
+    Layered fallbacks:
+    1. Strict json.loads on the whole input.
+    2. Fenced ```json ... ``` block (most reliable when present).
+    3. JSONDecoder.raw_decode from the first `{` (handles trailing commentary).
+    4. raw_decode after stripping trailing commas (handles bare-comma quirk).
+
+    The actual production failures we've seen, in order:
+    - "Extra data: line N column 1 (char X)" - commentary after the JSON.
+    - "Expecting value: line N column M" - trailing comma inside an array
+      or object (Haiku JS-isms).
     """
     raw = raw.strip()
-    decoder = json.JSONDecoder()
-    # Try a fenced ```json block first - it's the most reliable signal.
+    # 1. strict
+    try:
+        obj = json.loads(raw)
+        if isinstance(obj, dict):
+            return obj
+    except json.JSONDecodeError:
+        pass
+    # 2. fenced
     fenced = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", raw, re.IGNORECASE)
     if fenced:
-        try:
-            return json.loads(fenced.group(1))
-        except json.JSONDecodeError:
-            pass  # fall through to raw_decode
-    # Locate the first '{' and parse just the JSON object that starts there.
+        block = fenced.group(1)
+        for candidate in (block, _strip_trailing_commas(block)):
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+    # 3. raw_decode
     start = raw.find("{")
     if start == -1:
         raise json.JSONDecodeError("no JSON object found", raw, 0)
-    obj, _end = decoder.raw_decode(raw[start:])
-    if not isinstance(obj, dict):
-        raise json.JSONDecodeError("expected JSON object", raw, start)
-    return obj
+    decoder = json.JSONDecoder()
+    for candidate in (raw[start:], _strip_trailing_commas(raw[start:])):
+        try:
+            obj, _end = decoder.raw_decode(candidate)
+            if isinstance(obj, dict):
+                return obj
+        except json.JSONDecodeError:
+            continue
+    raise json.JSONDecodeError("could not parse model JSON output", raw, start)
 
 
 def write_editorial_slides(

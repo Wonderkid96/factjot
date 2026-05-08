@@ -42,7 +42,13 @@ from src.content.carousel_rules import (
     PHOTOGRAPHABLE_BEATS_RULES,
 )
 
-MAX_TURNS = 12
+# Cap the agent loop to keep cost predictable when the carousel pipeline
+# is failing repeatedly. A successful run typically uses 2-4 turns; 12
+# was a worst-case ceiling that proved too generous - one bad run on
+# 2026-05-08 burned $0.20 doing 9 retries before skipping. With cache
+# warming the first turn, subsequent turns are cheap, but turns are also
+# proportional to time and that delays the next slot.
+MAX_TURNS = 6
 MODEL     = "claude-sonnet-4-6"
 HISTORY_LIMIT = 30
 

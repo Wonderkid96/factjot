@@ -147,6 +147,32 @@ def test_parse_json_payload_handles_fenced_block():
     assert out["slides"][0]["slide_index"] == 2
 
 
+def test_parse_json_payload_handles_trailing_comma_in_array():
+    """Haiku occasionally emits trailing commas (JavaScript-ism, invalid JSON).
+    This is the second flavor of failure observed on run 25542151236
+    (JSONDecodeError 'Expecting value: line 8 column 3 (char 677)').
+    """
+    from src.content.carousel_writer import _parse_json_payload
+    raw = (
+        '{"slides": [\n'
+        '  {"slide_index": 2, "lines": ["a", "b", "c",]},\n'
+        '  {"slide_index": 3, "lines": ["d", "e", "f"]},\n'
+        ']}'
+    )
+    out = _parse_json_payload(raw)
+    assert len(out["slides"]) == 2
+    assert out["slides"][0]["lines"] == ["a", "b", "c"]
+
+
+def test_parse_json_payload_handles_trailing_comma_in_object():
+    from src.content.carousel_writer import _parse_json_payload
+    raw = (
+        '{"slides": [{"slide_index": 2, "lines": ["a", "b", "c"],}],}'
+    )
+    out = _parse_json_payload(raw)
+    assert out["slides"][0]["slide_index"] == 2
+
+
 def test_fitter_exception_carries_partial_usage(monkeypatch):
     """When the fitter raises, callers must be able to read the partial
     cost so the carousel_quality.jsonl ledger reflects honest spend."""
