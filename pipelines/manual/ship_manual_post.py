@@ -47,14 +47,14 @@ from src.content.carousel_diagnostics import (
     CarouselShapeError,
     build_shape_diagnostics,
 )
-from src.content.carousel_writer import (
-    EditorialSlide,
-    FactPreservationError,
-    LineFitError,
-    SlideFit,
-    fit_slide_lines,
-    write_editorial_slides,
-)
+# Option C of the content quality recovery (2026-05-08): the writer/fitter
+# split was reverted in favour of a single editorial-aware Sonnet call. The
+# carousel_writer module stays on disk for future reuse (Option D work) but
+# generate_content below no longer calls write_editorial_slides or
+# fit_slide_lines. We keep LineFitError because the visual probe still
+# raises it on wrap, and _parse_json_payload because its tolerance for
+# trailing commentary / bare-comma JSON is equally useful on Sonnet output.
+from src.content.carousel_writer import LineFitError, _parse_json_payload
 from src.content.carousel_rules import (
     BEAT_DENSITY_RULES,
     COVER_TITLE_RULES,
@@ -71,7 +71,7 @@ Voice: curious, precise, dry. A smart friend explaining something remarkable.
 Tone: confident, never sensational. Present tense where possible.
 Reading level: general audience.
 
-Editorial rules (Stage A - meaning only, layout handled by Stage B):
+Editorial rules:
 {BEAT_DENSITY_RULES}
 - No em dashes. Commas, full stops, or parentheses instead.
 - British English. No hedging. No attribution phrases ("sources say",
@@ -81,8 +81,8 @@ Editorial rules (Stage A - meaning only, layout handled by Stage B):
   sub-fact in dropped_facts rather than welding fragments.
 
 Red keyword markup:
-- Wrap 1-2 key words or short phrases per line in [r]...[/r] - the
-  fitter will preserve the markup when it breaks lines.
+- Wrap 1-2 key words or short phrases per line in [r]...[/r] for the
+  accent colour.
 - Use for the most striking facts, names, numbers, turning points.
 
 {COVER_TITLE_RULES}
@@ -225,191 +225,221 @@ def _enforce_carousel_shape(data: dict, *, requested_content_slides: int) -> Non
         )
 
 
+CONTENT_PROMPT = """\
+{brand_voice_editorial}
+
+---
+
+{type_guidance}
+
+You are writing a factjot carousel post. The brief is:
+
+"{brief}"
+
+LAYOUT - HARD RULES (the renderer measures pixel width with the
+Playwright probe; lines that visually wrap are rejected on the spot
+and the run hard-fails).
+
+- Cover: a single line of 5-9 words goes in cover_title. No full stop.
+- Each content slide has EXACTLY 3 lines.
+- Each line: target 12-22 characters. HARD CAP {hard_cap} characters.
+  Count characters including spaces, ignoring [r]...[/r] markup tags.
+- Lines must read aloud as one phrase. Bullet-style fragments and
+  stand-alone short words ("crews", "and", "in") are forbidden.
+- The final line of each slide must be at least 8 characters.
+- No line ends on a weak connector word: a, the, and, or, of, in, to,
+  with, an, at, by, for.
+- Lowercase preferred. The renderer text-transforms regardless, but
+  writing in lowercase makes the cap accurate.
+- No em dashes. Commas, full stops, or parentheses.
+
+COMPRESSION when proper nouns won't fit:
+- Long names get shortened or split across lines: "Tacoma Narrows
+  Bridge" → "the bridge" or "Galloping Gertie" alone, with the
+  full name carried by the cover.
+- Years stand alone as fragments: "in 1879," / "1940."
+- Drop softening words: just, very, really, simply, the, an, a where
+  meaning survives.
+- Pull the named entity onto its own line where it doesn't fit
+  alongside a verb.
+
+RED KEYWORD MARKUP:
+- Wrap 1-2 key words or short phrases per line in [r]...[/r] for the
+  accent colour. Pick the most striking word, name, or number.
+- Example: "[r]galloping gertie[/r]," (one full line).
+
+BEAT-TO-SLIDE MAPPING:
+- The brief may include numbered beats. Slide 1 is cover. Beat 1 →
+  cover_title. Beat 2 → slides[0]. Beat 3 → slides[1]. And so on.
+- Do not merge beats. Do not skip beats. Do not reorder beats.
+- If a beat is too dense to fit one slide cleanly, surface the dropped
+  sub-fact in dropped_facts rather than welding fragments.
+
+IMAGE QUERIES (one per slide including cover):
+- Photographable proxies. People, devices, scenes, eras. NOT abstract
+  concepts (no "ruling", "budget", "classification" - describe the
+  people, the room, the era instead).
+- 2-5 words per query, subject-first.
+- For named entities, lead with the canonical proper name.
+
+Return JSON only. No prose around it.
+
+{{
+  "cover_title": "5-9 word title in voice",
+  "label": "CATEGORY LABEL",
+  "caption_body": "2-3 sentences. Human, warm. No hashtags.",
+  "visual_subject": "canonical name and type of the main subject",
+  "subject_type": "one category string",
+  "fallback_query": "canonical proper name, 1-4 words",
+  "source_aliases": ["multi-word alias 1", "single-word alias", ...],
+  "context_words": ["word1", "word2", ...],
+  "negative_terms": ["compound wrong-meaning 1", ...],
+  "preferred_image_types": ["type1", ...],
+  "avoid_image_types": ["type1", ...],
+  "image_queries": ["query for cover", "query for slide 2", ...],
+  "visual_fallback_queries": ["fallback for cover", ...],
+  "cover_slot_aliases": ["NamedEntityForCover"],
+  "dropped_facts": ["sub-fact you dropped because beat was too dense"],
+  "slides": [
+    {{"slideNumber": 2, "lines": ["line one", "line two", "line three"], "slot_aliases": ["NamedEntity"]}}
+  ]
+}}
+
+Return EXACTLY {n_slides} content slides (slideNumber 2 to {n_slides_plus_one}).
+The cover text is in cover_title, NOT in slides. dropped_facts is
+optional - omit or empty list if you didn't drop anything.
+"""
+
+
 def generate_content(
     brief: str, n_slides: int, api_key: str, format_type: str = "fact",
 ) -> tuple[dict, list[dict]]:
-    """Two-stage carousel writer.
+    """Single-stage editorial writer (Option C of content quality recovery).
 
-    Stage A (Sonnet 4.6) writes editorial slide prose without char-cap
-    pressure. Stage B (Haiku 4.5) fits each slide's prose to 3 lines
-    under the renderer's hard cap. A FactPreservationError is raised
-    if entity identity drifts.
+    One Sonnet 4.6 call writes the carousel content with all editorial,
+    layout, and image constraints in a unified prompt. The Playwright
+    probe runs once after the call to verify visual fit; if any line
+    visually wraps, the call hard-fails via LineFitError (which the
+    autonomous agent surfaces as content_shape_mismatch in its
+    FAILURE_KIND tag).
 
-    Returns the same `data` shape the rest of the pipeline expects
-    (with `slides` populated as `[{slideNumber, lines, slot_aliases}]`)
-    plus a list of usage records, one per stage.
+    Replaces the two-stage Sonnet-then-Haiku pipeline that produced
+    render-safe prose only after Haiku-side retries the model could not
+    consistently satisfy.
 
-    `n_slides` is content-only (cover added on top in main()).
+    Returns `(data, [single_usage_record])`. `n_slides` is content-only
+    (cover is on top in main()).
     """
+    from anthropic import Anthropic
+
     type_guidance = _type_guidance(format_type)
 
-    # Stage A: editorial writer.
-    writer_result, usage_a = write_editorial_slides(
-        brief                  = brief,
-        n_content_slides       = n_slides,
-        format_type            = format_type,
-        api_key                = api_key,
-        brand_voice_editorial  = BRAND_VOICE_EDITORIAL,
-        type_guidance          = type_guidance,
+    client = Anthropic(api_key=api_key)
+    prompt = CONTENT_PROMPT.format(
+        brand_voice_editorial=BRAND_VOICE_EDITORIAL,
+        type_guidance=type_guidance,
+        brief=brief,
+        n_slides=n_slides,
+        n_slides_plus_one=n_slides + 1,
+        hard_cap=HARD_LINE_CAP,
+    )
+    res = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=4000,
+        temperature=0.5,
+        messages=[{"role": "user", "content": prompt}],
     )
 
-    # Stage B: fitter + Playwright probe retry loop.
-    from playwright.sync_api import sync_playwright as _sync_pw_for_probe
-    from src.render.line_fit_probe import (
-        cap_for_slide_kind,
-        measure_lines_overflow,
+    pricing = {"input": 3.00, "output": 15.00}
+    cost = (
+        res.usage.input_tokens / 1_000_000 * pricing["input"]
+        + res.usage.output_tokens / 1_000_000 * pricing["output"]
     )
-
-    # We do not yet know per-slot slide kind (image vs typography); that
-    # depends on the image-source result, which only runs later. Use the
-    # photo cap (the tighter of the two) so anything that ships will also
-    # fit a typography-only slide if the image fallback kicks in.
-    fitter_cap = cap_for_slide_kind("photo")
-
-    feedback = ""
-    fits: list[SlideFit] = []
-    usage_b: dict = {}
-    fitter_attempts = 0
-    probe_attempts = 0
-    fitter_costs_sum = 0.0
-    last_err: Exception | None = None
-    for attempt in range(1, 4):
-        fitter_attempts = attempt
-        try:
-            fits, usage_b = fit_slide_lines(
-                editorial_slides       = writer_result.slides,
-                hard_cap               = fitter_cap,
-                api_key                = api_key,
-                prior_attempt_feedback = feedback,
-            )
-            fitter_costs_sum += float(usage_b.get("cost_usd", 0.0) or 0.0)
-        except (FactPreservationError, LineFitError) as exc:
-            # Failed attempts still cost us tokens. Attribute them so the
-            # ledger reflects honest spend.
-            attempt_usage = getattr(exc, "usage", {}) or {}
-            fitter_costs_sum += float(attempt_usage.get("cost_usd", 0.0) or 0.0)
-            last_err = exc
-            feedback = str(exc)
-            _log(f"     [fitter retry {attempt}] {exc}")
-            continue
-
-        # Probe each slide for visual wrap.
-        probe_attempts += 1
-        with _sync_pw_for_probe() as pw:
-            browser = pw.chromium.launch()
-            try:
-                wraps_per_slide: list[list[bool]] = []
-                for f in fits:
-                    wraps_per_slide.append(measure_lines_overflow(
-                        lines      = f.lines,
-                        slide_kind = "photo",
-                        browser    = browser,
-                    ))
-            finally:
-                browser.close()
-
-        bad: list[str] = []
-        for f, wraps in zip(fits, wraps_per_slide):
-            for j, wraps_j in enumerate(wraps, 1):
-                if wraps_j:
-                    bad.append(
-                        f"slide {f.slide_index} line {j} visually wraps: "
-                        f"{f.lines[j-1]!r} (Archivo Black photo cap)"
-                    )
-        if not bad:
-            break
-        feedback = "\n".join(bad)
-        _log(f"     [fitter retry {attempt}] visual wrap detected:\n{feedback}")
-    else:
-        raise LineFitError(
-            f"fitter could not produce a non-wrapping deck after 3 attempts: {last_err}",
-            usage={
-                "stage": "fitter",
-                "cost_usd": round(fitter_costs_sum, 5),
-                "fitter_attempts": fitter_attempts,
-                "editorial_cost_usd": float(usage_a.get("cost_usd", 0.0) or 0.0),
-            },
-        )
-
-    # Reshape into the dict form the rest of the pipeline already speaks.
-    # writer_result.slot_aliases is parallel to writer_result.slides by
-    # construction in write_editorial_slides, so zip them rather than
-    # using list.index() (which would silently misroute on any future
-    # writer that produced two EditorialSlide rows with the same fields).
-    if len(writer_result.slot_aliases) < len(writer_result.slides):
-        # Pad to the slides length so zip never starves; missing entries
-        # become empty alias lists (the same fallback as the previous code).
-        writer_result.slot_aliases = (
-            list(writer_result.slot_aliases)
-            + [[] for _ in range(len(writer_result.slides) - len(writer_result.slot_aliases))]
-        )
-    fitted_by_index = {f.slide_index: f for f in fits}
-    slide_dicts: list[dict] = []
-    for ed, slot_aliases_for_slide in zip(writer_result.slides, writer_result.slot_aliases):
-        f = fitted_by_index.get(ed.slide_index)
-        if f is None:
-            raise LineFitError(f"fitter dropped slide_index={ed.slide_index}")
-        slide_dicts.append({
-            "slideNumber":  ed.slide_index,
-            "lines":        f.lines,
-            "slot_aliases": slot_aliases_for_slide,
-            "_editorial_prose": ed.prose,
-        })
-
-    data = {
-        "cover_title":              writer_result.cover_title,
-        "label":                    writer_result.label,
-        "caption_body":             writer_result.caption_body,
-        "visual_subject":           writer_result.visual_subject,
-        "subject_type":             writer_result.subject_type,
-        "fallback_query":           writer_result.fallback_query,
-        "source_aliases":           writer_result.source_aliases,
-        "context_words":            writer_result.context_words,
-        "negative_terms":           writer_result.negative_terms,
-        "preferred_image_types":    writer_result.preferred_image_types,
-        "avoid_image_types":        writer_result.avoid_image_types,
-        "image_queries":            writer_result.image_queries,
-        "visual_fallback_queries":  writer_result.visual_fallback_queries,
-        "cover_slot_aliases":       writer_result.cover_slot_aliases,
-        "slides":                   slide_dicts,
-        "dropped_facts":            writer_result.dropped_facts,
+    usage = {
+        "model": "claude-sonnet-4-6",
+        "stage": "single_writer",
+        "input_tokens": res.usage.input_tokens,
+        "output_tokens": res.usage.output_tokens,
+        "cost_usd": round(cost, 5),
     }
 
-    # n_slides is content-only (see Slide-count contract).
+    # Tolerant JSON parser (handles fenced blocks, trailing commentary,
+    # and bare-comma quirks - all observed Sonnet/Haiku output failures).
+    data = _parse_json_payload(res.content[0].text)
+
+    # Hard-fail if the writer returned the wrong shape (slide count or
+    # per-slide line count). Attaches the cost so the ledger is honest.
     try:
         _enforce_carousel_shape(data, requested_content_slides=n_slides)
     except CarouselShapeError as shape_err:
-        # Attach what was already spent so the ledger row is honest.
         shape_err.usage = {
-            "editorial_cost_usd": float(usage_a.get("cost_usd", 0.0) or 0.0),
-            "fitter_cost_usd":    round(fitter_costs_sum, 5),
-            "fitter_attempts":    fitter_attempts,
-            "probe_attempts":     probe_attempts,
+            "editorial_cost_usd": float(usage["cost_usd"]),
+            "fitter_cost_usd":    0.0,
+            "fitter_attempts":    1,
+            "probe_attempts":     0,
         }
         raise
 
-    warnings = _validate_lines(slide_dicts)
+    slides = data["slides"]
+
+    # Soft warnings (orphans, weak endings, final-line-too-short).
+    warnings = _validate_lines(slides)
     for w in warnings:
         _log(f"     [line warn] {w}")
     data["_line_warnings"] = warnings
 
-    _assert_lines_within_render_cap(slide_dicts)
+    # Hard char cap on lines (HARD_LINE_CAP=24). Catches obvious overruns.
+    _assert_lines_within_render_cap(slides)
 
-    if writer_result.dropped_facts:
+    # Visual probe: run Playwright on the actual rendered template
+    # (Archivo Black at 48px, 940px usable width) to catch font-specific
+    # wraps that char-counting misses. This is visual truth.
+    from playwright.sync_api import sync_playwright as _sync_pw_for_probe
+    from src.render.line_fit_probe import measure_lines_overflow
+
+    probe_attempts = 1
+    with _sync_pw_for_probe() as pw:
+        browser = pw.chromium.launch()
+        try:
+            wraps_per_slide: list[list[bool]] = []
+            for s in slides:
+                wraps_per_slide.append(measure_lines_overflow(
+                    lines      = s["lines"],
+                    slide_kind = "photo",
+                    browser    = browser,
+                ))
+        finally:
+            browser.close()
+
+    bad: list[str] = []
+    for s, wraps in zip(slides, wraps_per_slide):
+        for j, wraps_j in enumerate(wraps, 1):
+            if wraps_j:
+                bad.append(
+                    f"slide {s.get('slideNumber', '?')} line {j} visually wraps: "
+                    f"{s['lines'][j-1]!r}"
+                )
+    if bad:
+        raise LineFitError(
+            "writer produced render-unsafe lines (probe detected visual wrap):\n"
+            + "\n".join(bad),
+            usage={
+                "editorial_cost_usd": float(usage["cost_usd"]),
+                "fitter_cost_usd":    0.0,
+                "fitter_attempts":    1,
+                "probe_attempts":     probe_attempts,
+            },
+        )
+
+    if data.get("dropped_facts"):
         _log("     [INFO] Writer reported dropped_facts (beat too dense for one slide):")
-        for df in writer_result.dropped_facts:
+        for df in data["dropped_facts"]:
             _log(f"            - {df}")
 
-    # Stage B may have run more than once if the probe rejected the first
-    # try. Update usage_b to reflect the aggregated cost across all attempts.
-    if usage_b:
-        usage_b = dict(usage_b)
-        usage_b["cost_usd"] = round(fitter_costs_sum, 5)
-
-    data["_fitter_attempts"] = fitter_attempts
+    data["_fitter_attempts"] = 1
     data["_probe_attempts"] = probe_attempts
 
-    return data, [usage_a, usage_b]
+    return data, [usage]
 
 
 # ------------------------------------------------------------------ #
@@ -534,13 +564,13 @@ def main() -> int:
             probe_attempts=int(partial.get("probe_attempts", 0) or 0),
         )
         return 1
-    except (FactPreservationError, LineFitError) as fit_err:
+    except LineFitError as fit_err:
         _log(f"\nERROR: CONTENT_SHAPE_MISMATCH - fitter failed: {fit_err}")
         partial = getattr(fit_err, "usage", {}) or {}
-        # The fitter attaches different shapes depending on where it raised:
-        # the per-attempt usage from fit_slide_lines (just stage/cost_usd) vs
-        # the aggregated usage from the retry-exhausted "else" branch
-        # (editorial_cost_usd / fitter_cost_usd / fitter_attempts).
+        # The single-call writer (Option C) attaches usage with the
+        # editorial_cost_usd / fitter_cost_usd / fitter_attempts shape.
+        # FactPreservationError no longer applies (no two-stage diff to
+        # check), so it's not in this except clause.
         if "editorial_cost_usd" in partial:
             ed_cost = float(partial.get("editorial_cost_usd", 0.0) or 0.0)
             fit_cost = float(partial.get("fitter_cost_usd", 0.0) or 0.0)
