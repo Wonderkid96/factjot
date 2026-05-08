@@ -50,6 +50,11 @@ PROVIDER_TRUST: dict[str, int] = {
 
 MIN_SCORE:    int = 20   # named-subject rounds (R1/R2): alias bonus reachable
 MIN_SCORE_R3: int = 8    # visual fallback round: no alias gate, lower floor
+# readable_list opt-in: for list carousels we admit slightly weaker
+# candidates to avoid forcing typography-only fallbacks on item slides.
+# Gated by ImageSourcer(relax=True). compact_legacy callers are
+# unaffected.
+MIN_SCORE_R3_RELAXED: int = 6
 # Cap matches SPEC_IMAGE_PIPELINE.md section 10: same URL up to 2 uses
 # per carousel. Eligibility is `_use_count[url] < MAX_REUSES`, so a value
 # of 2 lets a URL be used once normally then once more as a reuse fallback
@@ -252,8 +257,14 @@ class ImageSourcer:
         self,
         topic: str = "editorial",
         use_fresh_ledger: bool = True,
+        relax: bool = False,
     ) -> None:
+        """`relax=True` lowers the R3 score floor (8 -> 6) for list-style
+        carousels where item slides have weaker subject-term metadata
+        matches. compact_legacy callers leave this False; the autonomous
+        agent's list slot threads it in via ship_manual_post.py."""
         self.topic = topic
+        self.relax = relax
         if use_fresh_ledger:
             tmp = tempfile.mktemp(suffix="_sourcer_images.jsonl")
             ledger = UsedImageLedger(path=tmp)
@@ -449,7 +460,10 @@ class ImageSourcer:
             return chosen
 
         is_r3 = (relaxation_round == 3)
-        min_score = MIN_SCORE_R3 if is_r3 else MIN_SCORE
+        if is_r3:
+            min_score = MIN_SCORE_R3_RELAXED if self.relax else MIN_SCORE_R3
+        else:
+            min_score = MIN_SCORE
 
         # [A] Hard filter: overused or consecutive
         eligible = [

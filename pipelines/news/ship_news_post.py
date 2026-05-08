@@ -677,7 +677,17 @@ def render_news_slide(
     source_label: str,
     repo_root: Path,
     browser,
+    layout_mode: str = "compact_legacy",
 ) -> None:
+    """Render a content slide.
+
+    layout_mode:
+        compact_legacy (default) - existing Archivo Black 900 anchored
+            bottom-left layout. Byte-identical to prior behaviour.
+        readable_list - Space Grotesk SemiBold body inside a half-box
+            flexbox container at the bottom 50% of the canvas, with
+            renderer-side font auto-fit (64 -> 28 px walk).
+    """
     logo_url    = _inline_asset(repo_root / "assets/logo/factjot_mark.png")
     serif_url   = _inline_asset(repo_root / "assets/fonts/InstrumentSerif-Regular.ttf")
     mono_url    = _inline_asset(repo_root / "assets/fonts/JetBrainsMono-Bold.ttf")
@@ -687,20 +697,33 @@ def render_news_slide(
     logo = _logo_tag(logo_url, invert=True)
     lines_html = _markup_lines(lines)
 
-    if photo_data_url:
-        html = _render_news_slide_photo(
-            serif_url, mono_url, archivo_url, logo, index_label, lines_html, photo_data_url,
-        )
+    if layout_mode == "readable_list":
+        grotesk_url = _inline_asset(repo_root / "assets/fonts/SpaceGrotesk-SemiBold.ttf")
+        if photo_data_url:
+            html = _render_news_slide_photo_readable(
+                serif_url, mono_url, grotesk_url, logo, index_label, lines_html, photo_data_url,
+            )
+        else:
+            html = _render_news_slide_typography_readable(
+                serif_url, mono_url, grotesk_url, logo, index_label, lines_html,
+            )
     else:
-        html = _render_news_slide_typography(
-            serif_url, mono_url, archivo_url, logo, index_label, lines_html,
-        )
+        if photo_data_url:
+            html = _render_news_slide_photo(
+                serif_url, mono_url, archivo_url, logo, index_label, lines_html, photo_data_url,
+            )
+        else:
+            html = _render_news_slide_typography(
+                serif_url, mono_url, archivo_url, logo, index_label, lines_html,
+            )
 
     page = browser.new_page(viewport={"width": 1080, "height": 1350}, device_scale_factor=2)
     page.set_content(html, wait_until="networkidle")
 
-    # No font scaling needed for full-bleed: text sits over a gradient at the bottom
-    # of the canvas with no photo zone to protect.
+    # readable_list: walk font-size 64 -> 28 px and pick the largest
+    # that fits the half-box container. compact_legacy uses fixed sizes.
+    if layout_mode == "readable_list":
+        _autosize_readable_text(page)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     page.screenshot(path=str(out_path), full_page=False, clip={"x": 0, "y": 0, "width": 1080, "height": 1350})
@@ -790,6 +813,125 @@ def _render_news_slide_typography(
         </div>
       </div>
     </div></body></html>"""
+
+
+# ------------------------------------------------------------------ #
+# readable_list layout (Space Grotesk SemiBold + half-box + autosize)
+# ------------------------------------------------------------------ #
+# Opt-in via layout_mode="readable_list" on render_news_slide. Only the
+# list slot picks this by default today; fact and news continue to use
+# the compact_legacy templates above unchanged.
+
+def _font_faces_readable(serif_url: str, mono_url: str, grotesk_url: str) -> str:
+    return f"""
+    @font-face{{font-family:"Instrument Serif";src:url("{serif_url}") format("truetype");font-weight:400;font-style:normal;}}
+    @font-face{{font-family:"JetBrains Mono";src:url("{mono_url}") format("truetype");font-weight:700;font-style:normal;}}
+    @font-face{{font-family:"Space Grotesk";src:url("{grotesk_url}") format("truetype");font-weight:600;font-style:normal;}}"""
+
+
+def _render_news_slide_photo_readable(
+    serif_url: str, mono_url: str, grotesk_url: str, logo: str, index_label: str,
+    lines_html: str, photo_data_url: str,
+) -> str:
+    """Photo slide, readable_list layout. Body text in Space Grotesk
+    SemiBold, sized by JS auto-fit to occupy the bottom 50% of the
+    canvas. Top half is the photo (full bleed) with a gradient scrim
+    that protects legibility at the text baseline."""
+    return f"""<!doctype html><html><head><meta charset="utf-8"/><style>
+    {_font_faces_readable(serif_url, mono_url, grotesk_url)}
+    :root{{--near-black:#0B0B0C;--off-white:#EDE8DD;--accent:#E6352A;--white:#FFFFFF;--body-size:64px;}}
+    *{{box-sizing:border-box;margin:0;padding:0;}}
+    html,body{{width:1080px;height:1350px;overflow:hidden;background:var(--near-black);-webkit-font-smoothing:antialiased;}}
+    .stage{{position:relative;width:1080px;height:1350px;overflow:hidden;isolation:isolate;}}
+    .photo{{position:absolute;inset:0;background:url("{photo_data_url}") center/cover no-repeat;z-index:0;}}
+    .top-darken{{position:absolute;inset:0 0 auto 0;height:24%;background:linear-gradient(to bottom,rgba(0,0,0,0.65),rgba(0,0,0,0));z-index:1;}}
+    .bottom-darken{{position:absolute;inset:42% 0 0 0;background:linear-gradient(to bottom,rgba(11,11,12,0) 0%,rgba(11,11,12,0.65) 35%,rgba(11,11,12,0.95) 60%,rgba(11,11,12,0.99) 100%);z-index:1;}}
+    .vignette{{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 65%,rgba(0,0,0,0.30) 100%);z-index:2;pointer-events:none;}}
+    .grain{{position:absolute;inset:0;z-index:3;opacity:0.055;mix-blend-mode:overlay;background-image:url("{_GRAIN_SVG}");pointer-events:none;}}
+    .top-row{{position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:20px;padding:62px 70px 0 70px;}}
+    .wordmark-img{{height:28px;width:auto;display:block;opacity:0.95;flex-shrink:0;filter:drop-shadow(1px 1px 0 rgba(0,0,0,0.45));}}
+    .top-divider{{flex:1;height:1px;background:var(--off-white);opacity:0.32;}}
+    .index{{background:rgba(255,255,255,0.12);color:var(--off-white);font-family:"JetBrains Mono",monospace;font-weight:700;font-size:24px;letter-spacing:0.04em;padding:8px 18px 10px;border-radius:999px;line-height:1;flex-shrink:0;}}
+    .lines-wrap{{position:absolute;left:0;right:0;bottom:0;height:50%;z-index:10;padding:0 70px 78px 70px;display:flex;flex-direction:column;justify-content:flex-end;}}
+    .lines{{display:flex;flex-direction:column;gap:0.16em;font-size:var(--body-size);}}
+    .line{{font-family:"Space Grotesk","Inter",system-ui,sans-serif;font-weight:600;font-size:1em;line-height:1.18;letter-spacing:-0.01em;color:var(--off-white);text-shadow:2px 2px 0 rgba(0,0,0,0.55);text-wrap:balance;}}
+    .line .red{{color:var(--accent);font-weight:700;}}
+    </style></head><body>
+    <div class="stage">
+      <div class="photo"></div>
+      <div class="top-darken"></div>
+      <div class="bottom-darken"></div>
+      <div class="vignette"></div>
+      <div class="grain"></div>
+      <div class="top-row">{logo}<span class="top-divider"></span><div class="index">{index_label}</div></div>
+      <div class="lines-wrap"><div class="lines">{lines_html}</div></div>
+    </div></body></html>"""
+
+
+def _render_news_slide_typography_readable(
+    serif_url: str, mono_url: str, grotesk_url: str, logo: str, index_label: str,
+    lines_html: str,
+) -> str:
+    """Typography-only slide, readable_list layout. Same half-box as
+    the photo variant but on the dark brand background, with the red
+    accent rule running down the left edge (kept from compact_legacy
+    for visual continuity)."""
+    return f"""<!doctype html><html><head><meta charset="utf-8"/><style>
+    {_font_faces_readable(serif_url, mono_url, grotesk_url)}
+    :root{{--near-black:#0B0B0C;--off-white:#EDE8DD;--accent:#E6352A;--white:#FFFFFF;--body-size:64px;}}
+    *{{box-sizing:border-box;margin:0;padding:0;}}
+    html,body{{width:1080px;height:1350px;overflow:hidden;background:var(--near-black);-webkit-font-smoothing:antialiased;}}
+    .stage{{position:relative;width:1080px;height:1350px;overflow:hidden;background:var(--near-black);}}
+    .accent-line{{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--accent);z-index:2;}}
+    .grain{{position:absolute;inset:0;z-index:1;opacity:0.055;mix-blend-mode:overlay;background-image:url("{_GRAIN_SVG}");pointer-events:none;}}
+    .top-row{{position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:20px;padding:62px 70px 0 86px;}}
+    .wordmark-img{{height:28px;width:auto;display:block;opacity:0.88;flex-shrink:0;}}
+    .top-divider{{flex:1;height:1px;background:var(--off-white);opacity:0.32;}}
+    .index{{background:rgba(255,255,255,0.10);color:var(--off-white);font-family:"JetBrains Mono",monospace;font-weight:700;font-size:24px;letter-spacing:0.04em;padding:8px 18px 10px;border-radius:999px;line-height:1;flex-shrink:0;}}
+    .lines-wrap{{position:absolute;left:0;right:0;bottom:0;height:50%;z-index:10;padding:0 70px 78px 86px;display:flex;flex-direction:column;justify-content:center;}}
+    .lines{{display:flex;flex-direction:column;gap:0.16em;font-size:var(--body-size);}}
+    .line{{font-family:"Space Grotesk","Inter",system-ui,sans-serif;font-weight:600;font-size:1em;line-height:1.18;letter-spacing:-0.01em;color:var(--off-white);text-wrap:balance;}}
+    .line .red{{color:var(--accent);font-weight:700;}}
+    </style></head><body>
+    <div class="stage">
+      <div class="accent-line"></div>
+      <div class="grain"></div>
+      <div class="top-row">{logo}<span class="top-divider"></span><div class="index">{index_label}</div></div>
+      <div class="lines-wrap"><div class="lines">{lines_html}</div></div>
+    </div></body></html>"""
+
+
+_AUTOSIZE_JS = """
+(() => {
+  const wrap  = document.querySelector('.lines-wrap');
+  const lines = document.querySelector('.lines');
+  if (!wrap || !lines) return;
+  const sizes = [64, 58, 52, 46, 40, 34, 28];
+  for (const s of sizes) {
+    lines.style.setProperty('font-size', s + 'px');
+    // Allow the layout to reflow before measuring.
+    void lines.offsetHeight;
+    if (lines.scrollHeight <= wrap.clientHeight && lines.scrollWidth <= wrap.clientWidth) {
+      lines.dataset.fitted = String(s);
+      return;
+    }
+  }
+  lines.style.setProperty('font-size', '28px');
+  lines.dataset.fitted = '28';
+})();
+"""
+
+
+def _autosize_readable_text(page) -> None:
+    """Walk font-size from 64 -> 28 px and apply the largest size that
+    keeps `.lines` within the `.lines-wrap` half-box bounds. No-op for
+    layouts without `.lines-wrap` (compact_legacy)."""
+    try:
+        page.evaluate(_AUTOSIZE_JS)
+    except Exception:
+        # Defensive: never let the autosize fail a render. Worst case
+        # the slide ships with the CSS default body-size.
+        pass
 
 
 # ------------------------------------------------------------------ #

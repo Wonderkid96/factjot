@@ -59,6 +59,8 @@ from src.content.carousel_rules import (
     BEAT_DENSITY_RULES,
     COVER_TITLE_RULES,
     PHOTOGRAPHABLE_BEATS_RULES,
+    LAYOUT_PROFILES,
+    get_profile,
 )
 
 # ------------------------------------------------------------------ #
@@ -176,23 +178,27 @@ def _validate_lines(slides: list[dict]) -> list[str]:
     return warnings
 
 
-def _assert_lines_within_render_cap(slides: list[dict]) -> None:
-    """Hard-fail if any slide line exceeds HARD_LINE_CAP.
+def _assert_lines_within_render_cap(slides: list[dict], hard_cap: int = HARD_LINE_CAP) -> None:
+    """Hard-fail if any slide line exceeds `hard_cap`.
 
     Lines over the cap visually wrap in the renderer and the carousel
     ships looking like garbage (e.g. 'leonard coatsworth crawled off on
     his hands and knees' breaking across four visual lines). Better to
     abort the run and skip the slot than ship a broken layout.
+
+    The cap defaults to the compact_legacy value (24); readable_list
+    callers pass the profile's wider cap (56). Autosize on readable_list
+    handles within-cap overflow at render time.
     """
     bad: list[str] = []
     for i, slide in enumerate(slides, 1):
         for j, raw_line in enumerate(slide.get("lines", [])):
             line = _strip_markup(raw_line).strip()
-            if len(line) > HARD_LINE_CAP:
-                bad.append(f"slide {i} line {j+1}: {len(line)} chars > cap {HARD_LINE_CAP}: {line!r}")
+            if len(line) > hard_cap:
+                bad.append(f"slide {i} line {j+1}: {len(line)} chars > cap {hard_cap}: {line!r}")
     if bad:
         raise RuntimeError(
-            "OVERCAP_SLIDE_LINES (Archivo Black wraps these and the layout breaks):\n"
+            "OVERCAP_SLIDE_LINES (writer exceeded the layout's hard cap):\n"
             + "\n".join(bad)
         )
 
@@ -242,7 +248,7 @@ and the run hard-fails).
 
 - Cover: a single line of 5-9 words goes in cover_title. No full stop.
 - Each content slide has EXACTLY 3 lines.
-- Each line: target 12-22 characters. HARD CAP {hard_cap} characters.
+- Each line: target {target_min}-{target_max} characters. HARD CAP {hard_cap} characters.
   Count characters including spaces, ignoring [r]...[/r] markup tags.
 - Lines must read aloud as one phrase. Bullet-style fragments and
   stand-alone short words ("crews", "and", "in") are forbidden.
@@ -313,6 +319,7 @@ optional - omit or empty list if you didn't drop anything.
 
 def generate_content(
     brief: str, n_slides: int, api_key: str, format_type: str = "fact",
+    layout_mode: str = "compact_legacy",
 ) -> tuple[dict, list[dict]]:
     """Single-stage editorial writer (Option C of content quality recovery).
 
@@ -329,9 +336,18 @@ def generate_content(
 
     Returns `(data, [single_usage_record])`. `n_slides` is content-only
     (cover is on top in main()).
+
+    `layout_mode` selects the writer-prompt cap shape and the renderer
+    constraints downstream:
+      - compact_legacy (default) preserves the original 12-22 char
+        target / 24 hard cap and runs the strict line-fit probe.
+      - readable_list uses the wider 30-50 / hard-cap-56 shape; the
+        renderer auto-fits the largest body size that fits the
+        half-box, so the line-fit probe is skipped.
     """
     from anthropic import Anthropic
 
+    profile = get_profile(layout_mode)
     type_guidance = _type_guidance(format_type)
 
     client = Anthropic(api_key=api_key)
@@ -341,7 +357,9 @@ def generate_content(
         brief=brief,
         n_slides=n_slides,
         n_slides_plus_one=n_slides + 1,
-        hard_cap=HARD_LINE_CAP,
+        hard_cap=profile["hard_cap"],
+        target_min=profile["writer_target_min"],
+        target_max=profile["writer_target_max"],
     )
     res = client.messages.create(
         model="claude-sonnet-4-6",
@@ -388,48 +406,52 @@ def generate_content(
         _log(f"     [line warn] {w}")
     data["_line_warnings"] = warnings
 
-    # Hard char cap on lines (HARD_LINE_CAP=24). Catches obvious overruns.
-    _assert_lines_within_render_cap(slides)
+    # Hard char cap on lines (profile-driven; 24 for compact_legacy, 56
+    # for readable_list). Catches obvious overruns before render.
+    _assert_lines_within_render_cap(slides, hard_cap=profile["hard_cap"])
 
-    # Visual probe: run Playwright on the actual rendered template
-    # (Archivo Black at 48px, 940px usable width) to catch font-specific
-    # wraps that char-counting misses. This is visual truth.
-    from playwright.sync_api import sync_playwright as _sync_pw_for_probe
-    from src.render.line_fit_probe import measure_lines_overflow
+    # Visual probe: only meaningful for compact_legacy, where the
+    # Archivo-Black-at-48px-wraps-at-24-chars rule is enforced. For
+    # readable_list the renderer auto-sizes body text down to fit the
+    # half-box, so a strict no-wrap probe would block legitimate output.
+    probe_attempts = 0
+    if not profile.get("auto_size"):
+        from playwright.sync_api import sync_playwright as _sync_pw_for_probe
+        from src.render.line_fit_probe import measure_lines_overflow
 
-    probe_attempts = 1
-    with _sync_pw_for_probe() as pw:
-        browser = pw.chromium.launch()
-        try:
-            wraps_per_slide: list[list[bool]] = []
-            for s in slides:
-                wraps_per_slide.append(measure_lines_overflow(
-                    lines      = s["lines"],
-                    slide_kind = "photo",
-                    browser    = browser,
-                ))
-        finally:
-            browser.close()
+        probe_attempts = 1
+        with _sync_pw_for_probe() as pw:
+            browser = pw.chromium.launch()
+            try:
+                wraps_per_slide: list[list[bool]] = []
+                for s in slides:
+                    wraps_per_slide.append(measure_lines_overflow(
+                        lines      = s["lines"],
+                        slide_kind = "photo",
+                        browser    = browser,
+                    ))
+            finally:
+                browser.close()
 
-    bad: list[str] = []
-    for s, wraps in zip(slides, wraps_per_slide):
-        for j, wraps_j in enumerate(wraps, 1):
-            if wraps_j:
-                bad.append(
-                    f"slide {s.get('slideNumber', '?')} line {j} visually wraps: "
-                    f"{s['lines'][j-1]!r}"
-                )
-    if bad:
-        raise LineFitError(
-            "writer produced render-unsafe lines (probe detected visual wrap):\n"
-            + "\n".join(bad),
-            usage={
-                "editorial_cost_usd": float(usage["cost_usd"]),
-                "fitter_cost_usd":    0.0,
-                "fitter_attempts":    1,
-                "probe_attempts":     probe_attempts,
-            },
-        )
+        bad: list[str] = []
+        for s, wraps in zip(slides, wraps_per_slide):
+            for j, wraps_j in enumerate(wraps, 1):
+                if wraps_j:
+                    bad.append(
+                        f"slide {s.get('slideNumber', '?')} line {j} visually wraps: "
+                        f"{s['lines'][j-1]!r}"
+                    )
+        if bad:
+            raise LineFitError(
+                "writer produced render-unsafe lines (probe detected visual wrap):\n"
+                + "\n".join(bad),
+                usage={
+                    "editorial_cost_usd": float(usage["cost_usd"]),
+                    "fitter_cost_usd":    0.0,
+                    "fitter_attempts":    1,
+                    "probe_attempts":     probe_attempts,
+                },
+            )
 
     if data.get("dropped_facts"):
         _log("     [INFO] Writer reported dropped_facts (beat too dense for one slide):")
@@ -506,8 +528,18 @@ def main() -> int:
                              "(fact/news=6, list=7).")
     parser.add_argument("--type",    default="fact", choices=["fact", "news", "list"],
                         help="Carousel sub-type. Switches writer guidance + default slide count.")
+    parser.add_argument("--layout-mode", default=None, choices=list(LAYOUT_PROFILES.keys()),
+                        help="Renderer layout profile. Defaults: list -> readable_list, "
+                             "fact/news -> compact_legacy.")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+
+    # Layout default: list flips to readable_list automatically. fact /
+    # news keep compact_legacy unless an explicit --layout-mode overrides.
+    if args.layout_mode is None:
+        layout_mode = "readable_list" if args.type == "list" else "compact_legacy"
+    else:
+        layout_mode = args.layout_mode
 
     # Route image sourcer + fetcher DEBUG logs to stdout so pool scoring and
     # POOL_REJECT reasons are visible.
@@ -540,9 +572,11 @@ def main() -> int:
     _log(f"\n[1/4] Generating content from brief...")
     _log(f"     Brief:  \"{args.brief}\"")
     _log(f"     Type:   {args.type}  (target {total_slides_arg} slides total)")
+    _log(f"     Layout: {layout_mode}")
     try:
         data, usage_records = generate_content(
             args.brief, n_slides, api_key, format_type=args.type,
+            layout_mode=layout_mode,
         )
     except CarouselShapeError as shape_err:
         _log(f"\nERROR: CONTENT_SHAPE_MISMATCH - {shape_err}")
@@ -658,7 +692,11 @@ def main() -> int:
     visual_fallbacks = data.get("visual_fallback_queries", [])
     while len(visual_fallbacks) < total_slides:
         visual_fallbacks.append("")
-    sourcer = ImageSourcer(topic="editorial", use_fresh_ledger=args.dry_run)
+    sourcer = ImageSourcer(
+        topic="editorial",
+        use_fresh_ledger=args.dry_run,
+        relax=(layout_mode == "readable_list"),
+    )
     images  = sourcer.source_images(
         queries[:total_slides], intent, post_id,
         per_slot_aliases=per_slot_aliases[:total_slides],
@@ -729,6 +767,7 @@ def main() -> int:
                     source_label=label,
                     repo_root=repo_root,
                     browser=browser,
+                    layout_mode=layout_mode,
                 )
                 slide_paths.append(out_path)
                 _log(f"     slide {idx} done")
