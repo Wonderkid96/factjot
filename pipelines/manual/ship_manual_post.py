@@ -1004,13 +1004,53 @@ def main() -> int:
     )
     _log(f"     SlotAliases: {per_slot_aliases}")
 
+    # post_id / save_dir are defined up here (rather than just before the
+    # image-fetch step) so the structured-list payload can be persisted
+    # BEFORE the cover image hardgate runs. That keeps Phase 2 inspectable
+    # even when image sourcing aborts the run.
+    post_id = re.sub(r"[^a-z0-9]+", "-", cover_title.lower())[:30]
+    ts       = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    slug     = re.sub(r"[^a-z0-9]+", "-", cover_title.lower())[:40]
+    save_dir = repo_root / "output" / "manual" / f"{ts}_{slug}"
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.type == "list" and isinstance(data.get("items"), list):
+        list_payload = {
+            "cover_title": cover_title,
+            "label": label,
+            "cover_image_query": data.get("cover_image_query"),
+            "items": data["items"],
+            "closing": data.get("closing"),
+            "rendered_slides": [
+                {"slideNumber": s.get("slideNumber"),
+                 "lines": s.get("lines"),
+                 "item": s.get("item")}
+                for s in slides
+            ],
+        }
+        (save_dir / "list_data.json").write_text(
+            json.dumps(list_payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        _log(f"     Structured list data: {(save_dir / 'list_data.json').resolve()}")
+        _log(f"     Items ({len(data['items'])}):")
+        for it in data["items"]:
+            _log(f"       {it.get('rank')}. {it.get('name')}")
+            _log(f"          rank_reason:   {it.get('rank_reason')}")
+            _log(f"          concrete_fact: {it.get('concrete_fact')}")
+            _log(f"          image_query:   {it.get('image_query')}")
+        _log(f"     Adapted slide lines:")
+        for s in slides:
+            n = s.get("slideNumber")
+            for j, ln in enumerate(s.get("lines", []), 1):
+                _log(f"       slide {n} line {j}: {ln}")
+
     # ---- 2. Fetch images (ImageSourcer: pool + Haiku selection + scoring + reuse limits) ----
     _log(f"\n[2/4] Fetching images (pool mode, max 40 candidates/slot, Haiku selector)...")
     while len(queries) < total_slides:
         queries.append(intent.fallback_query or label.lower())
     while len(per_slot_aliases) < total_slides:
         per_slot_aliases.append(None)
-    post_id = re.sub(r"[^a-z0-9]+", "-", cover_title.lower())[:30]
     visual_fallbacks = data.get("visual_fallback_queries", [])
     while len(visual_fallbacks) < total_slides:
         visual_fallbacks.append("")
@@ -1115,45 +1155,15 @@ def main() -> int:
         )
         caption = f"{caption_body}\n\n{hashtags}" if caption_body else hashtags
 
-        # Save locally regardless of dry-run
-        ts       = datetime.now().strftime("%Y-%m-%d_%H-%M")
-        slug     = re.sub(r"[^a-z0-9]+", "-", cover_title.lower())[:40]
-        save_dir = repo_root / "output" / "manual" / f"{ts}_{slug}"
+        # Save locally regardless of dry-run. save_dir was already
+        # created up-front (right after content generation) so the
+        # structured-list payload is available for inspection even when
+        # the cover image gate fails. Re-mkdir is a no-op.
         save_dir.mkdir(parents=True, exist_ok=True)
         for p in slide_paths:
             shutil.copy(p, save_dir / p.name)
         shutil.copy(story_path, save_dir / story_path.name)
         _log(f"\n     Slides saved to: {save_dir.resolve()}")
-
-        # Persist the structured payload for list mode so the typed
-        # items survive next to the rendered slides for inspection.
-        # For other formats the structured items don't exist; the
-        # rendered lines are the source of truth.
-        if args.type == "list" and isinstance(data.get("items"), list):
-            list_payload = {
-                "cover_title": cover_title,
-                "label": label,
-                "cover_image_query": data.get("cover_image_query"),
-                "items": data["items"],
-                "closing": data.get("closing"),
-                "rendered_slides": [
-                    {"slideNumber": s.get("slideNumber"),
-                     "lines": s.get("lines"),
-                     "item": s.get("item")}
-                    for s in slides
-                ],
-            }
-            (save_dir / "list_data.json").write_text(
-                json.dumps(list_payload, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
-            _log(f"     Structured list data: {(save_dir / 'list_data.json').name}")
-            _log(f"     Items ({len(data['items'])}):")
-            for it in data["items"]:
-                _log(f"       {it.get('rank')}. {it.get('name')}")
-                _log(f"          rank_reason:   {it.get('rank_reason')}")
-                _log(f"          concrete_fact: {it.get('concrete_fact')}")
-                _log(f"          image_query:   {it.get('image_query')}")
 
         if args.dry_run:
             _log("\n[DRY RUN] Caption preview:")
