@@ -163,7 +163,12 @@ class InstagramGraphPublisher:
             creation_id = r.get("id")
             if not creation_id:
                 return {"ok": False, "error": f"Stories container failed: {r}"}
-            time.sleep(2)
+            # Match carousel/reels: call media_publish only after status FINISHED.
+            # A short fixed sleep races IG image ingest; story can publish with no
+            # visible thumbnail.
+            ready = self._wait_for_finished(creation_id, timeout_seconds=120)
+            if not ready.get("ok"):
+                return {"ok": False, "error": f"Stories container not ready: {ready}"}
             pub = requests.post(
                 f"{self.base_url}/{self.account_id}/media_publish",
                 data={"creation_id": creation_id, "access_token": self.access_token},
