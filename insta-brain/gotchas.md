@@ -66,6 +66,9 @@ This file must be committed after every reel or the same clip will appear in con
 
 ## Duplicate post prevention
 
+**Scout cache reset must not touch publish or dedup ledgers.**
+Clearing discovery logs, list pack caches, or reel staging is fine for a fresh candidate inventory. Truncating `insta-brain/data/posted.jsonl`, `insta-brain/data/reels.jsonl`, `insta-brain/data/list_posts.jsonl`, `data/ledgers/used_images.jsonl`, or `data/ledgers/used_footage_urls.jsonl` will break duplicate and reuse guards and can cause the same post or assets to ship again. Use `scripts/clear_scout_caches.sh` for the safe set only. Canonical split: `src/core/paths.py` → `PUBLISH_AND_DEDUP_LEDGERS` vs `SCOUT_INVENTORY_CACHE_LEDGERS`.
+
 **`assert_no_duplicate()` must be called immediately before every Instagram API publish call** — not earlier. It does a fresh disk read to catch posts made by concurrent runs that the in-memory cache doesn't know about. It was missing from `ship_list_post.py` until 2026-05-03.
 
 **The queue (`insta-brain/data/queue.jsonl`) is a legacy artefact** from the old launchd system. GitHub Actions workflows do NOT read it — they generate posts on the fly with `ship_first_post.py` / `ship_list_post.py` / `make_reel.py`. The queue contains render paths pointing to `/home/runner/work/...` which evaporate after each run. Do not populate or read the queue.

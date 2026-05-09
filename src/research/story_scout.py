@@ -14,9 +14,11 @@ from pathlib import Path
 
 import requests
 
+from src.core.paths import POSTED, REEL_DISCOVERY_STAGING
+
 USER_AGENT = "factjot-story-scout/1.0 (@factjot)"
-POSTED_LOG = Path("insta-brain/data/posted.jsonl")
-STAGING_REEL = Path("data/ledgers/reel_discovery_staging.jsonl")
+POSTED_LOG = POSTED
+STAGING_REEL = REEL_DISCOVERY_STAGING
 MAX_POST_BANK = 300
 
 REDDIT_SOURCES = (

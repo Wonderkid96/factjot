@@ -36,6 +36,8 @@ LIST_PACK_CACHE      = LEDGERS / "list_pack_cache.jsonl"
 GENERATED_LIST_PACKS = LEDGERS / "generated_list_packs.jsonl"
 USED_LIST_THEMES     = LEDGERS / "used_list_themes.jsonl"
 DISCOVERY_LOG   = LEDGERS / "discovery.log.jsonl"
+# Staging file for reel discovery candidates (safe to truncate for fresh scout runs).
+REEL_DISCOVERY_STAGING = LEDGERS / "reel_discovery_staging.jsonl"
 USED_IMAGES     = LEDGERS / "used_images.jsonl"
 USED_FOOTAGE    = LEDGERS / "used_footage_urls.jsonl"
 ALERTS          = LEDGERS / "alerts.jsonl"
@@ -100,6 +102,28 @@ LIST_POSTS      = BRAIN_DATA / "list_posts.jsonl"
 BRAIN_QUEUE     = BRAIN_DATA / "queue.jsonl"
 STATS           = BRAIN_DATA / "stats.jsonl"
 TRENDS          = BRAIN_DATA / "trends.jsonl"
+
+# Publish history and asset dedup: never truncate or "reset" these when clearing
+# scout caches. Workflows commit these after each post; losing them allows
+# duplicate captions/topics and reused images or footage.
+PUBLISH_AND_DEDUP_LEDGERS: tuple[Path, ...] = (
+    POSTED,
+    POSTED_QUOTES,
+    REELS_LEDGER,
+    LIST_POSTS,
+    USED_IMAGES,
+    USED_FOOTAGE,
+)
+
+# Discovery and list-prep caches only. Safe to empty for a fresh candidate
+# inventory; does not affect duplicate guards.
+SCOUT_INVENTORY_CACHE_LEDGERS: tuple[Path, ...] = (
+    DISCOVERY_LOG,
+    LIST_PACK_CACHE,
+    GENERATED_LIST_PACKS,
+    USED_LIST_THEMES,
+    REEL_DISCOVERY_STAGING,
+)
 
 
 def ensure_dirs() -> None:
