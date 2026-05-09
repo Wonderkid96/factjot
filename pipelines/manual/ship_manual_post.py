@@ -905,6 +905,47 @@ def _image_meta_matches_item(meta: str, item: dict) -> tuple[bool, list[str]]:
     return bool(hits), hits
 
 
+def _build_list_cover_rescue_queries(
+    data: dict,
+    intent: ImageIntent,
+    primary_cover_query: str,
+) -> list[str]:
+    """Extra cover queries for list mode when the primary cover line fails.
+
+    Order: first item (often a concrete film or place), intent fallbacks,
+    then the writer's visual fallback for slot 0, then the broad subject.
+    De-duplicates and skips the query that already failed for slot 0.
+    """
+    seen: set[str] = set()
+    out: list[str] = []
+
+    def add(q: object) -> None:
+        if not isinstance(q, str):
+            return
+        s = q.strip()
+        if len(s) < 3:
+            return
+        key = s.lower()
+        if key in seen:
+            return
+        seen.add(key)
+        out.append(s)
+
+    exhausted = (primary_cover_query or "").strip().lower()
+    items = data.get("items") or []
+    if items and isinstance(items[0], dict):
+        add(items[0].get("image_query"))
+        add(items[0].get("name"))
+    add(intent.fallback_query)
+    vfqs = data.get("visual_fallback_queries") or []
+    if vfqs:
+        add(vfqs[0] if len(vfqs) > 0 else "")
+    add(intent.visual_subject)
+    if exhausted:
+        out = [q for q in out if q.strip().lower() != exhausted]
+    return out
+
+
 def _validate_list_images(
     images: list[str],
     decisions: list[dict],
@@ -1600,6 +1641,37 @@ def main() -> int:
         visual_fallback_queries=visual_fallbacks[:total_slides],
         smoke_mode=args.smoke_mode,
     )
+
+    if (
+        args.type == "list"
+        and isinstance(data.get("items"), list)
+        and not args.smoke_mode
+        and (not images or not images[0])
+    ):
+        rescue_qs = _build_list_cover_rescue_queries(
+            data,
+            intent,
+            queries[0] if queries else "",
+        )
+        if rescue_qs:
+            _log(
+                f"\n[cover] list cover empty after primary fetch; "
+                f"trying {len(rescue_qs)} rescue quer"
+                f"{'y' if len(rescue_qs) == 1 else 'ies'}..."
+            )
+            rescued = sourcer.rescue_list_cover(
+                rescue_queries=rescue_qs,
+                intent=intent,
+                post_id=post_id,
+                total_slides=total_slides,
+                smoke_mode=args.smoke_mode,
+            )
+            if rescued:
+                images = list(images)
+                if len(images) < total_slides:
+                    images.extend([""] * (total_slides - len(images)))
+                images[0] = rescued
+                _log("     [cover] LIST_COVER_RESCUE succeeded")
 
     # List-mode image quality gate: per-item alias match + carousel-wide
     # de-duplication. Wrong-but-dramatic images (Chernobyl photo on a

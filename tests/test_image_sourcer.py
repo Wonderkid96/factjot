@@ -407,3 +407,70 @@ def test_scene_slot_drops_global_alias_gate():
 
     first_call = sourcer._fetcher.fetch_pool.call_args_list[0]
     assert first_call.kwargs["source_aliases"] is None
+
+
+def test_rescue_list_cover_rebuilds_decision_row_for_slot_zero():
+    intent = _aviation_intent()
+    sourcer = _make_sourcer()
+    sourcer.relax = True
+    sourcer.last_run_decisions = [
+        {"slot": 0, "outcome": "typography", "query": "old"},
+        {"slot": 1, "outcome": "haiku_pick", "query": "slide1"},
+    ]
+    cand = _make_candidate()
+    sourcer._fetcher.fetch_pool = MagicMock(return_value=[cand])
+
+    def _fake_select(slot, query, raw_pool, intent, post_id, relaxation_round=1):
+        sourcer.last_run_decisions.append(
+            {
+                "slot": 0,
+                "outcome": "haiku_pick",
+                "query": query,
+                "chosen_meta": cand.meta,
+            }
+        )
+        return "data:image/jpeg;base64,abc"
+
+    sourcer._select_for_slot = MagicMock(side_effect=_fake_select)
+    out = sourcer.rescue_list_cover(
+        rescue_queries=["cinema audience silhouette"],
+        intent=intent,
+        post_id="test-rescue",
+        total_slides=2,
+        smoke_mode=False,
+    )
+    assert out.startswith("data:image")
+    assert len(sourcer.last_run_decisions) == 2
+    assert sourcer.last_run_decisions[0]["outcome"] == "haiku_pick"
+    assert sourcer.last_run_decisions[0]["query"] == "cinema audience silhouette"
+    assert sourcer.last_run_decisions[1]["slot"] == 1
+
+
+def test_rescue_list_cover_rolls_back_after_failed_select():
+    intent = _aviation_intent()
+    sourcer = _make_sourcer()
+    sourcer.relax = True
+    sourcer.last_run_decisions = [
+        {"slot": 0, "outcome": "typography"},
+        {"slot": 1, "outcome": "haiku_pick"},
+    ]
+    cand = _make_candidate()
+    sourcer._fetcher.fetch_pool = MagicMock(return_value=[cand])
+
+    def _fake_select_fail(*_a, **_k):
+        sourcer.last_run_decisions.append({"slot": 0, "outcome": "typography"})
+        return ""
+
+    sourcer._select_for_slot = MagicMock(side_effect=_fake_select_fail)
+    out = sourcer.rescue_list_cover(
+        rescue_queries=["one query"],
+        intent=intent,
+        post_id="pid",
+        total_slides=2,
+        smoke_mode=False,
+    )
+    assert out == ""
+    assert sourcer.last_run_decisions == [
+        {"slot": 0, "outcome": "typography"},
+        {"slot": 1, "outcome": "haiku_pick"},
+    ]

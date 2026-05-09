@@ -209,6 +209,15 @@ jobs:
           fi
           "${CMD[@]}"
 
+      - name: Cross-post reel to YouTube as Short (soft)
+        if: ${{ success() && inputs.pipeline == 'reel' && inputs.dry_run == false }}
+        continue-on-error: true
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+        run: python3 -u scripts/upload_to_youtube.py --auto-latest --privacy public || true
+
       - name: Upload rendered output artefact
         if: always()
         continue-on-error: true

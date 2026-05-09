@@ -245,6 +245,7 @@ def run_reel(args: dict, dry_run: bool) -> str:
         ("ERROR: TTS returned no word timing", "tts_failed"),
         ("ERROR: could not find any footage",  "no_footage"),
         ("reel FAILED ffmpeg",                 "ffmpeg_failed"),
+        ("reel FAILED thumbnail",             "thumbnail_failed"),
         ("reel FAILED video upload",           "video_upload_failed"),
         ("reel FAILED publish",                "publish_failed"),
         ("exit_code=10",                       "lock_contention"),

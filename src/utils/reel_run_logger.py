@@ -1,7 +1,7 @@
 """Structured logging for local `make_reel.py` runs.
 
 Writes timestamped lines to:
-  - `data/cache/reels/<reel_id>/pipeline.log` (next to FFmpeg artefacts)
+  - `output/reel/<reel_id>/pipeline.log` (next to FFmpeg artefacts)
   - `logs/reel_runs/<UTC>_<reel_id>.log` (central history)
 
 Also mirrors each line to stdout with flush so terminals and CI see progress.

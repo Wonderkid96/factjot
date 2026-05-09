@@ -539,6 +539,76 @@ class ImageSourcer:
         )
         return data_urls
 
+    def rescue_list_cover(
+        self,
+        *,
+        rescue_queries: list[str],
+        intent: ImageIntent,
+        post_id: str,
+        total_slides: int,
+        smoke_mode: bool = False,
+    ) -> str:
+        """List carousel only: retry cover (slot 0) with extra R3-style fetches.
+
+        When the normal per-slot pass leaves cover empty, try additional
+        queries using stock-forward pools only (no entity aliases). This
+        mirrors the R3 path inside ``source_images`` but with queries
+        derived from the first list item or intent fallbacks, which often
+        succeed when the editorial cover line is abstract.
+
+        On success, replaces the slot-0 row in ``last_run_decisions`` so
+        list validation indexing stays aligned.
+        """
+        if smoke_mode or total_slides < 1:
+            return ""
+        for vfq in rescue_queries:
+            vfq = (vfq or "").strip()
+            if len(vfq) < 3:
+                continue
+            r3_provider_order = _r3_provider_order_for_query(vfq)
+            raw_pool = self._fetcher.fetch_pool(
+                query=vfq,
+                topic=self.topic,
+                post_id=post_id,
+                slide_index=0,
+                intent_text=vfq,
+                source_aliases=None,
+                negative_terms=intent.negative_terms or None,
+                context_words=None,
+                extra_fallbacks=None,
+                max_pool=20,
+                provider_override=r3_provider_order,
+            )
+            if raw_pool:
+                raw_pool = [c for c in raw_pool if self._use_count.get(c.url, 0) == 0]
+            if not raw_pool:
+                log.debug("IMAGE rescue_list_cover: no pool for %r", vfq[:80])
+                continue
+            pre_len = len(self.last_run_decisions)
+            chosen = self._select_for_slot(
+                0, vfq, raw_pool, intent, post_id, relaxation_round=3,
+            )
+            if not chosen:
+                self.last_run_decisions = self.last_run_decisions[:pre_len]
+                continue
+            new0 = self.last_run_decisions[-1]
+            tail = [
+                d
+                for d in self.last_run_decisions[:pre_len]
+                if d.get("slot", -1) != 0
+            ]
+            self.last_run_decisions = [new0] + tail
+            if len(self.last_run_decisions) != total_slides:
+                log.warning(
+                    "IMAGE rescue_list_cover: decision length %d != total_slides %d",
+                    len(self.last_run_decisions),
+                    total_slides,
+                )
+            log.info("IMAGE rescue_list_cover: ok query=%r", vfq[:100])
+            return chosen
+        log.debug("IMAGE rescue_list_cover: all rescue queries exhausted")
+        return ""
+
     # ------------------------------------------------------------------ #
     # Internal helpers
     # ------------------------------------------------------------------ #

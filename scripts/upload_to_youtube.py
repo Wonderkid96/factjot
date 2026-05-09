@@ -167,6 +167,23 @@ def _ensure_shorts_tag(description: str) -> str:
     return description.rstrip() + "\n\n#Shorts"
 
 
+def _description_from_reel_meta(reel_meta: dict | None) -> str:
+    """Build a Shorts description when --description is not passed.
+
+    Prefer the caption stored on the reel ledger row (written since 2026-05);
+    older rows only have claim + title.
+    """
+    if not reel_meta:
+        return ""
+    cap = (reel_meta.get("caption") or "").strip()
+    if cap:
+        return cap
+    title = (reel_meta.get("reel_title") or "").strip()
+    claim = (reel_meta.get("claim") or "").strip()
+    parts = [p for p in (title, claim) if p]
+    return "\n\n".join(parts) if parts else ""
+
+
 def _prepare_thumbnail(video_path: Path) -> Path | None:
     """Return a JPEG version of the reel's thumbnail.png under 2 MB, or
     None if no thumbnail file is available next to the video.
@@ -318,7 +335,7 @@ def main(argv: list[str]) -> int:
         return 1
 
     title = args.title or (reel_meta or {}).get("reel_title") or video_path.stem
-    description = args.description or (reel_meta or {}).get("caption") or ""
+    description = args.description or _description_from_reel_meta(reel_meta)
     tags_list = [t.strip() for t in args.tags.split(",") if t.strip()]
     if not tags_list and reel_meta and reel_meta.get("topic"):
         tags_list = [reel_meta["topic"], "facts", "factjot"]

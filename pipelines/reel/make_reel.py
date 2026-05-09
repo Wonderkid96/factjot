@@ -16,9 +16,11 @@ Usage:
     /Library/Frameworks/Python.framework/Versions/Current/bin/python3 -u pipelines/reel/make_reel.py --topic history --dry-run
     /Library/Frameworks/Python.framework/Versions/Current/bin/python3 pipelines/reel/make_reel.py --list-facts
 
-Logs (each full run): data/cache/reels/<reel_id>/pipeline.log and logs/reel_runs/<UTC>_<reel_id>.log
+Logs (each full run): output/reel/<reel_id>/pipeline.log and logs/reel_runs/<UTC>_<reel_id>.log
 Stale local jobs: scripts/kill_local_reel_jobs.sh
-Only one local encoder at a time: second run exits 10 (fcntl lock on data/cache/reels/.make_reel.lock).
+Only one local encoder at a time: second run exits 10 (fcntl lock on output/reel/.make_reel.lock).
+Each run removes prior reel build directories under output/reel/ so no footage or frames are reused
+from an older run (ledger files under data/ledgers/ are unchanged; they only record what already posted).
 """
 from __future__ import annotations
 
@@ -98,6 +100,63 @@ def _upload_video(mp4_path: Path) -> str:
     result = host.upload(mp4_path)
     print(f"  [tmpfiles] url: {result.public_url}")
     return result.public_url
+
+
+# Still inputs passed directly to FFmpeg (no video track) must not use a
+# late seek; some builds error on -ss 1.0 for a single-frame source.
+_THUMB_STILL_EXTS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
+
+
+def _extract_reel_thumbnail_frame(
+    ffmpeg_bin: str,
+    thumb_src: Path,
+    frame_jpg: Path,
+) -> None:
+    """Extract one full-portrait JPG for the branded thumbnail and story.
+
+    Tries multiple start times for real video (short clips can fail at 1s).
+    Raises RuntimeError only if every attempt fails.
+    """
+    import subprocess
+
+    is_still = thumb_src.suffix.lower() in _THUMB_STILL_EXTS
+    seek_sequence = ("0",) if is_still else ("1.0", "0.5", "0.25", "0")
+    last_err: Exception | None = None
+    vf = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920"
+
+    for seek in seek_sequence:
+        frame_jpg.unlink(missing_ok=True)
+        cmd = [
+            ffmpeg_bin, "-y",
+            "-ss", seek,
+            "-i", str(thumb_src),
+            "-vframes", "1",
+            "-q:v", "2",
+            "-vf", vf,
+            str(frame_jpg),
+        ]
+        try:
+            subprocess.run(
+                cmd,
+                check=True,
+                capture_output=True,
+                timeout=120,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+            last_err = exc
+            continue
+        if frame_jpg.is_file() and frame_jpg.stat().st_size > 512:
+            if seek != seek_sequence[0]:
+                print(f"  [frame] used -ss {seek}s (fallback)")
+            return
+        last_err = RuntimeError(f"thumbnail frame too small after -ss {seek}")
+
+    tail = ""
+    if isinstance(last_err, subprocess.CalledProcessError):
+        tail = (last_err.stderr or b"").decode("utf-8", errors="replace")[-400:]
+    raise RuntimeError(
+        f"could not extract thumbnail frame from {thumb_src.name}: {last_err!r} {tail}"
+    ) from last_err
 
 
 def _recompress(
@@ -453,16 +512,23 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             f"reel:{ftopic}:{claim}:{_t.time_ns()}:{_os.urandom(4).hex()}".encode()
         ).hexdigest()[:14]
         out_dir  = REELS_CACHE / reel_id
-        # Wipe stale reel cache directories (older than 2 hours).
-        # Directories from the current run or a concurrently running job
-        # are left alone — only accumulated stale dirs are removed.
+        # Fresh tree every run: remove all previous build dirs under output/reel/
+        # so video_finder downloads and FFmpeg outputs never mix with an older
+        # reel_id. Advisory lock above prevents a concurrent run from deleting
+        # an active directory. Preserve only the lock file.
         import shutil as _sh
-        _stale_cutoff = _t.time() - 7200
-        if REELS_CACHE.exists():
-            for _old in list(REELS_CACHE.iterdir()):
-                if _old.is_dir() and _old.stat().st_mtime < _stale_cutoff:
-                    _sh.rmtree(_old, ignore_errors=True)
+        REELS_CACHE.mkdir(parents=True, exist_ok=True)
+        _lock_keep = ".make_reel.lock"
+        for _entry in list(REELS_CACHE.iterdir()):
+            if _entry.name == _lock_keep:
+                continue
+            if _entry.is_dir():
+                _sh.rmtree(_entry, ignore_errors=True)
         out_dir.mkdir(parents=True, exist_ok=True)
+        print(
+            f"  [cache] clean reel workspace -> {out_dir} "
+            f"(removed other build dirs under {REELS_CACHE})"
+        )
         ensure_dirs()
         rlog = ReelRunLogger(reel_id=reel_id, out_dir=out_dir, run_logs_dir=REEL_RUN_LOGS)
         rlog.emit(f"dry_run={dry_run} voice={voice!r}")
@@ -902,21 +968,19 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         # still_rendered_{stem}.mp4 from the compose step -- that file has no
         # text overlays. Do NOT use final.mp4 (all overlays baked in = double text
         # on thumbnail and story).
-        _STILL_EXTS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
-        if footage_clips[0].suffix.lower() in _STILL_EXTS:
+        if footage_clips[0].suffix.lower() in _THUMB_STILL_EXTS:
             _still_rendered = out_dir / f"still_rendered_{footage_clips[0].stem}.mp4"
             thumb_src = _still_rendered if _still_rendered.exists() else footage_clips[0]
         else:
             thumb_src = footage_clips[0]
-        _sp.run([
-            ff_bin, "-y",
-            "-ss", "1.0",
-            "-i", str(thumb_src),
-            "-vframes", "1",
-            "-q:v", "2",
-            "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920",
-            str(frame_jpg),
-        ], check=True, capture_output=True)
+        try:
+            _extract_reel_thumbnail_frame(ff_bin, thumb_src, frame_jpg)
+        except RuntimeError as exc:
+            print(f"\nERROR: reel FAILED thumbnail — frame extract: {exc}")
+            brain.append_log(
+                f"reel FAILED thumbnail frame — fact={claim[:60]!r} error={str(exc)[:300]}"
+            )
+            return 9
         print(f"  [frame] {frame_jpg.name} ({frame_jpg.stat().st_size // 1024}KB)")
 
         print("Compositing thumbnail (footage frame + branded overlay)...")
@@ -973,15 +1037,26 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             brain.append_log(f"reel FAILED video upload — fact={claim[:60]!r} error={exc}")
             return 6
 
+        if not thumbnail_png.is_file() or thumbnail_png.stat().st_size < 1000:
+            print("\nERROR: reel FAILED thumbnail — PNG missing or too small after render")
+            brain.append_log(f"reel FAILED thumbnail file — fact={claim[:60]!r}")
+            return 9
+
         print("Uploading thumbnail...")
-        try:
-            img_host = make_image_host()
-            thumbnail_result = img_host.upload(thumbnail_png)
-            cover_url = thumbnail_result.public_url
-            print(f"  [thumbnail] {cover_url[:80]}")
-        except Exception as exc:
-            print(f"  [thumbnail] upload failed ({exc}) — publishing without cover")
-            cover_url = None
+        img_host = make_image_host()
+        cover_url = None
+        for attempt in (1, 2):
+            try:
+                thumbnail_result = img_host.upload(thumbnail_png)
+                cover_url = thumbnail_result.public_url
+                print(f"  [thumbnail] {cover_url[:80]}")
+                break
+            except Exception as exc:
+                print(f"  [thumbnail] upload failed (attempt {attempt}/2): {exc}")
+                if attempt == 1:
+                    time.sleep(2.0)
+                else:
+                    print("  [thumbnail] publishing without cover (IG auto-picks frame)")
 
         # Step 10: Publish Reel
         # compose() already handles size: crf 23 first pass, two-pass VBR if >4.7MB.
@@ -1044,11 +1119,19 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             print(f"  [story] failed ({exc}) — Reel is still live")
 
         # Step 12: Record
-        _record(reel_id, ig_media_id, claim, ftopic, out_dir,
-                thumbnail_png=thumbnail_png, story_png=story_png,
-                tone=fact.get("tone", "curious"),
-                reel_title=fact.get("reel_title", ""),
-                word_count=len(vo_script.split()))
+        _record(
+            reel_id,
+            ig_media_id,
+            claim,
+            ftopic,
+            out_dir,
+            thumbnail_png=thumbnail_png,
+            story_png=story_png,
+            tone=fact.get("tone", "curious"),
+            reel_title=fact.get("reel_title", ""),
+            word_count=len(vo_script.split()),
+            caption=caption,
+        )
         return 0
 
     finally:
@@ -1074,6 +1157,7 @@ def _record(
     tone: str = "curious",
     reel_title: str = "",
     word_count: int = 0,
+    caption: str = "",
 ) -> None:
     """Persist the Reel to the ledger and brain log.
 
@@ -1099,6 +1183,7 @@ def _record(
         "out_dir":       str(out_dir),
         "thumbnail_png": str(thumbnail_png) if thumbnail_png else None,
         "story_png":     str(story_png) if story_png else None,
+        "caption":       caption,
     }
     from src.core.paths import REELS_LEDGER
     ledger = REELS_LEDGER

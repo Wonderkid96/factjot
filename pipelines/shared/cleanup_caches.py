@@ -1,8 +1,8 @@
 """Prune old cache directories and ledger entries to keep disk usage in check.
 
 What it touches (everything else is left alone):
-    data/cache/reels/<reel_id>/        — per-reel render cache (footage, voice, overlays, final.mp4)
-    data/cache/renders/<post_id>/      — per-carousel render PNGs
+    output/reel/<reel_id>/             — per-reel build cache (footage, voice, overlays, final.mp4)
+    output/carousel/                   — per-carousel render PNG trees (see src.core.paths)
     insta-brain/log.md                 — rolling activity log
 
 Safety:
@@ -34,8 +34,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-REELS_CACHE = REPO_ROOT / "data" / "cache" / "reels"
-RENDERS_CACHE = REPO_ROOT / "data" / "cache" / "renders"
+sys.path.insert(0, str(REPO_ROOT))
+from src.core.paths import REELS_CACHE, RENDERS_CACHE  # output/reel, output/carousel
+
 REELS_LEDGER = REPO_ROOT / "insta-brain" / "data" / "reels.jsonl"
 POSTED_LEDGER = REPO_ROOT / "insta-brain" / "data" / "posted.jsonl"
 LOG_PATH = REPO_ROOT / "insta-brain" / "log.md"
@@ -182,12 +183,12 @@ def main() -> int:
 
     print(f"\n{'DRY RUN — no changes will be made' if args.dry_run else 'PRUNING'}\n")
 
-    print(f"--- Reel caches (data/cache/reels/), keep_days={args.keep_days}")
+    print(f"--- Reel caches ({REELS_CACHE.name}/), keep_days={args.keep_days}")
     reel_ids = _published_reel_ids()
     print(f"  published reels in ledger: {len(reel_ids)}")
     rdel, rfreed = prune_caches(REELS_CACHE, reel_ids, args.keep_days, args.dry_run)
 
-    print(f"\n--- Carousel renders (data/cache/renders/), keep_days={args.keep_days}")
+    print(f"\n--- Carousel renders ({RENDERS_CACHE.name}/), keep_days={args.keep_days}")
     post_ids = _published_post_ids()
     print(f"  published posts in ledger: {len(post_ids)}")
     cdel, cfreed = prune_caches(RENDERS_CACHE, post_ids, args.keep_days, args.dry_run)
