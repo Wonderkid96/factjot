@@ -38,7 +38,10 @@ from src.content.carousel_rules import (
     BEAT_DENSITY_RULES,
     PHOTOGRAPHABLE_BEATS_RULES,
 )
-from src.research.story_scout import ranked_candidates_for_mode
+from src.research.story_scout import (
+    ranked_candidates_for_mode,
+    build_list_reel_possibilities,
+)
 
 # Cap the agent loop to keep cost predictable when the carousel pipeline
 # is failing repeatedly. A successful run typically uses 2-4 turns; 12
@@ -405,14 +408,26 @@ def execute_tool(name: str, args: dict, dry_run: bool, mode: str) -> str:
         return build_history_summary()
     if name == "list_story_candidates":
         rows = ranked_candidates_for_mode(mode=mode, top_n=12)
-        if not rows:
-            return "(no candidates found)"
+        list_pool = build_list_reel_possibilities(mode=mode, max_outcomes=15)
         lines = []
-        for i, row in enumerate(rows, 1):
-            lines.append(
-                f"{i}. [{row['source']}] ({row['topic']}) score={row['total_score']:.3f} "
-                f"title={row['title']} | weird_bit={row['weird_bit']}"
-            )
+        lines.append("RANKED_STORY_CANDIDATES")
+        if not rows:
+            lines.append("(no candidates found)")
+        else:
+            for i, row in enumerate(rows, 1):
+                lines.append(
+                    f"{i}. [{row['source']}] ({row['topic']}) score={row['total_score']:.3f} "
+                    f"title={row['title']} | weird_bit={row['weird_bit']}"
+                )
+        lines.append("")
+        lines.append("TOP5_LIST_POOL (generated examples, not fixed)")
+        if not list_pool:
+            lines.append("(no list pool ideas)")
+        else:
+            for i, idea in enumerate(list_pool, 1):
+                lines.append(
+                    f"{i}. ({idea['topic']}) {idea['title']}"
+                )
         return "\n".join(lines)
     if name == "skip":
         return f"SKIPPED: {args.get('reason', '(no reason given)')}"
@@ -675,6 +690,23 @@ REEL_PROMPT = textwrap.dedent("""\
     - No motivational framing.
     - No fake profundity.
 
+    LIST-TO-REEL FORMAT (allowed and encouraged when strong)
+
+    A list can run as a reel if it is tight and weird-bit first.
+    Use this exact structure:
+    1) Hook sentence with the weird bit and list frame.
+    2) Item 1 in one short sentence (name + hard fact).
+    3) Item 2 in one short sentence (name + hard fact).
+    4) Item 3 in one short sentence (name + hard fact).
+    5) Closing line with one contrast, pattern, or consequence.
+
+    Constraints:
+    - 3 items only (not 5). Reel pacing breaks above this.
+    - Each item must be a specific proper noun, date, number, or place.
+    - No ranking fluff ("number three will shock you").
+    - No generic categories as items.
+    - The hook must still carry the weird bit immediately.
+
     FOOTAGE QUERIES
 
     After writing the script, produce a ranked list of 4 to 6 footage
@@ -689,7 +721,8 @@ REEL_PROMPT = textwrap.dedent("""\
 
     1. Call list_unposted_topics().
     2. Call list_story_candidates().
-    3. Generate at least 5 candidate evergreen ideas from scout results.
+    3. Generate at least 5 candidate evergreen ideas from scout results and
+       the TOP5_LIST_POOL block (Top 5 biggest/smallest/best/worst/etc.).
     3. Reject duplicates and near-duplicates against the bank.
     4. Reject any current/news/topical idea outright.
     5. For each remaining candidate, name the actual weird bit.

@@ -344,3 +344,139 @@ def ranked_candidates_for_mode(mode: str, top_n: int = 12) -> list[dict]:
     else:  # fact mode
         pool = [c for c in cands if c.suggested_format in ("reel", "list")]
     return [asdict(c) for c in pool[:top_n]]
+
+
+LIST_SUPERLATIVE_POOL = (
+    "biggest",
+    "smallest",
+    "best",
+    "worst",
+    "deadliest",
+    "safest",
+    "strangest",
+    "oldest",
+    "newest",
+    "fastest",
+    "slowest",
+    "most expensive",
+    "least expensive",
+    "most profitable",
+    "least profitable",
+    "most dangerous",
+    "least survivable",
+    "most bizarre",
+    "most underrated",
+    "most catastrophic",
+    "scariest",
+    "funniest",
+    "most iconic",
+    "most influential",
+    "most disturbing",
+)
+
+_LIST_SUBJECT_STOPWORDS = {
+    "the", "and", "for", "with", "that", "this", "from", "into", "over", "under",
+    "after", "before", "when", "where", "while", "about", "than", "then", "they",
+    "them", "their", "his", "her", "its", "your", "our", "was", "were", "are",
+    "is", "been", "being", "have", "has", "had", "will", "would", "could", "should",
+    "said", "says", "til", "todayilearned",
+}
+
+_TOPIC_LIST_HEADS = {
+    "history": "historical events",
+    "science": "scientific discoveries",
+    "space": "space missions",
+    "ocean": "ocean mysteries",
+    "earth": "natural events",
+    "biology": "biological discoveries",
+    "technology": "technology failures",
+}
+
+_OPEN_SUBJECT_NOUNS = (
+    "films",
+    "movies",
+    "songs",
+    "albums",
+    "games",
+    "books",
+    "characters",
+    "creatures",
+    "inventions",
+    "experiments",
+    "missions",
+    "events",
+    "disasters",
+    "mysteries",
+    "heists",
+    "trials",
+    "scandals",
+    "survival stories",
+)
+
+
+def _subject_seed_from_row(title: str, weird_bit: str, topic: str) -> str:
+    text = f"{title} {weird_bit}".lower()
+    topic_words = TOPIC_KEYWORDS.get(topic, ())
+    hits: list[str] = []
+    for kw in topic_words:
+        k = kw.lower().strip()
+        if not k or len(k) < 4:
+            continue
+        if k in text and k not in hits:
+            hits.append(k)
+        if len(hits) >= 2:
+            break
+    if hits:
+        # Prefer "adjective + noun" style when we can detect a concrete noun.
+        noun = next((n for n in _OPEN_SUBJECT_NOUNS if n in text), "")
+        if noun:
+            return noun
+        return _TOPIC_LIST_HEADS.get(topic, "historical events")
+
+    noun = next((n for n in _OPEN_SUBJECT_NOUNS if n in text), "")
+    if noun:
+        return noun
+
+    return _TOPIC_LIST_HEADS.get(topic, "historical events")
+
+
+def build_list_reel_possibilities(
+    mode: str,
+    *,
+    max_outcomes: int = 12,
+) -> list[dict]:
+    """Return dynamic top-5 list-reel concepts from live candidate titles.
+
+    Output rows are lightweight idea seeds for script drafting.
+    """
+    top = ranked_candidates_for_mode(mode, top_n=30)
+    if not top:
+        return []
+
+    seeds: list[tuple[str, str]] = []
+    for row in top:
+        topic = str(row.get("topic", "")).strip().lower() or "history"
+        title = str(row.get("title", "")).strip()
+        weird_bit = str(row.get("weird_bit", "")).strip()
+        if not title:
+            continue
+        seeds.append((topic, _subject_seed_from_row(title, weird_bit, topic)))
+
+    ideas: list[dict] = []
+    used_titles: set[str] = set()
+    for i, (topic, subject) in enumerate(seeds):
+        outcome = LIST_SUPERLATIVE_POOL[i % len(LIST_SUPERLATIVE_POOL)]
+        title = f"Top 5 {outcome} {subject}"
+        key = title.lower()
+        if key in used_titles:
+            continue
+        used_titles.add(key)
+        ideas.append({
+            "title": title,
+            "topic": topic,
+            "outcome": outcome,
+            "subject": subject,
+        })
+        if len(ideas) >= max_outcomes:
+            break
+    return ideas

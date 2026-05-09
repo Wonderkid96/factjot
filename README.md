@@ -29,6 +29,30 @@ Use workflow dispatch on `.github/workflows/manual-run.yml` when you want Claude
 - For local list validation speed, use `--smoke-mode` with dry-run (`pipelines/carousel/ship_carousel_post.py --type list --brief "..." --dry-run --smoke-mode`).
 - Rendered artefacts are uploaded as a workflow artifact and written under `output/{manual,news,reel}/...`.
 
+### Reel format for list ideas
+
+When static list posts are paused, convert list concepts into a 3-item reel script:
+
+```text
+Hook: one sentence with the weird bit and list frame.
+Item 1: proper noun + hard fact.
+Item 2: proper noun + hard fact.
+Item 3: proper noun + hard fact.
+Close: one sentence with the pattern or consequence.
+```
+
+Rules:
+- keep total script length 70 to 120 words
+- use 3 items only for reel pacing
+- each item must include at least one named entity and one concrete number/date/fact
+- no teaser language or "number X" filler
+
+Example:
+
+```text
+Three engineering disasters killed more people than many wars, and each one followed ignored warnings. Banqiao Dam failed in 1975 after extreme rain, and up to 170,000 people died in the floods that followed. Chernobyl exploded in 1986 and forced around 350,000 people to evacuate permanently. Bhopal leaked methyl isocyanate in 1984, and at least 15,000 people died over time. The pattern is not bad luck, it is systems choosing to ignore known risk.
+```
+
 ---
 
 ## Quick troubleshooting (current pipelines)
