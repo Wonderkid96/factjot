@@ -35,7 +35,21 @@ Run `/compact` when context usage hits 60% to avoid hitting limits mid-task.
 These are environment-coded duplicates of the principles in `SPEC_FACTJOT_SYSTEM.md` §12. The principle lives there; the implementation rule lives here.
 
 1. **Never force-push to main.** Force-push silently deletes state commits being written by running workflows (caused the 2026-05-05 triple-post incident). Large-history rewrites happen on a separate branch with workflows paused, then merge.
-2. **No em dashes anywhere.** Code, copy, YAML comments. GitHub's Go YAML parser rejects them and silently breaks dispatch (422 "no workflow_dispatch trigger"). Use hyphens, commas, full stops, parentheses, or rewrite.
+2. **Em dashes: scoped to shipping content and YAML.** The user-level CLAUDE.md (`/Users/Music/.claude/CLAUDE.md`) is the canonical voice rule: em dashes are banned in anything written in Toby's voice and in shipping post copy, but fine in code comments, internal logs, technical docs, regex character classes, and quoted third-party material. **Project addition:** `.yml`/`.yaml` files also strip them, because GitHub's Go YAML parser silently rejects em dashes and breaks `workflow_dispatch` (422 "no workflow_dispatch trigger").
+
+   **In scope to strip:**
+   - All `.yml`/`.yaml`.
+   - All `.j2` templates (they emit shipping copy).
+   - Python string literals that ship as user-facing text: title/caption/subtitle constants in `src/content/*.py`, list-pack content, prompt example text the model is asked to mirror.
+
+   **Out of scope (keep as-is):**
+   - Code comments, docstrings.
+   - Internal logs (`print` / `_log` / `brain.append_log`).
+   - Regex character classes that match separator characters.
+   - Quoted third-party material (e.g. archived Guardian copy in `data/ledgers/news_posts.jsonl`).
+   - `.md` technical docs (`CLAUDE.md`, `SPEC_FACTJOT_SYSTEM.md`, `ROADMAP.md`, `SPEC_IMAGE_PIPELINE.md`, `gotchas.md`).
+
+   Use hyphens, commas, full stops, parentheses, or rewrite when stripping.
 3. **British English** throughout copy, captions, comments.
 4. **Image-pipeline changes require plan mode.** Any change to `image_sourcer.py`, `image_fetcher.py`, manual carousel rendering, provider order, or candidate scoring begins in plan mode. Plan must list files touched, functions touched, expected behaviour, acceptance tests, rollback path. See `SPEC_IMAGE_PIPELINE.md`.
 5. **No empty image boxes.** A carousel slide either shows a real image or uses the intentional typography-only layout. Never a blank rectangle, near-invisible placeholder, or trust-the-renderer empty string. Verify in rendered output, not in unit tests.
