@@ -26,7 +26,7 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Outer wrapper — positions the print on the frame */
+  /* Outer wrapper, positions the print on the frame */
   .insert {
     position: absolute;
     left: {{ x }}px;
@@ -34,7 +34,7 @@
     width: {{ frame_w }}px;
   }
 
-  /* The print frame itself — ivory border like a developed photograph */
+  /* The print frame itself, ivory border like a developed photograph */
   .print {
     position: relative;
     background: var(--off-white);
@@ -45,7 +45,7 @@
       0  20px 48px rgba(0,0,0,0.25);
   }
 
-  /* Brand red left accent line — grounds it in the factjot visual language */
+  /* Brand red left accent line, grounds it in the factjot visual language */
   .accent {
     position: absolute;
     left: 0;
@@ -64,7 +64,7 @@
     filter: saturate(0.80) contrast(1.05) brightness(0.97);
   }
 
-  /* Film grain overlay — very subtle, reads as scanned archival material */
+  /* Film grain overlay, very subtle, reads as scanned archival material */
   .grain {
     position: absolute;
     inset: {{ border }}px {{ border }}px {{ caption_pad }}px {{ border }}px;
@@ -75,7 +75,7 @@
     opacity: 0.55;
   }
 
-  /* Vignette on the photo edges — draws eye to centre */
+  /* Vignette on the photo edges, draws eye to centre */
   .vignette {
     position: absolute;
     inset: {{ border }}px {{ border }}px {{ caption_pad }}px {{ border }}px;
@@ -87,7 +87,7 @@
     pointer-events: none;
   }
 
-  /* Caption below the image — entity name, monospace, muted */
+  /* Caption below the image: entity name, monospace, muted */
   .caption {
     font-family: "JetBrains Mono", ui-monospace, monospace;
     font-weight: 700;

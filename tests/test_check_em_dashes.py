@@ -116,3 +116,51 @@ def test_default_root_is_current_dir(tmp_path):
     )
     assert res.returncode != 0
     assert "bad.yml" in (res.stdout + res.stderr)
+
+
+def test_module_docstring_em_dash_in_content_module_passes(tmp_path):
+    # An em-dash inside a module-level docstring is allowed.
+    content_dir = tmp_path / "src" / "content"
+    content_dir.mkdir(parents=True)
+    (content_dir / "themes.py").write_text(
+        '"""Theme module — describes themes for lists."""\n'
+        "from __future__ import annotations\n"
+        "THEMES = []\n"
+    )
+    rc, _ = _run([str(tmp_path)])
+    assert rc == 0
+
+
+def test_function_docstring_em_dash_in_content_module_passes(tmp_path):
+    # An em-dash inside a function docstring is allowed.
+    content_dir = tmp_path / "src" / "content"
+    content_dir.mkdir(parents=True)
+    (content_dir / "polish.py").write_text(
+        '"""Polish module."""\n'
+        "from __future__ import annotations\n"
+        "\n"
+        "def polish(text: str) -> str:\n"
+        '    """Polish text — adjusts tone and phrasing.\n'
+        "\n"
+        "    Falls back to the original on error.\n"
+        '    """\n'
+        "    return text\n"
+    )
+    rc, _ = _run([str(tmp_path)])
+    assert rc == 0
+
+
+def test_multiline_string_assigned_to_variable_still_flagged(tmp_path):
+    # A triple-quoted string assigned to a variable is shipping content,
+    # not a docstring, so an em-dash inside it must still be flagged.
+    content_dir = tmp_path / "src" / "content"
+    content_dir.mkdir(parents=True)
+    (content_dir / "copy.py").write_text(
+        '"""Module docstring (no em-dash here)."""\n'
+        "from __future__ import annotations\n"
+        "\n"
+        'TITLE = """Five things — and more"""\n'
+    )
+    rc, out = _run([str(tmp_path)])
+    assert rc != 0
+    assert "copy.py" in out

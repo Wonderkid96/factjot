@@ -11,6 +11,7 @@ In scope:
 
 Out of scope (allowed):
 - Code comments anywhere (lines beginning with '#' after strip)
+- Python docstrings (module, class, or function level)
 - Python files outside src/content/
 - Regex character classes like [-...em-dash...]
 - .md technical docs
@@ -96,14 +97,152 @@ def _scan_blanket_file(path: Path) -> list[tuple[int, str]]:
     return hits
 
 
+def _docstring_mask(lines: list[str]) -> list[bool]:
+    """Return per-line booleans: True if the line is part of a docstring.
+
+    A docstring is a triple-quoted string that is the first statement in a
+    module, class, or function. We track this with a small state machine:
+
+    - "expects_docstring" starts True (module top), is set True after a
+      `def`/`class` header line, and stays True past blank lines and the
+      `def`/`class` continuation until a non-blank line is seen.
+    - When a line that opens a triple quote arrives while expecting a
+      docstring, the line (and any continuation lines until the closing
+      triple quote) is marked as docstring.
+    - Any other content (imports, code, assignments) sets
+      "expects_docstring" to False until the next def/class header.
+
+    Triple-quoted strings outside this expectation (e.g. assigned to a
+    variable like `X = ...`) are NOT marked, so an em-dash inside them
+    still trips the check.
+    """
+    mask = [False] * len(lines)
+    expects_docstring = True
+    in_docstring = False
+    docstring_quote = ""  # "\"\"\"" or "'''"
+    pending_def_continuation = False  # True while a def/class signature spans lines
+
+    def _strip_inline_comment(s: str) -> str:
+        # Crude: drop everything from a `#` not inside a string. Good enough
+        # for the leading-statement detection we use this on.
+        out_chars: list[str] = []
+        in_s = False
+        quote = ""
+        i = 0
+        while i < len(s):
+            ch = s[i]
+            if not in_s:
+                if ch == "#":
+                    break
+                if ch in ('"', "'"):
+                    in_s = True
+                    quote = ch
+                out_chars.append(ch)
+            else:
+                out_chars.append(ch)
+                if ch == "\\":
+                    if i + 1 < len(s):
+                        out_chars.append(s[i + 1])
+                        i += 2
+                        continue
+                elif ch == quote:
+                    in_s = False
+                    quote = ""
+            i += 1
+        return "".join(out_chars)
+
+    for idx, raw in enumerate(lines):
+        line = raw
+
+        if in_docstring:
+            mask[idx] = True
+            if docstring_quote in line:
+                # The closing triple appears on this line; docstring ends here.
+                in_docstring = False
+                docstring_quote = ""
+                expects_docstring = False
+            continue
+
+        stripped = line.strip()
+
+        # Skip blank lines: they don't change state (a docstring may follow
+        # a blank line after a def/class header).
+        if stripped == "":
+            continue
+
+        # Continuation of a multi-line def/class signature: the docstring
+        # can appear after the closing parenthesis line.
+        if pending_def_continuation:
+            # Heuristic: signature ends when we see a line ending with ":".
+            no_comment = _strip_inline_comment(stripped).rstrip()
+            if no_comment.endswith(":"):
+                pending_def_continuation = False
+                expects_docstring = True
+            # Either way, this line itself is NOT a docstring.
+            continue
+
+        # Detect a new def/class header.
+        no_comment = _strip_inline_comment(stripped)
+        is_def_or_class = (
+            no_comment.startswith("def ")
+            or no_comment.startswith("class ")
+            or no_comment.startswith("async def ")
+        )
+        if is_def_or_class:
+            if no_comment.rstrip().endswith(":"):
+                expects_docstring = True
+            else:
+                # Multi-line signature; wait for the closing colon.
+                pending_def_continuation = True
+                expects_docstring = False
+            continue
+
+        # If we are expecting a docstring, see if this line opens one.
+        if expects_docstring:
+            quote = None
+            if stripped.startswith('"""'):
+                quote = '"""'
+            elif stripped.startswith("'''"):
+                quote = "'''"
+            if quote is not None:
+                mask[idx] = True
+                # Check if it also closes on the same line (single-line docstring).
+                # The opening quote is at the start; look for a closing quote
+                # AFTER the opener.
+                rest = stripped[len(quote):]
+                if quote in rest:
+                    # Single-line docstring: closes on same line.
+                    expects_docstring = False
+                else:
+                    in_docstring = True
+                    docstring_quote = quote
+                continue
+
+        # Any other non-blank line means we are no longer expecting a
+        # module-level / function-level docstring on the next line.
+        expects_docstring = False
+
+    return mask
+
+
 def _scan_content_python(path: Path) -> list[tuple[int, str]]:
-    """Return (line_no, line) for non-comment, non-regex-class hits."""
+    """Return (line_no, line) for in-scope hits in shipping string literals.
+
+    Skips:
+    - Lines that start with `#` (comments).
+    - Lines that are part of a docstring (module/class/function level).
+    - Em/en that only appears inside a regex character class.
+    """
     hits: list[tuple[int, str]] = []
     try:
         text = path.read_text(errors="replace")
     except OSError:
         return hits
-    for line_no, line in enumerate(text.splitlines(), 1):
+    raw_lines = text.splitlines()
+    doc_mask = _docstring_mask(raw_lines)
+    for line_no, line in enumerate(raw_lines, 1):
+        if doc_mask[line_no - 1]:
+            continue
         if _is_python_comment_line(line):
             continue
         if _line_has_inscope_dash(line):

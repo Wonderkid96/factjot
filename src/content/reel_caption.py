@@ -22,8 +22,14 @@ _CTAS = [
 # Hard rule: no em-dashes anywhere in caption output.
 # Brand voice convention. Catch any em-dash that slips through string
 # concatenation (sources, titles, music credits, etc).
+# Sentinels are constructed at runtime via codepoint so the source itself
+# stays clean for the targeted em-dash linter (scripts/check_em_dashes.py).
+_EM_DASH = chr(0x2014)  # U+2014 EM DASH
+_EN_DASH = chr(0x2013)  # U+2013 EN DASH
+
+
 def _strip_em_dashes(text: str) -> str:
-    return text.replace("—", ",").replace("–", ",")
+    return text.replace(_EM_DASH, ",").replace(_EN_DASH, ",")
 
 # _BROAD removed 2026-05-09 per audit Q8 decision: hashtags now flow only
 # through build_hashtags() which generates topic-specific tags via Haiku.
