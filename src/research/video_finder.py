@@ -286,7 +286,12 @@ _TOPIC_TERMS: dict[str, set[str]] = {
     "nature":   {"animal", "wildlife", "forest", "creature", "habitat", "tree", "bird", "insect", "plant", "nature", "leaf"},
     "space":    {"space", "star", "planet", "galaxy", "nebula", "orbit", "asteroid", "cosmos", "rocket", "moon", "solar"},
     "history":  {"historical", "vintage", "archive", "war", "ancient", "period", "soldier", "battle", "century", "old", "military"},
-    "science":  {"science", "laboratory", "experiment", "research", "microscope", "cell", "lab", "scientist", "data", "nuclear"},
+    "science":  {
+        "science", "laboratory", "experiment", "research", "microscope",
+        "cell", "lab", "scientist", "data", "nuclear", "submarine",
+        "underwater", "ocean", "sea", "pressure", "hull", "depth", "deep",
+        "engineering", "titanium",
+    },
     "earth":    {"earth", "landscape", "mountain", "volcano", "geology", "aerial", "terrain", "ground", "lava", "earthquake"},
     "tech":     {"technology", "computer", "digital", "code", "circuit", "server", "data", "screen", "robot", "internet"},
 }
@@ -443,6 +448,10 @@ def find_videos(
         "underwater", "ocean", "sea", "forest", "desert", "mountain",
         "river", "lake", "close", "close-up", "macro", "portrait", "wide",
         "slow", "motion", "minutes", "minute", "hours", "hour",
+        # Generic descriptors frequently mis-tagged as nouns
+        "stronger", "weaker", "tiny", "small", "large", "bigger", "smaller",
+        "even", "roughly", "about", "around", "almost", "instant", "instantly",
+        "carefully", "rigorous", "redundant", "exhaustive", "brutal", "brutally",
     })
 
     def _add_term(t: str) -> None:
@@ -480,19 +489,21 @@ def find_videos(
         for w in hint_words[:3]:
             _add_singular_plural(w)
 
-    # 2. Specific subject nouns from the claim in natural order (not length).
-    #    Length-first sorting promoted generic words like "underwater" above
-    #    actual subjects like "snakes". Keep claim order for better intent.
-    subject_nouns = [n for n in _claim_ents.nouns if len(n) > 3 and n.lower() not in _ENTITY_SKIP]
-    for noun in subject_nouns[:6]:
-        _add_term(noun)
-
-    # 3. Proper nouns — named people, places, events (e.g. "Phineas Gage",
+    # 2. Proper nouns — named people, places, events (e.g. "Phineas Gage",
     #    "Chernobyl"). Often the most findable on Wikimedia.
     if _claim_ents.proper_nouns:
         _add_term(" ".join(_claim_ents.proper_nouns[:2]))
         for pn in _claim_ents.proper_nouns[:3]:
             _add_term(pn)
+
+    # 3. Specific subject nouns from the claim in natural order (not length).
+    #    Proper nouns are added first so generic words cannot consume still cap.
+    subject_nouns = [
+        n for n in _claim_ents.nouns
+        if len(n) > 3 and n.lower() not in _ENTITY_SKIP
+    ]
+    for noun in subject_nouns[:6]:
+        _add_term(noun)
 
     # 4. Last resort: last word of image_hint (usually the subject noun,
     #    e.g. "fish" from "translucent deep sea fish"). Never the full hint.
@@ -574,6 +585,7 @@ def find_videos(
     all_beat_queries = generate_all_beat_queries(
         claim=claim, topic=topic, image_hint=image_hint, reel_script=reel_script,
     )
+    relevance_terms = _dynamic_relevance_terms(image_hint, claim, reel_script)
 
     beat_candidates: list[list[_Candidate]] = []
     for beat_idx in range(_NUM_BEATS):
@@ -587,6 +599,7 @@ def find_videos(
             used_paths=used_paths,
             blocked_stems=_blocked_stems,
             max_clips=_CANDIDATES_PER_BEAT,
+            relevance_terms=relevance_terms,
         )
         beat_candidates.append(candidates)
         for c in candidates:
@@ -784,6 +797,7 @@ def _collect_beat_candidates(
     used_paths: set[str],
     blocked_stems: set[str],
     max_clips: int = 3,
+    relevance_terms: set[str] | None = None,
 ) -> list[_Candidate]:
     """Try all queries for one beat and collect up to max_clips candidates.
 
@@ -812,7 +826,9 @@ def _collect_beat_candidates(
             continue
         # Hard topic relevance gate: reject clips whose source query shares
         # zero terms with the topic vocabulary. Prevents plants in ocean reels.
-        topic_vocab = _TOPIC_TERMS.get(topic, set())
+        topic_vocab = set(_TOPIC_TERMS.get(topic, set()))
+        if relevance_terms:
+            topic_vocab.update(relevance_terms)
         if topic_vocab:
             query_terms = set(query.lower().split())
             if not (query_terms & topic_vocab):
@@ -866,6 +882,25 @@ def _build_source_list(topic: str, *, allow_archival: bool = False) -> list[tupl
             sources.append(("archive.org", _archive_video_url))
 
     return sources
+
+
+def _dynamic_relevance_terms(image_hint: str, claim: str, reel_script: str) -> set[str]:
+    """Derive lightweight topical vocabulary from user/script text.
+
+    This keeps the off-topic gate strict against random clips, but stops it from
+    rejecting valid niche science/ocean/submarine queries simply because static
+    topic dictionaries are too narrow.
+    """
+    text = f"{image_hint} {claim} {reel_script}".lower()
+    tokens = re.findall(r"[a-z][a-z0-9-]{2,}", text)
+    out: set[str] = set()
+    for t in tokens:
+        if t in _STOP:
+            continue
+        if t.endswith("s") and len(t) > 4:
+            out.add(t[:-1])
+        out.add(t)
+    return out
 
 
 # ------------------------------------------------------------------ #

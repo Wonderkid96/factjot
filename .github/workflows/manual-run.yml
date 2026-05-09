@@ -62,7 +62,7 @@ on:
         type: string
         required: false
       dry_run:
-        description: "Dry run only (recommended true)"
+        description: "Dry run only (required true for carousel pipelines)"
         type: boolean
         default: true
         required: false
@@ -163,6 +163,13 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
+
+          if [ "$PIPELINE" != "reel" ] && [ "$DRY_RUN" != "true" ]; then
+            echo "Live carousel posting from Manual Prompt Run is disabled."
+            echo "Use dry_run=true for carousel previews, or use pipeline=reel for live runs."
+            exit 1
+          fi
+
           if [ "$PIPELINE" = "reel" ]; then
             if [ -z "${SCRIPT}" ] || [ -z "${TITLE}" ]; then
               echo "reel mode requires both script and title inputs."
