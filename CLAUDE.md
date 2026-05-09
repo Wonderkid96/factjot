@@ -47,6 +47,7 @@ These are environment-coded duplicates of the principles in `SPEC_FACTJOT_SYSTEM
 11. **No repost.** The autonomous agent reads `insta-brain/data/posted.jsonl` and applies a prompt-level duplicate guard rejecting topic, angle, and "same subject framed differently" overlaps. No image reuse across posts (`data/ledgers/used_images.jsonl`). No footage reuse across reels (`data/ledgers/used_footage_urls.jsonl`).
 12. **Fix the tool, not the symptom.** A wrong value in a data file means the process that wrote it is broken. Fix the process, then run it to clean up. Patching one bad value guarantees the next one will be wrong too.
 13. **Audio must be 48kHz.** Meta rejects 44.1kHz and 96kHz. ElevenLabs returns 44.1kHz by default; always resample before muxing.
+14. **Film/TV TMDB artwork is confidence-gated.** Reel TMDB poster/backdrop seeding is additive only. If title match confidence is weak (or year check fails when provided), reject the TMDB match and continue with normal footage fallback.
 
 ---
 

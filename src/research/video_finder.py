@@ -184,13 +184,35 @@ def _tmdb_entity_images(
             if kind == "movie":
                 entity = tmdb.get_movie(tmdb_id)
                 images = tmdb.get_movie_images(tmdb_id)
+                resolved_title = (entity.get("title") or entity.get("original_title") or "").strip()
+                resolved_year = (entity.get("release_date") or "")[:4]
                 urls = [TMDBClient.best_backdrop(entity, images), TMDBClient.best_poster(entity, images)]
             else:
                 entity = tmdb.get_tv_show(tmdb_id)
+                resolved_title = (entity.get("name") or entity.get("original_name") or "").strip()
+                resolved_year = (entity.get("first_air_date") or "")[:4]
                 backdrop = TMDBClient.backdrop_url(entity.get("backdrop_path"))
                 poster = TMDBClient.poster_url(entity.get("poster_path"))
                 urls = [backdrop, poster]
         except Exception:
+            continue
+
+        # Confidence gating: reject weak title matches so unrelated TMDB
+        # records never override core footage retrieval.
+        probe = re.sub(r"[^a-z0-9 ]+", " ", title.lower())
+        got = re.sub(r"[^a-z0-9 ]+", " ", resolved_title.lower())
+        probe_tokens = {t for t in probe.split() if len(t) > 2}
+        got_tokens = {t for t in got.split() if len(t) > 2}
+        overlap = (len(probe_tokens & got_tokens) / max(1, len(probe_tokens))) if probe_tokens else 0.0
+        year_ok = True
+        if year is not None and resolved_year.isdigit():
+            year_ok = int(resolved_year) == int(year)
+        if overlap < 0.6 or not year_ok:
+            print(
+                f"  [tmdb-entity] reject low-confidence match "
+                f"input={title!r} resolved={resolved_title!r} "
+                f"overlap={overlap:.2f} year_ok={year_ok}"
+            )
             continue
 
         for url in urls:

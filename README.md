@@ -39,6 +39,14 @@ Use workflow dispatch on `.github/workflows/manual-run.yml` when you want Claude
 - `list_evening` (18:00 BST)
 - `reel_night` (20:30 BST)
 
+### Reel media and typography guarantees
+
+- Film/TV reels can seed visuals from TMDB poster/backdrop artwork before stock fallback, but only when title matching passes confidence checks (token overlap and year checks when present).
+- List/reel script output should keep rankings and years as digits on-screen (`Top 5`, `1973`, `3 items`). TTS still normalises numbers to natural spoken words.
+- Reel headers (thumbnail, story, hook text) use the heavy display role (`Archivo Black 900`), while subtitles use the medium body role (`Space Grotesk` medium weight).
+- Reel HTML renderers now wait for `document.fonts.ready` before screenshots so font fallback drift is not silently introduced.
+- When `TTS_BACKEND=elevenlabs`, reel runs enforce `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE` from env and log the resolved voice id.
+
 ### Reel format for list ideas
 
 When static list posts are paused, convert list concepts into a 3-item reel script:
