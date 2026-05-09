@@ -516,9 +516,19 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
 
         print(f"Synthesising voice-over (voice={voice})...")
         tts_backend = os.getenv("TTS_BACKEND", "elevenlabs")
-        el_key = os.getenv("ELEVENLABS_API_KEY", "")
-        el_voice = os.getenv("ELEVENLABS_VOICE", "george")
-        tts_voice = el_voice if (tts_backend == "elevenlabs" and el_key) else voice
+        el_key = os.getenv("ELEVENLABS_API_KEY", "").strip()
+        el_voice = os.getenv("ELEVENLABS_VOICE", "").strip()
+        if tts_backend == "elevenlabs":
+            if not el_key:
+                print("ERROR: ELEVENLABS_API_KEY missing while TTS_BACKEND=elevenlabs")
+                return 4
+            if not el_voice:
+                print("ERROR: ELEVENLABS_VOICE missing while TTS_BACKEND=elevenlabs")
+                return 4
+            tts_voice = el_voice
+            print(f"  [tts] enforcing ElevenLabs voice from env: {tts_voice}")
+        else:
+            tts_voice = voice
         mp3_path, word_beats = synthesise(vo_script, out_dir, voice=tts_voice, backend=tts_backend, tone=fact.get("tone", "curious"))
         if not word_beats:
             print("ERROR: TTS returned no word timing. Check edge-tts is installed.")
@@ -624,6 +634,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             allow_archival=allow_archival,
             used_source_registry=global_footage_registry,
             blocked_filenames=blocked_footage_filenames,
+            reel_script=vo_body,
         )
         if not footage_clips:
             print("ERROR: could not find any footage. Pre-download safety pool clips with:")

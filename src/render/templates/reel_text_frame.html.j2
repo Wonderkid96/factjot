@@ -38,6 +38,12 @@
     font-weight: 700;
     font-style: normal;
   }
+  @font-face {
+    font-family: "Archivo Black";
+    src: url("{{ font_archivo_black }}") format("truetype");
+    font-weight: 900;
+    font-style: normal;
+  }
 
   :root {
     --paper:     #F4F1E9;
@@ -147,9 +153,7 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* Hook title · matches the thumbnail's headline area for cohesion     */
-  /* between cover and reel-start. Space Grotesk SemiBold for now;        */
-  /* may move to Archivo Black later when the burn-in pass lands.        */
+  /* Hook title · matches thumbnail/story header role. */
   /* Anchored to the 4:5 grid window safe area (y=285..1635).             */
   /* ------------------------------------------------------------------ */
   .hook {
@@ -159,8 +163,8 @@
     right: 72px;
     transform: translateY(-50%);
     text-align: left;
-    font-family: "Space Grotesk", system-ui, sans-serif;
-    font-weight: 600;
+    font-family: "Archivo Black", "Inter", system-ui, sans-serif;
+    font-weight: 900;
     font-size: {{ hook_size }}px;
     line-height: 1.02;
     letter-spacing: -0.018em;
@@ -168,11 +172,11 @@
     text-wrap: balance;
     text-shadow: 3px 3px 0 rgba(0,0,0,0.55);
   }
-  .hook em { font-style: normal; font-weight: 600; color: inherit; }
-  .hook em.accent { color: var(--accent); font-weight: 600; }
+  .hook em { font-style: normal; font-weight: 900; color: inherit; }
+  .hook em.accent { color: var(--accent); font-weight: 900; }
 
   /* ------------------------------------------------------------------ */
-  /* Kinetic subtitles · Space Grotesk SemiBold · top-left anchored      */
+  /* Kinetic subtitles · Space Grotesk Medium · top-left anchored         */
   /* First word always appears at the same position; new words extend     */
   /* rightward; line-breaks grow downward. No positional reflow.         */
   /* ------------------------------------------------------------------ */
@@ -182,7 +186,7 @@
     left: 72px;
     right: 72px;
     font-family: "Space Grotesk", system-ui, sans-serif;
-    font-weight: 600;
+    font-weight: 500;
     font-size: {{ subtitle_size }}px;
     line-height: 1.20;
     letter-spacing: -0.010em;

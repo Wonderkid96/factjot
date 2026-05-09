@@ -30,6 +30,7 @@ from src.core.brand import (
     FONT_SERIF_REGULAR, FONT_SERIF_ITALIC,
     FONT_SANS_SEMIBOLD, FONT_SANS_MEDIUM,
     FONT_MONO_BOLD,
+    FONT_CAPTION_BLACK,
     REEL_W as _W, REEL_H as _H,
     assert_fonts_present,
 )
@@ -99,6 +100,7 @@ class ReelTextRenderer:
                     html = self._build_html(frame)
                     page = context.new_page()
                     page.set_content(html, wait_until="networkidle")
+                    page.evaluate("() => document.fonts.ready")
                     page.screenshot(
                         path=str(frame.out_path),
                         omit_background=True,  # transparent PNG
@@ -126,6 +128,7 @@ class ReelTextRenderer:
             font_sans_semibold=FONT_SANS_SEMIBOLD.as_uri(),
             font_sans_medium=FONT_SANS_MEDIUM.as_uri(),
             font_mono_bold=FONT_MONO_BOLD.as_uri(),
+            font_archivo_black=FONT_CAPTION_BLACK.as_uri(),
         )
 
     # ------------------------------------------------------------------ #

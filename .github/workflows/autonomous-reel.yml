@@ -1,11 +1,12 @@
 name: Autonomous Post (factjot agent)
 
-# Reels-only schedule for now, plus manual dispatch. Static carousel slots
-# are paused until the carousel pipeline hardening pass is complete.
-# Each active slot is locked to one reel mode:
+# Mixed daily schedule with fixed format slots:
 #
-#   reel_morning  09:00 BST  evergreen reel
-#   reel_evening  18:00 BST  evergreen reel
+#   reel_morning   09:00 BST  evergreen reel
+#   list_midday    12:30 BST  list carousel
+#   reel_afternoon 15:30 BST  evergreen reel
+#   list_evening   18:00 BST  list carousel
+#   reel_night     20:30 BST  evergreen reel
 #
 # Crons are UTC and tracked to BST (summer). When UK clocks fall back to
 # GMT in October, the posts will fire at the same UK clock time still,
@@ -17,14 +18,17 @@ name: Autonomous Post (factjot agent)
 
 on:
   schedule:
-    - cron: "0 8 * * *"     # 08:00 UTC = 09:00 BST -> reel_morning
-    - cron: "0 17 * * *"    # 17:00 UTC = 18:00 BST -> reel_evening
+    - cron: "0 8 * * *"      # 08:00 UTC = 09:00 BST -> reel_morning
+    - cron: "30 11 * * *"    # 11:30 UTC = 12:30 BST -> list_midday
+    - cron: "30 14 * * *"    # 14:30 UTC = 15:30 BST -> reel_afternoon
+    - cron: "0 17 * * *"     # 17:00 UTC = 18:00 BST -> list_evening
+    - cron: "30 19 * * *"    # 19:30 UTC = 20:30 BST -> reel_night
   workflow_dispatch:
     inputs:
       post_mode:
         description: "Post mode"
         type: choice
-        options: [reel_morning, reel_evening]
+        options: [reel_morning, list_midday, reel_afternoon, list_evening, reel_night]
         default: reel_morning
         required: true
       dry_run:
@@ -56,8 +60,11 @@ jobs:
             MODE="$INPUT_MODE"
           else
             case "$CRON" in
-              "0 8 * * *")    MODE="reel_morning" ;;
-              "0 17 * * *")   MODE="reel_evening" ;;
+              "0 8 * * *")      MODE="reel_morning" ;;
+              "30 11 * * *")    MODE="list_midday" ;;
+              "30 14 * * *")    MODE="reel_afternoon" ;;
+              "0 17 * * *")     MODE="list_evening" ;;
+              "30 19 * * *")    MODE="reel_night" ;;
               *)              MODE="reel_morning" ;;
             esac
           fi

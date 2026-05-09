@@ -84,10 +84,11 @@ Fully automated Instagram account (@factjot). Scheduled evergreen slots run via 
 
 | Mode | BST | UTC cron | Format |
 |---|---|---|---|
-| `reel_morning` | 09:00 | `0 8 * * *`   | Evergreen reel |
-| `list`         | 15:30 | `30 14 * * *` | List carousel |
-| `reel_evening` | 18:00 | `0 17 * * *`  | Evergreen reel |
-| `fact`         | 20:30 | `30 19 * * *` | Fact carousel (single subject) |
+| `reel_morning`   | 09:00 | `0 8 * * *`    | Evergreen reel |
+| `list_midday`    | 12:30 | `30 11 * * *`  | List carousel |
+| `reel_afternoon` | 15:30 | `30 14 * * *`  | Evergreen reel |
+| `list_evening`   | 18:00 | `0 17 * * *`   | List carousel |
+| `reel_night`     | 20:30 | `30 19 * * *`  | Evergreen reel |
 
 Breaking news is unscheduled: `news-watcher.yml` polls Guardian RSS and only triggers `pipelines/news/ship_news_breaking.py` when a qualifying story is found.
 
@@ -195,7 +196,7 @@ Image scoring under `readable_list` runs `ImageSourcer(relax=True)`: R3 score fl
 
 - **Pipelines:** `pipelines/{reel,manual,news,carousel,list,shared}/`. Only `reel/make_reel.py` and `carousel/ship_carousel_post.py` are intentional production entry points (autonomous workflow calls them via the agent's `run_reel` / `run_carousel` tools). Other pipeline files are legacy; see `docs/PIPELINE_OPERATIONS_REFERENCE.md` §2.
 - **Shared modules:** `src/{core,research,content,verification,render,publish,utils}/`. Responsibilities table in `SPEC_FACTJOT_SYSTEM.md` §7.
-- **Workflows:** `.github/workflows/`. Active posting workflows are `autonomous-reel.yml` (scheduled reels/list/fact), `news-watcher.yml` (breaking news watcher-triggered posts), and `manual-run.yml` (workflow_dispatch prompt-driven manual reel/carousel runs). `test.yml` runs PR pytest, `pages.yml` builds docs.
+- **Workflows:** `.github/workflows/`. Active posting workflows are `autonomous-reel.yml` (scheduled reel/list/reel/list/reel sequence), `news-watcher.yml` (breaking news watcher-triggered posts), and `manual-run.yml` (workflow_dispatch prompt-driven manual reel/carousel runs). `test.yml` runs PR pytest, `pages.yml` builds docs.
 - **State (git-tracked):** `insta-brain/data/posted.jsonl`, `insta-brain/data/reels.jsonl`, `data/ledgers/used_images.jsonl`, `data/ledgers/used_footage_urls.jsonl`, `data/ledgers/api_usage_costs.jsonl`, `data/ledgers/youtube_uploads.jsonl`, `data/ledgers/reel_performance.jsonl` (mutable). Invariant each ledger guards: `SPEC_FACTJOT_SYSTEM.md` §11.2.
 - **Brain:** `insta-brain/`. `gotchas.md` is mandatory reading.
 - **Per-run output:** `output/<pipeline>/...` (gitignored, local only).

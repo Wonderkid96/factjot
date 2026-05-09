@@ -80,7 +80,7 @@ def render_story(
         font_serif_italic=FONT_SERIF_ITALIC.as_uri(),
         font_sans_semibold=FONT_SANS_SEMIBOLD.as_uri(),
         font_mono_bold=FONT_MONO_BOLD.as_uri(),
-        font_archivo_black=FONT_CAPTION_BLACK.as_uri() if FONT_CAPTION_BLACK.exists() else None,
+        font_archivo_black=FONT_CAPTION_BLACK.as_uri(),
     )
 
     with sync_playwright() as pw:
@@ -92,6 +92,7 @@ def render_story(
             )
             page = context.new_page()
             page.set_content(html, wait_until="networkidle")
+            page.evaluate("() => document.fonts.ready")
             page.screenshot(
                 path=str(out_path),
                 omit_background=False,

@@ -153,6 +153,7 @@ def assert_fonts_present() -> None:
         FONT_SERIF_REGULAR, FONT_SERIF_ITALIC,
         FONT_SANS_SEMIBOLD, FONT_SANS_MEDIUM,
         FONT_MONO_BOLD,
+        FONT_CAPTION_BLACK,
     ]
     missing = [str(f) for f in required if not f.exists()]
     if missing:

@@ -70,6 +70,153 @@ def _extract_hint_keywords(hint: str, max_words: int = 3) -> list[str]:
     return (proper + content)[:max_words]
 
 
+_SCREEN_MEDIA_TERMS = {
+    "film", "films", "movie", "movies", "cinema", "tv", "television",
+    "series", "show", "shows", "episode", "episodes",
+}
+
+
+def _looks_like_screen_media(image_hint: str, reel_script: str, claim: str) -> bool:
+    text = f"{image_hint} {reel_script} {claim}".lower()
+    return any(t in text for t in _SCREEN_MEDIA_TERMS)
+
+
+def _tmdb_title_candidates(image_hint: str, reel_script: str, claim: str) -> list[tuple[str, int | None]]:
+    """Extract likely film/TV title candidates from script text.
+
+    Preferred shape is `Title (YEAR)`. Falls back to quoted titles and proper-noun
+    pairs, in natural order.
+    """
+    out: list[tuple[str, int | None]] = []
+    seen: set[str] = set()
+
+    def _add(title: str, year: int | None) -> None:
+        t = re.sub(r"\s+", " ", title).strip(" .,:;!?\"'")
+        if len(t) < 3:
+            return
+        key = f"{t.lower()}|{year or ''}"
+        if key in seen:
+            return
+        seen.add(key)
+        out.append((t, year))
+
+    text = f"{reel_script} {claim}"
+    for m in re.finditer(r"([A-Z][A-Za-z0-9'’:-]*(?:\s+[A-Z][A-Za-z0-9'’:-]*){0,5})\s*\((19\d{2}|20\d{2})\)", text):
+        _add(m.group(1), int(m.group(2)))
+
+    for m in re.finditer(r'"([^"]{3,80})"', text):
+        _add(m.group(1), None)
+
+    if image_hint:
+        words = [w for w in image_hint.split() if w and w[0].isupper()]
+        if len(words) >= 2:
+            _add(" ".join(words[:3]), None)
+
+    return out[:8]
+
+
+def _download_image_file(url: str, out_path: Path, *, min_bytes: int = _MIN_BYTES_ARK) -> bool:
+    try:
+        r = requests.get(
+            url,
+            headers={"User-Agent": "factjot-bot/1.0 (tobyjohnsonemail@gmail.com)"},
+            stream=True,
+            timeout=30,
+        )
+        r.raise_for_status()
+        total = 0
+        with open(out_path, "wb") as f:
+            for chunk in r.iter_content(65536):
+                f.write(chunk)
+                total += len(chunk)
+                if total > _MAX_BYTES:
+                    break
+        if not out_path.exists():
+            return False
+        if out_path.stat().st_size < min_bytes:
+            out_path.unlink(missing_ok=True)
+            return False
+        if not _valid_image(out_path):
+            out_path.unlink(missing_ok=True)
+            return False
+        return True
+    except Exception:
+        out_path.unlink(missing_ok=True)
+        return False
+
+
+def _tmdb_entity_images(
+    *,
+    image_hint: str,
+    reel_script: str,
+    claim: str,
+    out_dir: Path,
+    used_source_urls: set[str] | None = None,
+    max_images: int = 2,
+) -> list[Path]:
+    """Fetch canonical poster/backdrop stills from TMDB for film/TV reels."""
+    if not _looks_like_screen_media(image_hint, reel_script, claim):
+        return []
+    try:
+        from src.research.tmdb_client import TMDBClient
+        tmdb = TMDBClient()
+    except Exception as exc:
+        print(f"  [tmdb-entity] unavailable: {exc}")
+        return []
+
+    results: list[Path] = []
+    for title, year in _tmdb_title_candidates(image_hint, reel_script, claim):
+        if len(results) >= max_images:
+            break
+        tmdb_id = None
+        kind = ""
+        try:
+            tmdb_id = tmdb.search_movie(title, year)
+            kind = "movie"
+            if tmdb_id is None:
+                tmdb_id = tmdb.search_tv(title, year)
+                kind = "tv"
+        except Exception:
+            tmdb_id = None
+        if tmdb_id is None:
+            continue
+        try:
+            if kind == "movie":
+                entity = tmdb.get_movie(tmdb_id)
+                images = tmdb.get_movie_images(tmdb_id)
+                urls = [TMDBClient.best_backdrop(entity, images), TMDBClient.best_poster(entity, images)]
+            else:
+                entity = tmdb.get_tv_show(tmdb_id)
+                backdrop = TMDBClient.backdrop_url(entity.get("backdrop_path"))
+                poster = TMDBClient.poster_url(entity.get("poster_path"))
+                urls = [backdrop, poster]
+        except Exception:
+            continue
+
+        for url in urls:
+            if len(results) >= max_images:
+                break
+            if not url:
+                continue
+            if used_source_urls and url in used_source_urls:
+                continue
+            ext = "png" if ".png" in url.lower().split("?")[0] else "jpg"
+            slug = hashlib.sha1(url.encode()).hexdigest()[:10]
+            out_path = out_dir / f"tmdb_entity_{slug}.{ext}"
+            if out_path.exists() and out_path.stat().st_size > _MIN_BYTES_ARK and _valid_image(out_path):
+                results.append(out_path)
+                if used_source_urls is not None:
+                    used_source_urls.add(url)
+                print(f"  [tmdb-entity] cached -> {out_path.name}")
+                continue
+            if _download_image_file(url, out_path):
+                results.append(out_path)
+                if used_source_urls is not None:
+                    used_source_urls.add(url)
+                print(f"  [tmdb-entity] downloaded -> {out_path.name} ({title})")
+    return results
+
+
 def _topic_allows_archival(topic: str, allow_archival: bool) -> bool:
     """Return True if archival sources and their lower quality floor should apply."""
     return allow_archival or topic in _ARCHIVE_ELIGIBLE_TOPICS
@@ -336,6 +483,26 @@ def find_videos(
     _entity_video_count = 0  # cap entity videos so beat retrieval keeps diversity
     _ENTITY_STILL_CAP = 2
     _ENTITY_VIDEO_CAP = max(2, min(3, count // 2))
+
+    # Film/TV reels: seed entity tier with canonical TMDB stills before generic
+    # stock retrieval so visuals match named titles in the script.
+    tmdb_seed = _tmdb_entity_images(
+        image_hint=image_hint,
+        reel_script=reel_script,
+        claim=claim,
+        out_dir=out_dir,
+        used_source_urls=used_source_urls,
+        max_images=_ENTITY_STILL_CAP,
+    )
+    for p in tmdb_seed:
+        if len(clips) >= count or _entity_still_count >= _ENTITY_STILL_CAP:
+            break
+        if str(p) in used_paths:
+            continue
+        _push_clip(p, 1.0)
+        _entity_still_count += 1
+        used_paths.add(str(p))
+        print(f"  [video] TMDB-0   ✓ {p.name} (still)")
 
     for _et in _entity_terms:
         if len(clips) >= count:

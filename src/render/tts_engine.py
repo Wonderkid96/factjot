@@ -653,7 +653,9 @@ _EL_VOICES: dict[str, str] = {
 def _el_resolve_voice(voice: str) -> str:
     """Return a voice_id for a name shorthand or pass through a raw id."""
     low = voice.lower().strip()
-    return _EL_VOICES.get(low, voice)
+    resolved = _EL_VOICES.get(low, voice)
+    print(f"  [tts/elevenlabs] voice={voice} resolved={resolved}")
+    return resolved
 
 
 def _el_chars_to_words(

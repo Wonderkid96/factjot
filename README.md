@@ -10,7 +10,7 @@ Automated Instagram carousel pipeline. One daily post under [@factjot](https://i
 >
 > - **Production scheduler is GitHub Actions, not local launchd.** The launchd plist install steps, `scripts/publish_due.py`, `scripts/review_queue.py`, and the queue-based "approve then publish" flow described in this README are **legacy** unless explicitly revived. Autonomous posting now happens entirely from GitHub Actions runners. See `CLAUDE.md` "Daily automation" and `SPEC_FACTJOT_SYSTEM.md` section 6 for the current flow.
 > - **Pipeline entrypoints live under `pipelines/<name>/`, not `scripts/`.** Most rows in this README's "Scripts" table point at `scripts/<name>.py` paths that no longer exist there. The current entrypoints are `pipelines/carousel/ship_carousel_post.py`, `pipelines/reel/make_reel.py`, plus shared operational scripts in `pipelines/shared/`.
-> - **Manual / editorial carousels are gated, autonomous pipelines are not.** Approval today means a human inspecting rendered output before publish, only for editorial content. Scheduled autonomous pipelines are reels, fact carousel, and list carousel; breaking news posts are watcher-triggered, not scheduled. The old queue/approve-and-ship rhythm is legacy.
+> - **Manual / editorial carousels are gated, autonomous pipelines are not.** Approval today means a human inspecting rendered output before publish, only for editorial content. Scheduled autonomous slots currently run reel/list/reel/list/reel; breaking news posts are watcher-triggered, not scheduled. The old queue/approve-and-ship rhythm is legacy.
 > - **Higher authority on current architecture:** `SPEC_FACTJOT_SYSTEM.md` (system constitution) and `CLAUDE.md` (project operating rules). On any conflict, prefer the spec, then `CLAUDE.md`, then this README.
 > - **Image provider order and manual carousel image behaviour are owned by `SPEC_IMAGE_PIPELINE.md`.** The "Image source coverage" list further down may be stale and is being deferred to the spec.
 > - **`pipelines/news/ship_news_post.py` currently has dual responsibility** as the breaking-news implementation and the renderer used by the manual carousel pipeline. The canonical workflow entrypoint is `pipelines/news/ship_news_breaking.py` (wrapper). This remains a known architecture risk to untangle deliberately, not in passing.
@@ -28,6 +28,16 @@ Use workflow dispatch on `.github/workflows/manual-run.yml` when you want Claude
 - Keep `dry_run=true` for previews; set `dry_run=false` only when ready to publish.
 - For local list validation speed, use `--smoke-mode` with dry-run (`pipelines/carousel/ship_carousel_post.py --type list --brief "..." --dry-run --smoke-mode`).
 - Rendered artefacts are uploaded as a workflow artifact and written under `output/{manual,news,reel}/...`.
+
+### Current autonomous daily schedule
+
+`autonomous-reel.yml` runs five fixed slots per day:
+
+- `reel_morning` (09:00 BST)
+- `list_midday` (12:30 BST)
+- `reel_afternoon` (15:30 BST)
+- `list_evening` (18:00 BST)
+- `reel_night` (20:30 BST)
 
 ### Reel format for list ideas
 

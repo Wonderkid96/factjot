@@ -12,11 +12,14 @@ calls a small set of typed tools:
 The pipelines themselves (make_reel.py, ship_carousel_post.py) run with
 full repo access in the host process. Only the model's view is restricted.
 
-Two post modes via --post-mode (reels-only pause mode). Each mode exposes
+Five post modes via --post-mode (fixed daily sequence). Each mode exposes
 ONLY the tools it needs and a sharpened, format-locked prompt:
 
-  reel_morning  - 09:00 BST  evergreen reel (run_reel only)
-  reel_evening  - 18:00 BST  evergreen reel (run_reel only)
+  reel_morning   - 09:00 BST  evergreen reel (run_reel only)
+  list_midday    - 12:30 BST  list carousel (run_carousel only)
+  reel_afternoon - 15:30 BST  evergreen reel (run_reel only)
+  list_evening   - 18:00 BST  list carousel (run_carousel only)
+  reel_night     - 20:30 BST  evergreen reel (run_reel only)
 
 Better to skip a slot than ship a weak post. Each mode must call `skip`
 with a one-line reason if nothing clears the quality gate.
@@ -73,18 +76,30 @@ SYSTEM = textwrap.dedent("""\
     Be concise. British English. No em dashes.
 """)
 
-VALID_MODES = ("reel_morning", "reel_evening")
+VALID_MODES = (
+    "reel_morning",
+    "list_midday",
+    "reel_afternoon",
+    "list_evening",
+    "reel_night",
+)
 
 # Which carousel writer prompt does this mode want?
 # (run_reel modes are absent here.)
-MODE_FORMAT_TYPE: dict[str, str] = {}
+MODE_FORMAT_TYPE: dict[str, str] = {
+    "list_midday": "list",
+    "list_evening": "list",
+}
 
 # Which tools is each mode allowed to call?
 # Locked at the loadout level: tools not listed here are not even shown
 # to the model. list_unposted_topics + skip are universal.
 MODE_TOOLS: dict[str, tuple[str, ...]] = {
     "reel_morning": ("list_unposted_topics", "list_story_candidates", "run_reel", "skip"),
-    "reel_evening": ("list_unposted_topics", "list_story_candidates", "run_reel", "skip"),
+    "reel_afternoon": ("list_unposted_topics", "list_story_candidates", "run_reel", "skip"),
+    "reel_night": ("list_unposted_topics", "list_story_candidates", "run_reel", "skip"),
+    "list_midday": ("list_unposted_topics", "list_story_candidates", "run_carousel", "skip"),
+    "list_evening": ("list_unposted_topics", "list_story_candidates", "run_carousel", "skip"),
 }
 
 
@@ -703,6 +718,8 @@ REEL_PROMPT = textwrap.dedent("""\
     Constraints:
     - 3 items only (not 5). Reel pacing breaks above this.
     - Each item must be a specific proper noun, date, number, or place.
+    - Use numeric digits for rankings/dates in script and title (Top 5, 1973, 3 items).
+      Do not spell numbers as words unless they are part of a proper name.
     - No ranking fluff ("number three will shock you").
     - No generic categories as items.
     - The hook must still carry the weird bit immediately.
@@ -1019,7 +1036,10 @@ _CAROUSEL_RULE_BINDINGS = dict(
 
 MODE_PROMPTS: dict[str, str] = {
     "reel_morning": REEL_PROMPT,
-    "reel_evening": REEL_PROMPT,
+    "reel_afternoon": REEL_PROMPT,
+    "reel_night": REEL_PROMPT,
+    "list_midday": LIST_PROMPT.format(**_CAROUSEL_RULE_BINDINGS),
+    "list_evening": LIST_PROMPT.format(**_CAROUSEL_RULE_BINDINGS),
 }
 
 
@@ -1036,8 +1056,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--post-mode",
         choices=VALID_MODES,
-        default=os.getenv("POST_MODE", "morning"),
-        help="Posting mode (also reads POST_MODE env). morning/lunch/evening.",
+        default=os.getenv("POST_MODE", "reel_morning"),
+        help="Posting mode (also reads POST_MODE env).",
     )
     args = parser.parse_args(argv)
     mode = args.post_mode
