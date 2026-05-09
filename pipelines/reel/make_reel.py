@@ -228,7 +228,7 @@ def _pick_music(topic: str, tone: str = "curious") -> Path | None:
     for c in candidates:
         if c.exists():
             return c
-    tracks = list(music_dir.glob("*.mp3"))
+    tracks = list(music_dir.glob("*.mp3")) + list(music_dir.glob("*.webm"))
     return tracks[0] if tracks else None
 
 

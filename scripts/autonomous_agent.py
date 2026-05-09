@@ -1098,9 +1098,10 @@ def main(argv: list[str] | None = None) -> int:
     total_output         = 0
     total_cache_creation = 0
     total_cache_read     = 0
-    final_status = "unknown"
-    exit_code    = 0
-    skipped      = False
+    final_status         = "unknown"
+    exit_code            = 0
+    skipped              = False
+    last_publish_failure = ""
 
     try:
         for turn in range(MAX_TURNS):
@@ -1150,6 +1151,11 @@ def main(argv: list[str] | None = None) -> int:
                     skipped = True
                     break
                 output = execute_tool(block.name, block.input, dry_run, mode)
+                if block.name in ("run_reel", "run_carousel"):
+                    first_line = output.split("\n", 1)[0]
+                    if first_line.startswith("FAILURE_KIND:"):
+                        kind = first_line.split("FAILURE_KIND:", 1)[1].strip()
+                        last_publish_failure = "" if kind == "none" else kind
                 tool_results.append({
                     "type":        "tool_result",
                     "tool_use_id": block.id,
@@ -1163,6 +1169,14 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(f"[autonomous-agent] hit max turns ({MAX_TURNS}).", flush=True)
             final_status = "max_turns"
+
+        if last_publish_failure and not skipped:
+            exit_code    = 1
+            final_status = f"publish_failed:{last_publish_failure}"
+            print(
+                f"[autonomous-agent] last publish tool failed: {last_publish_failure}",
+                flush=True,
+            )
     finally:
         _log_cost(
             mode, dry_run,

@@ -337,13 +337,18 @@ def build_story_candidates(limit_per_source: int = 20) -> list[Candidate]:
 
 
 def ranked_candidates_for_mode(mode: str, top_n: int = 12) -> list[dict]:
-    """Return ranked candidates for autonomous mode."""
+    """Return ranked candidates for autonomous mode.
+
+    Prefix-matches mode names so any reel_* or list_* slot variant routes
+    to the right pool. Catches reel_afternoon, reel_night, list_midday,
+    list_evening, which previously fell through to the legacy fact branch.
+    """
     cands = build_story_candidates()
-    if mode in ("reel_morning", "reel_evening"):
+    if mode.startswith("reel_"):
         pool = [c for c in cands if c.suggested_format == "reel"]
-    elif mode == "list":
+    elif mode == "list" or mode.startswith("list_"):
         pool = [c for c in cands if c.suggested_format == "list"]
-    else:  # fact mode
+    else:
         pool = [c for c in cands if c.suggested_format in ("reel", "list")]
     return [asdict(c) for c in pool[:top_n]]
 

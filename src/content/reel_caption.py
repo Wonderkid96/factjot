@@ -25,8 +25,10 @@ _CTAS = [
 def _strip_em_dashes(text: str) -> str:
     return text.replace("—", ",").replace("–", ",")
 
-# Tier 1: broad reach - always included
-_BROAD = "#facts #didyouknow #learnontiktok #mindblown #interestingfacts"
+# _BROAD removed 2026-05-09 per audit Q8 decision: hashtags now flow only
+# through build_hashtags() which generates topic-specific tags via Haiku.
+# The other dead constants below (_TOPIC_TAGS, _DEFAULT_TOPIC, _BRAND_TAGS,
+# _STOP, _subject_hashtags) are unused but left for Phase B's ruff lint pass.
 
 # Tier 2: topic-specific
 _TOPIC_TAGS: dict[str, str] = {
