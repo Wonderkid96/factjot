@@ -1,5 +1,8 @@
 # factjot brain log
 
+- 2026-05-09 08:31 reel b14a87713b523b published (history, ig_media=18110433175677121)
+- 2026-05-09 08:27 reel BLOCKED early — duplicate claim: Five horror films changed cinema by weaponising fear in completely different way
+- 2026-05-09 08:10 reel dd520e3b9fa28e published (history, ig_media=18090512360339646)
 - 2026-05-08 19:57 token refreshed: new expiry ~59 days
 - 2026-05-08 17:41 reel 09a7b13b84476b published (space, ig_media=18139598359518316)
 - 2026-05-08 17:36 token refreshed: new expiry ~59 days
