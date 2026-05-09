@@ -1021,23 +1021,6 @@ def _validate_list_images(
 
         audit.append(slot_audit)
 
-    # No-empty-slides backstop for list mode:
-    # if strict validation leaves blanks, reuse an existing validated image
-    # rather than shipping typography-only content slides.
-    reusable_pool = [u for u in filtered if u]
-    if reusable_pool:
-        for slot, url in enumerate(filtered):
-            if url:
-                continue
-            replacement = reusable_pool[slot % len(reusable_pool)]
-            filtered[slot] = replacement
-            if slot < len(audit):
-                prev = audit[slot].get("outcome", "")
-                audit[slot]["outcome"] = (
-                    f"reused_after_{prev}" if prev else "reused_after_validation"
-                )
-                audit[slot]["dedupe_status"] = "reused_to_avoid_typography"
-
     return filtered, audit
 
 
