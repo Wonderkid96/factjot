@@ -333,7 +333,9 @@ def find_videos(
             _add_term(last_word)
 
     _entity_still_count = 0  # cap static images to avoid slideshow feel
-    _ENTITY_STILL_CAP = 2   # max stills; videos from entity tier are unlimited
+    _entity_video_count = 0  # cap entity videos so beat retrieval keeps diversity
+    _ENTITY_STILL_CAP = 2
+    _ENTITY_VIDEO_CAP = max(2, min(3, count // 2))
 
     for _et in _entity_terms:
         if len(clips) >= count:
@@ -352,20 +354,29 @@ def find_videos(
                 print(f"  [video] ENTITY-0  SKIP {ec.name} (still cap reached)")
                 continue
             # Long video: slice into multiple snippets to fill more slots.
+            if not is_still and _entity_video_count >= _ENTITY_VIDEO_CAP:
+                print(f"  [video] ENTITY-0  SKIP {ec.name} (video cap reached)")
+                continue
             if not is_still and len(clips) < count:
-                slots_needed = count - len(clips)
+                slots_needed = min(count - len(clips), _ENTITY_VIDEO_CAP - _entity_video_count)
+                if slots_needed <= 0:
+                    print(f"  [video] ENTITY-0  SKIP {ec.name} (video cap reached)")
+                    continue
                 expanded = _extract_snippets(ec, slots_needed, out_dir)
                 for seg in expanded:
                     if len(clips) >= count:
                         break
                     if str(seg) not in used_paths:
                         _push_clip(seg, 1.0)
+                        _entity_video_count += 1
                         used_paths.add(str(seg))
                         print(f"  [video] ENTITY-0  ✓ {seg.name} (video)")
             else:
                 _push_clip(ec, 1.0)
                 if is_still:
                     _entity_still_count += 1
+                else:
+                    _entity_video_count += 1
                 print(f"  [video] ENTITY-0  ✓ {ec.name} ({'still' if is_still else 'video'})")
 
     # ------------------------------------------------------------------ #
