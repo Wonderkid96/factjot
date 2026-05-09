@@ -12,13 +12,11 @@ calls a small set of typed tools:
 The pipelines themselves (make_reel.py, ship_carousel_post.py) run with
 full repo access in the host process. Only the model's view is restricted.
 
-Four post modes via --post-mode. Each mode exposes ONLY the tools it
-needs and a sharpened, format-locked prompt:
+Two post modes via --post-mode (reels-only pause mode). Each mode exposes
+ONLY the tools it needs and a sharpened, format-locked prompt:
 
   reel_morning  - 09:00 BST  evergreen reel (run_reel only)
-  list          - 15:30 BST  list carousel (run_carousel only)
   reel_evening  - 18:00 BST  evergreen reel (run_reel only)
-  fact          - 20:30 BST  fact carousel, single subject (run_carousel only)
 
 Better to skip a slot than ship a weak post. Each mode must call `skip`
 with a one-line reason if nothing clears the quality gate.
@@ -72,14 +70,11 @@ SYSTEM = textwrap.dedent("""\
     Be concise. British English. No em dashes.
 """)
 
-VALID_MODES = ("reel_morning", "list", "reel_evening", "fact")
+VALID_MODES = ("reel_morning", "reel_evening")
 
 # Which carousel writer prompt does this mode want?
 # (run_reel modes are absent here.)
-MODE_FORMAT_TYPE: dict[str, str] = {
-    "list": "list",
-    "fact": "fact",
-}
+MODE_FORMAT_TYPE: dict[str, str] = {}
 
 # Which tools is each mode allowed to call?
 # Locked at the loadout level: tools not listed here are not even shown
@@ -87,8 +82,6 @@ MODE_FORMAT_TYPE: dict[str, str] = {
 MODE_TOOLS: dict[str, tuple[str, ...]] = {
     "reel_morning": ("list_unposted_topics", "list_story_candidates", "run_reel", "skip"),
     "reel_evening": ("list_unposted_topics", "list_story_candidates", "run_reel", "skip"),
-    "list":         ("list_unposted_topics", "list_story_candidates", "run_carousel", "skip"),
-    "fact":         ("list_unposted_topics", "list_story_candidates", "run_carousel", "skip"),
 }
 
 
@@ -994,8 +987,6 @@ _CAROUSEL_RULE_BINDINGS = dict(
 MODE_PROMPTS: dict[str, str] = {
     "reel_morning": REEL_PROMPT,
     "reel_evening": REEL_PROMPT,
-    "list":         LIST_PROMPT.format(**_CAROUSEL_RULE_BINDINGS),
-    "fact":         FACT_PROMPT.format(**_CAROUSEL_RULE_BINDINGS),
 }
 
 

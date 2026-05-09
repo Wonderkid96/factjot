@@ -1,8 +1,6 @@
 name: Breaking News Watcher (Guardian)
 
 on:
-  schedule:
-    - cron: "*/15 * * * *"
   workflow_dispatch:
     inputs:
       dry_run:
