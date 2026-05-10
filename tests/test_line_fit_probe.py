@@ -1,4 +1,3 @@
-import pytest
 from src.render.line_fit_probe import cap_for_slide_kind
 
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # scripts/setup_dev.sh
-# Idempotent local dev setup: install pre-commit, register the hook, run once.
-# Canonical Python is required (CLAUDE.md hard rule). Bare python3 will not
-# have the right packages. Ruff lands in Task B.2.3.
+# Idempotent local dev setup: install pre-commit + ruff, register the hook,
+# run once. Canonical Python is required (CLAUDE.md hard rule). Bare python3
+# will not have the right packages.
 set -euo pipefail
 
 PY="/Library/Frameworks/Python.framework/Versions/Current/bin/python3"
@@ -46,8 +46,8 @@ if hooks_path="$(git config --local --get core.hooksPath || true)"; [[ -n "${hoo
   fi
 fi
 
-echo "[setup_dev] Installing pre-commit..."
-"$PY" -m pip install --user --upgrade pre-commit
+echo "[setup_dev] Installing pre-commit and ruff..."
+"$PY" -m pip install --user --upgrade pre-commit ruff
 
 echo "[setup_dev] Registering git hook..."
 "$PY" -m pre_commit install

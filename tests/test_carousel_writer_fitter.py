@@ -2,7 +2,6 @@ import pytest
 from src.content.carousel_writer import (
     EditorialSlide,
     SlideFit,
-    write_editorial_slides,
     fit_slide_lines,
     FactPreservationError,
     LineFitError,

@@ -1,6 +1,5 @@
 # .pre-commit-config.yaml
 # Local-only enforcement. CI uses its own pytest + ruff steps.
-# The ruff hook lands in Task B.2.3 alongside the ruff config.
 repos:
   - repo: local
     hooks:
@@ -10,3 +9,9 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+      - id: ruff-lint
+        name: Ruff lint
+        entry: /Library/Frameworks/Python.framework/Versions/Current/bin/python3 -m ruff check
+        language: system
+        types: [python]
+        pass_filenames: true

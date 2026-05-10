@@ -14,7 +14,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import base64
 import json
 import re
 import shutil
@@ -29,7 +28,6 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 import os
-from anthropic import Anthropic
 from playwright.sync_api import sync_playwright
 
 from pipelines.news.ship_news_post import (
@@ -42,7 +40,7 @@ from src.content.hashtag_builder import build_hashtags
 from src.publish.image_host import make_image_host
 from src.publish.instagram_publisher import InstagramGraphPublisher
 from src.brain import brain, DuplicatePostError, claim_hash
-from src.research.image_sourcer import CoverImageFailed, ImageIntent, ImageSourcer
+from src.research.image_sourcer import ImageIntent, ImageSourcer
 from src.content.carousel_diagnostics import (
     CarouselShapeError,
     build_shape_diagnostics,

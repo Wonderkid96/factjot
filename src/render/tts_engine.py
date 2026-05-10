@@ -31,7 +31,6 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 try:
     import edge_tts as _edge_tts_mod

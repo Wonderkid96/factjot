@@ -10,7 +10,6 @@ import json
 import re
 import time
 from dataclasses import dataclass, asdict
-from pathlib import Path
 
 import requests
 

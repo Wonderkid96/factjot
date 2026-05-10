@@ -681,7 +681,7 @@ def _ranked_queries(image_hint: str, claim: str, topic: str) -> list[str]:
     All queries are anchored to the image_hint where possible so they
     describe the actual visual subject, not a generic topic category.
     """
-    from src.research.narrative_beats import _expand_hint, _core_subject
+    from src.research.narrative_beats import _core_subject
 
     seen: set[str] = set()
     queries: list[str] = []
