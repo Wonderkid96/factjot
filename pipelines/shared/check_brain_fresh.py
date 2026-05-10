@@ -24,7 +24,10 @@ BRAIN_FILES = [
 ]
 REQUIRED_MEMORY_READ_FILES = [
     REPO_ROOT / "insta-brain" / "data" / "posted.jsonl",
-    REPO_ROOT / "data" / "used_images.jsonl",
+    # 2026-05-03: used_images.jsonl moved from data/ to data/ledgers/ when
+    # paths.py unified the dedup ledger. Keeping the old path here would
+    # hard-fail this check on every run because the file no longer exists.
+    REPO_ROOT / "data" / "ledgers" / "used_images.jsonl",
     REPO_ROOT / "insta-brain" / "inbox.md",
 ]
 WATCH_DIRS = ["src", "scripts", "brand", "src/render/templates"]

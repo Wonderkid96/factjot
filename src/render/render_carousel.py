@@ -166,17 +166,19 @@ class BrandKitRenderer:
         headline_html = self._markup_to_html(slide_text)
         index_label = f"{slide_index:02d} / {total:02d}"
 
-        # v2.1: prefer label_font_canonical (Space Grotesk Bold) for the
-        # @font-face Space Grotesk declaration in slide.html.j2; legacy
-        # font_mono_bold is kept wired but no template references it.
-        label_canonical = ty.get("label_font_canonical", ty["label_font"])
+        # v2.1: label_font_canonical (Space Grotesk Bold) is the @font-face
+        # Space Grotesk source for slide.html.j2. Direct dict access (not
+        # .get()) so a brand_kit edit that drops the key fails loudly on
+        # the next render rather than silently reverting carousels to the
+        # deprecated label_font (JetBrainsMono-Bold.ttf). brand.py:_load()
+        # validates the key at import time as a second guard.
+        label_canonical = ty["label_font_canonical"]
         return self._template.render(
             width=self.width,
             height=self.height,
             font_serif_regular=self._asset_url(ty["headline_font"]),
             font_serif_italic=self._asset_url(ty["headline_italic_font"]),
             font_sans_bold=self._asset_url(label_canonical),
-            font_mono_bold=self._asset_url(ty["label_font"]),
             font_archivo_black=self._asset_url(str(ARCHIVO_BLACK_PATH)) if ARCHIVO_BLACK_PATH.exists() else None,
             image_url=self._asset_url(str(bg_path)),
             wordmark_image_url=self._asset_url(str(LOGO_PATH)) if LOGO_PATH.exists() else "",
@@ -271,13 +273,13 @@ class BrandKitRenderer:
         safe = escape(safe)
         safe = re.sub(r"([.!?])(\s*)$", r'<span class="accent-period">\1</span>\2', safe)
 
-        label_canonical = ty.get("label_font_canonical", ty["label_font"])
+        # See _build_html for why direct dict access (not .get()).
+        label_canonical = ty["label_font_canonical"]
         return self._closing_template.render(
             width=self.width, height=self.height,
             font_serif_regular=self._asset_url(ty["headline_font"]),
             font_serif_italic=self._asset_url(ty["headline_italic_font"]),
             font_sans_bold=self._asset_url(label_canonical),
-            font_mono_bold=self._asset_url(ty["label_font"]),
             font_archivo_black=self._asset_url(str(ARCHIVO_BLACK_PATH)) if ARCHIVO_BLACK_PATH.exists() else None,
             image_url=self._asset_url(str(bg_path)),
             wordmark_image_url=self._asset_url(str(LOGO_PATH)) if LOGO_PATH.exists() else "",
@@ -323,14 +325,14 @@ class BrandKitRenderer:
         # Scale down slightly for the card: it's ~89% width so text can be a touch larger
         headline_size = min(headline_size + 8, 96)
 
-        label_canonical = ty.get("label_font_canonical", ty["label_font"])
+        # See _build_html for why direct dict access (not .get()).
+        label_canonical = ty["label_font_canonical"]
         html = self._stories_template.render(
             width=1080,
             height=1920,
             font_serif_regular=self._asset_url(ty["headline_font"]),
             font_serif_italic=self._asset_url(ty["headline_italic_font"]),
             font_sans_bold=self._asset_url(label_canonical),
-            font_mono_bold=self._asset_url(ty["label_font"]),
             image_url=self._asset_url(str(bg_path)),
             wordmark_image_url=self._asset_url(str(LOGO_PATH)) if LOGO_PATH.exists() else "",
             headline_html=headline_html,

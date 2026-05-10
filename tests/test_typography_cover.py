@@ -198,7 +198,7 @@ def test_story_frame_photo_cover_uses_blurred_background():
     html = build_story_frame_html(
         cover_url=_TINY_PNG_DATA_URL,
         serif_url="",
-        mono_url="",
+        label_url="",
         layout_mode="compact_legacy",
         typography_cover=False,
     )
@@ -210,7 +210,7 @@ def test_story_frame_typography_cover_compact_legacy_uses_ink_flat():
     html = build_story_frame_html(
         cover_url=_TINY_PNG_DATA_URL,
         serif_url="",
-        mono_url="",
+        label_url="",
         layout_mode="compact_legacy",
         typography_cover=True,
     )
@@ -225,7 +225,7 @@ def test_story_frame_typography_cover_readable_list_uses_paper_flat():
     html = build_story_frame_html(
         cover_url=_TINY_PNG_DATA_URL,
         serif_url="",
-        mono_url="",
+        label_url="",
         layout_mode="readable_list",
         typography_cover=True,
     )

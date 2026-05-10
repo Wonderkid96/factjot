@@ -1,7 +1,20 @@
-"""Shared TMDB resolution logic for list carousel packs.
+"""ORPHAN — DO NOT IMPORT. Both named callers were deleted Phase G.3.
+
+`ship_list_post.py` and `prepare_packs.py` were removed in Phase G.3 (see
+`CLAUDE.md §12`). This module has no live callers and forms a mutual-import
+cluster with `src/render/list_renderer.py` (which is also orphaned). The
+"single source of truth" claim below is stale archaeology — preserved only
+so a future agent reading the file understands what it WAS rather than
+trying to wire it back in. Do not import this module to "fix list rendering"
+— the active list path is `pipelines/carousel/ship_carousel_post.py
+--type list` via `pipelines/manual/ship_manual_post.py`.
+
+(Original docstring follows.)
+
+Shared TMDB resolution logic for list carousel packs.
 
 Used by both ship_list_post.py (post time) and prepare_packs.py (prep time).
-Single source of truth - change here, both scripts benefit.
+Single source of truth — change here, both scripts benefit.
 """
 from __future__ import annotations
 

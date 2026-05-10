@@ -1,8 +1,36 @@
 """DEAD as a CLI entry point per audit-2026-05-09 decision B (news pipeline killed).
 
-Renderer functions in this module are still imported by
-pipelines/manual/ship_manual_post.py for the autonomous carousel flow.
-Untangling tracked in SPEC §10.1.
+DUAL-ROLE WARNING — read before editing
+========================================
+This file is dead AS A CLI but live AS A RENDERER LIBRARY. The autonomous
+carousel pipeline imports these functions through
+`pipelines/manual/ship_manual_post.py`:
+
+    from pipelines.news.ship_news_post import (
+        render_cover_slide,
+        render_news_slide,
+        render_story_frame,
+        _font_faces,           # via render_* callers
+        _font_faces_readable,  # via render_* callers
+        _logo_tag,
+    )
+
+Any edit to those public functions, their helpers (`_font_faces`,
+`_font_faces_readable`, `_logo_tag`, `build_cover_html`,
+`build_news_html`, `build_story_frame_html`), or the inline CSS strings
+they emit will silently change the rendered output of every autonomous
+carousel post. There is no test gate between this file and the
+production carousel render — editor diligence is the only fence.
+
+Before editing this module:
+1. Identify which side of the dual role you intend to change.
+2. Run the carousel dry-run (`pipelines/carousel/ship_carousel_post.py
+   --dry-run --type list --brief "..."`) and visually inspect
+   `output/carousel/.../*.png` to confirm no carousel regression.
+3. If the change is purely news-side (CLI), it has no effect — the CLI is
+   dead. Reconsider whether the change is needed at all.
+
+Untangling tracked in SPEC_FACTJOT_SYSTEM.md §10.1.
 
 The news-watcher workflow, ship_news_breaking wrapper, and Guardian RSS
 helper were deleted in audit Phase G.2. Do not invoke main() here; treat
@@ -34,6 +62,7 @@ from anthropic import Anthropic
 from playwright.sync_api import sync_playwright
 
 from src.content.hashtag_builder import build_hashtags
+from src.core.brand import LABEL_FONT_CANONICAL_PATH
 from src.publish.image_host import make_image_host
 from src.publish.instagram_publisher import InstagramGraphPublisher
 from src.research.image_sourcer import ImageIntent, ImageSourcer
@@ -486,8 +515,8 @@ def _markup_lines(lines: list[str]) -> str:
     return "\n".join(result)
 
 
-def _font_faces(serif_url: str, mono_url: str, archivo_url: str = "") -> str:
-    """v2.1: mono_url now points at SpaceGrotesk-Bold.ttf (label_font_canonical).
+def _font_faces(serif_url: str, label_url: str, archivo_url: str = "") -> str:
+    """v2.1: label_url now points at SpaceGrotesk-Bold.ttf (label_font_canonical).
     The variable name is preserved so callsites stay stable; the @font-face
     declaration registers it as 'Space Grotesk' weight 700, matching the
     template-side rename. JetBrains Mono is no longer in this declaration."""
@@ -500,7 +529,7 @@ def _font_faces(serif_url: str, mono_url: str, archivo_url: str = "") -> str:
     return f"""
     @font-face{{font-family:"Instrument Serif";src:url("{serif_url}") format("truetype");font-weight:400;font-style:normal;}}
     @font-face{{font-family:"Instrument Serif";src:url("{serif_url}") format("truetype");font-weight:400;font-style:italic;}}
-    @font-face{{font-family:"Space Grotesk";src:url("{mono_url}") format("truetype");font-weight:700;font-style:normal;}}
+    @font-face{{font-family:"Space Grotesk";src:url("{label_url}") format("truetype");font-weight:700;font-style:normal;}}
     {archivo}"""
 
 
@@ -599,7 +628,12 @@ def build_cover_html(
     logo_url    = _inline_asset(repo_root / "assets/logo/factjot_mark.png")
     serif_url   = _inline_asset(repo_root / "assets/fonts/InstrumentSerif-Regular.ttf")
     # v2.1: Space Grotesk Bold replaces JetBrains Mono Bold for labels.
-    mono_url    = _inline_asset(repo_root / "assets/fonts/SpaceGrotesk-Bold.ttf")
+    # Sourced from brand.py rather than a string literal so a font-file
+    # rename in `assets/fonts/` (or a brand-kit migration) propagates here
+    # without leaving this file pointing at a missing path. `_inline_asset`
+    # accepts a Path, returns "" silently on missing file -- the import
+    # makes the source of truth explicit.
+    label_url   = _inline_asset(LABEL_FONT_CANONICAL_PATH)
     archivo_url = _inline_asset(repo_root / "assets/fonts/ArchivoBlack-Regular.ttf")
 
     # Default to "factjot" if the title is missing entirely so the
@@ -615,7 +649,7 @@ def build_cover_html(
             total=total,
             logo_url=logo_url,
             serif_url=serif_url,
-            mono_url=mono_url,
+            label_url=label_url,
             archivo_url=archivo_url,
             layout_mode=layout_mode,
         )
@@ -634,7 +668,7 @@ def build_cover_html(
         title_size, title_lh = 64, 1.04
 
     return f"""<!doctype html><html><head><meta charset="utf-8"/><style>
-    {_font_faces(serif_url, mono_url, archivo_url)}
+    {_font_faces(serif_url, label_url, archivo_url)}
     :root{{--near-black:#0B0B0C;--off-white:#EDE8DD;--accent:#E6352A;--white:#FFFFFF;--muted:#9A938A;}}
     *{{box-sizing:border-box;margin:0;padding:0;}}
     html,body{{width:1080px;height:1350px;overflow:hidden;background:var(--near-black);-webkit-font-smoothing:antialiased;}}
@@ -679,7 +713,7 @@ def _render_cover_typography(
     total: int,
     logo_url: str,
     serif_url: str,
-    mono_url: str,
+    label_url: str,
     archivo_url: str,
     layout_mode: str,
 ) -> str:
@@ -748,7 +782,7 @@ def _render_cover_typography(
     title_html = escape_html(cover_title)
 
     return f"""<!doctype html><html><head><meta charset="utf-8"/><style>
-    {_font_faces(serif_url, mono_url, archivo_url)}
+    {_font_faces(serif_url, label_url, archivo_url)}
     :root{{--ink:{ink};--bg:{bg};--accent:#E6352A;--pill-border:{pill_border};}}
     *{{box-sizing:border-box;margin:0;padding:0;}}
     html,body{{width:1080px;height:1350px;overflow:hidden;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;}}
@@ -806,12 +840,17 @@ def render_story_frame(
     cover_url   = _inline_asset(cover_path)
     serif_url   = _inline_asset(repo_root / "assets/fonts/InstrumentSerif-Regular.ttf")
     # v2.1: Space Grotesk Bold replaces JetBrains Mono Bold for labels.
-    mono_url    = _inline_asset(repo_root / "assets/fonts/SpaceGrotesk-Bold.ttf")
+    # Sourced from brand.py rather than a string literal so a font-file
+    # rename in `assets/fonts/` (or a brand-kit migration) propagates here
+    # without leaving this file pointing at a missing path. `_inline_asset`
+    # accepts a Path, returns "" silently on missing file -- the import
+    # makes the source of truth explicit.
+    label_url   = _inline_asset(LABEL_FONT_CANONICAL_PATH)
 
     html = build_story_frame_html(
         cover_url=cover_url,
         serif_url=serif_url,
-        mono_url=mono_url,
+        label_url=label_url,
         layout_mode=layout_mode,
         typography_cover=typography_cover,
     )
@@ -826,7 +865,7 @@ def render_story_frame(
 def build_story_frame_html(
     cover_url: str,
     serif_url: str,
-    mono_url: str,
+    label_url: str,
     layout_mode: str = "compact_legacy",
     typography_cover: bool = False,
 ) -> str:
@@ -865,7 +904,7 @@ def build_story_frame_html(
         body_bg = "#0B0B0C"
 
     return f"""<!doctype html><html><head><meta charset="utf-8"/><style>
-    {_font_faces(serif_url, mono_url, "")}
+    {_font_faces(serif_url, label_url, "")}
     :root{{--near-black:#0B0B0C;--off-white:#EDE8DD;--accent:#E6352A;--white:#FFFFFF;--ink:#0A0A0A;}}
     *{{box-sizing:border-box;margin:0;padding:0;}}
     html,body{{width:1080px;height:1920px;overflow:hidden;background:{body_bg};color:var(--white);font-family:"Instrument Serif",Georgia,serif;-webkit-font-smoothing:antialiased;}}
@@ -932,7 +971,12 @@ def render_news_slide(
     logo_url    = _inline_asset(repo_root / "assets/logo/factjot_mark.png")
     serif_url   = _inline_asset(repo_root / "assets/fonts/InstrumentSerif-Regular.ttf")
     # v2.1: Space Grotesk Bold replaces JetBrains Mono Bold for labels.
-    mono_url    = _inline_asset(repo_root / "assets/fonts/SpaceGrotesk-Bold.ttf")
+    # Sourced from brand.py rather than a string literal so a font-file
+    # rename in `assets/fonts/` (or a brand-kit migration) propagates here
+    # without leaving this file pointing at a missing path. `_inline_asset`
+    # accepts a Path, returns "" silently on missing file -- the import
+    # makes the source of truth explicit.
+    label_url   = _inline_asset(LABEL_FONT_CANONICAL_PATH)
     archivo_url = _inline_asset(repo_root / "assets/fonts/ArchivoBlack-Regular.ttf")
 
     index_label = f"{index}/{total}"
@@ -943,20 +987,20 @@ def render_news_slide(
         grotesk_url = _inline_asset(repo_root / "assets/fonts/SpaceGrotesk-SemiBold.ttf")
         if photo_data_url:
             html = _render_news_slide_photo_readable(
-                serif_url, mono_url, grotesk_url, logo, index_label, lines_html, photo_data_url,
+                serif_url, label_url, grotesk_url, logo, index_label, lines_html, photo_data_url,
             )
         else:
             html = _render_news_slide_typography_readable(
-                serif_url, mono_url, grotesk_url, logo, index_label, lines_html,
+                serif_url, label_url, grotesk_url, logo, index_label, lines_html,
             )
     else:
         if photo_data_url:
             html = _render_news_slide_photo(
-                serif_url, mono_url, archivo_url, logo, index_label, lines_html, photo_data_url,
+                serif_url, label_url, archivo_url, logo, index_label, lines_html, photo_data_url,
             )
         else:
             html = _render_news_slide_typography(
-                serif_url, mono_url, archivo_url, logo, index_label, lines_html,
+                serif_url, label_url, archivo_url, logo, index_label, lines_html,
             )
 
     page = browser.new_page(viewport={"width": 1080, "height": 1350}, device_scale_factor=2)
@@ -973,7 +1017,7 @@ def render_news_slide(
 
 
 def _render_news_slide_photo(
-    serif_url: str, mono_url: str, archivo_url: str, logo: str, index_label: str,
+    serif_url: str, label_url: str, archivo_url: str, logo: str, index_label: str,
     lines_html: str, photo_data_url: str,
 ) -> str:
     """Full-bleed content slide. Photo fills the canvas; text sits over a bottom gradient.
@@ -983,7 +1027,7 @@ def _render_news_slide_photo(
     than the previous Instrument Serif setup.
     """
     return f"""<!doctype html><html><head><meta charset="utf-8"/><style>
-    {_font_faces(serif_url, mono_url, archivo_url)}
+    {_font_faces(serif_url, label_url, archivo_url)}
     :root{{--near-black:#0B0B0C;--off-white:#EDE8DD;--accent:#E6352A;--white:#FFFFFF;}}
     *{{box-sizing:border-box;margin:0;padding:0;}}
     html,body{{width:1080px;height:1350px;overflow:hidden;background:var(--near-black);-webkit-font-smoothing:antialiased;}}
@@ -1016,7 +1060,7 @@ def _render_news_slide_photo(
 
 
 def _render_news_slide_typography(
-    serif_url: str, mono_url: str, archivo_url: str, logo: str, index_label: str, lines_html: str,
+    serif_url: str, label_url: str, archivo_url: str, logo: str, index_label: str, lines_html: str,
 ) -> str:
     """Intentional full-height typography-only slide. No photo zone. Looks deliberate.
 
@@ -1024,7 +1068,7 @@ def _render_news_slide_typography(
     and tightened leading.
     """
     return f"""<!doctype html><html><head><meta charset="utf-8"/><style>
-    {_font_faces(serif_url, mono_url, archivo_url)}
+    {_font_faces(serif_url, label_url, archivo_url)}
     :root{{--near-black:#0B0B0C;--off-white:#EDE8DD;--accent:#E6352A;--white:#FFFFFF;}}
     *{{box-sizing:border-box;margin:0;padding:0;}}
     html,body{{width:1080px;height:1350px;overflow:hidden;background:var(--near-black);-webkit-font-smoothing:antialiased;}}
@@ -1064,18 +1108,18 @@ def _render_news_slide_typography(
 # list slot picks this by default today; fact and news continue to use
 # the compact_legacy templates above unchanged.
 
-def _font_faces_readable(serif_url: str, mono_url: str, grotesk_url: str) -> str:
-    """v2.1: mono_url points at SpaceGrotesk-Bold.ttf; both label-bold (700)
+def _font_faces_readable(serif_url: str, label_url: str, grotesk_url: str) -> str:
+    """v2.1: label_url points at SpaceGrotesk-Bold.ttf; both label-bold (700)
     and body-semibold (600) Space Grotesk weights are registered so the
     readable_list layout has access to both in the same family."""
     return f"""
     @font-face{{font-family:"Instrument Serif";src:url("{serif_url}") format("truetype");font-weight:400;font-style:normal;}}
-    @font-face{{font-family:"Space Grotesk";src:url("{mono_url}") format("truetype");font-weight:700;font-style:normal;}}
+    @font-face{{font-family:"Space Grotesk";src:url("{label_url}") format("truetype");font-weight:700;font-style:normal;}}
     @font-face{{font-family:"Space Grotesk";src:url("{grotesk_url}") format("truetype");font-weight:600;font-style:normal;}}"""
 
 
 def _render_news_slide_photo_readable(
-    serif_url: str, mono_url: str, grotesk_url: str, logo: str, index_label: str,
+    serif_url: str, label_url: str, grotesk_url: str, logo: str, index_label: str,
     lines_html: str, photo_data_url: str,
 ) -> str:
     """Photo slide, readable_list layout. Body text in Space Grotesk
@@ -1083,7 +1127,7 @@ def _render_news_slide_photo_readable(
     canvas. Top half is the photo (full bleed) with a gradient scrim
     that protects legibility at the text baseline."""
     return f"""<!doctype html><html><head><meta charset="utf-8"/><style>
-    {_font_faces_readable(serif_url, mono_url, grotesk_url)}
+    {_font_faces_readable(serif_url, label_url, grotesk_url)}
     :root{{--near-black:#0B0B0C;--off-white:#EDE8DD;--accent:#E6352A;--white:#FFFFFF;--body-size:64px;}}
     *{{box-sizing:border-box;margin:0;padding:0;}}
     html,body{{width:1080px;height:1350px;overflow:hidden;background:var(--near-black);-webkit-font-smoothing:antialiased;}}
@@ -1114,7 +1158,7 @@ def _render_news_slide_photo_readable(
 
 
 def _render_news_slide_typography_readable(
-    serif_url: str, mono_url: str, grotesk_url: str, logo: str, index_label: str,
+    serif_url: str, label_url: str, grotesk_url: str, logo: str, index_label: str,
     lines_html: str,
 ) -> str:
     """Typography-only slide, readable_list layout. Same half-box as
@@ -1122,7 +1166,7 @@ def _render_news_slide_typography_readable(
     accent rule running down the left edge (kept from compact_legacy
     for visual continuity)."""
     return f"""<!doctype html><html><head><meta charset="utf-8"/><style>
-    {_font_faces_readable(serif_url, mono_url, grotesk_url)}
+    {_font_faces_readable(serif_url, label_url, grotesk_url)}
     :root{{--near-black:#0B0B0C;--off-white:#EDE8DD;--accent:#E6352A;--white:#FFFFFF;--body-size:64px;}}
     *{{box-sizing:border-box;margin:0;padding:0;}}
     html,body{{width:1080px;height:1350px;overflow:hidden;background:var(--near-black);-webkit-font-smoothing:antialiased;}}

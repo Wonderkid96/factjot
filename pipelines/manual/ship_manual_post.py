@@ -30,6 +30,16 @@ load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 import os
 from playwright.sync_api import sync_playwright
 
+# DUAL-ROLE IMPORT — see CLAUDE.md §3 and SPEC_FACTJOT_SYSTEM.md §10.1.
+# The functions below live in `pipelines/news/ship_news_post.py` because
+# they were the news-pipeline's renderer primitives and got reused for
+# the autonomous carousel after the news pipeline was killed in Phase G.2.
+# Editing those functions in `ship_news_post.py` directly affects the
+# carousel render output for every autonomous post — there is no other
+# import boundary protecting the carousel from unintended news-side edits.
+# Before changing any of these in `ship_news_post.py`, read the dual-role
+# warning at the top of that file and verify the carousel render output
+# manually in `output/manual/.../*.png` after the change.
 from pipelines.news.ship_news_post import (
     render_cover_slide,
     render_news_slide,
@@ -157,6 +167,50 @@ HARD_LINE_CAP = 24
 
 def _strip_markup(text: str) -> str:
     return re.sub(r"\[/?r\]", "", text)
+
+
+def _build_per_slot_aliases(
+    *,
+    cover_slot_aliases: object,
+    cover_title: str,
+    slides: list[dict],
+) -> tuple[list[list[str] | None], list[str]]:
+    """Construct per-slot alias overrides for ImageSourcer.source_images().
+
+    Returns a `(per_slot_aliases, per_slot_text)` pair indexed by slot
+    (slot 0 = cover, then one entry per content slide).
+
+    Each entry in `per_slot_aliases` is one of:
+      - a non-empty list of strings (slot-specific aliases override globals);
+      - `None` (slot falls back to the global `source_aliases`).
+
+    The `None` fallback is the documented production failure mode tracked
+    in `insta-brain/gotchas.md`: an empty `cover_slot_aliases` causes the
+    cover slot to inherit globals, which for scene-style cover queries can
+    gate out every candidate with `POOL_REJECT no_alias_match` even when
+    content slots succeed. Extracting this construction out of `main()` is
+    what makes that failure mode unit-testable; do not re-inline.
+
+    Inputs are accepted as `object` (not `list[str]`) so a missing or
+    malformed `cover_slot_aliases` field in the upstream JSON is handled
+    here rather than crashing the caller.
+    """
+    def _clean_aliases(raw: object) -> list[str]:
+        if not isinstance(raw, list):
+            return []
+        return [a for a in raw if isinstance(a, str) and a.strip()]
+
+    cover_sa = _clean_aliases(cover_slot_aliases)
+    slide_sa = [_clean_aliases(s.get("slot_aliases", [])) for s in slides]
+    per_slot_aliases: list[list[str] | None] = (
+        [cover_sa if cover_sa else None]
+        + [sa if sa else None for sa in slide_sa]
+    )
+    per_slot_text: list[str] = (
+        [cover_title]
+        + [" ".join(s.get("lines", [])) for s in slides]
+    )
+    return per_slot_aliases, per_slot_text
 
 
 def _validate_lines(slides: list[dict], hard_cap: int = HARD_LINE_CAP) -> list[str]:
@@ -1900,23 +1954,10 @@ def main() -> int:
     _log(f"     Avoid:     {intent.avoid_image_types}")
     _log(f"     Fallback:  \"{intent.fallback_query}\"")
 
-    # Build per-slot alias overrides. Cover uses cover_slot_aliases; each content
-    # slide uses its own slot_aliases if present. A non-empty list replaces the
-    # global source_aliases for that slot. None means fall back to global.
-    def _clean_aliases(raw: object) -> list[str]:
-        if not isinstance(raw, list):
-            return []
-        return [a for a in raw if isinstance(a, str) and a.strip()]
-
-    cover_sa = _clean_aliases(data.get("cover_slot_aliases", []))
-    slide_sa  = [_clean_aliases(s.get("slot_aliases", [])) for s in slides]
-    per_slot_aliases: list[list[str] | None] = (
-        [cover_sa if cover_sa else None]
-        + [sa if sa else None for sa in slide_sa]
-    )
-    per_slot_text: list[str] = (
-        [cover_title]
-        + [" ".join(s.get("lines", [])) for s in slides]
+    per_slot_aliases, per_slot_text = _build_per_slot_aliases(
+        cover_slot_aliases=data.get("cover_slot_aliases", []),
+        cover_title=cover_title,
+        slides=slides,
     )
     _log(f"     SlotAliases: {per_slot_aliases}")
 

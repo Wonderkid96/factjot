@@ -105,6 +105,49 @@ def _upload_video(mp4_path: Path) -> str:
 _THUMB_STILL_EXTS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
 
 
+_IG_COVER_TARGET_BYTES = 450 * 1024  # IG Reels cover_url hard cap is ~0.5MB; 0.45MB gives margin.
+
+
+def _shrink_thumbnail_to_ig_jpeg(src_png: Path, dst_jpg: Path) -> None:
+    """Convert a rendered thumbnail PNG to a single IG-compliant JPEG.
+
+    IG Reels cover_url accepts JPEG only and rejects images over ~0.5MB.
+    YouTube's 2MB cap is looser, so the IG-shaped JPEG works for both
+    surfaces (Phase E.4 "one asset, two surfaces"). Tries q=85 -> q=75 ->
+    q=65 to land under the IG cap. The PNG is kept on disk for archive
+    and dry-run preview; the JPEG is what ships.
+
+    Raises RuntimeError if Pillow is missing or every quality pass still
+    overshoots the cap — the caller treats that as a hard reel failure
+    rather than silently uploading a too-large file IG would discard.
+    """
+    try:
+        from PIL import Image
+    except ImportError as exc:
+        raise RuntimeError(
+            "Pillow is required to shrink the thumbnail to an IG-compliant JPEG"
+        ) from exc
+
+    last_size = -1
+    for quality in (85, 75, 65):
+        with Image.open(src_png) as im:
+            im.convert("RGB").save(
+                dst_jpg, format="JPEG", quality=quality,
+                optimize=True, progressive=True,
+            )
+        last_size = dst_jpg.stat().st_size
+        if last_size <= _IG_COVER_TARGET_BYTES:
+            print(
+                f"  [thumbnail-jpg] q={quality} {last_size // 1024}KB "
+                f"(<= {_IG_COVER_TARGET_BYTES // 1024}KB)"
+            )
+            return
+    raise RuntimeError(
+        f"thumbnail JPEG still {last_size // 1024}KB after q=65; "
+        f"target <= {_IG_COVER_TARGET_BYTES // 1024}KB"
+    )
+
+
 def _extract_reel_thumbnail_frame(
     ffmpeg_bin: str,
     thumb_src: Path,
@@ -862,6 +905,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
 
         frame_jpg     = out_dir / "thumbnail_frame.jpg"
         thumbnail_png = out_dir / "thumbnail.png"
+        thumbnail_jpg = out_dir / "thumbnail.jpg"
         story_png     = out_dir / "story.png"
 
         # When footage_clips[0] is a still, prefer the pre-rendered MP4
@@ -932,6 +976,14 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             out_path=thumbnail_png,
         )
 
+        # IG Reels cover_url accepts JPEG only and is hard-capped under
+        # ~0.5MB; the rendered overlay PNG is ~3.3MB. YouTube's 2MB cap is
+        # looser. Emit one IG-compliant JPEG here so both surfaces consume
+        # the same artefact (Phase E.4 "one asset, two surfaces" finally
+        # honoured on the IG side too). YouTube prefers thumbnail.jpg when
+        # present and falls back to PNG-conversion only for older runs.
+        _shrink_thumbnail_to_ig_jpeg(thumbnail_png, thumbnail_jpg)
+
         print("Rendering story asset...")
         render_story(
             title=story_title or claim.split(".")[0],
@@ -982,13 +1034,17 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             print("\nERROR: reel FAILED thumbnail — PNG missing or too small after render")
             brain.append_log(f"reel FAILED thumbnail file — fact={claim[:60]!r}")
             return 9
+        if not thumbnail_jpg.is_file() or thumbnail_jpg.stat().st_size < 1000:
+            print("\nERROR: reel FAILED thumbnail — JPEG missing or too small after shrink")
+            brain.append_log(f"reel FAILED thumbnail jpeg — fact={claim[:60]!r}")
+            return 9
 
         print("Uploading thumbnail...")
         img_host = make_image_host()
         cover_url = None
         for attempt in (1, 2):
             try:
-                thumbnail_result = img_host.upload(thumbnail_png)
+                thumbnail_result = img_host.upload(thumbnail_jpg)
                 cover_url = thumbnail_result.public_url
                 print(f"  [thumbnail] {cover_url[:80]}")
                 break

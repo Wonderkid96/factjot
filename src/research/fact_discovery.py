@@ -1,3 +1,12 @@
+"""ORPHANED — DO NOT IMPORT. rare_fact_bank.py was deleted Phase G.1.
+
+This module is dead code retained only because it sits outside the explicit
+Phase G deletion list. Importing it raises `ImportError` on the
+`rare_fact_bank` line below. Do not resuscitate `rare_fact_bank.py` to
+"unbreak" this module — the autonomous flow's quality gate is now Phase D
+fact verification (Haiku consistency + Wikipedia anchors), not the legacy
+Reddit-discovery + rare-fact-bank path. See `CLAUDE.md §12`.
+"""
 from __future__ import annotations
 
 import hashlib
@@ -10,6 +19,8 @@ import requests
 
 from src.brain import brain, claim_hash
 from src.core.models import FactCandidate, SourceEvidence
+# BROKEN IMPORT: rare_fact_bank.py was deleted Phase G.1. Importing this
+# module raises ImportError immediately. Do not recreate the deleted file.
 from src.research.rare_fact_bank import RARE_FACT_BANK
 from src.research.source_registry import get_source_pool
 

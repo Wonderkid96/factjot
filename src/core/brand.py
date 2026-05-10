@@ -32,11 +32,33 @@ _KIT  = _ROOT / "brand" / "brand_kit.json"
 # ------------------------------------------------------------------ #
 _kit: dict = {}
 
+_REQUIRED_TYPOGRAPHY_KEYS = (
+    # Removing any of these from brand_kit.json silently breaks a renderer.
+    # Validate at import time so the failure is loud (KeyError on import)
+    # rather than a downstream font reversion that ships with no log line.
+    "headline_font",
+    "headline_italic_font",
+    "label_font_canonical",  # 2026-05-10 canonical label font; renderers
+                              # MUST resolve to this, never fall back to
+                              # legacy `label_font` (which still points at
+                              # JetBrainsMono-Bold.ttf for backwards compat).
+)
+
+
 def _load() -> None:
     global _kit
     if _kit:
         return
     _kit = json.loads(_KIT.read_text(encoding="utf-8"))
+    typography = _kit.get("typography") or {}
+    missing = [k for k in _REQUIRED_TYPOGRAPHY_KEYS if not typography.get(k)]
+    if missing:
+        raise ValueError(
+            f"brand_kit.json typography block is missing required keys: "
+            f"{missing}. Renderers depend on these; missing values silently "
+            f"fall back to deprecated fonts. Restore the keys before any "
+            f"render path is invoked."
+        )
 
 _load()
 

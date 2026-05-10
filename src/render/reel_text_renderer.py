@@ -32,7 +32,6 @@ from src.core.brand import (
     FONT_SANS_SEMIBOLD, FONT_SANS_MEDIUM,
     FONT_SANS_BOLD,
     FONT_ARCHIVO_BOLD,
-    FONT_MONO_BOLD,
     FONT_CAPTION_BLACK,
     REEL_W as _W, REEL_H as _H,
     assert_fonts_present,
@@ -132,7 +131,6 @@ class ReelTextRenderer:
             font_sans_medium=FONT_SANS_MEDIUM.as_uri(),
             font_sans_bold=FONT_SANS_BOLD.as_uri(),
             font_archivo_bold=FONT_ARCHIVO_BOLD.as_uri(),
-            font_mono_bold=FONT_MONO_BOLD.as_uri(),
             font_archivo_black=FONT_CAPTION_BLACK.as_uri(),
         )
 
@@ -331,7 +329,6 @@ def render_photo_insert(
         border=border,
         caption_pad=cap_pad if caption else border,
         font_sans_bold=FONT_SANS_BOLD.as_uri(),
-        font_mono_bold=FONT_MONO_BOLD.as_uri(),  # legacy alias, unused
     )
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -391,7 +388,6 @@ def render_case_doc(
     html = tmpl.render(
         width=_W, height=_H,
         font_sans_bold=FONT_SANS_BOLD.as_uri(),
-        font_mono_bold=FONT_MONO_BOLD.as_uri(),  # legacy alias, unused
         label=label.upper(),
         value=value,
         body=body,

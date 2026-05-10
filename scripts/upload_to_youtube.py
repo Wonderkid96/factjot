@@ -288,19 +288,26 @@ def _title_from_reel_meta(reel_meta: dict | None, fallback_title: str) -> str:
 
 
 def _prepare_thumbnail(video_path: Path) -> Path | None:
-    """Return a JPEG version of the reel's thumbnail.png under 2 MB, or
-    None if no thumbnail file is available next to the video.
+    """Return the JPEG to upload as YouTube's custom thumbnail, or None
+    if neither artefact is available next to the video.
 
-    YouTube caps custom thumbnails at 2 MB; our PNG renders at ~2.3 MB.
-    JPEG at quality 85 typically lands well under 1 MB.
-
-    Phase E.4 (Q6): the reel pipeline writes a single overlay-bearing
-    `thumbnail.png` to the reel out_dir (chosen-frame + brand overlay).
-    This same PNG ships to both the IG cover frame and the YouTube custom
-    thumbnail (one asset, two surfaces). Do not regenerate the thumbnail
-    here -- if make_reel.py has not produced one we deliberately fall back
-    to YouTube's auto-pick rather than fabricate a divergent asset.
+    Phase E.4 (Q6) intent: the reel pipeline writes a single overlay-bearing
+    asset that ships to both the IG cover frame and the YouTube custom
+    thumbnail (one asset, two surfaces). `make_reel.py` now emits an
+    IG-compliant `thumbnail.jpg` (~0.45MB) alongside the PNG; that JPEG is
+    already valid YouTube input (YouTube's cap is 2MB) so we upload it
+    verbatim. Older runs only have `thumbnail.png` — fall back to a
+    one-shot PNG -> JPEG conversion for those.
     """
+    direct_jpg = video_path.parent / "thumbnail.jpg"
+    if direct_jpg.exists() and direct_jpg.stat().st_size > 1024:
+        print(
+            f"[youtube] thumbnail prepared: {direct_jpg.name} "
+            f"({direct_jpg.stat().st_size // 1024}KB, shared with IG)",
+            flush=True,
+        )
+        return direct_jpg
+
     src = video_path.parent / "thumbnail.png"
     if not src.exists():
         return None

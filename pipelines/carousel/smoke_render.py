@@ -1,10 +1,18 @@
-"""Render sample posts end-to-end so we can eyeball the new style.
+"""ORPHANED — DO NOT RUN. rare_fact_bank.py was deleted in Phase G.1.
+
+This module imports `from src.research.rare_fact_bank import RARE_FACT_BANK`
+which raises `ImportError` immediately. The `Usage` line below is preserved
+for archaeology only — running it crashes before any render happens. The
+file is kept on disk because it's outside the Phase G deletion list, not
+because it works. Do not import this module. Do not resuscitate
+`rare_fact_bank.py`. See `CLAUDE.md §12` for Phase G rationale.
+
+(Original docstring follows.)
+
+Render sample posts end-to-end so we can eyeball the new style.
 
 Pulls multiple facts from the rare fact bank for two topics, builds two
 carousels, and writes them as PNGs via the HTML+Playwright renderer.
-
-Usage (local Mac):
-    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 pipelines/carousel/smoke_render.py
 """
 from __future__ import annotations
 
@@ -19,6 +27,9 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 from src.content.carousel_generator import CarouselDraftGenerator
 from src.core.models import SourceEvidence, VerifiedFact
 from src.render.render_carousel import BrandKitRenderer
+# BROKEN IMPORT: rare_fact_bank.py was deleted Phase G.1. The line below
+# raises ImportError on module load. Do not "fix" by recreating
+# rare_fact_bank.py — the deletion is deliberate.
 from src.research.rare_fact_bank import RARE_FACT_BANK
 from src.utils.logging_utils import configure_logging
 

@@ -269,6 +269,25 @@ A list carousel shipped with four invented films because no fact verification ga
 
 ---
 
+## 2026-05-10: reel cover never reached IG — half-built "one asset, two surfaces"
+
+Phase E.4's stated intent (per `src/render/reel_thumbnail.py:13-16` and the `_prepare_thumbnail` docstring at `scripts/upload_to_youtube.py:298-302`) was: render a single overlay-bearing asset, ship it to both the IG Reel cover and the YouTube custom thumbnail. The implementation only honoured that intent on the YouTube side. `_prepare_thumbnail` converts `thumbnail.png` -> JPEG and re-encodes if >2MB; the IG side in `make_reel.py:986-1000` uploaded the rendered PNG raw.
+
+**Failure mode:** IG Reels `cover_url` accepts JPEG only and is hard-capped under ~0.5MB. The rendered overlay PNG is ~3.3MB. IG's container processing silently drops a non-conforming `cover_url` without setting `ERROR` -- `_wait_for_finished` returns `FINISHED` and `publish_reel` returns `ok: True` regardless. The reel posts; the custom cover does not. IG falls back to an auto-extracted video frame for the Reels Tab grid. Because the publish path returns success, no log surfaces the loss; you only notice by visiting the IG profile and seeing the wrong frame on the grid.
+
+**Why this stuck:** the YouTube docstring said "one asset, two surfaces" and the IG upload site sat 50 lines below the rendering site, so reading the code top-down reads as if both surfaces are wired up. The asymmetry only shows when you trace the actual file extension that gets uploaded.
+
+**Fix (2026-05-10):** `make_reel.py` now emits ONE IG-compliant JPEG (`thumbnail.jpg`, <=450KB at q=85->75->65 fallback) alongside the rendered PNG. Helper `_shrink_thumbnail_to_ig_jpeg` in `pipelines/reel/make_reel.py` raises `RuntimeError` if compression cannot meet the cap -- failure is loud, not silent. Both surfaces consume the same JPEG: IG `cover_url` upload uses it directly; `upload_to_youtube.py:_prepare_thumbnail` prefers `thumbnail.jpg` if present and falls back to PNG conversion only for older runs without one. The PNG is kept on disk for archive/preview but is no longer uploaded anywhere.
+
+**Regression guards (`tests/test_make_reel_thumbnail_jpg.py`):**
+- `test_shrink_emits_jpeg_under_ig_cap`: output magic bytes must be `\xff\xd8\xff`, size must be <= `_IG_COVER_TARGET_BYTES`, dimensions 1080x1920.
+- `test_ig_cover_target_under_meta_hard_cap`: pins `_IG_COVER_TARGET_BYTES` below 500KB so a "raise the cap" PR fails CI rather than reintroducing silent drops.
+- `test_shrink_raises_when_pillow_missing`: the previous behaviour (skip conversion, hand IG a 3.3MB PNG) is now an explicit `RuntimeError`.
+
+**Future trap to avoid:** if the picker / overlay path ever consolidates and someone deletes the helper as "redundant" because both surfaces upload `thumbnail.png`, the IG side will silently break again. Keep the JPEG step until IG `cover_url` accepts PNG (it does not, as of v21.0). Do not "simplify" by emitting JPEG only and deleting the PNG either: the high-quality PNG is the archive copy used for dry-run preview and any future re-render.
+
+---
+
 ## Fix philosophy (mandatory)
 
 Every fix must be a long-term structural fix, not a temporary patch. A patch that suppresses a symptom without removing its root cause will reappear in a different form or a different part of the pipeline. Before shipping any fix, ask: does this eliminate the cause, or does it hide it? If it hides it, keep digging.

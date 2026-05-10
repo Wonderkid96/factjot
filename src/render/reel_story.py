@@ -20,7 +20,6 @@ from src.core.brand import (
     FONT_SERIF_REGULAR, FONT_SERIF_ITALIC,
     FONT_SANS_SEMIBOLD,
     FONT_SANS_BOLD,
-    FONT_MONO_BOLD,
     FONT_CAPTION_BLACK,
     REEL_W, REEL_H,
     assert_fonts_present,
@@ -81,7 +80,6 @@ def render_story(
         font_serif_italic=FONT_SERIF_ITALIC.as_uri(),
         font_sans_semibold=FONT_SANS_SEMIBOLD.as_uri(),
         font_sans_bold=FONT_SANS_BOLD.as_uri(),
-        font_mono_bold=FONT_MONO_BOLD.as_uri(),  # legacy alias, unused
         font_archivo_black=FONT_CAPTION_BLACK.as_uri(),
     )
 

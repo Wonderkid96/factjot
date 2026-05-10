@@ -4,7 +4,15 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches-ignore: [main]
+    paths-ignore:
+      # Autonomous bot state commits touch only these paths and carry no
+      # source-change risk; skip them so they don't burn CI minutes on
+      # every scheduled post. Direct-to-main commits that DO change
+      # source still trigger the suite.
+      - 'data/ledgers/**'
+      - 'insta-brain/data/**'
+      - 'insta-brain/log.md'
+      - 'output/**'
 
 permissions:
   contents: read

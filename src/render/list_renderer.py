@@ -1,4 +1,20 @@
-"""Renderer for list-format carousels (films, TV, books).
+"""ORPHAN — DO NOT IMPORT. Mutual-import cluster with src.content.pack_resolver.
+
+This module has no callers outside `src/content/pack_resolver.py`, which is
+itself an orphan (its named callers `ship_list_post.py` and `prepare_packs.py`
+were deleted Phase G.3). The active list-carousel renderer is
+`src/render/render_carousel.py:CarouselRenderer` invoked via
+`pipelines/manual/ship_manual_post.py` with `--layout-mode readable_list`.
+
+Also note: line 136 in this file contains the silent JetBrains Mono fallback
+(`ty.get("label_font_canonical", ty["label_font"])`) flagged in the
+2026-05-10 audit. Because this file is dead code, the fallback is currently
+inert — but if anyone resuscitates this module, the fallback becomes a live
+font-regression vector. Don't.
+
+(Original docstring follows.)
+
+Renderer for list-format carousels (films, TV, books).
 
 Different from BrandKitRenderer because:
     - Image source is TMDB (not stock-photo search)
@@ -6,7 +22,7 @@ Different from BrandKitRenderer because:
     - Layout is poster-card + text-column, not full-bleed-text-overlay
     - Three templates (hook / item / closing) instead of two
 
-Inputs are pre-built `ListSlideSpec` records - the ship script does the TMDB
+Inputs are pre-built `ListSlideSpec` records — the ship script does the TMDB
 lookups and asset downloads BEFORE calling render(), so this class is a
 pure HTML+Playwright stage.
 """
