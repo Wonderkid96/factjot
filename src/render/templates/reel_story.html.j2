@@ -7,11 +7,11 @@
 {# The story is the hook in its purest form; the Reel cover carries brand.   #}
 {#                                                                           #}
 {# Type rule (NON-NEGOTIABLE): Archivo Black 900 is used ONLY on the         #}
-{# central headline.                                                         #}
+{# central headline. Labels use Space Grotesk Bold per v2.1 hierarchy.       #}
 {#                                                                           #}
 {# Required vars: width, height, frame_url, title_html,                     #}
 {#                font_serif_regular, font_serif_italic,                    #}
-{#                font_sans_semibold, font_mono_bold, font_archivo_black    #}
+{#                font_sans_semibold, font_sans_bold, font_archivo_black    #}
 {# Optional vars: kicker, title_size (default 132)                          #}
 {# Variables kept in signature for agent compatibility but unused here:     #}
 {#   topic                                                                   #}
@@ -31,8 +31,8 @@
     font-weight: 400; font-style: italic;
   }
   @font-face {
-    font-family: "JetBrains Mono";
-    src: url("{{ font_mono_bold }}") format("truetype");
+    font-family: "Space Grotesk";
+    src: url("{{ font_sans_bold }}") format("truetype");
     font-weight: 700; font-style: normal;
   }
   @font-face {
@@ -123,7 +123,7 @@
     gap: 0;
   }
   .kicker {
-    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-family: "Space Grotesk", system-ui, sans-serif;
     font-weight: 700;
     font-size: 22px;
     letter-spacing: 0.22em;
@@ -163,13 +163,13 @@
   }
 
   /* NEW REEL pill, sits below the headline, the only branding chrome on
-     the story. JetBrains Mono Bold (label role); Archivo Black is reserved
-     for the central headline only. */
+     the story. Space Grotesk Bold 700 (label role per v2.1 hierarchy);
+     Archivo Black is reserved for the central headline only. */
   .new-reel-pill {
     margin-top: 44px;
     background: var(--accent);
     color: var(--off-white);
-    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-family: "Space Grotesk", system-ui, sans-serif;
     font-weight: 700;
     font-size: 22px;
     letter-spacing: 0.24em;

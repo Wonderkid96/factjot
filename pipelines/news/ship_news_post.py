@@ -493,6 +493,10 @@ def _markup_lines(lines: list[str]) -> str:
 
 
 def _font_faces(serif_url: str, mono_url: str, archivo_url: str = "") -> str:
+    """v2.1: mono_url now points at SpaceGrotesk-Bold.ttf (label_font_canonical).
+    The variable name is preserved so callsites stay stable; the @font-face
+    declaration registers it as 'Space Grotesk' weight 700, matching the
+    template-side rename. JetBrains Mono is no longer in this declaration."""
     archivo = ""
     if archivo_url:
         archivo = (
@@ -502,7 +506,7 @@ def _font_faces(serif_url: str, mono_url: str, archivo_url: str = "") -> str:
     return f"""
     @font-face{{font-family:"Instrument Serif";src:url("{serif_url}") format("truetype");font-weight:400;font-style:normal;}}
     @font-face{{font-family:"Instrument Serif";src:url("{serif_url}") format("truetype");font-weight:400;font-style:italic;}}
-    @font-face{{font-family:"JetBrains Mono";src:url("{mono_url}") format("truetype");font-weight:700;font-style:normal;}}
+    @font-face{{font-family:"Space Grotesk";src:url("{mono_url}") format("truetype");font-weight:700;font-style:normal;}}
     {archivo}"""
 
 
@@ -530,7 +534,8 @@ def render_cover_slide(
 ) -> None:
     logo_url    = _inline_asset(repo_root / "assets/logo/factjot_mark.png")
     serif_url   = _inline_asset(repo_root / "assets/fonts/InstrumentSerif-Regular.ttf")
-    mono_url    = _inline_asset(repo_root / "assets/fonts/JetBrainsMono-Bold.ttf")
+    # v2.1: Space Grotesk Bold replaces JetBrains Mono Bold for labels.
+    mono_url    = _inline_asset(repo_root / "assets/fonts/SpaceGrotesk-Bold.ttf")
     archivo_url = _inline_asset(repo_root / "assets/fonts/ArchivoBlack-Regular.ttf")
 
     index_label = f"{index}/{total}"
@@ -561,12 +566,12 @@ def render_cover_slide(
     .vignette{{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 68%,rgba(0,0,0,0.28) 100%);z-index:2;pointer-events:none;}}
     .grain{{position:absolute;inset:0;z-index:3;opacity:0.055;mix-blend-mode:overlay;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='280' height='280'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.7 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");pointer-events:none;}}
     .frame{{position:absolute;inset:0;z-index:10;padding:58px 72px 74px 72px;display:flex;flex-direction:column;justify-content:space-between;}}
-    .top-row{{display:flex;align-items:center;gap:20px;font-family:"JetBrains Mono",monospace;font-size:20px;font-weight:700;letter-spacing:0.16em;color:var(--off-white);text-transform:uppercase;text-shadow:1px 1px 0 rgba(0,0,0,0.55);}}
+    .top-row{{display:flex;align-items:center;gap:20px;font-family:"Space Grotesk",system-ui,sans-serif;font-size:20px;font-weight:700;letter-spacing:0.16em;color:var(--off-white);text-transform:uppercase;text-shadow:1px 1px 0 rgba(0,0,0,0.55);}}
     .wordmark-img{{height:36px;width:auto;display:block;opacity:0.95;filter:drop-shadow(1px 1px 0 rgba(0,0,0,0.45));}}
     .top-divider{{flex:1;height:1px;background:var(--off-white);opacity:0.32;}}
     .index{{opacity:0.72;}}
     .lower{{display:flex;flex-direction:column;gap:22px;}}
-    .pill{{align-self:flex-start;background:var(--accent);color:var(--white);font-family:"JetBrains Mono",monospace;font-weight:700;font-size:17px;letter-spacing:0.26em;padding:7px 16px 9px;border-radius:999px;text-transform:uppercase;line-height:1;}}
+    .pill{{align-self:flex-start;background:var(--accent);color:var(--white);font-family:"Space Grotesk",system-ui,sans-serif;font-weight:700;font-size:17px;letter-spacing:0.26em;padding:7px 16px 9px;border-radius:999px;text-transform:uppercase;line-height:1;}}
     .title{{font-family:"Archivo Black","Inter",system-ui,sans-serif;font-weight:900;font-size:{title_size}px;line-height:{title_lh};letter-spacing:-0.01em;text-transform:lowercase;color:var(--off-white);text-shadow:2px 2px 0 rgba(0,0,0,0.55);text-wrap:balance;}}
     .title::after{{content:".";color:var(--accent);font-family:"Archivo Black","Inter",system-ui,sans-serif;text-transform:none;}}
     </style></head><body>
@@ -613,7 +618,8 @@ def render_story_frame(
     """
     cover_url   = _inline_asset(cover_path)
     serif_url   = _inline_asset(repo_root / "assets/fonts/InstrumentSerif-Regular.ttf")
-    mono_url    = _inline_asset(repo_root / "assets/fonts/JetBrainsMono-Bold.ttf")
+    # v2.1: Space Grotesk Bold replaces JetBrains Mono Bold for labels.
+    mono_url    = _inline_asset(repo_root / "assets/fonts/SpaceGrotesk-Bold.ttf")
 
     html = f"""<!doctype html><html><head><meta charset="utf-8"/><style>
     {_font_faces(serif_url, mono_url, "")}
@@ -628,7 +634,7 @@ def render_story_frame(
     .wordmark{{font-family:"Instrument Serif",Georgia,serif;font-weight:400;font-size:52px;letter-spacing:-0.01em;line-height:1;color:var(--off-white);text-shadow:1px 1px 0 rgba(0,0,0,0.45);}}
     .wordmark .ital{{font-style:italic;}}
     .wordmark .dot{{color:var(--accent);}}
-    .new-post-badge{{background:var(--accent);color:var(--off-white);font-family:"JetBrains Mono",ui-monospace,monospace;font-weight:700;font-size:22px;letter-spacing:0.24em;padding:12px 22px 14px;border-radius:9999px;text-transform:uppercase;line-height:1;}}
+    .new-post-badge{{background:var(--accent);color:var(--off-white);font-family:"Space Grotesk",system-ui,sans-serif;font-weight:700;font-size:22px;letter-spacing:0.24em;padding:12px 22px 14px;border-radius:9999px;text-transform:uppercase;line-height:1;}}
     .card-wrapper{{width:100%;display:flex;justify-content:center;align-items:flex-start;flex:1 1 auto;}}
     .slide-card{{width:880px;aspect-ratio:4 / 5;border-radius:24px;overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,0.65),0 6px 20px rgba(0,0,0,0.45);border:1px solid rgba(255,255,255,0.10);position:relative;}}
     .slide-card img{{width:100%;height:100%;object-fit:cover;display:block;}}
@@ -690,7 +696,8 @@ def render_news_slide(
     """
     logo_url    = _inline_asset(repo_root / "assets/logo/factjot_mark.png")
     serif_url   = _inline_asset(repo_root / "assets/fonts/InstrumentSerif-Regular.ttf")
-    mono_url    = _inline_asset(repo_root / "assets/fonts/JetBrainsMono-Bold.ttf")
+    # v2.1: Space Grotesk Bold replaces JetBrains Mono Bold for labels.
+    mono_url    = _inline_asset(repo_root / "assets/fonts/SpaceGrotesk-Bold.ttf")
     archivo_url = _inline_asset(repo_root / "assets/fonts/ArchivoBlack-Regular.ttf")
 
     index_label = f"{index}/{total}"
@@ -755,7 +762,7 @@ def _render_news_slide_photo(
     .top-row{{display:flex;align-items:center;gap:20px;}}
     .wordmark-img{{height:28px;width:auto;display:block;opacity:0.95;flex-shrink:0;filter:drop-shadow(1px 1px 0 rgba(0,0,0,0.45));}}
     .top-divider{{flex:1;height:1px;background:var(--off-white);opacity:0.32;}}
-    .index{{background:rgba(255,255,255,0.12);color:var(--off-white);font-family:"JetBrains Mono",monospace;font-weight:700;font-size:24px;letter-spacing:0.04em;padding:8px 18px 10px;border-radius:999px;line-height:1;flex-shrink:0;}}
+    .index{{background:rgba(255,255,255,0.12);color:var(--off-white);font-family:"Space Grotesk",system-ui,sans-serif;font-weight:700;font-size:24px;letter-spacing:0.04em;padding:8px 18px 10px;border-radius:999px;line-height:1;flex-shrink:0;}}
     .lines{{display:flex;flex-direction:column;gap:8px;}}
     .line{{font-family:"Archivo Black","Inter",system-ui,sans-serif;font-weight:900;font-size:48px;line-height:1.08;letter-spacing:-0.01em;text-transform:lowercase;color:var(--off-white);text-shadow:2px 2px 0 rgba(0,0,0,0.55);}}
     .line .red{{color:var(--accent);font-weight:900;}}
@@ -795,7 +802,7 @@ def _render_news_slide_typography(
     .top-row{{display:flex;align-items:center;gap:20px;flex-shrink:0;margin-bottom:0;}}
     .wordmark-img{{height:28px;width:auto;display:block;opacity:0.88;flex-shrink:0;}}
     .top-divider{{flex:1;height:1px;background:var(--off-white);opacity:0.32;}}
-    .index{{background:rgba(255,255,255,0.1);color:var(--off-white);font-family:"JetBrains Mono",monospace;
+    .index{{background:rgba(255,255,255,0.1);color:var(--off-white);font-family:"Space Grotesk",system-ui,sans-serif;
             font-weight:700;font-size:24px;letter-spacing:0.04em;padding:8px 18px 10px;border-radius:999px;line-height:1;flex-shrink:0;}}
     .lines-wrap{{flex:1;display:flex;flex-direction:column;justify-content:center;padding-right:20px;}}
     .lines{{display:flex;flex-direction:column;gap:10px;}}
@@ -823,9 +830,12 @@ def _render_news_slide_typography(
 # the compact_legacy templates above unchanged.
 
 def _font_faces_readable(serif_url: str, mono_url: str, grotesk_url: str) -> str:
+    """v2.1: mono_url points at SpaceGrotesk-Bold.ttf; both label-bold (700)
+    and body-semibold (600) Space Grotesk weights are registered so the
+    readable_list layout has access to both in the same family."""
     return f"""
     @font-face{{font-family:"Instrument Serif";src:url("{serif_url}") format("truetype");font-weight:400;font-style:normal;}}
-    @font-face{{font-family:"JetBrains Mono";src:url("{mono_url}") format("truetype");font-weight:700;font-style:normal;}}
+    @font-face{{font-family:"Space Grotesk";src:url("{mono_url}") format("truetype");font-weight:700;font-style:normal;}}
     @font-face{{font-family:"Space Grotesk";src:url("{grotesk_url}") format("truetype");font-weight:600;font-style:normal;}}"""
 
 
@@ -851,7 +861,7 @@ def _render_news_slide_photo_readable(
     .top-row{{position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:20px;padding:62px 70px 0 70px;}}
     .wordmark-img{{height:28px;width:auto;display:block;opacity:0.95;flex-shrink:0;filter:drop-shadow(1px 1px 0 rgba(0,0,0,0.45));}}
     .top-divider{{flex:1;height:1px;background:var(--off-white);opacity:0.32;}}
-    .index{{background:rgba(255,255,255,0.12);color:var(--off-white);font-family:"JetBrains Mono",monospace;font-weight:700;font-size:24px;letter-spacing:0.04em;padding:8px 18px 10px;border-radius:999px;line-height:1;flex-shrink:0;}}
+    .index{{background:rgba(255,255,255,0.12);color:var(--off-white);font-family:"Space Grotesk",system-ui,sans-serif;font-weight:700;font-size:24px;letter-spacing:0.04em;padding:8px 18px 10px;border-radius:999px;line-height:1;flex-shrink:0;}}
     .lines-wrap{{position:absolute;left:0;right:0;bottom:0;height:50%;z-index:10;padding:0 70px 78px 70px;display:flex;flex-direction:column;justify-content:flex-end;}}
     .lines{{display:flex;flex-direction:column;gap:0.16em;font-size:var(--body-size);}}
     .line{{font-family:"Space Grotesk","Inter",system-ui,sans-serif;font-weight:600;font-size:1em;line-height:1.18;letter-spacing:-0.01em;color:var(--off-white);text-shadow:2px 2px 0 rgba(0,0,0,0.55);text-wrap:balance;}}
@@ -887,7 +897,7 @@ def _render_news_slide_typography_readable(
     .top-row{{position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:20px;padding:62px 70px 0 86px;}}
     .wordmark-img{{height:28px;width:auto;display:block;opacity:0.88;flex-shrink:0;}}
     .top-divider{{flex:1;height:1px;background:var(--off-white);opacity:0.32;}}
-    .index{{background:rgba(255,255,255,0.10);color:var(--off-white);font-family:"JetBrains Mono",monospace;font-weight:700;font-size:24px;letter-spacing:0.04em;padding:8px 18px 10px;border-radius:999px;line-height:1;flex-shrink:0;}}
+    .index{{background:rgba(255,255,255,0.10);color:var(--off-white);font-family:"Space Grotesk",system-ui,sans-serif;font-weight:700;font-size:24px;letter-spacing:0.04em;padding:8px 18px 10px;border-radius:999px;line-height:1;flex-shrink:0;}}
     .lines-wrap{{position:absolute;left:0;right:0;bottom:0;height:50%;z-index:10;padding:0 70px 78px 86px;display:flex;flex-direction:column;justify-content:center;}}
     .lines{{display:flex;flex-direction:column;gap:0.16em;font-size:var(--body-size);}}
     .line{{font-family:"Space Grotesk","Inter",system-ui,sans-serif;font-weight:600;font-size:1em;line-height:1.18;letter-spacing:-0.01em;color:var(--off-white);text-wrap:balance;}}

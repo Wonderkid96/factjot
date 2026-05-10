@@ -3,10 +3,12 @@
 <head>
 <meta charset="utf-8" />
 <style>
-  /* TJCreate Visual Style Guide - factjot Reel overlay
+  /* TJCreate Visual Style Guide v2.1 - factjot Reel overlay (2026-05-10)
      Display:  Instrument Serif (Regular · Italic)
-     Body/UI:  Space Grotesk (Medium 500 · SemiBold 600)
-     Labels:   JetBrains Mono (Bold 700)                    */
+     Body:     Space Grotesk    (SemiBold 600)
+     Labels:   Space Grotesk    (Bold 700)  · was JetBrains Mono
+     Subtitle: Archivo          (Bold 700)  · was Space Grotesk Medium 500
+     Hooks:    Archivo Black    (900)                                */
 
   @font-face {
     font-family: "Instrument Serif";
@@ -28,13 +30,13 @@
   }
   @font-face {
     font-family: "Space Grotesk";
-    src: url("{{ font_sans_medium }}") format("truetype");
-    font-weight: 500;
+    src: url("{{ font_sans_bold }}") format("truetype");
+    font-weight: 700;
     font-style: normal;
   }
   @font-face {
-    font-family: "JetBrains Mono";
-    src: url("{{ font_mono_bold }}") format("truetype");
+    font-family: "Archivo";
+    src: url("{{ font_archivo_bold }}") format("truetype");
     font-weight: 700;
     font-style: normal;
   }
@@ -140,7 +142,7 @@
     margin: 0 16px;
   }
   .label-topic {
-    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-family: "Space Grotesk", system-ui, sans-serif;
     font-weight: 700;
     font-size: 22px;
     letter-spacing: 0.18em;
@@ -176,7 +178,7 @@
   .hook em.accent { color: var(--accent); font-weight: 900; }
 
   /* ------------------------------------------------------------------ */
-  /* Kinetic subtitles · Space Grotesk Medium · top-left anchored         */
+  /* Kinetic subtitles · Archivo Bold 700 · top-left anchored (v2.1)      */
   /* First word always appears at the same position; new words extend     */
   /* rightward; line-breaks grow downward. No positional reflow.         */
   /* ------------------------------------------------------------------ */
@@ -185,8 +187,8 @@
     top: 1200px;       /* lower-middle - safe from IG like/comment UI      */
     left: 72px;
     right: 72px;
-    font-family: "Space Grotesk", system-ui, sans-serif;
-    font-weight: 500;
+    font-family: "Archivo", system-ui, sans-serif;
+    font-weight: 700;
     font-size: {{ subtitle_size }}px;
     line-height: 1.20;
     letter-spacing: -0.010em;
@@ -222,7 +224,7 @@
   .cta .wordmark .dot  { color: var(--accent); font-style: normal; }
   .cta .sub {
     margin-top: 36px;
-    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-family: "Space Grotesk", system-ui, sans-serif;
     font-weight: 700;
     font-size: 26px;
     letter-spacing: 0.20em;
