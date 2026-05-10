@@ -44,6 +44,17 @@ except Exception:
     _REELS_CACHE = REPO_ROOT / "output" / "reel"
 REEL_CACHE = _REELS_CACHE
 
+# Phase F (Q7): YouTube gets its own description + title shape rather
+# than reusing the verbatim IG caption. These imports are guarded so the
+# script keeps working if anyone runs it without the rest of src/ on the
+# path; on api_key absence the helpers fall back to deterministic output.
+try:
+    from src.content.youtube_description import build_shorts_description
+    from src.content.youtube_title import build_shorts_title
+except Exception:  # pragma: no cover - defensive against import-path drift
+    build_shorts_description = None  # type: ignore[assignment]
+    build_shorts_title = None        # type: ignore[assignment]
+
 TOKEN_URI     = "https://oauth2.googleapis.com/token"
 SCOPES        = ["https://www.googleapis.com/auth/youtube.upload"]
 DEFAULT_PRIVACY = "public"
@@ -131,6 +142,14 @@ def _is_fresh(reel_meta: dict | None, max_age_minutes: int = 30) -> bool:
 
 
 def _resolve_video_path(arg_path: str | None, reel_meta: dict | None) -> Path:
+    """Return the MP4 to upload.
+
+    Phase F (Q7): prefer `final_youtube.mp4` (the higher-bitrate variant
+    produced by `make_reel.py` after the Meta-shaped encode). Fall back
+    to `final.mp4` when the YouTube variant is missing -- e.g. an older
+    reel run before Phase F shipped, or a soft-failure on the second
+    encode pass.
+    """
     if arg_path:
         p = Path(arg_path).expanduser().resolve()
         if not p.exists():
@@ -139,23 +158,29 @@ def _resolve_video_path(arg_path: str | None, reel_meta: dict | None) -> Path:
     if reel_meta:
         # Prefer the out_dir recorded in reels.jsonl when present (most
         # reliable, survives path refactors). Fall back to constructing
-        # from REELS_CACHE / reel_id / final.mp4.
+        # from REELS_CACHE / reel_id / {final_youtube.mp4, final.mp4}.
         candidates: list[Path] = []
         out_dir = reel_meta.get("out_dir")
         if out_dir:
             p = Path(out_dir)
             if not p.is_absolute():
                 p = REPO_ROOT / p
+            candidates.append(p / "final_youtube.mp4")
             candidates.append(p / "final.mp4")
         if reel_meta.get("reel_id"):
-            candidates.append(REEL_CACHE / reel_meta["reel_id"] / "final.mp4")
+            candidates.append(
+                REEL_CACHE / reel_meta["reel_id"] / "final_youtube.mp4"
+            )
+            candidates.append(
+                REEL_CACHE / reel_meta["reel_id"] / "final.mp4"
+            )
         for c in candidates:
             if c.exists():
                 return c
         tried = "\n  tried: " + "\n  tried: ".join(str(c) for c in candidates)
         raise FileNotFoundError(
             f"Latest reel ({reel_meta.get('reel_id')}) is in reels.jsonl "
-            f"but final.mp4 was not on disk.{tried}"
+            f"but no MP4 was on disk.{tried}"
         )
     raise FileNotFoundError("No video path provided and reels.jsonl is empty.")
 
@@ -167,11 +192,13 @@ def _ensure_shorts_tag(description: str) -> str:
     return description.rstrip() + "\n\n#Shorts"
 
 
-def _description_from_reel_meta(reel_meta: dict | None) -> str:
-    """Build a Shorts description when --description is not passed.
+def _legacy_description_from_reel_meta(reel_meta: dict | None) -> str:
+    """Pre-Phase-F fallback: return the verbatim IG caption / a stitched title+claim.
 
-    Prefer the caption stored on the reel ledger row (written since 2026-05);
-    older rows only have claim + title.
+    Used when the new `build_shorts_description` helper isn't importable
+    (defensive: src/ should always be on the path) or when the api_key
+    is missing AND the IG caption already lives on the reel ledger row.
+    Newer ledger rows carry `caption`; older ones only have title+claim.
     """
     if not reel_meta:
         return ""
@@ -182,6 +209,82 @@ def _description_from_reel_meta(reel_meta: dict | None) -> str:
     claim = (reel_meta.get("claim") or "").strip()
     parts = [p for p in (title, claim) if p]
     return "\n\n".join(parts) if parts else ""
+
+
+def _description_from_reel_meta(reel_meta: dict | None) -> str:
+    """Return a Shorts-shaped description for the YouTube upload.
+
+    Phase F (Q7): YouTube gets its own description rather than the
+    verbatim IG caption. Behaviour:
+      - api_key present + helper importable -> Haiku-written Shorts
+        description (with the helper's own deterministic fallback if
+        Haiku errors).
+      - api_key missing -> previous behaviour (raw IG caption / stitched
+        title+claim) so existing reels keep uploading even when
+        Anthropic credentials aren't configured.
+      - helper not importable (defensive: src/ should always be on the
+        path) -> previous behaviour.
+    """
+    if not reel_meta:
+        return ""
+    if build_shorts_description is None:
+        return _legacy_description_from_reel_meta(reel_meta)
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        return _legacy_description_from_reel_meta(reel_meta)
+
+    title = (reel_meta.get("reel_title") or "").strip()
+    claim = (reel_meta.get("claim") or "").strip()
+    sources = list(reel_meta.get("sources") or [])
+    topic = (reel_meta.get("topic") or "").strip() or "facts"
+
+    if not title and not claim:
+        return _legacy_description_from_reel_meta(reel_meta)
+
+    return build_shorts_description(
+        reel_title=title,
+        claim=claim,
+        sources=sources,
+        topic=topic,
+        api_key=api_key,
+    )
+
+
+def _title_from_reel_meta(reel_meta: dict | None, fallback_title: str) -> str:
+    """Return a 60-100 char keyword-leading Shorts title.
+
+    Phase F (Q7): YouTube gets its own search-tuned title. Behaviour:
+      - api_key present + helper importable -> Haiku-written 60-100 char
+        title (with the helper's own truncation fallback if Haiku errors).
+      - api_key missing -> previous behaviour (raw IG `reel_title`
+        truncated to YouTube's 100-char cap).
+      - helper not importable -> previous behaviour.
+
+    `fallback_title` is used when reel_meta has nothing useful (e.g.
+    arg_path upload with no `--title` and no ledger entry).
+    """
+    if not reel_meta:
+        text = (fallback_title or "").strip()
+        if not text:
+            return ""
+        return text[:100].rstrip()
+
+    title = (reel_meta.get("reel_title") or "").strip()
+    claim = (reel_meta.get("claim") or "").strip()
+
+    if build_shorts_title is None or not title:
+        return (title or fallback_title or "").strip()[:100].rstrip()
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        return title[:100].rstrip()
+
+    return build_shorts_title(
+        reel_title=title,
+        claim=claim,
+        api_key=api_key,
+    )
 
 
 def _prepare_thumbnail(video_path: Path) -> Path | None:
@@ -341,7 +444,15 @@ def main(argv: list[str]) -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
-    title = args.title or (reel_meta or {}).get("reel_title") or video_path.stem
+    # Phase F (Q7): YouTube gets its own keyword-leading 60-100 char title
+    # via Haiku rather than reusing the IG hook verbatim. Manual --title
+    # still wins when the operator passed one explicitly.
+    if args.title:
+        title = args.title
+    else:
+        ig_title = (reel_meta or {}).get("reel_title") or video_path.stem
+        title = _title_from_reel_meta(reel_meta, fallback_title=ig_title)
+
     description = args.description or _description_from_reel_meta(reel_meta)
     tags_list = [t.strip() for t in args.tags.split(",") if t.strip()]
     if not tags_list and reel_meta and reel_meta.get("topic"):

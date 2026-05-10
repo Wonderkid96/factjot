@@ -987,6 +987,44 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             f"compose done -> {final_mp4.name} {final_mp4.stat().st_size / 1024 / 1024:.1f} MB"
         )
 
+        # Phase F (Q7): higher-bitrate variant for YouTube. The Meta-shaped
+        # `final.mp4` is encoded for the 5 MB URL-fetch ceiling; YouTube has
+        # no such ceiling and rewards a sharper upload. We re-encode the
+        # already-composed MP4 (keeping the same filter graph + audio) at
+        # crf 22 / maxrate 4M so the second pass costs ~5-10s, not a full
+        # re-render. Soft-fail: if this pass errors the upload script falls
+        # back to `final.mp4` (legacy behaviour).
+        youtube_mp4: Path | None = out_dir / "final_youtube.mp4"
+        youtube_encode_cmd = [
+            ff_bin,
+            "-i", str(final_mp4),
+            "-c:v", "libx264",
+            "-crf", "22",
+            "-maxrate", "4M",
+            "-bufsize", "8M",
+            "-pix_fmt", "yuv420p",
+            "-c:a", "copy",
+            "-movflags", "+faststart",
+            "-y", str(youtube_mp4),
+        ]
+        try:
+            import subprocess as _yt_sp
+            _yt_sp.run(
+                youtube_encode_cmd,
+                check=True,
+                capture_output=True,
+                timeout=120,
+            )
+            yt_kb = youtube_mp4.stat().st_size // 1024
+            print(f"  [encode] YouTube variant: {youtube_mp4.name} ({yt_kb} KB)")
+            rlog.emit(
+                f"YouTube variant encoded -> {youtube_mp4.name} ({yt_kb} KB)"
+            )
+        except Exception as exc:
+            print(f"  [encode] YouTube variant failed (non-fatal): {exc}")
+            rlog.emit(f"YouTube variant FAILED (non-fatal): {str(exc)[:200]}")
+            youtube_mp4 = None
+
         # Step 8: Generate thumbnail (Haiku-picked frame + brand overlay) and story
         # E.4 (2026-05-10): the previous footage_clips[0] heuristic is replaced
         # with thumbnail_picker.pick_best_thumbnail (3 candidate frames, scored
