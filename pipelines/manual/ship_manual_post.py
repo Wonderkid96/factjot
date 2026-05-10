@@ -30,17 +30,11 @@ load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 import os
 from playwright.sync_api import sync_playwright
 
-# DUAL-ROLE IMPORT — see CLAUDE.md §3 and SPEC_FACTJOT_SYSTEM.md §10.1.
-# The functions below live in `pipelines/news/ship_news_post.py` because
-# they were the news-pipeline's renderer primitives and got reused for
-# the autonomous carousel after the news pipeline was killed in Phase G.2.
-# Editing those functions in `ship_news_post.py` directly affects the
-# carousel render output for every autonomous post — there is no other
-# import boundary protecting the carousel from unintended news-side edits.
-# Before changing any of these in `ship_news_post.py`, read the dual-role
-# warning at the top of that file and verify the carousel render output
-# manually in `output/manual/.../*.png` after the change.
-from pipelines.news.ship_news_post import (
+# Renderer primitives live in src/render/carousel_slides.py (Phase K.4).
+# Pre-Phase-K.4 these were imported from pipelines/news/ship_news_post.py
+# as a documented dual-role module. The news CLI is now gone and the
+# renderers are owned by src/render/ like every other shared render path.
+from src.render.carousel_slides import (
     render_cover_slide,
     render_news_slide,
     render_story_frame,

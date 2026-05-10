@@ -79,11 +79,19 @@ When in doubt, plan mode. Tightly scoped fixes inside one pipeline that do not t
 
 ## 3. Architecture risks, do not edit blindly
 
-**`pipelines/news/ship_news_post.py` has a dual role.** It is both:
-1. The deleted news-pipeline's CLI entry point (no scheduled workflow calls it now).
-2. The renderer used by the autonomous carousel pipeline. `pipelines/carousel/ship_carousel_post.py` wraps `pipelines/manual/ship_manual_post.py`, which imports these render helpers. Dry-run previews from the manual module currently land in `output/news/...`.
+**Carousel renderer ownership (resolved 2026-05-11, Phase K.4).**
+Cover, content, and story-frame renderers live in
+`src/render/carousel_slides.py`. They are imported by
+`pipelines/manual/ship_manual_post.py` (the autonomous carousel path)
+and the regression tests in `tests/test_typography_cover.py` and
+`tests/test_carousel_slides_byte_stable.py`. The previous dual-role
+module `pipelines/news/ship_news_post.py` was deleted along with the
+empty `pipelines/news/` package.
 
-An edit for one purpose can silently affect the other. Inspect both manual and news rendered output before shipping any change here. Tracked in `SPEC_FACTJOT_SYSTEM.md` §10.1; will be untangled in a deliberate split.
+Dry-run carousel previews still land in `output/news/...` because
+that path is hardcoded in `src/core/paths.py` (`NEWS_RENDERS`).
+Renaming the path is a separate cleanup; the renderer ownership
+question is settled.
 
 ---
 
@@ -105,7 +113,7 @@ Fully automated Instagram account (@factjot). Scheduled evergreen slots run via 
 
 (Cut from 5 slots to 3 on 2026-05-10 per audit Q4 quality bet, distribution test against the prior 4 weeks of 5-slot data, two-week window before reassessment.)
 
-The breaking-news pipeline was killed in audit Phase G.2 (decision B). `news-watcher.yml`, `pipelines/news/ship_news_breaking.py`, and `pipelines/news/check_guardian_rss.py` are gone. The `pipelines/news/ship_news_post.py` module is retained because `pipelines/manual/ship_manual_post.py` imports its renderer functions for the autonomous carousel flow (dual-role tracked in §3 and SPEC §10.1); its CLI entry point is dead.
+The breaking-news pipeline was killed in audit Phase G.2 (decision B). `news-watcher.yml`, `pipelines/news/ship_news_breaking.py`, and `pipelines/news/check_guardian_rss.py` are gone. The dual-role `ship_news_post.py` module was retired in Phase K.4 (2026-05-11): renderer primitives moved to `src/render/carousel_slides.py`; the news CLI helpers (which had no live caller) were deleted with the rest of the file. The whole `pipelines/news/` package is gone.
 
 Crons are UTC, tracked to BST in summer. UK clocks fall back in October; UTC equals GMT then, so posts fire at the same UK clock time year-round without intervention.
 
@@ -224,7 +232,6 @@ Image scoring under `readable_list` runs `ImageSourcer(relax=True)`: R3 score fl
 
 The audit-2026-05-09 Phase G cleanup deleted the obviously-dormant scripts. What remains here is a short list of dual-role files and lingering helpers that survived the sweep, plus the deleted infrastructure.
 
-- `pipelines/news/ship_news_post.py`: CLI entry point is dead (Phase G.2 deleted the news-watcher workflow and the breaking-news wrapper). The renderer functions in this module are still imported by `pipelines/manual/ship_manual_post.py` for the autonomous carousel flow. Untangling tracked in `SPEC_FACTJOT_SYSTEM.md` §10.1.
 - `pipelines/shared/publish_due.py`, `review_queue.py`, `queue.jsonl`: legacy queue-based publishing. Not used by the autonomous flow.
 - launchd jobs: disabled.
 - cron-job.org backup: removed; `CRON_TRIGGER_PAT` is no longer required by any active workflow.
@@ -240,6 +247,9 @@ Deleted in Phase G.3 (dormant code sweep):
 
 Deleted in Phase J (2026-05-11 cleanup, post audit /debatemax 001 follow-up):
 - `src/research/fact_discovery.py`, `pipelines/carousel/smoke_render.py`. Both were orphans flagged in Phase G but left behind. Now removed.
+
+Deleted in Phase K (2026-05-11 structural fixes):
+- `pipelines/news/ship_news_post.py` and the empty `pipelines/news/` package. Renderer primitives moved to `src/render/carousel_slides.py`; the news-CLI helpers (`build_caption`, `_log_posted`, `main`, etc.) had no live caller and went with the file.
 
 ---
 

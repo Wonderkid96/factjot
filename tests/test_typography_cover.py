@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from pipelines.news.ship_news_post import (
+from src.render.carousel_slides import (
     _is_empty_photo_url,
     build_cover_html,
     build_story_frame_html,
