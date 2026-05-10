@@ -1,30 +1,70 @@
 from __future__ import annotations
 
 import time
-from typing import Sequence
+from typing import Callable, Sequence
 
 import requests
 
+# Type alias for the optional pre-publish dedup hook. The publisher does
+# not import brain to avoid a layering cycle (brain depends on paths,
+# publisher should not depend on either). Callers wire their own
+# implementation in - typically src.brain.brain.assert_no_duplicate.
+DedupCheck = Callable[[Sequence[str]], None]
+
 
 class InstagramGraphPublisher:
-    def __init__(self, account_id: str, access_token: str, graph_version: str = "v21.0",
-                 host: str = "graph.facebook.com") -> None:
+    def __init__(
+        self,
+        account_id: str,
+        access_token: str,
+        graph_version: str = "v21.0",
+        host: str = "graph.facebook.com",
+        *,
+        dedup_check: DedupCheck | None = None,
+    ) -> None:
         self.account_id = account_id
         self.access_token = access_token
         # graph.instagram.com for the Instagram-login flow,
         # graph.facebook.com for the Facebook-login flow.
         self.base_url = f"https://{host}/{graph_version}"
+        # Optional pre-publish dedup hook. If set, called with the list
+        # of canonical subject strings (claim text for carousels, the
+        # full claim/script for reels) immediately BEFORE the first
+        # Graph API request. The hook is expected to raise on a
+        # collision; we let that exception propagate to the caller so
+        # no API call is made for a duplicate. (Audit /debatemax 001 R6:
+        # defence in depth - publisher is the last line before live
+        # state, so it owns the final dedup check.)
+        self._dedup_check = dedup_check
 
     def is_configured(self) -> bool:
         return bool(self.account_id and self.access_token)
 
-    def publish_carousel(self, image_urls: Sequence[str], caption: str) -> dict:
+    def publish_carousel(
+        self,
+        image_urls: Sequence[str],
+        caption: str,
+        *,
+        dedup_subjects: Sequence[str] | None = None,
+    ) -> dict:
+        """Publish a carousel.
+
+        If `dedup_subjects` is provided and a `dedup_check` was wired
+        into the publisher at construction time, the dedup hook runs
+        against those subject strings BEFORE any Graph API call. The
+        hook is expected to raise (typically `DuplicatePostError`) on
+        collision; the exception propagates and no API call is made.
+        """
         if not self.is_configured():
             return {"ok": False, "error": "Missing Instagram API credentials"}
         if not image_urls:
             return {"ok": False, "error": "No image URLs provided"}
         if len(image_urls) > 10:
             return {"ok": False, "error": f"Carousel exceeds Instagram's 10-image cap ({len(image_urls)})"}
+        # Defence-in-depth dedup. Caller-supplied subjects only; if the
+        # caller forgets to pass them, we still publish (back-compat).
+        if dedup_subjects and self._dedup_check is not None:
+            self._dedup_check(list(dedup_subjects))
         if len(caption) > 2200:
             tail = caption[2197:]
             print(
@@ -214,6 +254,8 @@ class InstagramGraphPublisher:
         cover_url: str | None = None,
         share_to_feed: bool = True,
         poll_timeout_s: int = 300,
+        *,
+        dedup_subjects: Sequence[str] | None = None,
     ) -> dict:
         """Upload and publish a Reel via the IG Graph API.
 
@@ -222,6 +264,12 @@ class InstagramGraphPublisher:
             caption:        Caption text (max 2200 chars).
             share_to_feed:  If True the Reel also appears on the profile grid.
             poll_timeout_s: Max seconds to wait for IG to process the video.
+            dedup_subjects: Optional canonical subject strings. When set
+                            and the publisher was constructed with a
+                            dedup_check hook, the hook runs immediately
+                            before the first Graph API call. The hook is
+                            expected to raise on duplicate; the exception
+                            propagates so no API call is made.
 
         Returns:
             {"ok": True, "ig_media_id": "..."} or {"ok": False, "error": "..."}.
@@ -232,6 +280,9 @@ class InstagramGraphPublisher:
             return {"ok": False, "error": "No video_url provided"}
         if len(caption) > 2200:
             caption = caption[:2197] + "..."
+        # Defence-in-depth dedup. See publish_carousel for the contract.
+        if dedup_subjects and self._dedup_check is not None:
+            self._dedup_check(list(dedup_subjects))
 
         # Step 1: Create media container
         params: dict = {

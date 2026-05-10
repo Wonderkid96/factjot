@@ -1071,6 +1071,11 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             access_token=cfg.env["META_ACCESS_TOKEN"],
             graph_version=cfg.env["META_GRAPH_VERSION"],
             host=cfg.env["META_GRAPH_HOST"],
+            # Defence-in-depth: the publisher itself re-reads the dedup
+            # ledger from disk just before the Graph API call, so any
+            # path that reaches publish_reel without a caller-level
+            # check still cannot post a duplicate. (Audit R6.)
+            dedup_check=brain.assert_no_duplicate,
         )
 
         result = None
@@ -1087,6 +1092,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
                 video_url=video_url,
                 caption=caption,
                 cover_url=cover_url,
+                dedup_subjects=[claim],
             )
             if result.get("ok"):
                 break

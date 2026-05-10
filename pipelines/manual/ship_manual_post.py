@@ -2337,6 +2337,10 @@ def main() -> int:
             access_token=os.getenv("META_ACCESS_TOKEN", ""),
             host=os.getenv("META_GRAPH_HOST", "graph.instagram.com"),
             graph_version=os.getenv("META_GRAPH_VERSION", "v21.0"),
+            # Defence-in-depth: same boundary check as the reel path.
+            # The publisher re-reads the dedup ledger from disk just
+            # before the Graph API call. (Audit R6.)
+            dedup_check=brain.assert_no_duplicate,
         )
 
         try:
@@ -2345,7 +2349,11 @@ def main() -> int:
             _log(f"\nABORTED: this brief has already been posted (id={post_id}).")
             return 1
 
-        publish_result = publisher.publish_carousel(image_urls, caption)
+        publish_result = publisher.publish_carousel(
+            image_urls,
+            caption,
+            dedup_subjects=[editorial_claim],
+        )
         ig_media_id    = publish_result.get("id") or publish_result.get("ig_media_id", "")
         if ig_media_id:
             _log(f"\nPosted! Media ID: {ig_media_id}")
