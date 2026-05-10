@@ -14,7 +14,7 @@ PyYAML accepts them. GitHub silently rejects the whole workflow, causing dispatc
 **Multiline Python heredocs inside `run: |` blocks break GitHub YAML parsing.**
 Extract all Python logic to standalone scripts in `scripts/`. Never put more than a simple one-liner in a workflow `run:` block.
 
-**GitHub's built-in cron scheduler is unreliable** on free-tier repos. It can be delayed 15-60 minutes or skipped entirely under load. Use cron-job.org to dispatch via the API at exact times. GitHub crons serve only as a backup.
+**[ARCHIVED 2026-05-10 — cron is now GitHub Actions native; cron-job.org removed, `CRON_TRIGGER_PAT` no longer used by any active workflow.]** **GitHub's built-in cron scheduler is unreliable** on free-tier repos. It can be delayed 15-60 minutes or skipped entirely under load. Use cron-job.org to dispatch via the API at exact times. GitHub crons serve only as a backup.
 
 ---
 
@@ -28,7 +28,7 @@ ElevenLabs returns 44.1kHz by default. Always resample to 48kHz in FFmpeg before
 
 **Meta access tokens expire every 60 days.** `refresh_token.py` extends them. If `refresh_token.py` returns "API access blocked", the app was rate-limited by too-rapid API calls. Wait 30 minutes, retry. If still blocked, regenerate from developers.facebook.com.
 
-**Cloudinary URLs are rejected by Meta's video fetcher** even when the file is under 5MB. Meta's fetcher times out before Cloudinary's CDN responds in some regions. Use tmpfiles.org (1-hour expiry) — Meta fetches within the polling window.
+**Cloudinary URLs are rejected by Meta's video fetcher** even when the file is under 5MB. Meta's fetcher times out before Cloudinary's CDN responds in some regions. Use tmpfiles.org (1-hour expiry) — Meta fetches within the polling window. (Cloudinary remains disabled in production for this reason.)
 
 ---
 
@@ -71,11 +71,13 @@ Clearing discovery logs, list pack caches, or reel staging is fine for a fresh c
 
 **`assert_no_duplicate()` must be called immediately before every Instagram API publish call** — not earlier. It does a fresh disk read to catch posts made by concurrent runs that the in-memory cache doesn't know about. It was missing from `ship_list_post.py` until 2026-05-03.
 
-**The queue (`insta-brain/data/queue.jsonl`) is a legacy artefact** from the old launchd system. GitHub Actions workflows do NOT read it — they generate posts on the fly with `ship_first_post.py` / `ship_list_post.py` / `make_reel.py`. The queue contains render paths pointing to `/home/runner/work/...` which evaporate after each run. Do not populate or read the queue.
+**[ARCHIVED 2026-05-10 — queue files (`pipelines/shared/queue.jsonl`, `publish_due.py`, `review_queue.py`) are legacy and not referenced by any production workflow. `ship_first_post.py` and `ship_list_post.py` both deleted in Phase G.3 dormant code sweep.]** **The queue (`insta-brain/data/queue.jsonl`) is a legacy artefact** from the old launchd system. GitHub Actions workflows do NOT read it — they generate posts on the fly with `ship_first_post.py` / `ship_list_post.py` / `make_reel.py`. The queue contains render paths pointing to `/home/runner/work/...` which evaporate after each run. Do not populate or read the queue.
 
 ---
 
 ## Fact quality thresholds — do not lower without a good reason
+
+**[ARCHIVED 2026-05-10 — `discover_facts.py` deleted in Phase G.3 dormant code sweep along with the entire Reddit-discovery pipeline. The autonomous flow's quality gate is the Phase D.1 fact verification (Haiku consistency + Wikipedia anchors) plus the agent's prompt-level INTERESTINGNESS / EVENT-VS-ANGLE / QUALITY gates. `ship_first_post.py` and `restock.py` are also deleted; `MIN_CAROUSEL_SCORE` no longer exists in any live code.]**
 
 **`MIN_UPVOTES = 10_000` in `discover_facts.py`.**
 Sub-10k TIL posts rarely clear the shock test. This was raised from 5k after auditing discovered facts — the 5k-10k tier was consistently bland.
@@ -90,6 +92,8 @@ Score=1 facts (generic, low upvotes, no specificity signals) are never posted to
 
 ## Reel quality gates
 
+**[ARCHIVED 2026-05-10 — `rare_fact_bank.py` retired in Phase G.1; `make_reel.py` no longer has a `_pick_fact()` selection path. `--script` and `--title` are now mandatory CLI args supplied by the autonomous agent. `check_reel_runway.py` deleted in Phase G.3. The 70-word minimum still applies (in agent prompt + `make_reel.py` validation), but the q3 / quirky_score system is gone.]**
+
 **q3 facts MUST have curated `reel_script` (>= 70 words) and `reel_title`.**
 There is no auto-fallback path. If a discovered fact is missing either field, `make_reel.py` silently skips it. The runway check (`scripts/check_reel_runway.py`) only counts facts that pass ALL gates. Do not lower the 70-word minimum — it exists because 22-word scripts produced 22-second reels that felt broken (2026-05-01 incident).
 
@@ -102,6 +106,8 @@ There is no auto-fallback path. If a discovered fact is missing either field, `m
 ---
 
 ## List pack cache
+
+**[ARCHIVED 2026-05-10 — `prepare_packs.py`, `ship_list_post.py`, `generate_list_packs.py`, `verify_pack_ids.py` all deleted in Phase G.3 dormant code sweep. `weekly-plan.yml` and `list-carousel.yml` workflows deleted earlier. The autonomous list path (`ship_carousel_post.py --type list`) sources lists fresh on each run; there is no cache layer. `list_pack_cache.jsonl` is no longer written or read.]**
 
 **List packs are pre-built on Sunday via `prepare_packs.py`.**
 TMDB calls, Playwright rendering, and imgbb uploads all happen on Sunday morning, not at 17:00 UTC post time. `ship_list_post.py` reads `data/ledgers/list_pack_cache.jsonl` — if the pack is cached and valid (<7 days old), it skips all of that work and posts directly. Cache is committed to git by both `weekly-plan.yml` (after prep) and `list-carousel.yml` (after post). Do not gitignore it.
@@ -180,6 +186,86 @@ For facts where Archive has no relevant footage (most modern facts), every query
 **Local encode "frozen" at low frame count but stderr still growing:** on **Apple Silicon** + **`ffmpeg-full`**, full graphs (ass + many inputs + x264) have been observed at **~0.005x–0.02x** real-time (tens of minutes for tens of seconds of output). That is **not** the old stderr pipe deadlock if **`ffmpeg_compose_stderr.log`** keeps growing. For a reliable full encode + publish, use **`reel.yml`** on **ubuntu-latest** until the Mac path is profiled.
 
 **`Exiting normally, received signal 15`:** FFmpeg received **SIGTERM** ( **`kill_local_reel_jobs.sh`**, Cursor task timeout, manual **Stop**, or OS). Python often ends with **`exit 5`** after compose failure handling. Not a token or Meta error.
+
+---
+
+## 2026-05-05: force-push to main triggered triple-post incident
+
+Someone force-pushed to `main` while three publish workflows were running concurrently. The workflows' state-commit step (`git pull --rebase --autostash` then `git push`) lost their state commits because the `main` ref had been rewritten beneath them; the next scheduled runs re-read `posted.jsonl` from an earlier git state and re-published the same posts. Three identical posts shipped in 8 minutes.
+
+**Mitigation:**
+- Hard rule "never force-push to main" added to project-root `CLAUDE.md` §1.1 and `SPEC_FACTJOT_SYSTEM.md` §12.14.
+- Large-history rewrites now happen on a separate branch with workflows paused; the rewrite branch is then merged in.
+- Concurrency group `factjot-publish` with `cancel-in-progress: false` already in place to keep overlapping triggers queueing rather than racing, but it doesn't protect against ref rewrites — the force-push rule does.
+
+**Lesson:** running publish workflows are mid-write to a shared ledger. Any operation that rewrites the ref under them is destructive.
+
+---
+
+## 2026-05-09: IG story container FINISHED race produced partial-render stories
+
+Stories were sometimes published before their cover image upload to IG completed, producing partial-render stories (the cover frame would be missing or half-rendered). The reel publish step worked, but the immediately-following story publish call to `media_publish` hit the IG API before the story container had reached `status_code: FINISHED`.
+
+**Fix (commit `3a366e1`):** before calling `media_publish` for the story, poll the story container for `status_code: FINISHED`. The reel-side polling pattern (15 s intervals, not 3 s, to avoid rate-limiting) was extended to the story container.
+
+**Do not remove the polling loop.** "It usually works without it" is the failure mode this fix addresses.
+
+---
+
+## 2026-05-09: entity-vs-beat crowding — wrong-subject thumbnails from `footage_clips[0]`
+
+Thumbnails picked from `footage_clips[0]` were sometimes off-subject because the entity tier (Wikipedia / Wikimedia / Internet Archive) scored 1.0 by construction (entity = subject, by definition) and outranked B-roll candidates that were actually about the right thing. A reel about person X could end up with a thumbnail of an unrelated entity Wikipedia happened to return for an ambiguous search.
+
+**Fix (Phase E.3):** entity image Haiku validation — every entity tier hit is run through Haiku 4.5 with the actual claim text, and Haiku rejects wrong-subject hits before they enter `footage_clips`. The thumbnail picker (Phase E.4) now sees a clean `footage_clips` array.
+
+**Do not bypass `validate_entity_image()` as an "optimisation".** It fixes a real production failure mode where a 1.0 score is wrong by construction.
+
+---
+
+## 2026-05-10: youtube_uploads.jsonl first-cross-post `git add` abort
+
+The autonomous workflow's `git add` step aborted on first cross-post because `data/ledgers/youtube_uploads.jsonl` did not yet exist. The previous form was a single `git add ledger1 ledger2 ...` which fails the whole step on the first missing file, silently leaving every other state file unstaged. The `git commit` step then had nothing to commit, the workflow looked green, and the next run re-read stale state.
+
+**Fix (workflow change in `autonomous-reel.yml:200-220`):** stage each ledger separately, guarded by `if [ -e "$f" ]; then git add "$f" || true; fi`. A missing file no longer aborts the step; existing ledgers stage normally.
+
+```yaml
+for f in \
+  insta-brain/data/posted.jsonl \
+  insta-brain/data/reels.jsonl \
+  ...
+  data/ledgers/youtube_uploads.jsonl
+do
+  if [ -e "$f" ]; then
+    git add "$f" || true
+  fi
+done
+```
+
+**Lesson:** any `git add <list>` in a workflow has to tolerate the first-time-creation case. New ledgers must not abort the commit step.
+
+---
+
+## 2026-05-09: phone-with-no-apps near-duplicate cluster
+
+Eight carousels about the same speculative product story shipped in five hours under different slugs. The agent's existing duplicate guard (last 30 entries, topic / angle / "same subject framed differently") missed it because each carousel had a slightly different angle and slug, but they were all the same subject in different framings.
+
+**Fix (Phase C.3):** subject-fingerprint dedup added to the agent loop. Computes a token-set fingerprint per brief, compares against the last 14 days of `posted.jsonl` using Jaccard similarity. Anything ≥ 0.6 is rejected before the brief enters `run_carousel` / `run_reel`. Sits in front of the prompt-level guard, not behind it.
+
+**Do not lower the 0.6 threshold without watching the false-positive rate for two weeks.** The threshold was tuned against the cluster that triggered this fix.
+
+---
+
+## 2026-05-09: fictional-films carousel — $0 fact verification gate
+
+A list carousel shipped with four invented films because no fact verification gate existed. The agent had hallucinated film titles that fit the criterion ("films with X premise") but did not exist. The image fetcher dutifully searched for them, found nothing, fell back to typography slides for each, and the carousel still posted because the format was technically valid.
+
+**Fix (Phase D.1):** fact verification gate. Two layers, both running before publish:
+1. Haiku 4.5 consistency check on the brief — flags briefs containing "fictional", "absurdity", "experiment" without justification at $0 cost. Catches the cheapest failure cases first.
+2. Numeric and named claims are cross-checked against Wikipedia anchors. If a claim cannot be anchored, the gate rejects.
+
+**Soft-fail-then-hard-fail rollout:** v1 ships with hard rejection. If hard-rejection rate exceeds 50% after 3 days, drop to soft-fail (warn + ship + log) for tuning, then re-tighten.
+
+**Do not remove the gate to "speed things up".** The cheapest layer (Haiku consistency) is essentially free; the expensive layer (Wikipedia anchoring) is bounded by the number of named entities per claim, typically 1-3.
 
 ---
 
