@@ -5,11 +5,15 @@ Never hardcode colours, fonts, or sizes. Read from brand_kit.json
 via this module so the brand can't drift across carousel, list, Reel,
 or story renderers.
 
-Typography (TJCreate Visual Style Guide v2.0, 2026-05):
-  Display / headlines  -> Instrument Serif  Regular + Italic
-  Body / subtitles     -> Space Grotesk     SemiBold 600
-  Labels / tags        -> JetBrains Mono    Bold 700
-  Caption / burn-in    -> Archivo Black     900 (video subtitles only)
+Typography (TJCreate Visual Style Guide v2.1, 2026-05-10 font hierarchy):
+  Display / headlines     -> Instrument Serif Regular + Italic
+  Carousel body (list)    -> Space Grotesk    SemiBold 600
+  Labels / kickers / chips -> Space Grotesk    Bold     700  (canonical)
+  Reel subtitles          -> Archivo          Bold     700  (kinetic burn-in)
+  Hooks / intro / story   -> Archivo Black    900           (Reel covers + thumbnails)
+
+JetBrains Mono Bold is retained on disk for backwards compatibility but no
+template references it after the 2026-05-10 hierarchy migration.
 
 Wordmark rule (hardwired, never changes):
   fact[normal]  jot[italic]  .[accent-red]  colour=off-white
@@ -77,11 +81,20 @@ FONT_SERIF_REGULAR  = _F / "InstrumentSerif-Regular.ttf"
 FONT_SERIF_ITALIC   = _F / "InstrumentSerif-Italic.ttf"
 FONT_SANS_SEMIBOLD  = _F / "SpaceGrotesk-SemiBold.ttf"
 FONT_SANS_MEDIUM    = _F / "SpaceGrotesk-Medium.ttf"
-FONT_MONO_BOLD      = _F / "JetBrainsMono-Bold.ttf"
+FONT_MONO_BOLD      = _F / "JetBrainsMono-Bold.ttf"  # legacy, no template uses it
 
-# Caption / burn-in font (Archivo Black 900, single weight). v2.0 only —
-# scope is short-form video subtitles and title cards. Existing
-# carousel/reel-thumbnail/story renderers do NOT use it.
+# v2.1 (2026-05-10) font hierarchy migration ------------------------------- #
+# Space Grotesk Bold 700 replaces JetBrains Mono Bold for labels, kickers,
+# chips, metadata, score badges, item indexes, source attributions.
+# Archivo Bold 700 replaces Space Grotesk Medium 500 for kinetic reel
+# subtitles. Both new files live alongside the legacy ones.
+LABEL_FONT_CANONICAL_PATH = _F / "SpaceGrotesk-Bold.ttf"
+SUBTITLE_FONT_PATH        = _F / "Archivo-Bold.ttf"
+FONT_SANS_BOLD            = LABEL_FONT_CANONICAL_PATH  # alias for renderers
+FONT_ARCHIVO_BOLD         = SUBTITLE_FONT_PATH          # alias for renderers
+
+# Caption / burn-in font (Archivo Black 900, single weight). v2.0+ scope:
+# Reel hooks, intro/title cards, thumbnails, story cards.
 FONT_CAPTION_BLACK  = _F / "ArchivoBlack-Regular.ttf"
 
 def font_url(path: Path) -> str:
@@ -91,10 +104,12 @@ def font_url(path: Path) -> str:
 # ------------------------------------------------------------------ #
 # Font role constants - use these, never hardcode font names
 # ------------------------------------------------------------------ #
-ROLE_DISPLAY = "Instrument Serif"  # headlines, title cards, CTA wordmark
-ROLE_BODY    = "Space Grotesk"     # subtitles, body copy
-ROLE_LABEL   = "JetBrains Mono"   # category tags, metadata, counters
-ROLE_CAPTION = "Archivo Black"     # short-form video burn-in subtitles only (v2)
+ROLE_DISPLAY  = "Instrument Serif"  # headlines, title cards, CTA wordmark
+ROLE_BODY     = "Space Grotesk"     # carousel body copy (readable_list)
+ROLE_LABEL    = "Space Grotesk"     # v2.1 canonical labels/kickers/chips (Bold 700)
+ROLE_LABEL_LEGACY = "JetBrains Mono"  # retained for any external consumer
+ROLE_SUBTITLE = "Archivo"           # v2.1 kinetic reel subtitles (Bold 700)
+ROLE_CAPTION  = "Archivo Black"     # hooks, intro/title cards, thumbnails, story cards
 
 # ------------------------------------------------------------------ #
 # Wordmark spec (matches make_avatar.py - the canonical renderer)
@@ -125,8 +140,8 @@ def wordmark_html(prefix: str = "") -> str:
 TYPE = {
     "hero":     160,   # Instrument Serif - CTA wordmark
     "h1":        90,   # Instrument Serif - title cards
-    "subtitle":  72,   # Space Grotesk SemiBold - kinetic subtitles
-    "label":     24,   # JetBrains Mono Bold - category pill
+    "subtitle":  72,   # Archivo Bold 700 - kinetic subtitles (v2.1)
+    "label":     24,   # Space Grotesk Bold 700 - category pill (v2.1)
     "logo":      36,   # Instrument Serif - watermark (50% opacity)
 }
 
@@ -152,8 +167,10 @@ def assert_fonts_present() -> None:
     required = [
         FONT_SERIF_REGULAR, FONT_SERIF_ITALIC,
         FONT_SANS_SEMIBOLD, FONT_SANS_MEDIUM,
-        FONT_MONO_BOLD,
+        FONT_SANS_BOLD,             # v2.1 canonical label font
+        FONT_ARCHIVO_BOLD,          # v2.1 kinetic subtitle font
         FONT_CAPTION_BLACK,
+        FONT_MONO_BOLD,             # legacy, kept for backwards compatibility
     ]
     missing = [str(f) for f in required if not f.exists()]
     if missing:

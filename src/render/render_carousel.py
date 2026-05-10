@@ -1,7 +1,8 @@
 """factjot HTML+Playwright renderer.
 
-Each slide is laid out in HTML/CSS using Instrument Serif and JetBrains Mono,
-then screenshotted by headless Chromium to a 1080x1350 PNG. This gives us real
+Each slide is laid out in HTML/CSS using Instrument Serif and Space Grotesk
+Bold (v2.1, was JetBrains Mono), then screenshotted by headless Chromium to
+a 1080x1350 PNG. This gives us real
 typography (proper kerning, ligatures, baseline behaviour) and avoids the
 PIL-style baseline bugs where punctuation floats.
 
@@ -165,11 +166,16 @@ class BrandKitRenderer:
         headline_html = self._markup_to_html(slide_text)
         index_label = f"{slide_index:02d} / {total:02d}"
 
+        # v2.1: prefer label_font_canonical (Space Grotesk Bold) for the
+        # @font-face Space Grotesk declaration in slide.html.j2; legacy
+        # font_mono_bold is kept wired but no template references it.
+        label_canonical = ty.get("label_font_canonical", ty["label_font"])
         return self._template.render(
             width=self.width,
             height=self.height,
             font_serif_regular=self._asset_url(ty["headline_font"]),
             font_serif_italic=self._asset_url(ty["headline_italic_font"]),
+            font_sans_bold=self._asset_url(label_canonical),
             font_mono_bold=self._asset_url(ty["label_font"]),
             font_archivo_black=self._asset_url(str(ARCHIVO_BLACK_PATH)) if ARCHIVO_BLACK_PATH.exists() else None,
             image_url=self._asset_url(str(bg_path)),
@@ -265,10 +271,12 @@ class BrandKitRenderer:
         safe = escape(safe)
         safe = re.sub(r"([.!?])(\s*)$", r'<span class="accent-period">\1</span>\2', safe)
 
+        label_canonical = ty.get("label_font_canonical", ty["label_font"])
         return self._closing_template.render(
             width=self.width, height=self.height,
             font_serif_regular=self._asset_url(ty["headline_font"]),
             font_serif_italic=self._asset_url(ty["headline_italic_font"]),
+            font_sans_bold=self._asset_url(label_canonical),
             font_mono_bold=self._asset_url(ty["label_font"]),
             font_archivo_black=self._asset_url(str(ARCHIVO_BLACK_PATH)) if ARCHIVO_BLACK_PATH.exists() else None,
             image_url=self._asset_url(str(bg_path)),
@@ -315,11 +323,13 @@ class BrandKitRenderer:
         # Scale down slightly for the card: it's ~89% width so text can be a touch larger
         headline_size = min(headline_size + 8, 96)
 
+        label_canonical = ty.get("label_font_canonical", ty["label_font"])
         html = self._stories_template.render(
             width=1080,
             height=1920,
             font_serif_regular=self._asset_url(ty["headline_font"]),
             font_serif_italic=self._asset_url(ty["headline_italic_font"]),
+            font_sans_bold=self._asset_url(label_canonical),
             font_mono_bold=self._asset_url(ty["label_font"]),
             image_url=self._asset_url(str(bg_path)),
             wordmark_image_url=self._asset_url(str(LOGO_PATH)) if LOGO_PATH.exists() else "",

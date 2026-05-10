@@ -987,10 +987,18 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             f"compose done -> {final_mp4.name} {final_mp4.stat().st_size / 1024 / 1024:.1f} MB"
         )
 
-        # Step 8: Generate thumbnail (footage frame + branded overlay) and story
-        from src.render.reel_thumbnail import render_thumbnail
+        # Step 8: Generate thumbnail (Haiku-picked frame + brand overlay) and story
+        # E.4 (2026-05-10): the previous footage_clips[0] heuristic is replaced
+        # with thumbnail_picker.pick_best_thumbnail (3 candidate frames, scored
+        # by Haiku 4.5 vision). The chosen frame gets the brand overlay
+        # (PAPER lower-third scrim + Archivo Black headline + Space Grotesk
+        # kicker + factjot wordmark). The same overlay-bearing PNG is used
+        # for both the IG cover and the YouTube custom thumbnail per Q6.
+        from src.render.reel_thumbnail import render_thumbnail_overlay
         from src.render.reel_story import render_story
         from src.content.reel_caption import build_reel_caption
+        from src.content.thumbnail_headline import build_thumbnail_headline
+        from src.render.thumbnail_picker import pick_best_thumbnail
 
         story_title = make_title(claim, ftopic, reel_title=fact.get("reel_title"))
 
@@ -998,33 +1006,72 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         thumbnail_png = out_dir / "thumbnail.png"
         story_png     = out_dir / "story.png"
 
-        print("\nExtracting footage frame for thumbnail...")
-        # Pull a frame at 1.0s from clean footage only (no overlays baked in).
-        # If footage_clips[0] is a still image, use the pre-rendered
-        # still_rendered_{stem}.mp4 from the compose step -- that file has no
-        # text overlays. Do NOT use final.mp4 (all overlays baked in = double text
-        # on thumbnail and story).
-        if footage_clips[0].suffix.lower() in _THUMB_STILL_EXTS:
-            _still_rendered = out_dir / f"still_rendered_{footage_clips[0].stem}.mp4"
-            thumb_src = _still_rendered if _still_rendered.exists() else footage_clips[0]
-        else:
-            thumb_src = footage_clips[0]
+        # When footage_clips[0] is a still, prefer the pre-rendered MP4
+        # for the picker so frame extraction is consistent across mixed
+        # footage. Stills get seek=0 anyway via the planner.
+        picker_clips: list[Path] = []
+        for fc in footage_clips:
+            if fc.suffix.lower() in _THUMB_STILL_EXTS:
+                _still_rendered = out_dir / f"still_rendered_{fc.stem}.mp4"
+                picker_clips.append(
+                    _still_rendered if _still_rendered.exists() else fc
+                )
+            else:
+                picker_clips.append(fc)
+
+        print("\nExtracting + scoring 3 candidate thumbnail frames...")
+        cand_dir = out_dir / "thumb_candidates"
+        anth_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
         try:
-            _extract_reel_thumbnail_frame(ff_bin, thumb_src, frame_jpg)
+            chosen_frame, picker_meta = pick_best_thumbnail(
+                footage_clips=picker_clips,
+                claim=claim,
+                reel_title=story_title or "",
+                api_key=anth_key,
+                candidate_dir=cand_dir,
+                ffmpeg_bin=ff_bin,
+            )
         except RuntimeError as exc:
-            print(f"\nERROR: reel FAILED thumbnail — frame extract: {exc}")
+            print(f"\nERROR: reel FAILED thumbnail picker: {exc}")
             brain.append_log(
-                f"reel FAILED thumbnail frame — fact={claim[:60]!r} error={str(exc)[:300]}"
+                f"reel FAILED thumbnail picker — fact={claim[:60]!r} "
+                f"error={str(exc)[:300]}"
             )
             return 9
-        print(f"  [frame] {frame_jpg.name} ({frame_jpg.stat().st_size // 1024}KB)")
 
-        print("Compositing thumbnail (footage frame + branded overlay)...")
-        render_thumbnail(
-            title=story_title or claim.split(".")[0],
-            topic=ftopic,
+        # Persist the chosen frame as thumbnail_frame.jpg for downstream use
+        # (story renderer + debug). Keep the original PNG too under
+        # thumb_candidates/ for ledger archaeology.
+        try:
+            from PIL import Image
+            with Image.open(chosen_frame) as im:
+                im.convert("RGB").save(frame_jpg, format="JPEG", quality=92)
+        except Exception as exc:
+            # Soft-fall: copy the PNG bytes if PIL is missing or fails.
+            print(f"  [thumb] PIL JPEG conversion failed ({exc}); copying PNG bytes")
+            frame_jpg.write_bytes(chosen_frame.read_bytes())
+        print(
+            f"  [frame] chosen={chosen_frame.name} -> {frame_jpg.name} "
+            f"({frame_jpg.stat().st_size // 1024}KB) "
+            f"haiku_cost=${picker_meta.get('total_cost_usd', 0.0):.5f}"
+        )
+
+        # Build the overlay headline (4-6 word version of the title).
+        overlay_headline = build_thumbnail_headline(
+            story_title or claim.split(".")[0],
+            api_key=anth_key,
+        )
+        overlay_kicker = ftopic.upper() if ftopic else ""
+        print(
+            f"  [overlay] headline={overlay_headline!r} kicker={overlay_kicker!r}"
+        )
+
+        print("Compositing thumbnail (chosen frame + brand overlay)...")
+        render_thumbnail_overlay(
+            frame_path=chosen_frame,
+            headline=overlay_headline,
+            kicker=overlay_kicker,
             out_path=thumbnail_png,
-            frame_path=frame_jpg,
         )
 
         print("Rendering story asset...")

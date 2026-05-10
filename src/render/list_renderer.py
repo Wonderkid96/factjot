@@ -130,10 +130,15 @@ class ListCarouselRenderer:
     def _build_html(self, spec: ListSlideSpec, category: str) -> str:
         ty = self.brand["typography"]
         index_label = f"{spec.number:02d} / {spec.total:02d}"
+        # v2.1: templates use Space Grotesk Bold via font_sans_bold; the
+        # legacy font_mono_bold is wired through for any caller still using
+        # the old @font-face name (none in active templates).
+        label_canonical = ty.get("label_font_canonical", ty["label_font"])
         common = dict(
             width=self.width, height=self.height,
             font_serif_regular=self._asset_url(ty["headline_font"]),
             font_serif_italic=self._asset_url(ty["headline_italic_font"]),
+            font_sans_bold=self._asset_url(label_canonical),
             font_mono_bold=self._asset_url(ty["label_font"]),
             font_archivo_black=self._asset_url(str(ARCHIVO_BLACK_PATH)) if ARCHIVO_BLACK_PATH.exists() else None,
             wordmark_image_url=self._asset_url(str(LOGO_PATH)) if LOGO_PATH.exists() else "",

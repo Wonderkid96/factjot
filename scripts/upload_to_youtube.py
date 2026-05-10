@@ -190,6 +190,13 @@ def _prepare_thumbnail(video_path: Path) -> Path | None:
 
     YouTube caps custom thumbnails at 2 MB; our PNG renders at ~2.3 MB.
     JPEG at quality 85 typically lands well under 1 MB.
+
+    Phase E.4 (Q6): the reel pipeline writes a single overlay-bearing
+    `thumbnail.png` to the reel out_dir (chosen-frame + brand overlay).
+    This same PNG ships to both the IG cover frame and the YouTube custom
+    thumbnail (one asset, two surfaces). Do not regenerate the thumbnail
+    here -- if make_reel.py has not produced one we deliberately fall back
+    to YouTube's auto-pick rather than fabricate a divergent asset.
     """
     src = video_path.parent / "thumbnail.png"
     if not src.exists():

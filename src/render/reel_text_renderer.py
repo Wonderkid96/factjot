@@ -1,8 +1,9 @@
 """Playwright-based text overlay renderer for Reels.
 
 Renders transparent 1080x1920 PNG overlay frames using HTML+CSS, matching
-the same Instrument Serif / JetBrains Mono typography as the carousel
-posts. Brand-consistent, pixel-perfect, italic [i]/[h] emphasis tokens
+the v2.1 Instrument Serif / Space Grotesk Bold typography as the carousel
+posts (kinetic subtitles use Archivo Bold 700; hooks use Archivo Black
+900). Brand-consistent, pixel-perfect, italic [i]/[h] emphasis tokens
 work natively.
 
 A single Playwright browser session renders many frames per call, so the
@@ -29,6 +30,8 @@ from playwright.sync_api import sync_playwright
 from src.core.brand import (
     FONT_SERIF_REGULAR, FONT_SERIF_ITALIC,
     FONT_SANS_SEMIBOLD, FONT_SANS_MEDIUM,
+    FONT_SANS_BOLD,
+    FONT_ARCHIVO_BOLD,
     FONT_MONO_BOLD,
     FONT_CAPTION_BLACK,
     REEL_W as _W, REEL_H as _H,
@@ -127,6 +130,8 @@ class ReelTextRenderer:
             font_serif_italic=FONT_SERIF_ITALIC.as_uri(),
             font_sans_semibold=FONT_SANS_SEMIBOLD.as_uri(),
             font_sans_medium=FONT_SANS_MEDIUM.as_uri(),
+            font_sans_bold=FONT_SANS_BOLD.as_uri(),
+            font_archivo_bold=FONT_ARCHIVO_BOLD.as_uri(),
             font_mono_bold=FONT_MONO_BOLD.as_uri(),
             font_archivo_black=FONT_CAPTION_BLACK.as_uri(),
         )
@@ -295,7 +300,7 @@ def render_photo_insert(
     - Soft drop shadow (grounds it physically)
     - Brand red left accent line
     - Film grain + vignette overlaid on the photo
-    - Optional caption in JetBrains Mono below the image
+    - Optional caption in Space Grotesk Bold below the image
 
     The PNG is 1080x1920 with transparent background -- composited
     into the reel as a regular OverlayFrame at the chosen time window.
@@ -325,7 +330,8 @@ def render_photo_insert(
         frame_w=frame_w,
         border=border,
         caption_pad=cap_pad if caption else border,
-        font_mono_bold=FONT_MONO_BOLD.as_uri(),
+        font_sans_bold=FONT_SANS_BOLD.as_uri(),
+        font_mono_bold=FONT_MONO_BOLD.as_uri(),  # legacy alias, unused
     )
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -363,7 +369,8 @@ def render_case_doc(
     """Render a casefile text document as a transparent PNG overlay.
 
     Styled as a physical paper document: ivory background, brand red left
-    accent, JetBrains Mono. Positioned absolutely within the 1080x1920 canvas.
+    accent, Space Grotesk Bold (v2.1, was JetBrains Mono). Positioned
+    absolutely within the 1080x1920 canvas.
     Composited into the reel as an OverlayFrame with rgba=True.
 
     Args:
@@ -383,7 +390,8 @@ def render_case_doc(
     tmpl = env.get_template("reel_case_doc.html.j2")
     html = tmpl.render(
         width=_W, height=_H,
-        font_mono_bold=FONT_MONO_BOLD.as_uri(),
+        font_sans_bold=FONT_SANS_BOLD.as_uri(),
+        font_mono_bold=FONT_MONO_BOLD.as_uri(),  # legacy alias, unused
         label=label.upper(),
         value=value,
         body=body,

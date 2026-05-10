@@ -56,7 +56,7 @@ These are environment-coded duplicates of the principles in `SPEC_FACTJOT_SYSTEM
 6. **Visual success is success.** Tests passing is not enough. Open the rendered artefact (slides, MP4, thumbnail, story) and judge it. See `SPEC_FACTJOT_SYSTEM.md` §10.3, §13.
 7. **Reel transitions are hardwired.** `case_file_dynamic` is the only transition mode (hardcoded in `src/render/reel_composer.py`). Do not add env flags, classic fallbacks, or feature toggles. The legacy `REEL_TRANSITIONS_MODE` env var is gone.
 8. **Append-only ledgers.** One named exception: `data/ledgers/reel_performance.jsonl` is mutable, fully rewritten on each `fetch_reel_metrics.py` run as engagement numbers accumulate. Do not convert it to append-only.
-9. **Four brand fonts only.** Instrument Serif, Space Grotesk SemiBold, JetBrains Mono Bold (primaries) plus Archivo Black 900 scoped strictly to short-form video burn-in. No fifth font, no scope creep on Archivo Black.
+9. **Font hierarchy.** Four families, weights documented in `brand/brand_kit.json` v2.1: Archivo (Black 900 hook/thumbnail/story cards + Bold 700 kinetic subtitles); Instrument Serif (Regular + Italic for headlines, wordmark, carousel titles); Space Grotesk (SemiBold for carousel body in readable_list profile + Bold 700 for labels/kickers/chips/metadata, replaces JetBrains Mono Bold); JetBrains Mono retained on disk for backwards compatibility but no template references it. Any new label/kicker/chip rule using Space Grotesk Bold 700 must apply `text-transform: uppercase` + `letter-spacing: 0.06em-0.1em` to preserve the data-tag affordance lost by dropping monospace.
 10. **Canonical Python locally:** `/Library/Frameworks/Python.framework/Versions/Current/bin/python3`. Bare `python3` finds no packages locally. Bare `python3` is only correct inside GitHub Actions.
 11. **No repost.** The autonomous agent reads `insta-brain/data/posted.jsonl` and applies a prompt-level duplicate guard rejecting topic, angle, and "same subject framed differently" overlaps. No image reuse across posts (`data/ledgers/used_images.jsonl`). No footage reuse across reels (`data/ledgers/used_footage_urls.jsonl`).
 12. **Fix the tool, not the symptom.** A wrong value in a data file means the process that wrote it is broken. Fix the process, then run it to clean up. Patching one bad value guarantees the next one will be wrong too.
@@ -171,16 +171,19 @@ Per-run logs: `output/reel/<id>/pipeline.log` and `logs/reel_runs/`. Compose std
 
 ## 9. Brand and typography (summary)
 
-Source of truth: `brand/brand_kit.json` (v2.0) consumed via `src/core/brand.py`. Templates do not inline values that exist in the JSON. Full schema and migration plan will live in future `SPEC_STYLE_GUIDE.md`.
+Source of truth: `brand/brand_kit.json` (v2.1) consumed via `src/core/brand.py`. Templates do not inline values that exist in the JSON. Full schema and migration plan will live in future `SPEC_STYLE_GUIDE.md`.
 
 | Font | Use |
 |---|---|
 | Instrument Serif Regular + Italic | Hook titles, wordmark, title cards |
-| Space Grotesk SemiBold | Subtitles, body copy |
-| JetBrains Mono Bold | Labels, badges, tags |
-| Archivo Black 900 | Short-form video burn-in subtitles only, never elsewhere |
+| Space Grotesk SemiBold | Carousel body copy (readable_list profile) |
+| Space Grotesk Bold 700 | Labels, kickers, chips, metadata, score badges, item indexes, source attributions |
+| Archivo Black 900 | Hook cards, intro/title cards, thumbnails, story cards |
+| Archivo Bold 700 | Kinetic reel subtitles (replaces Space Grotesk Medium 500) |
 
-Carousel body copy honours the Space Grotesk rule when `layout_mode=readable_list` (used by the list slot, and available for news when explicitly selected). The fact slot still renders body in Archivo Black 900 via the `compact_legacy` profile pending a separate font decision; see §10.
+JetBrains Mono Bold removed from active brand system as of 2026-05-10. Files retained on disk for any external consumer; no template imports them.
+
+Carousel body copy honours the Space Grotesk SemiBold rule when `layout_mode=readable_list` (used by the list slot, and available for news when explicitly selected). The fact slot still renders body in Archivo Black 900 via the `compact_legacy` profile pending a separate font decision; see §10.
 
 Wordmark: `fact[regular] jot[italic] .[red]`. Canonical inline 3-part HTML across every template; the legacy PNG fallback was removed 2026-05-07.
 
