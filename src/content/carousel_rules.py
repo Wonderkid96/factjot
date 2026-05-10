@@ -42,6 +42,9 @@ LAYOUT_PROFILES: dict[str, dict] = {
         "container":         "anchored_bottom_left",
         "writer_target_min": 12,
         "writer_target_max": 22,
+        # When False, ImageSourcer applies the strict R3 score floor.
+        # Named-subject metadata is expected to be strong on fact slots.
+        "relax_image_floor": False,
     },
     "readable_list": {
         "body_font":         "Space Grotesk",
@@ -56,6 +59,11 @@ LAYOUT_PROFILES: dict[str, dict] = {
         "container":         "half_box_centered",
         "writer_target_min": 30,
         "writer_target_max": 50,
+        # When True, ImageSourcer drops the R3 floor 8 -> 6 to admit
+        # moderately-confident candidates on item slides where named-
+        # subject metadata is weak. List slots use this; compact_legacy
+        # callers stay strict.
+        "relax_image_floor": True,
     },
 }
 
@@ -66,6 +74,31 @@ def get_profile(mode: LayoutMode | str) -> dict:
     if mode in LAYOUT_PROFILES:
         return LAYOUT_PROFILES[mode]
     return LAYOUT_PROFILES["compact_legacy"]
+
+
+# ------------------------------------------------------------------ #
+# Pipeline format -> layout-profile routing
+# ------------------------------------------------------------------ #
+# Single source of truth. Before Phase K.3 this decision lived in two
+# places: scripts/autonomous_agent.py (agent shim, format_type -> CLI
+# flag) and pipelines/manual/ship_manual_post.py (CLI default by
+# args.type). The two could drift. Now both call profile_for_format().
+
+FORMAT_TO_PROFILE: dict[str, str] = {
+    "fact": "compact_legacy",
+    "list": "readable_list",
+    "news": "readable_list",
+}
+
+
+def profile_for_format(format_type: str) -> str:
+    """Return the layout-profile key for a pipeline format_type.
+
+    Unknown values fall back to `compact_legacy` (the byte-identical-
+    to-pre-2026-05-08 default) so a new format does not silently flip
+    to readable_list.
+    """
+    return FORMAT_TO_PROFILE.get(format_type, "compact_legacy")
 
 # Words a line must not end on (weak connectors).
 WEAK_LINE_ENDINGS = frozenset({

@@ -1817,10 +1817,13 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    # Layout default: list flips to readable_list automatically. fact /
-    # news keep compact_legacy unless an explicit --layout-mode overrides.
+    # Layout-profile routing lives in src/content/carousel_rules.py
+    # (single source of truth). Pre-Phase-K.3 the default was an inline
+    # `if args.type == "list"` check that could drift from the agent
+    # shim's parallel check. Now both call the same helper.
+    from src.content.carousel_rules import profile_for_format
     if args.layout_mode is None:
-        layout_mode = "readable_list" if args.type == "list" else "compact_legacy"
+        layout_mode = profile_for_format(args.type)
     else:
         layout_mode = args.layout_mode
 
@@ -2021,10 +2024,15 @@ def main() -> int:
     visual_fallbacks = data.get("visual_fallback_queries", [])
     while len(visual_fallbacks) < total_slides:
         visual_fallbacks.append("")
+    # relax_image_floor is a property of the layout profile, not the
+    # layout-mode string. Pre-Phase-K.3 this was an inline string match
+    # that conflated layout choice with image-floor relaxation; a
+    # future profile that wants readable typography with a STRICT
+    # image floor would need a new branch. Read from the profile.
     sourcer = ImageSourcer(
         topic="editorial",
         use_fresh_ledger=args.dry_run,
-        relax=(layout_mode == "readable_list"),
+        relax=get_profile(layout_mode)["relax_image_floor"],
     )
     smoke_pool = 12 if args.smoke_mode else None
     images  = sourcer.source_images(

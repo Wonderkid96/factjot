@@ -391,6 +391,7 @@ def run_reel(args: dict, dry_run: bool) -> str:
 
 
 def run_carousel(args: dict, dry_run: bool, format_type: str = "fact") -> str:
+    from src.content.carousel_rules import profile_for_format
     py = sys.executable or "python3"
     cmd = [
         py, "-u", "pipelines/carousel/ship_carousel_post.py",
@@ -399,11 +400,14 @@ def run_carousel(args: dict, dry_run: bool, format_type: str = "fact") -> str:
         "--slides", str(args.get("slides", 6)),
         "--type",   format_type,
     ]
-    # readable_list opt-in: list and news slots get the new half-box /
-    # Space Grotesk / autosize layout. fact stays on compact_legacy
-    # for now (the CLI default when --layout-mode is omitted).
-    if format_type in ("list", "news"):
-        cmd.extend(["--layout-mode", "readable_list"])
+    # Layout-profile routing is owned by src/content/carousel_rules.py
+    # (single source of truth). The previous inline `if format_type in
+    # ("list", "news")` lived here AND in ship_manual_post.py; either
+    # could drift. Pass the resolved profile explicitly when it differs
+    # from the CLI's per-type default so the agent's intent is visible
+    # in the workflow log.
+    layout_mode = profile_for_format(format_type)
+    cmd.extend(["--layout-mode", layout_mode])
     if dry_run:
         cmd.append("--dry-run")
     raw = _run_pipeline(cmd)
