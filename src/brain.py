@@ -256,6 +256,8 @@ class Brain:
     def record_publish(self, *, post_id: str, ig_media_id: str, slides: list[dict]) -> None:
         """Append one row per slide claim. `slides` items must have:
             claim, topic, category, sources (list of urls)
+        Optional per-slide fields written through if present:
+            reel_title (subject identity for reels - feeds fingerprint dedup)
         """
         when = _now_iso()
         with self._lock:
@@ -273,6 +275,12 @@ class Brain:
                         "published_at": when,
                         "sources": slide.get("sources", []),
                     }
+                    # Pass through subject-identity fields when the caller
+                    # supplies them. Reels supply reel_title; carousels
+                    # do not, so the field is omitted rather than blank.
+                    reel_title = slide.get("reel_title")
+                    if reel_title:
+                        row["reel_title"] = reel_title
                     fh.write(json.dumps(row, ensure_ascii=True) + "\n")
                     self._posted_hashes.add(h)
 

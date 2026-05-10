@@ -588,8 +588,15 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
                         global_footage_registry.add(entry["url"])
                     if "filename" in entry:
                         blocked_footage_filenames.add(entry["filename"])
-                except Exception:
-                    pass
+                except Exception as exc:
+                    # A corrupt ledger line silently passing through means
+                    # a previously-used clip can leak back into eligibility.
+                    # Surface so the corruption is fixable.
+                    print(
+                        f"  [footage] skipping corrupt ledger line "
+                        f"({exc}): {line[:80]!r}",
+                        flush=True,
+                    )
 
         print(f"  [footage] blocking {len(blocked_footage_filenames)} URLs/IDs from previous reels (ledger)")
 
@@ -1203,10 +1210,19 @@ def _record(
     print(f"Recorded in {ledger}")
 
     # Then mirror into shared dedup pool (carousels + future reels).
+    # Pass through reel_title so the title-based subject fingerprint in
+    # autonomous_agent.build_history_summary works for reel entries read
+    # from posted.jsonl (not just reels.jsonl).
     brain.record_publish(
         post_id=reel_id,
         ig_media_id=ig_media_id,
-        slides=[{"claim": claim, "topic": topic, "category": "REEL", "sources": []}],
+        slides=[{
+            "claim":      claim,
+            "topic":      topic,
+            "category":   "REEL",
+            "sources":    [],
+            "reel_title": reel_title,
+        }],
     )
     brain.append_log(
         f"reel {reel_id} published ({topic}, ig_media={ig_media_id})"

@@ -257,20 +257,35 @@ def find_subject_collision(
 
 
 def build_history_summary(limit: int = HISTORY_LIMIT) -> str:
-    if not POSTED_LOG.exists():
+    if not POSTED_LOG.exists() and not REELS_LOG.exists():
         return "(no posts yet)"
 
-    entries: list[dict] = []
-    with POSTED_LOG.open("r", encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line:
+    # Merge posted.jsonl + reels.jsonl. Reels live in reels.jsonl with
+    # `reel_title` populated (the subject identity); posted.jsonl mirrors
+    # them but historically without that field, so reading both lets the
+    # agent see correct title-based fingerprints. Dedupe by post_id and
+    # sort by published_at so the most recent N posts are shown
+    # regardless of which ledger they came from.
+    merged: dict[str, dict] = {}
+    for path in (POSTED_LOG, REELS_LOG):
+        for row in _iter_jsonl(path):
+            pid = row.get("post_id") or row.get("reel_id") or row.get("ig_media_id")
+            if not pid:
                 continue
-            try:
-                entries.append(json.loads(line))
-            except json.JSONDecodeError:
+            existing = merged.get(pid)
+            if existing is None:
+                merged[pid] = row
                 continue
-
+            # Prefer the row that carries reel_title; otherwise keep
+            # whichever has the later published_at.
+            if row.get("reel_title") and not existing.get("reel_title"):
+                merged[pid] = {**existing, **row}
+            elif (row.get("published_at") or "") > (existing.get("published_at") or ""):
+                merged[pid] = {**existing, **row}
+    entries = sorted(
+        merged.values(),
+        key=lambda r: r.get("published_at") or "",
+    )
     recent = entries[-limit:]
     lines = [_format_history_entry(e) for e in recent]
     lines = [ln for ln in lines if ln]
@@ -459,7 +474,19 @@ TOOLS = [
                 },
                 "title": {
                     "type": "string",
-                    "description": "Short hook title for the thumbnail (3-7 words).",
+                    "description": (
+                        "Short hook title for the thumbnail (3-7 words). "
+                        "Withhold the punchline. The title creates the "
+                        "knowledge gap that earns the watch; it does not "
+                        "resolve it. BAD: 'Pepsi Once Owned a Navy' "
+                        "(the whole story is in five words). "
+                        "GOOD: 'Pepsi's Strangest Trade Deal' (you have "
+                        "to watch to find out what they got). "
+                        "BAD: 'He Proved Handwashing Saves Lives'. "
+                        "GOOD: 'The Doctor Nobody Believed'. "
+                        "Specificity beats hype words; do not use "
+                        "'shocking', 'crazy', 'insane', 'unbelievable'."
+                    ),
                 },
                 "topic": {
                     "type": "string",
@@ -556,12 +583,18 @@ def tools_for_mode(mode: str) -> list[dict]:
 def _candidate_subject_text(name: str, args: dict) -> str:
     """Return the free-text the agent supplied for the candidate post.
 
-    For reels, that is `script` (and `title` as a backup if the script is
-    missing). For carousels it is `brief`. Capped at 200 chars so the
-    fingerprint is not dominated by long bodies.
+    For reels, prefer `title` (subject identity) over `script` (body copy).
+    Stored reel fingerprints derive from `reel_title`, so candidate must
+    use the same source or Jaccard collapses to 0.0. This was the root
+    cause of the 2026-05-09 "Top 5 scariest films" double-post: identical
+    title, two different scripts, two different fingerprints, both shipped.
+
+    For carousels, prefer `brief` over `label`. `label` is just the
+    category in CAPS (TECHNOLOGY, HISTORY, etc) and would false-positive
+    every carousel in the same category as a duplicate.
     """
     if name == "run_reel":
-        text = args.get("script") or args.get("title") or ""
+        text = args.get("title") or args.get("script") or ""
     elif name == "run_carousel":
         text = args.get("brief") or args.get("label") or ""
     else:
@@ -643,6 +676,24 @@ def execute_tool(
                 flush=True,
             )
             return _format_dedup_rejection(candidate_text, collision)
+        # Poison this fingerprint in-session BEFORE dispatch. The on-disk
+        # ledger update only lands after the subprocess succeeds and the
+        # workflow commits state, but the agent may take a second turn
+        # in the same session. Without this guard, the second turn reads
+        # a stale in-memory cache and bypasses dedup. Live regression:
+        # 2026-05-09 "Top 5 scariest films" double-post (21 min apart,
+        # same session).
+        cand_fp = subject_fingerprint(candidate_text)
+        if cand_fp and recent_fingerprints is not None:
+            now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            recent_fingerprints.append(
+                (cand_fp, now_iso, candidate_text[:80].strip())
+            )
+            print(
+                f"[dedup] in-session poison: {cand_fp} "
+                f"(cache size now {len(recent_fingerprints)})",
+                flush=True,
+            )
         if name == "run_reel":
             return run_reel(args, dry_run)
         format_type = MODE_FORMAT_TYPE.get(mode, "fact")
