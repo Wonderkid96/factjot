@@ -78,10 +78,8 @@ def _is_content_python(path: Path) -> bool:
     """True if a .py file lives under src/content/ (any depth)."""
     parts = path.parts
     target = CONTENT_PATH_FRAGMENT
-    for i in range(len(parts) - len(target)):
-        if parts[i : i + len(target)] == target:
-            return True
-    return False
+    n = len(target)
+    return any(parts[i : i + n] == target for i in range(len(parts) - n + 1))
 
 
 def _scan_blanket_file(path: Path) -> list[tuple[int, str]]:
