@@ -2195,6 +2195,7 @@ def main() -> int:
                 total=total_slides,
                 repo_root=repo_root,
                 browser=browser,
+                layout_mode=layout_mode,
             )
             slide_paths.append(cover_path)
             _log("     cover done")
@@ -2218,12 +2219,16 @@ def main() -> int:
 
             # 9:16 story frame wrapping the cover slide. Without this the
             # story falls back to the raw 4:5 cover slide stretched into 9:16.
+            # When the cover is the typography variant (no usable photo),
+            # tell the story frame so it does not blur a flat brand swatch.
             story_path = tmp_dir / "story.png"
             render_story_frame(
                 cover_path=cover_path,
                 out_path=story_path,
                 repo_root=repo_root,
                 browser=browser,
+                layout_mode=layout_mode,
+                typography_cover=(cover_image_status == "typography_fallback"),
             )
             _log("     story frame done")
 

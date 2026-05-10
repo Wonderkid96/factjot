@@ -522,6 +522,27 @@ def _logo_tag(logo_url: str, invert: bool = False) -> str:
 # (full-bleed photo, gradient overlay, large title bottom)
 # ------------------------------------------------------------------ #
 
+def _is_empty_photo_url(photo_data_url: str) -> bool:
+    """True when the photo data URL is missing or carries zero bytes.
+
+    The cover renderer must branch on this rather than templating an
+    empty string into a `background:url("")` declaration. Per
+    `SPEC_IMAGE_PIPELINE.md` §13: an empty string for image data must
+    not silently become an empty photo box.
+    """
+    s = (photo_data_url or "").strip()
+    if not s:
+        return True
+    # data: URL with nothing after the comma (e.g. "data:image/png;base64,")
+    if s.lower().startswith("data:"):
+        comma = s.find(",")
+        if comma < 0:
+            return True
+        if not s[comma + 1 :].strip():
+            return True
+    return False
+
+
 def render_cover_slide(
     cover_title: str,
     source_label: str,
@@ -531,20 +552,86 @@ def render_cover_slide(
     total: int,
     repo_root: Path,
     browser,
+    layout_mode: str = "compact_legacy",
 ) -> None:
+    """Render the cover slide.
+
+    layout_mode:
+        compact_legacy (default) - existing photo-bearing cover, byte-
+            identical to prior behaviour when ``photo_data_url`` is set.
+        readable_list - same photo-bearing layout for list cover; the
+            typography fallback uses a PAPER background to give visual
+            contrast against dark photo covers in the same feed.
+
+    When ``photo_data_url`` is empty (or carries zero bytes) the
+    renderer branches to a typography-only variant per
+    `SPEC_IMAGE_PIPELINE.md` §11/§12: a deliberate full-canvas
+    typography layout with title, label pill, red accent rule and
+    wordmark. Never an empty `background:url("")`.
+    """
+    html = build_cover_html(
+        cover_title=cover_title,
+        source_label=source_label,
+        photo_data_url=photo_data_url,
+        index=index,
+        total=total,
+        repo_root=repo_root,
+        layout_mode=layout_mode,
+    )
+    page = browser.new_page(viewport={"width": 1080, "height": 1350}, device_scale_factor=2)
+    page.set_content(html, wait_until="networkidle")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    page.screenshot(path=str(out_path), full_page=False, clip={"x": 0, "y": 0, "width": 1080, "height": 1350})
+    page.close()
+
+
+def build_cover_html(
+    cover_title: str,
+    source_label: str,
+    photo_data_url: str,
+    index: int,
+    total: int,
+    repo_root: Path,
+    layout_mode: str = "compact_legacy",
+) -> str:
+    """Build the cover slide HTML. Pure function, no browser side-effects.
+
+    Branches:
+      - photo_data_url empty/zero-bytes -> typography variant (per
+        ``layout_mode``); INK background for ``compact_legacy``,
+        PAPER for ``readable_list``.
+      - photo_data_url present -> existing photo-bearing template.
+    """
     logo_url    = _inline_asset(repo_root / "assets/logo/factjot_mark.png")
     serif_url   = _inline_asset(repo_root / "assets/fonts/InstrumentSerif-Regular.ttf")
     # v2.1: Space Grotesk Bold replaces JetBrains Mono Bold for labels.
     mono_url    = _inline_asset(repo_root / "assets/fonts/SpaceGrotesk-Bold.ttf")
     archivo_url = _inline_asset(repo_root / "assets/fonts/ArchivoBlack-Regular.ttf")
 
+    # Default to "factjot" if the title is missing entirely so the
+    # typography variant never renders as a blank pane.
+    cover_title_in = (cover_title or "").strip().rstrip(".") or "factjot"
+    pill = (source_label or "").upper()[:32] or "FACTJOT"
+
+    if _is_empty_photo_url(photo_data_url):
+        return _render_cover_typography(
+            cover_title=cover_title_in,
+            pill=pill,
+            index=index,
+            total=total,
+            logo_url=logo_url,
+            serif_url=serif_url,
+            mono_url=mono_url,
+            archivo_url=archivo_url,
+            layout_mode=layout_mode,
+        )
+
     index_label = f"{index}/{total}"
-    pill = source_label.upper()[:32]
     logo = _logo_tag(logo_url, invert=True)
 
     # Size title dynamically. Archivo Black is heavier than Instrument Serif at
     # the same px, so the scale is shifted down to roughly match perceived size.
-    chars = len(cover_title.strip())
+    chars = len(cover_title_in)
     if chars <= 20:
         title_size, title_lh = 100, 0.96
     elif chars <= 35:
@@ -552,9 +639,7 @@ def render_cover_slide(
     else:
         title_size, title_lh = 64, 1.04
 
-    cover_title_clean = cover_title.strip().rstrip(".")
-
-    html = f"""<!doctype html><html><head><meta charset="utf-8"/><style>
+    return f"""<!doctype html><html><head><meta charset="utf-8"/><style>
     {_font_faces(serif_url, mono_url, archivo_url)}
     :root{{--near-black:#0B0B0C;--off-white:#EDE8DD;--accent:#E6352A;--white:#FFFFFF;--muted:#9A938A;}}
     *{{box-sizing:border-box;margin:0;padding:0;}}
@@ -587,16 +672,116 @@ def render_cover_slide(
         </div>
         <div class="lower">
           <span class="pill">{escape_html(pill)}</span>
-          <div class="title">{escape_html(cover_title_clean)}</div>
+          <div class="title">{escape_html(cover_title_in)}</div>
         </div>
       </div>
     </div></body></html>"""
 
-    page = browser.new_page(viewport={"width": 1080, "height": 1350}, device_scale_factor=2)
-    page.set_content(html, wait_until="networkidle")
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    page.screenshot(path=str(out_path), full_page=False, clip={"x": 0, "y": 0, "width": 1080, "height": 1350})
-    page.close()
+
+def _render_cover_typography(
+    cover_title: str,
+    pill: str,
+    index: int,
+    total: int,
+    logo_url: str,
+    serif_url: str,
+    mono_url: str,
+    archivo_url: str,
+    layout_mode: str,
+) -> str:
+    """Typography-only cover slide. No photo zone.
+
+    Two palette variants chosen by ``layout_mode``:
+      - compact_legacy: INK (#0A0A0A) ground, off-white type, white wordmark.
+      - readable_list: PAPER (#F4F1E9) ground, INK type, dark wordmark.
+
+    Common elements:
+      - factjot wordmark + index pill on the top row.
+      - Label pill (Space Grotesk Bold 700, uppercase, 0.08em tracking).
+      - Instrument Serif Regular full-canvas title, balanced and centred,
+        with bias toward the upper-third per the brief.
+      - Red accent rule (4px x 120px in #E6352A) below the title.
+      - Subtle grain overlay carried over from the typography content slide
+        for visual continuity.
+
+    Sized to read as deliberate, not as a broken render.
+    """
+    is_paper = layout_mode == "readable_list"
+    bg          = "#F4F1E9" if is_paper else "#0A0A0A"
+    ink         = "#0A0A0A" if is_paper else "#EDE8DD"
+    pill_border = "rgba(10,10,10,0.85)" if is_paper else "rgba(237,232,221,0.85)"
+    grain_blend = "multiply" if is_paper else "overlay"
+    grain_op    = 0.045 if is_paper else 0.055
+
+    # The factjot mark asset is white on transparent. On INK we keep it
+    # white (no filter); on PAPER we flatten to black via brightness(0).
+    if is_paper:
+        logo_filter = "brightness(0)"
+    else:
+        logo_filter = ""
+    if logo_url:
+        logo = (
+            f'<img class="wordmark-img" src="{logo_url}" alt="factjot" '
+            f'style="filter:{logo_filter};"/>'
+        )
+    else:
+        logo = '<span class="wm-text">factjot.</span>'
+
+    chars = len(cover_title)
+    # Slightly smaller scale for readable_list so the serif holds against
+    # the lighter ground without going chunky.
+    if is_paper:
+        if chars <= 18:
+            title_size, title_lh = 104, 1.00
+        elif chars <= 32:
+            title_size, title_lh = 92, 1.02
+        elif chars <= 56:
+            title_size, title_lh = 76, 1.06
+        else:
+            title_size, title_lh = 60, 1.10
+    else:
+        if chars <= 18:
+            title_size, title_lh = 120, 1.00
+        elif chars <= 32:
+            title_size, title_lh = 104, 1.02
+        elif chars <= 56:
+            title_size, title_lh = 84, 1.06
+        else:
+            title_size, title_lh = 68, 1.10
+
+    index_label = f"{index}/{total}"
+    pill_html = escape_html(pill)
+    title_html = escape_html(cover_title)
+
+    return f"""<!doctype html><html><head><meta charset="utf-8"/><style>
+    {_font_faces(serif_url, mono_url, archivo_url)}
+    :root{{--ink:{ink};--bg:{bg};--accent:#E6352A;--pill-border:{pill_border};}}
+    *{{box-sizing:border-box;margin:0;padding:0;}}
+    html,body{{width:1080px;height:1350px;overflow:hidden;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;}}
+    .stage{{position:relative;width:1080px;height:1350px;overflow:hidden;background:var(--bg);}}
+    .grain{{position:absolute;inset:0;z-index:1;opacity:{grain_op};mix-blend-mode:{grain_blend};background-image:url("{_GRAIN_SVG}");pointer-events:none;}}
+    .frame{{position:absolute;inset:0;z-index:10;padding:58px 84px 74px 84px;display:flex;flex-direction:column;}}
+    .top-row{{display:flex;align-items:center;gap:20px;flex-shrink:0;}}
+    .wordmark-img{{height:36px;width:auto;display:block;opacity:0.95;flex-shrink:0;}}
+    .top-divider{{flex:1;height:1px;background:var(--ink);opacity:0.28;}}
+    .index{{font-family:"Space Grotesk",system-ui,sans-serif;font-weight:700;font-size:22px;letter-spacing:0.04em;line-height:1;flex-shrink:0;color:var(--ink);opacity:0.78;}}
+    .title-block{{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:120px;gap:36px;text-align:center;}}
+    .pill{{align-self:center;background:transparent;color:var(--ink);font-family:"Space Grotesk",system-ui,sans-serif;font-weight:700;font-size:17px;letter-spacing:0.08em;padding:9px 22px 11px;border:1.5px solid var(--pill-border);border-radius:999px;text-transform:uppercase;line-height:1;}}
+    .title{{font-family:"Instrument Serif",Georgia,serif;font-weight:400;font-size:{title_size}px;line-height:{title_lh};letter-spacing:-0.005em;color:var(--ink);text-wrap:balance;max-width:920px;}}
+    .title::after{{content:".";color:var(--accent);font-family:"Instrument Serif",Georgia,serif;}}
+    .accent-rule{{width:120px;height:4px;background:var(--accent);margin-top:8px;}}
+    </style></head><body>
+    <div class="stage">
+      <div class="grain"></div>
+      <div class="frame">
+        <div class="top-row">{logo}<span class="top-divider"></span><span class="index">{index_label}</span></div>
+        <div class="title-block">
+          <span class="pill">{pill_html}</span>
+          <div class="title">{title_html}</div>
+          <div class="accent-rule"></div>
+        </div>
+      </div>
+    </div></body></html>"""
 
 
 # ------------------------------------------------------------------ #
@@ -609,29 +794,92 @@ def render_story_frame(
     out_path: Path,
     repo_root: Path,
     browser,
+    layout_mode: str = "compact_legacy",
+    typography_cover: bool = False,
 ) -> None:
     """Render a 1080x1920 story frame wrapping the carousel cover slide.
 
     Story image = the cover slide composited inside a 9:16 frame with the
     factjot wordmark + NEW POST pill above it, and the same cover blurred
     behind. Matches the reel story's design language.
+
+    layout_mode and typography_cover only affect the background palette
+    when the cover is the typography variant (no photo). In that case
+    blurring an INK or PAPER ground produces a flat scrim with no detail,
+    so we replace the blurred photo with the brand ground for the
+    matching layout. The slide card itself is always the cover PNG.
     """
     cover_url   = _inline_asset(cover_path)
     serif_url   = _inline_asset(repo_root / "assets/fonts/InstrumentSerif-Regular.ttf")
     # v2.1: Space Grotesk Bold replaces JetBrains Mono Bold for labels.
     mono_url    = _inline_asset(repo_root / "assets/fonts/SpaceGrotesk-Bold.ttf")
 
-    html = f"""<!doctype html><html><head><meta charset="utf-8"/><style>
+    html = build_story_frame_html(
+        cover_url=cover_url,
+        serif_url=serif_url,
+        mono_url=mono_url,
+        layout_mode=layout_mode,
+        typography_cover=typography_cover,
+    )
+
+    page = browser.new_page(viewport={"width": 1080, "height": 1920}, device_scale_factor=2)
+    page.set_content(html, wait_until="networkidle")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    page.screenshot(path=str(out_path), full_page=False, clip={"x": 0, "y": 0, "width": 1080, "height": 1920})
+    page.close()
+
+
+def build_story_frame_html(
+    cover_url: str,
+    serif_url: str,
+    mono_url: str,
+    layout_mode: str = "compact_legacy",
+    typography_cover: bool = False,
+) -> str:
+    """Build the story frame HTML. Pure function.
+
+    For photo covers the background is the cover blurred and dimmed.
+    For typography covers the background is the brand ground for the
+    matching ``layout_mode`` (PAPER for readable_list, INK otherwise),
+    so the story does not show a flat blurred swatch.
+    """
+    paper_typography = typography_cover and layout_mode == "readable_list"
+    if paper_typography:
+        bg_layer = (
+            ".bg-flat{position:absolute;inset:0;background:#F4F1E9;z-index:0;}"
+            ".bg-overlay{position:absolute;inset:0;background:rgba(244,241,233,0.0);z-index:1;}"
+        )
+        bg_dom = '<div class="bg-flat"></div><div class="bg-overlay"></div>'
+        wordmark_color = "var(--ink)"
+        body_bg = "#F4F1E9"
+    elif typography_cover:
+        bg_layer = (
+            ".bg-flat{position:absolute;inset:0;background:#0A0A0A;z-index:0;}"
+            ".bg-overlay{position:absolute;inset:0;background:rgba(11,11,12,0.0);z-index:1;}"
+        )
+        bg_dom = '<div class="bg-flat"></div><div class="bg-overlay"></div>'
+        wordmark_color = "var(--off-white)"
+        body_bg = "#0B0B0C"
+    else:
+        bg_layer = (
+            f'.bg-blur{{position:absolute;inset:0;background:url("{cover_url}") center/cover no-repeat;'
+            "filter:blur(28px) saturate(0.7) brightness(0.45);transform:scale(1.12);z-index:0;}"
+            ".bg-overlay{position:absolute;inset:0;background:rgba(11,11,12,0.62);z-index:1;}"
+        )
+        bg_dom = '<div class="bg-blur"></div><div class="bg-overlay"></div>'
+        wordmark_color = "var(--off-white)"
+        body_bg = "#0B0B0C"
+
+    return f"""<!doctype html><html><head><meta charset="utf-8"/><style>
     {_font_faces(serif_url, mono_url, "")}
-    :root{{--near-black:#0B0B0C;--off-white:#EDE8DD;--accent:#E6352A;--white:#FFFFFF;}}
+    :root{{--near-black:#0B0B0C;--off-white:#EDE8DD;--accent:#E6352A;--white:#FFFFFF;--ink:#0A0A0A;}}
     *{{box-sizing:border-box;margin:0;padding:0;}}
-    html,body{{width:1080px;height:1920px;overflow:hidden;background:var(--near-black);color:var(--white);font-family:"Instrument Serif",Georgia,serif;-webkit-font-smoothing:antialiased;}}
-    .bg-blur{{position:absolute;inset:0;background:url("{cover_url}") center/cover no-repeat;filter:blur(28px) saturate(0.7) brightness(0.45);transform:scale(1.12);z-index:0;}}
-    .bg-overlay{{position:absolute;inset:0;background:rgba(11,11,12,0.62);z-index:1;}}
+    html,body{{width:1080px;height:1920px;overflow:hidden;background:{body_bg};color:var(--white);font-family:"Instrument Serif",Georgia,serif;-webkit-font-smoothing:antialiased;}}
+    {bg_layer}
     .grain{{position:absolute;inset:0;z-index:5;opacity:0.06;mix-blend-mode:overlay;background-image:url("{_GRAIN_SVG}");pointer-events:none;}}
     .frame{{position:absolute;inset:0;z-index:10;padding:280px 60px 280px 60px;display:flex;flex-direction:column;justify-content:flex-start;align-items:center;gap:32px;}}
     .header{{width:880px;align-self:center;display:flex;align-items:center;justify-content:space-between;flex:0 0 auto;}}
-    .wordmark{{font-family:"Instrument Serif",Georgia,serif;font-weight:400;font-size:52px;letter-spacing:-0.01em;line-height:1;color:var(--off-white);text-shadow:1px 1px 0 rgba(0,0,0,0.45);}}
+    .wordmark{{font-family:"Instrument Serif",Georgia,serif;font-weight:400;font-size:52px;letter-spacing:-0.01em;line-height:1;color:{wordmark_color};text-shadow:1px 1px 0 rgba(0,0,0,0.45);}}
     .wordmark .ital{{font-style:italic;}}
     .wordmark .dot{{color:var(--accent);}}
     .new-post-badge{{background:var(--accent);color:var(--off-white);font-family:"Space Grotesk",system-ui,sans-serif;font-weight:700;font-size:22px;letter-spacing:0.24em;padding:12px 22px 14px;border-radius:9999px;text-transform:uppercase;line-height:1;}}
@@ -639,8 +887,7 @@ def render_story_frame(
     .slide-card{{width:880px;aspect-ratio:4 / 5;border-radius:24px;overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,0.65),0 6px 20px rgba(0,0,0,0.45);border:1px solid rgba(255,255,255,0.10);position:relative;}}
     .slide-card img{{width:100%;height:100%;object-fit:cover;display:block;}}
     </style></head><body>
-    <div class="bg-blur"></div>
-    <div class="bg-overlay"></div>
+    {bg_dom}
     <div class="grain"></div>
     <div class="frame">
       <div class="header">
@@ -654,12 +901,6 @@ def render_story_frame(
       </div>
     </div>
     </body></html>"""
-
-    page = browser.new_page(viewport={"width": 1080, "height": 1920}, device_scale_factor=2)
-    page.set_content(html, wait_until="networkidle")
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    page.screenshot(path=str(out_path), full_page=False, clip={"x": 0, "y": 0, "width": 1080, "height": 1920})
-    page.close()
 
 
 # ------------------------------------------------------------------ #

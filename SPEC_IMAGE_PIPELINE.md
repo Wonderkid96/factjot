@@ -225,7 +225,7 @@ Scores are emitted into Haiku's prompt as a single integer per candidate. Haiku 
 
 ## 11. Cover image contract
 
-The cover slide must show a real image.
+The cover slide must show a real image, with one explicit exception for list mode (see below).
 
 Order of attempts:
 
@@ -233,25 +233,40 @@ Order of attempts:
 2. Backup Haiku picks from cover slot pool.
 3. Strongest deterministic candidate matching `visual_subject` directly.
 4. Fallback query candidate.
-5. If none succeed, raise `COVER_IMAGE_FAILED`.
+5. If none succeed:
+   - **fact / news cover:** raise `COVER_IMAGE_FAILED`. The run ends. No partial carousel is rendered. No partial carousel is posted.
+   - **list cover (`layout_mode=readable_list`):** route into the typography cover variant in section 12. List items are intentionally heterogeneous (a list of items is not a single subject), and a deliberate typography cover is preferable to either a misleading "stock list" image or aborting the post. The renderer logs `cover_image_status=typography_fallback` and the carousel-quality ledger records `cover_typography_fallback=true`.
 
-`COVER_IMAGE_FAILED` ends the run. No partial carousel is rendered. No partial carousel is posted. Typography-only cover is not allowed under any circumstance.
+The typography cover is never silently chosen. It is only used when the policy above explicitly routes there. An empty `photo_data_url` reaching the cover renderer for any other slot is a bug, not a fallback.
 
 ---
 
 ## 12. Typography-only fallback contract
 
-Triggered when a content slot has no usable image after Haiku selection and deterministic fallback.
+Triggered when a content slot has no usable image after Haiku selection and deterministic fallback, or when the cover slot routes into the list typography cover (per section 11).
 
-Required behaviour:
+Required behaviour for any typography slide (cover or content):
 
-- Do not render an empty photo rectangle.
+- Do not render an empty photo rectangle. The renderer branches on slide state, never on truthiness of an empty string.
 - Remove the photo zone from the layout entirely. The text card expands to full canvas (1080 x 1350).
 - Vertically balanced typography. Centred or balanced, not top-aligned.
-- Factjot brand styling preserved (wordmark top-left, index pill top-right, INK background from `brand/brand_kit.json`).
-- Red keyword markup (`[r]...[/r]`) renders as on regular slides.
+- Factjot brand styling preserved (wordmark top, index pill, brand background from `brand/brand_kit.json`).
 - Subtle texture, grain, or a single accent rule allowed. Nothing more elaborate.
 - No "No image" label. No placeholder text. No black box where a photo should be.
+
+Cover-specific additions (typography cover variant):
+
+- Full-canvas Instrument Serif title (the cover headline), balanced and biased to the upper third.
+- Label pill with Space Grotesk Bold 700, uppercase, 0.08em tracking.
+- Red accent rule, 4px x 120px in `--accent` (`#E6352A`), positioned below the title.
+- Wordmark sized to match the photo cover variant.
+- Two palette variants chosen by `layout_mode`:
+  - `compact_legacy`: INK ground (`#0A0A0A`), off-white type, white wordmark.
+  - `readable_list`: PAPER ground (`#F4F1E9`), INK type, dark wordmark. Provides visual contrast against the readable_list dark photo covers in the same feed.
+
+Content-slide additions:
+
+- Red keyword markup (`[r]...[/r]`) renders as on regular slides.
 
 The slide must be visually comparable in quality to an image slide. If a viewer has to ask "is something missing here?", the layout has failed.
 
