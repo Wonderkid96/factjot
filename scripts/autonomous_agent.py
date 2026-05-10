@@ -366,6 +366,11 @@ def run_reel(args: dict, dry_run: bool) -> str:
         cmd.append("--dry-run")
     raw = _run_pipeline(cmd)
     return _tag_failure_kind(raw, [
+        # D.1 fact verification gate (audit Phase D). Listed first so it
+        # wins over more generic sentinels when the model writes a
+        # contradictory script ("Britain Rationed Bread" + "never rationed")
+        # or sneaks "fictional"/"absurdity" framing into the brief.
+        ("ERROR: fact verification failed",    "fact_verification_failed"),
         ("ERROR: TTS returned no word timing", "tts_failed"),
         ("ERROR: could not find any footage",  "no_footage"),
         ("reel FAILED ffmpeg",                 "ffmpeg_failed"),
@@ -394,9 +399,20 @@ def run_carousel(args: dict, dry_run: bool, format_type: str = "fact") -> str:
         cmd.append("--dry-run")
     raw = _run_pipeline(cmd)
     return _tag_failure_kind(raw, [
-        ("CONTENT_SHAPE_MISMATCH", "content_shape_mismatch"),
-        ("COVER_IMAGE_FAILED",     "cover_image_failed"),
-        ("PUBLISH FAILED",         "publish_failed"),
+        # D.2 list format rule (audit Phase D). Listed first so it wins
+        # over CONTENT_SHAPE_MISMATCH when the validator raises a
+        # CarouselShapeError carrying the "list format rule failed"
+        # message; otherwise the more generic shape sentinel would match
+        # first and the agent would not learn to retry the cover with a
+        # criterion + source instead of a bare superlative.
+        ("ERROR: list format rule failed",  "list_format_failed"),
+        # D.1 fact verification gate (audit Phase D). Listed before
+        # CONTENT_SHAPE_MISMATCH for the same precedence reason as the
+        # list-format sentinel above.
+        ("ERROR: fact verification failed", "fact_verification_failed"),
+        ("CONTENT_SHAPE_MISMATCH",          "content_shape_mismatch"),
+        ("COVER_IMAGE_FAILED",              "cover_image_failed"),
+        ("PUBLISH FAILED",                  "publish_failed"),
     ])
 
 
@@ -1033,19 +1049,44 @@ LIST_PROMPT = textwrap.dedent("""\
     LIST RULES
 
     - 5 items. 7 slides total: cover, 5 items, closing.
-    - The list MUST be a superlative or ranking shape:
-      biggest, deadliest, most expensive, smallest, oldest,
-      fastest, strangest, worst, most bizarre, most profitable,
-      etc. The cover names the superlative explicitly.
+    - Phase D.2 list format rule (criterion required).
+      Every list MUST state ONE specific defensible criterion
+      on the cover. The cover headline must follow EXACTLY one
+      of these two shapes:
+        a) 'Five [items] by [criterion]'
+           e.g. 'Five engineering disasters by death toll'
+                'Five films by domestic box office'
+                'Five buildings by year of completion'
+        b) 'Five [items] that [verifiable condition]'
+           e.g. 'Five films that grossed under five million dollars'
+                'Five disasters with confirmed casualties over 1,000'
+                'Five companies that have traded since before 1700'
+    - Allowed superlatives (numeric / defensible only). Each
+      MUST be paired with a stated criterion:
+        biggest, oldest, fastest, deadliest, longest, tallest,
+        largest, richest, youngest, shortest, costliest, smallest,
+        newest, slowest, most expensive, most profitable,
+        least expensive, least profitable, most catastrophic.
+    - BANNED superlatives. Do not use any of these on the cover
+      or in the brief, even softened or rephrased:
+        scariest, most underrated, strangest, most bizarre,
+        best, worst, coolest, weirdest, most surprising,
+        funniest, cutest, most iconic, most influential,
+        most disturbing, safest, most dangerous, least survivable.
+      These are aesthetic / opinion judgements that always
+      require fabricated rank reasons. They are forbidden.
+    - Bare-superlative covers ('Five scariest films',
+      'Five most iconic moments') are explicitly forbidden.
+      Use the 'by [criterion]' or 'that [condition]' form.
     - Every item must be a single named, googleable thing
       (a specific disaster, film, animal, country, law, recall,
       product, building, accident, person). One concrete proper
       noun per item, not a concept.
-    - 'Biggest / oldest / fastest / first / last / longest /
-      deadliest / most expensive' must be factually defensible
-      from training knowledge. Do not invent rankings.
-    - 'Best / worst / strangest / most bizarre' are editorial
-      judgement; pick items the choice is defensible for.
+    - The criterion must be measurable from public records: a
+      number (USD, km, year, death toll, runtime in minutes), a
+      record (BFI Sight & Sound 2022 critics' poll, USGS
+      confirmed fatalities, Forbes 2025 net worth), or a
+      verifiable yes / no (still trading, still in print).
     - No connective theme requiring every slide to argue a
       mechanism. If two items only make sense together, the
       list is wrong.
@@ -1054,41 +1095,45 @@ LIST_PROMPT = textwrap.dedent("""\
       account, reject it AND if it would only make sense as an
       essay, also reject it.
 
-    Good list shapes (curated superlative / ranking):
-    - 'Five deadliest engineering disasters'
-    - 'Five most expensive movie flops'
-    - 'Five strangest laws still on the books'
-    - 'Five smallest countries in the world'
-    - 'Five worst product recalls in history'
-    - 'Five largest animals ever recorded'
-    - 'Five most profitable films of all time'
-    - 'Five most bizarre historical events'
-    - 'Five oldest companies still trading'
+    Good list shapes (criterion stated):
+    - 'Five engineering disasters by confirmed death toll'
+    - 'Five films by domestic box office'
+    - 'Five buildings by year of completion'
+    - 'Five companies that have traded since before 1700'
+    - 'Five films that grossed under five million dollars'
+    - 'Five recalls by total recall cost in USD'
+    - 'Five mountains by recorded height'
+    - 'Five animals by recorded body length'
 
     Bad list shapes (rejected):
-    - 'Five fixes that became the thing they were meant to solve'
-    - 'Five moments when success hid the real failure'
-    - 'Five regulations that exist because of one specific incident'
-    - 'Five inventions that became the thing they were meant to fix'
-    - 'Five amazing facts about space'
-    - 'Top 5 weirdest animals'
-    - 'Things you didn't know about X'
+    - 'Five scariest films ever'                       (banned superlative)
+    - 'Five most underrated albums'                    (banned superlative)
+    - 'Five strangest laws still on the books'         (banned superlative)
+    - 'Five most iconic moments in sport'              (banned superlative)
+    - 'Five fixes that became the thing they were meant to solve'  (essay)
+    - 'Five amazing facts about space'                 (no criterion)
+    - 'Top 5 weirdest animals'                         (banned superlative)
+    - 'Things you didn't know about X'                 (no shape)
 
     Test before accepting a list:
     - Could a viewer screenshot any one item slide and have it
       stand on its own? If items only make sense in sequence,
       reject the list.
-    - Does the cover include a clear superlative word
-      (most / biggest / deadliest / etc.)? If not, reject.
+    - Does the cover follow 'Five [items] by [criterion]' or
+      'Five [items] that [verifiable condition]'? If not, reject.
+    - Is the criterion measurable from public records? If you
+      cannot point to a source for the ranking, reject.
 
     BRIEF SHAPE
 
     Brief MUST include:
-    - the list title (5-9 words, voice-correct, includes the
-      superlative in plain English, banned shapes apply)
-    - the ranking criterion in one sentence (e.g. 'ranked by
-      total inflation-adjusted box office loss', 'by recorded
-      death toll', 'by surface area in km^2')
+    - the list title in the 'by [criterion]' or 'that
+      [verifiable condition]' shape (5-9 words, voice-correct,
+      banned superlatives forbidden)
+    - the criterion source explicitly named (e.g. 'BFI Sight &
+      Sound 2022 critics' poll', 'USGS confirmed fatalities,
+      1900-present', 'Box Office Mojo, domestic gross', 'Forbes
+      2025 net worth list')
     - 5 items, in order, each with:
         * NAME: the single proper-noun subject
         * RANK REASON: one number / fact that earns it the spot
@@ -1096,9 +1141,15 @@ LIST_PROMPT = textwrap.dedent("""\
         * CONCRETE FACT: one extra hard fact about it (date,
           place, scale, outcome)
         * WHY IT BELONGS: one short clause tying it to the
-          superlative
-    - what the closing slide should leave the viewer thinking
-      (a one-line takeaway, NOT a moral argument)
+          criterion
+    - the closing slide MUST cite the criterion source
+      explicitly (e.g. 'Source: USGS confirmed fatalities,
+      1900-present', 'Source: Box Office Mojo'). The closer is
+      a source citation, not a moral takeaway.
+
+    If no clean criterion exists for the candidate topic, do
+    not ship a bare-superlative carousel. Call skip(reason)
+    instead.
 
     {beat_density_rules}
 
@@ -1116,17 +1167,22 @@ LIST_PROMPT = textwrap.dedent("""\
     1. Call list_unposted_topics().
     2. Call list_story_candidates().
     3. Generate at least 3 candidate superlative lists from scout results.
-    3. Reject duplicates and overlap with previous lists.
+       Each candidate MUST already have a defensible criterion;
+       if the topic has no measurable axis, drop it now.
+    4. Reject duplicates and overlap with previous lists.
        Reject any candidate that is a conceptual / thematic
        essay disguised as a list.
-    4. For each survivor, name the superlative and the 5
-       items with their rank reason and one concrete fact.
-    5. If you cannot defend the ranking of all 5 items from
-       training knowledge, reject the list (or replace items).
-    6. Apply the interestingness + quality gates to the LIST
+    5. For each survivor, name the criterion, name the source,
+       and list the 5 items with their rank reason and one
+       concrete fact.
+    6. If you cannot defend the ranking of all 5 items from the
+       criterion source, reject the list (or replace items).
+    7. Apply the interestingness + quality gates to the LIST
        as a whole (not to each item individually).
-    7. If nothing clears the bar, call skip(reason).
-    8. Otherwise, write the brief and call run_carousel ONCE
+    8. If nothing clears the bar (no criterion, no source, no
+       defensible rank), call skip(reason). Do NOT fall back to
+       a bare-superlative cover.
+    9. Otherwise, write the brief and call run_carousel ONCE
        with slides=7.
 """)
 
