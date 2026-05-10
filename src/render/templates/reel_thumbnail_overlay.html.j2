@@ -1,0 +1,213 @@
+<!doctype html>
+{# ----------------------------------------------------------------------- #}
+{# factjot. Reel thumbnail overlay (1080x1920), Phase E.4                   #}
+{#                                                                           #}
+{# Q6 thumbnail strategy: render 3 candidate frames per reel, Haiku-pick    #}
+{# the strongest, then ship a brand-designed text overlay over the chosen   #}
+{# frame. The same overlay-bearing PNG is used for both the IG cover and    #}
+{# the YouTube custom thumbnail (one asset, two surfaces).                   #}
+{#                                                                           #}
+{# Layer stack (bottom -> top):                                             #}
+{#   1. background_image_data_url  -- chosen footage frame, full-canvas      #}
+{#   2. .scrim                     -- lower-third PAPER rectangle (~360px)   #}
+{#   3. .headline                  -- Archivo Black 900 INK, 4-6 words       #}
+{#   4. .kicker                    -- Space Grotesk Bold 700 uppercase       #}
+{#   5. hard 2px drop shadow on text (no soft blur, brand spec)             #}
+{#   6. .wordmark                  -- factjot wordmark upper-right corner    #}
+{#                                                                           #}
+{# Required vars: width, height, background_image_data_url, headline       #}
+{# Optional vars: kicker, font_serif_regular, font_serif_italic,           #}
+{#                font_sans_bold, font_archivo_black                        #}
+{# ----------------------------------------------------------------------- #}
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  @font-face {
+    font-family: "Instrument Serif";
+    src: url("{{ font_serif_regular }}") format("truetype");
+    font-weight: 400; font-style: normal;
+  }
+  @font-face {
+    font-family: "Instrument Serif";
+    src: url("{{ font_serif_italic }}") format("truetype");
+    font-weight: 400; font-style: italic;
+  }
+  @font-face {
+    font-family: "Space Grotesk";
+    src: url("{{ font_sans_bold }}") format("truetype");
+    font-weight: 700; font-style: normal;
+  }
+  @font-face {
+    font-family: "Archivo Black";
+    src: url("{{ font_archivo_black }}") format("truetype");
+    font-weight: 900; font-style: normal;
+  }
+
+  :root {
+    --paper:     #F4F1E9;
+    --ink:       #0A0A0A;
+    --off-white: #EDE8DD;
+    --accent:    #E6352A;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: {{ width }}px;
+    height: {{ height }}px;
+    overflow: hidden;
+    background: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .stage {
+    position: relative;
+    width: {{ width }}px;
+    height: {{ height }}px;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  /* Layer 1: chosen footage frame, full-bleed across 1080x1920. */
+  .photo {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    {% if background_image_data_url %}
+    background: url("{{ background_image_data_url }}") center/cover no-repeat;
+    {% else %}
+    background:
+      radial-gradient(ellipse 90% 70% at 50% 35%, #2a1a18 0%, transparent 60%),
+      linear-gradient(170deg, #1a1a1e 0%, #0D0D0F 50%, #0A0A0B 100%);
+    {% endif %}
+  }
+
+  /* Slight upper darken so the white wordmark stays legible over the
+     photo. The lower scrim handles legibility for the headline. */
+  .top-shade {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 220px;
+    z-index: 1;
+    background: linear-gradient(
+      to bottom,
+      rgba(0,0,0,0.55) 0%,
+      rgba(0,0,0,0.20) 60%,
+      rgba(0,0,0,0.00) 100%
+    );
+    pointer-events: none;
+  }
+
+  /* Layer 2: lower-third PAPER scrim (~27% of canvas height = 525px on
+     1920). Solid, no transparency, brand spec calls for clean contrast
+     not a gradient fade. */
+  .scrim {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 525px;
+    z-index: 5;
+    background: var(--paper);
+  }
+
+  /* Wordmark, upper-right corner, INK over the photo at the top. The
+     factjot mark is the brand chrome on the photo; the scrim below
+     carries the readable text. */
+  .wordmark {
+    position: absolute;
+    top: 30px;
+    right: 30px;
+    z-index: 10;
+    font-family: "Instrument Serif", Georgia, serif;
+    font-size: 56px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--off-white);
+    text-shadow: 2px 2px 0 rgba(0,0,0,0.5);
+    white-space: nowrap;
+  }
+  .wordmark .ital { font-style: italic; }
+  .wordmark .dot  { color: var(--accent); }
+
+  /* Layers 3+4: kicker + headline, anchored to the lower scrim with
+     comfortable left padding. */
+  .overlay-text {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 525px;
+    z-index: 20;
+    padding: 60px 60px 80px 60px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: flex-start;
+  }
+
+  /* Layer 4 (kicker, optional). Space Grotesk Bold 700 uppercase, hard
+     drop shadow per brand spec. Sits ABOVE the headline. */
+  .kicker {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 28px;
+    line-height: 1;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink);
+    margin-bottom: 24px;
+    /* Hard drop shadow per brand spec: 2px offset, no blur, semi-opaque
+       black. Distinct from the photo-side text shadow because the
+       scrim background is light. */
+    text-shadow: 2px 2px 0 rgba(0,0,0,0.18);
+  }
+
+  /* Layer 3: Archivo Black 900 headline, INK on PAPER. The non-negotiable
+     centrepiece of the overlay. ~80px font-size, line-height 1.0,
+     letter-spacing -0.02em per brand spec. text-wrap: balance evens
+     out two-line wraps so neither line is dramatically longer. */
+  .headline {
+    font-family: "Archivo Black", "Inter", system-ui, sans-serif;
+    font-weight: 900;
+    font-size: 80px;
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    text-wrap: balance;
+    /* Hard drop shadow per brand spec: 2px offset, no blur. Kept light
+       on the PAPER scrim so the INK headline still reads as flat type,
+       not embossed. */
+    text-shadow: 2px 2px 0 rgba(0,0,0,0.20);
+    max-width: 100%;
+    word-break: normal;
+    overflow-wrap: break-word;
+  }
+  /* Trailing accent dot, matches the wordmark and the canonical headline
+     treatment across factjot covers. */
+  .headline::after {
+    content: ".";
+    color: var(--accent);
+    font-family: "Archivo Black", "Inter", system-ui, sans-serif;
+    text-transform: none;
+  }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="photo"></div>
+    <div class="top-shade"></div>
+
+    <span class="wordmark">fact<span class="ital">jot</span><span class="dot">.</span></span>
+
+    <div class="scrim"></div>
+
+    <div class="overlay-text">
+      {% if kicker %}<div class="kicker">{{ kicker }}</div>{% endif %}
+      <h1 class="headline">{{ headline }}</h1>
+    </div>
+  </div>
+</body>
+</html>
