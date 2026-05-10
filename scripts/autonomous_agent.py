@@ -366,6 +366,11 @@ def run_reel(args: dict, dry_run: bool) -> str:
         cmd.append("--dry-run")
     raw = _run_pipeline(cmd)
     return _tag_failure_kind(raw, [
+        # D.1 fact verification gate (audit Phase D). Listed first so it
+        # wins over more generic sentinels when the model writes a
+        # contradictory script ("Britain Rationed Bread" + "never rationed")
+        # or sneaks "fictional"/"absurdity" framing into the brief.
+        ("ERROR: fact verification failed",    "fact_verification_failed"),
         ("ERROR: TTS returned no word timing", "tts_failed"),
         ("ERROR: could not find any footage",  "no_footage"),
         ("reel FAILED ffmpeg",                 "ffmpeg_failed"),
@@ -394,9 +399,15 @@ def run_carousel(args: dict, dry_run: bool, format_type: str = "fact") -> str:
         cmd.append("--dry-run")
     raw = _run_pipeline(cmd)
     return _tag_failure_kind(raw, [
-        ("CONTENT_SHAPE_MISMATCH", "content_shape_mismatch"),
-        ("COVER_IMAGE_FAILED",     "cover_image_failed"),
-        ("PUBLISH FAILED",         "publish_failed"),
+        # D.1 fact verification gate (audit Phase D). Listed first so it
+        # wins over CONTENT_SHAPE_MISMATCH when the verifier raises a
+        # CarouselShapeError carrying the "fact verification failed"
+        # message; otherwise the more generic shape sentinel would match
+        # first and the agent would not learn to retry differently.
+        ("ERROR: fact verification failed", "fact_verification_failed"),
+        ("CONTENT_SHAPE_MISMATCH",          "content_shape_mismatch"),
+        ("COVER_IMAGE_FAILED",              "cover_image_failed"),
+        ("PUBLISH FAILED",                  "publish_failed"),
     ])
 
 

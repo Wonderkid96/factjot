@@ -46,6 +46,11 @@ from src.content.carousel_diagnostics import (
     CarouselShapeError,
     build_shape_diagnostics,
 )
+# D.1 fact verification gate (audit decision A: medium). Both checks fail
+# OPEN on infrastructure issues (missing api_key, Wikipedia unreachable)
+# and fail CLOSED on real quality issues (title contradicts claim, brief
+# contains "fictional"/"absurdity", Wikipedia explicitly disagrees).
+from src.verification.fact_checker import verify_anchors, verify_consistency
 # Option C of the content quality recovery (2026-05-08): the writer/fitter
 # split was reverted in favour of a single editorial-aware Sonnet call. The
 # carousel_writer module stays on disk for future reuse (Option D work) but
@@ -1023,6 +1028,105 @@ def _validate_list_images(
     return filtered, audit
 
 
+def _verify_facts_or_raise(
+    *,
+    brief: str,
+    data: dict,
+    slides: list,
+    format_type: str,
+    api_key: str,
+    editorial_cost_usd: float,
+) -> None:
+    """Run the D.1 fact verification gate. Raise CarouselShapeError on fail.
+
+    Two independent checks:
+    1. verify_consistency: Haiku consistency check (title vs claim
+       contradiction; red-flag words like "fictional"/"absurdity").
+    2. verify_anchors: heuristic Wikipedia cross-check on each slide claim.
+
+    Both checks fail-OPEN on infrastructure issues (the message ships rather
+    than blocks on a Wikipedia outage or missing api_key). They fail-CLOSED
+    only on real quality issues.
+
+    Raises CarouselShapeError(message="ERROR: fact verification failed ...")
+    so the autonomous agent's _tag_failure_kind matches the
+    `fact_verification_failed` sentinel and the caller's existing
+    CarouselShapeError handler logs it and writes a quality-ledger row.
+    """
+    consistency_brief = {
+        "title": data.get("cover_title", ""),
+        "claim": brief,
+        "caption_body": data.get("caption_body", ""),
+        "format_type": format_type,
+    }
+    consistency = verify_consistency(consistency_brief, api_key)
+    consistency_cost = float(consistency.get("cost_usd", 0.0) or 0.0)
+    if not consistency["ok"]:
+        raise CarouselShapeError(
+            f"ERROR: fact verification failed (consistency): {consistency['reason']}",
+            diagnostics={
+                "verification_stage": "consistency",
+                "reason": consistency["reason"],
+            },
+            usage={
+                "editorial_cost_usd": editorial_cost_usd,
+                "fitter_cost_usd":    0.0,
+                "fitter_attempts":    1,
+                "probe_attempts":     0,
+                "verification_cost_usd": consistency_cost,
+            },
+        )
+
+    # Extract one claim string per slide for the Wikipedia anchor check.
+    # Slide shapes: lines list (compact_legacy/non-list) or item dict
+    # (readable_list with structured items). Prefer the item's
+    # concrete_fact / name when present; fall back to joined lines.
+    claims_to_verify: list[str] = []
+    for s in slides or []:
+        if not s:
+            continue
+        if isinstance(s, dict):
+            item = s.get("item") if isinstance(s.get("item"), dict) else None
+            if item:
+                concrete = (item.get("concrete_fact") or "").strip()
+                name = (item.get("name") or "").strip()
+                joined = " ".join(p for p in (name, concrete) if p)
+                if joined:
+                    claims_to_verify.append(joined)
+                    continue
+            # Non-item slide: join the lines for the anchor check.
+            lines = s.get("lines") or []
+            joined = " ".join(str(line) for line in lines if line)
+            if joined.strip():
+                claims_to_verify.append(joined.strip())
+        elif isinstance(s, str):
+            if s.strip():
+                claims_to_verify.append(s.strip())
+
+    if not claims_to_verify:
+        return
+
+    anchors = verify_anchors(claims_to_verify, api_key=api_key)
+    if not anchors["ok"]:
+        flagged_summary = "; ".join(
+            f"{f['claim'][:80]} ({f['reason']})" for f in anchors["flagged"][:3]
+        )
+        raise CarouselShapeError(
+            f"ERROR: fact verification failed (anchors): {flagged_summary}",
+            diagnostics={
+                "verification_stage": "anchors",
+                "flagged": anchors["flagged"][:3],
+            },
+            usage={
+                "editorial_cost_usd": editorial_cost_usd,
+                "fitter_cost_usd":    0.0,
+                "fitter_attempts":    1,
+                "probe_attempts":     0,
+                "verification_cost_usd": consistency_cost,
+            },
+        )
+
+
 def _generate_list_content(
     brief: str, n_items: int, api_key: str, layout_mode: str,
 ) -> tuple[dict, list[dict]]:
@@ -1148,6 +1252,18 @@ def _generate_list_content(
     data["_fitter_attempts"] = 1
     data["_probe_attempts"] = 0
 
+    # D.1 fact verification gate (list path). Same gate as the non-list
+    # branch in generate_content; runs after shape repairs so verification
+    # only sees the final, ship-ready content.
+    _verify_facts_or_raise(
+        brief=brief,
+        data=data,
+        slides=rendered_slides,
+        format_type="list",
+        api_key=api_key,
+        editorial_cost_usd=float(sum(u["cost_usd"] for u in usage_records)),
+    )
+
     return data, usage_records
 
 
@@ -1250,6 +1366,22 @@ def generate_content(
         raise
 
     slides = data["slides"]
+
+    # D.1 fact verification gate. Both checks run before render so the
+    # shipping cost (image sourcing, Playwright render, Meta upload) is
+    # never paid on a post that contradicts itself or contains "fictional"
+    # framing. CarouselShapeError so the same handler in main() logs it
+    # and writes a quality-ledger row; the autonomous agent matches the
+    # "ERROR: fact verification failed" sentinel ahead of the more generic
+    # CONTENT_SHAPE_MISMATCH sentinel.
+    _verify_facts_or_raise(
+        brief=brief,
+        data=data,
+        slides=slides,
+        format_type=format_type,
+        api_key=api_key,
+        editorial_cost_usd=float(usage["cost_usd"]),
+    )
 
     # Soft warnings (orphans, weak endings, final-line-too-short).
     # hard_cap is profile-driven so readable_list does not raise false

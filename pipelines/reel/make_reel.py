@@ -580,6 +580,42 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         vo_script = _append_outro(vo_body)
         print(f"  outro appended — total {len(vo_script.split())} words")
 
+        # D.1 fact verification gate. Runs BEFORE TTS so a contradictory or
+        # "fictional"-framed reel is rejected for ~$0.001 instead of paying
+        # the full TTS + FFmpeg + upload bill on a post that cannot ship.
+        # Both checks fail-OPEN on infra issues (no api_key, Wikipedia down)
+        # and fail-CLOSED on real quality issues. Print prefix matches the
+        # autonomous agent's `fact_verification_failed` sentinel.
+        from src.verification.fact_checker import verify_anchors, verify_consistency
+        anth_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+        consistency_brief = {
+            "title": fact.get("reel_title", ""),
+            "claim": vo_script,
+        }
+        consistency = verify_consistency(consistency_brief, api_key=anth_key)
+        if not consistency["ok"]:
+            print(
+                f"ERROR: fact verification failed (consistency): "
+                f"{consistency['reason']}"
+            )
+            brain.append_log(
+                f"reel BLOCKED - fact verification (consistency): "
+                f"{consistency['reason'][:80]} - claim={claim[:60]}"
+            )
+            return 11
+        anchors = verify_anchors([vo_script], api_key=anth_key)
+        if not anchors["ok"]:
+            flagged = "; ".join(
+                f"{f['claim'][:60]} ({f['reason']})"
+                for f in anchors["flagged"][:3]
+            )
+            print(f"ERROR: fact verification failed (anchors): {flagged}")
+            brain.append_log(
+                f"reel BLOCKED - fact verification (anchors): "
+                f"{flagged[:80]} - claim={claim[:60]}"
+            )
+            return 11
+
         print(f"Synthesising voice-over (voice={voice})...")
         tts_backend = os.getenv("TTS_BACKEND", "elevenlabs")
         el_key = os.getenv("ELEVENLABS_API_KEY", "").strip()
