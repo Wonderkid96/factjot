@@ -1111,6 +1111,11 @@ def _record(
     """
     from src.brain import claim_hash as _claim_hash
     claim_hash_val = _claim_hash(claim)
+    # Capture the slot context so the performance ledger can answer
+    # "which slot performs best" without a backfill (audit Phase H.2).
+    # POST_MODE is set by the autonomous workflow; for local manual runs
+    # without a slot context the field defaults to `unknown`.
+    slot = (os.environ.get("POST_MODE", "") or "").strip() or "unknown"
     reel_record = {
         "reel_id":       reel_id,
         "ig_media_id":   ig_media_id,
@@ -1120,6 +1125,7 @@ def _record(
         "tone":          tone,
         "reel_title":    reel_title,
         "word_count":    word_count,
+        "slot":          slot,
         "published_at":  datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "out_dir":       str(out_dir),
         "thumbnail_png": str(thumbnail_png) if thumbnail_png else None,

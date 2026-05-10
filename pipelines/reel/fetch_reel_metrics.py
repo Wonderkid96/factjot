@@ -121,7 +121,7 @@ def _fetch_insights(media_id: str) -> dict:
 
 
 def _existing_meta(reel_id: str, existing: dict[str, dict]) -> dict:
-    """Read tone, reel_title, script_word_count from a prior performance record.
+    """Read tone, reel_title, script_word_count, slot from a prior performance record.
 
     The performance ledger is mutable and rewritten on each fetch
     (see CLAUDE.md hard rule 8), so the prior record is the canonical
@@ -135,6 +135,7 @@ def _existing_meta(reel_id: str, existing: dict[str, dict]) -> dict:
         "tone":              prior.get("tone", ""),
         "reel_title":        prior.get("reel_title", ""),
         "script_word_count": int(prior.get("script_word_count", 0) or 0),
+        "slot":              prior.get("slot", ""),
     }
 
 
@@ -222,15 +223,18 @@ def main() -> int:
             continue
 
         reach     = raw.get("reach", 0)
-        # Carry forward tone, reel_title, script_word_count from the prior
-        # ledger entry (or from the reels.jsonl publish record) rather than
-        # re-resolving via the deleted rare_fact_bank.
+        # Carry forward tone, reel_title, script_word_count, slot from the
+        # prior ledger entry (or from the reels.jsonl publish record) rather
+        # than re-resolving via the deleted rare_fact_bank. `slot` is set on
+        # the reels.jsonl entry by make_reel.py at publish time (Phase H.2);
+        # carry-forward keeps slot across fetches and survives a backfill.
         prior     = _existing_meta(reel_id, existing)
         tone        = prior["tone"]        or reel.get("tone", "")
         reel_title  = prior["reel_title"]  or reel.get("reel_title", "")
         word_count  = prior["script_word_count"] or len(
             (reel.get("reel_script", "") or "").split()
         )
+        slot        = prior["slot"]        or reel.get("slot", "") or "unknown"
 
         record = {
             "reel_id":           reel_id,
@@ -240,6 +244,7 @@ def main() -> int:
             "reel_title":        reel_title,
             "claim":             reel.get("claim", "")[:120],
             "script_word_count": word_count,
+            "slot":              slot,
             "posted_at":         published,
             "metrics_fetched_at": now_iso,
             **_derive(raw, reach),
