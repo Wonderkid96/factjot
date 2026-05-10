@@ -1,0 +1,12 @@
+# .pre-commit-config.yaml
+# Local-only enforcement. CI uses its own pytest + ruff steps.
+# The ruff hook lands in Task B.2.3 alongside the ruff config.
+repos:
+  - repo: local
+    hooks:
+      - id: em-dash-check
+        name: Em-dash check (CLAUDE.md §1.2)
+        entry: /Library/Frameworks/Python.framework/Versions/Current/bin/python3 scripts/check_em_dashes.py
+        language: system
+        pass_filenames: false
+        always_run: true
