@@ -32,11 +32,13 @@ import os
 import subprocess
 import sys
 import textwrap
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import anthropic
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from src.brain import fingerprint_similarity, subject_fingerprint
 from src.content.carousel_rules import (
     BEAT_DENSITY_RULES,
     PHOTOGRAPHABLE_BEATS_RULES,
@@ -66,7 +68,15 @@ PRICE_CACHE_READ_PER_M  = round(PRICE_INPUT_PER_M * 0.10, 4)
 
 REPO_ROOT   = Path(__file__).resolve().parent.parent
 POSTED_LOG  = REPO_ROOT / "insta-brain" / "data" / "posted.jsonl"
+REELS_LOG   = REPO_ROOT / "insta-brain" / "data" / "reels.jsonl"
 COST_LEDGER = REPO_ROOT / "data" / "ledgers" / "api_usage_costs.jsonl"
+
+# Subject fingerprint dedup window. The 2026-05-06 incident shipped 8 near-
+# duplicate "phone with no apps" carousels in 5 hours; 14 days is wide
+# enough to catch a slow-burn repeat without forcing the agent to skip
+# every legitimate cousin topic.
+FINGERPRINT_WINDOW_DAYS = 14
+FINGERPRINT_SIMILARITY_THRESHOLD = 0.6
 
 SYSTEM = textwrap.dedent("""\
     You are running the factjot Instagram account (@factjot).
@@ -107,10 +117,30 @@ MODE_TOOLS: dict[str, tuple[str, ...]] = {
 # Posting history summary - the post bank the agent uses to dedupe
 # ------------------------------------------------------------------ #
 
+def _entry_subject_text(entry: dict) -> str:
+    """Pick the best free-text field on a posted/reel entry to fingerprint.
+
+    Reels store a real reel_title on top of the claim (the script body);
+    posts store a slug-shaped claim like "manual:abc:five-biggest-mega-...".
+    Fall back to keywords-after-colon for slugged claims so fingerprints
+    survive even when claim is opaque.
+    """
+    reel_title = entry.get("reel_title") or ""
+    if reel_title:
+        return reel_title
+    claim = entry.get("claim", "") or ""
+    if claim.startswith(("manual:", "list:", "reel:")) and ":" in claim:
+        # Slug shape - take the keywords tail after the last colon and
+        # un-slug it.
+        tail = claim.rsplit(":", 1)[-1]
+        return tail.replace("-", " ").replace("_", " ")
+    return claim
+
+
 def _format_history_entry(entry: dict) -> str | None:
     """Return a richer one-line summary per post for duplicate detection.
 
-    Format: `YYYY-MM-DD [format/CATEGORY] subject - keywords`
+    Format: `YYYY-MM-DD [format/CATEGORY] subject - keywords  fp=<fingerprint>`
     """
     date = (entry.get("published_at") or "")[:10]
     if not date:
@@ -139,7 +169,97 @@ def _format_history_entry(entry: dict) -> str | None:
         keywords = (snippet[:140] + "…") if len(snippet) > 140 else snippet
         keywords = keywords or entry.get("post_id") or "(no-keywords)"
 
-    return f"- {date} [{fmt}/{label}] {keywords}"
+    fp = subject_fingerprint(_entry_subject_text(entry))
+    fp_tag = f"  fp={fp}" if fp else ""
+    return f"- {date} [{fmt}/{label}] {keywords}{fp_tag}"
+
+
+def _parse_published_at(raw: str) -> datetime | None:
+    """Parse the `published_at` ISO string used by both posted.jsonl
+    and reels.jsonl. Returns None on parse failure.
+    """
+    if not raw:
+        return None
+    s = raw.strip()
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(s)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def _iter_jsonl(path: Path):
+    """Yield decoded rows from a .jsonl file, ignoring blank/bad lines."""
+    if not path.exists():
+        return
+    with path.open("r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                yield json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+
+def load_recent_fingerprints(
+    *,
+    window_days: int = FINGERPRINT_WINDOW_DAYS,
+    now: datetime | None = None,
+) -> list[tuple[str, str, str]]:
+    """Return [(fingerprint, published_at_iso, subject_excerpt), ...] for
+    posts within the last `window_days` across posted.jsonl + reels.jsonl.
+
+    Empty-fingerprint entries are skipped. The list is deduplicated by
+    fingerprint, keeping the most recent entry per fingerprint.
+    """
+    if now is None:
+        now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=window_days)
+    seen: dict[str, tuple[str, str, str]] = {}
+    for path in (POSTED_LOG, REELS_LOG):
+        for row in _iter_jsonl(path):
+            ts = _parse_published_at(row.get("published_at", ""))
+            if ts is None or ts < cutoff:
+                continue
+            subject = _entry_subject_text(row)
+            fp = subject_fingerprint(subject)
+            if not fp:
+                continue
+            iso = row.get("published_at", "")
+            excerpt = subject[:80].strip()
+            existing = seen.get(fp)
+            if existing is None or iso > existing[1]:
+                seen[fp] = (fp, iso, excerpt)
+    return list(seen.values())
+
+
+def find_subject_collision(
+    candidate_text: str,
+    recent: list[tuple[str, str, str]],
+    *,
+    threshold: float = FINGERPRINT_SIMILARITY_THRESHOLD,
+) -> tuple[str, str, str, float] | None:
+    """If `candidate_text` collides with any entry in `recent`, return the
+    matched (fingerprint, published_at_iso, subject_excerpt, similarity).
+    Otherwise return None.
+
+    Empty candidate fingerprint returns None (cannot characterise it).
+    """
+    cand_fp = subject_fingerprint(candidate_text)
+    if not cand_fp:
+        return None
+    best: tuple[str, str, str, float] | None = None
+    for fp, iso, excerpt in recent:
+        sim = fingerprint_similarity(cand_fp, fp)
+        if sim >= threshold and (best is None or sim > best[3]):
+            best = (fp, iso, excerpt, sim)
+    return best
 
 
 def build_history_summary(limit: int = HISTORY_LIMIT) -> str:
@@ -165,7 +285,11 @@ def build_history_summary(limit: int = HISTORY_LIMIT) -> str:
     header = (
         f"Last {len(lines)} posts (most recent at bottom). Use this to "
         "reject any candidate that overlaps a previous topic, angle, list "
-        "idea, ranking, or subject, even when worded differently."
+        "idea, ranking, or subject, even when worded differently. The "
+        "`fp=` token at the end of each line is the code-level subject "
+        "fingerprint; if your candidate's longest content tokens overlap "
+        f"any recent fingerprint by {int(FINGERPRINT_SIMILARITY_THRESHOLD * 100)}% or more, the dispatch "
+        "will be rejected and you must skip or pick a different subject."
     )
     return header + "\n" + "\n".join(lines)
 
@@ -419,7 +543,54 @@ def tools_for_mode(mode: str) -> list[dict]:
     return [t for t in TOOLS if t["name"] in allowed]
 
 
-def execute_tool(name: str, args: dict, dry_run: bool, mode: str) -> str:
+def _candidate_subject_text(name: str, args: dict) -> str:
+    """Return the free-text the agent supplied for the candidate post.
+
+    For reels, that is `script` (and `title` as a backup if the script is
+    missing). For carousels it is `brief`. Capped at 200 chars so the
+    fingerprint is not dominated by long bodies.
+    """
+    if name == "run_reel":
+        text = args.get("script") or args.get("title") or ""
+    elif name == "run_carousel":
+        text = args.get("brief") or args.get("label") or ""
+    else:
+        text = ""
+    return (text or "")[:200]
+
+
+def _format_dedup_rejection(
+    candidate_text: str,
+    collision: tuple[str, str, str, float],
+) -> str:
+    """Build the FAILURE_KIND-prefixed message returned to the agent when
+    the candidate fingerprint collides with a recent post.
+    """
+    fp, iso, excerpt, sim = collision
+    cand_fp = subject_fingerprint(candidate_text)
+    return (
+        "FAILURE_KIND: duplicate_subject\n\n"
+        "REJECTED at code-level dedup. The candidate subject collides "
+        f"with a recent post (Jaccard similarity {sim:.2f}, threshold "
+        f"{FINGERPRINT_SIMILARITY_THRESHOLD:.2f}, window "
+        f"{FINGERPRINT_WINDOW_DAYS} days).\n"
+        f"  candidate fingerprint: {cand_fp}\n"
+        f"  matched fingerprint:   {fp}\n"
+        f"  matched post date:     {iso[:10]}\n"
+        f"  matched subject:       {excerpt}\n\n"
+        "Choose a different subject (different proper noun, different "
+        "angle, different mechanism) or call skip(reason). Do NOT retry "
+        "with the same idea reworded - that produces the same fingerprint."
+    )
+
+
+def execute_tool(
+    name: str,
+    args: dict,
+    dry_run: bool,
+    mode: str,
+    recent_fingerprints: list[tuple[str, str, str]] | None = None,
+) -> str:
     if name == "list_unposted_topics":
         return build_history_summary()
     if name == "list_story_candidates":
@@ -447,9 +618,23 @@ def execute_tool(name: str, args: dict, dry_run: bool, mode: str) -> str:
         return "\n".join(lines)
     if name == "skip":
         return f"SKIPPED: {args.get('reason', '(no reason given)')}"
-    if name == "run_reel":
-        return run_reel(args, dry_run)
-    if name == "run_carousel":
+    if name in ("run_reel", "run_carousel"):
+        # Code-level subject-fingerprint dedup. Runs before the subprocess
+        # fires so we save the cost of running a pipeline only to reject.
+        recent = recent_fingerprints if recent_fingerprints is not None \
+            else load_recent_fingerprints()
+        candidate_text = _candidate_subject_text(name, args)
+        collision = find_subject_collision(candidate_text, recent)
+        if collision is not None:
+            print(
+                f"[dedup] code-level reject for {name}: "
+                f"sim={collision[3]:.2f} matched={collision[0]} "
+                f"date={collision[1][:10]}",
+                flush=True,
+            )
+            return _format_dedup_rejection(candidate_text, collision)
+        if name == "run_reel":
+            return run_reel(args, dry_run)
         format_type = MODE_FORMAT_TYPE.get(mode, "fact")
         return run_carousel(args, dry_run, format_type)
     return f"ERROR: unknown tool {name}"
@@ -1078,6 +1263,16 @@ def main(argv: list[str] | None = None) -> int:
     client   = anthropic.Anthropic(api_key=api_key)
     prompt   = build_prompt(mode)
     tools    = tools_for_mode(mode)
+    # Pre-load recent post fingerprints once per agent invocation. The
+    # ledgers can grow large (~1k+ posts), and the dedup check runs once
+    # per posting tool call - typically once per session, but loop retries
+    # happen, so a per-turn re-read is wasteful and racy.
+    recent_fingerprints = load_recent_fingerprints()
+    print(
+        f"[dedup] loaded {len(recent_fingerprints)} unique subject "
+        f"fingerprints from last {FINGERPRINT_WINDOW_DAYS} days",
+        flush=True,
+    )
     # The first user message carries the giant per-mode prompt. Marking
     # it cache_control=ephemeral pins the prefix (tools + system + this
     # message) in Anthropic's prompt cache for ~5 minutes, so every turn
@@ -1150,7 +1345,10 @@ def main(argv: list[str] | None = None) -> int:
                     final_status = "skipped"
                     skipped = True
                     break
-                output = execute_tool(block.name, block.input, dry_run, mode)
+                output = execute_tool(
+                    block.name, block.input, dry_run, mode,
+                    recent_fingerprints=recent_fingerprints,
+                )
                 if block.name in ("run_reel", "run_carousel"):
                     first_line = output.split("\n", 1)[0]
                     if first_line.startswith("FAILURE_KIND:"):

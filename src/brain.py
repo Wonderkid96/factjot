@@ -63,6 +63,95 @@ def claim_hash(claim: str) -> str:
     return hashlib.sha256(normalise_claim(claim).encode("utf-8")).hexdigest()
 
 
+# ----- subject fingerprint dedup (audit Phase C.3) -----------------
+#
+# Why a fingerprint and not a full claim hash? claim_hash is exact-match;
+# the prompt-level dedup guard already covers exact reposts. The 2026-05-06
+# incident shipped 8 carousels about "phone with no apps" under different
+# slugs because each was rephrased enough that exact hashing did not catch
+# the duplicate. The fingerprint reduces a subject to its top 3-5 longest
+# content tokens, sorted alphabetically, so two posts about the same
+# subject framed differently produce overlapping fingerprints.
+#
+# This is a heuristic. False positives are acceptable (the agent skips a
+# slot, preferable to a duplicate). False negatives are the bigger concern.
+
+_FINGERPRINT_STOPWORDS: frozenset[str] = frozenset({
+    "the", "a", "an", "of", "in", "on", "at", "to", "for", "and", "or",
+    "but", "with", "from", "as", "by", "that", "this", "these", "those",
+    "is", "was", "were", "are", "be", "been", "being", "has", "have",
+    "had", "do", "did", "does", "will", "would", "could", "should",
+    "may", "might", "can", "must", "not", "no", "what", "which", "who",
+    "when", "where", "why", "how", "you", "your", "yours", "my", "our",
+    "we", "us", "they", "them", "their",
+})
+
+_FINGERPRINT_MIN_TOKEN_LEN = 3
+_FINGERPRINT_MAX_TOKENS    = 5
+
+
+def subject_fingerprint(text: str) -> str:
+    """Return a normalised noun-phrase fingerprint for `text`.
+
+    Approach:
+        1. Lowercase.
+        2. Strip punctuation (keep letters and digits).
+        3. Tokenise on whitespace.
+        4. Drop common stopwords.
+        5. Drop tokens shorter than 3 chars or all-digit.
+        6. Take the top 3-5 longest remaining tokens, sort alphabetically,
+           join with "-".
+
+    Empty / stopwords-only / digits-only input returns "".
+    """
+    if not text:
+        return ""
+    lowered = text.lower()
+    # Replace any character that is not a letter or digit with a space.
+    # This handles punctuation, hyphens, smart quotes, em-dashes, etc.
+    cleaned = re.sub(r"[^a-z0-9]+", " ", lowered)
+    tokens = cleaned.split()
+    kept: list[str] = []
+    for tok in tokens:
+        if len(tok) < _FINGERPRINT_MIN_TOKEN_LEN:
+            continue
+        if tok in _FINGERPRINT_STOPWORDS:
+            continue
+        if tok.isdigit():
+            continue
+        kept.append(tok)
+    if not kept:
+        return ""
+    # Sort by (-length, alphabetical) so longest tokens win, with stable
+    # alphabetical ordering when lengths tie. Then take top N.
+    kept_sorted = sorted(set(kept), key=lambda t: (-len(t), t))
+    top = kept_sorted[:_FINGERPRINT_MAX_TOKENS]
+    # Inputs with fewer than 3 distinct content tokens are too thin to
+    # fingerprint reliably. Return what we have anyway; the all-stopwords /
+    # all-digit case returned "" earlier. The collision check uses Jaccard
+    # similarity which already tolerates short fingerprints.
+    return "-".join(sorted(top))
+
+
+def fingerprint_similarity(fp1: str, fp2: str) -> float:
+    """Return Jaccard similarity in [0, 1] between two fingerprints.
+
+    Empty fingerprint on either side returns 0.0 (cannot match what we
+    cannot characterise).
+    """
+    if not fp1 or not fp2:
+        return 0.0
+    set1 = set(fp1.split("-"))
+    set2 = set(fp2.split("-"))
+    if not set1 or not set2:
+        return 0.0
+    intersection = set1 & set2
+    union = set1 | set2
+    if not union:
+        return 0.0
+    return len(intersection) / len(union)
+
+
 class Brain:
     """In-memory mirror of the brain's dedupe ledgers + write API."""
 
