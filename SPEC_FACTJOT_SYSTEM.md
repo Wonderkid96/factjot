@@ -52,7 +52,7 @@ If a behaviour is shared across two or more pipelines, it belongs in `src/`, not
 
 ## 4. Current pipelines (revised 2026-05-07)
 
-The factjot system runs scheduled autonomous evergreen slots via `autonomous-reel.yml`, and runs breaking-news publishing via `news-watcher.yml` when watcher criteria are met. Each fire is locked to one format (see §6.1). The agent (Sonnet 4.6) writes the brief or script for that slot's format and calls the matching pipeline tool, or calls `skip` if nothing clears the quality gate.
+The factjot system runs scheduled autonomous evergreen slots via `autonomous-reel.yml`. Each fire is locked to one format (see §6.1). The agent (Sonnet 4.6) writes the brief or script for that slot's format and calls the matching pipeline tool, or calls `skip` if nothing clears the quality gate. The breaking-news pipeline was killed in audit Phase G.2 (decision B); see the deletion table below.
 
 The active autonomous publishing path exposes two publishing tools and one state/dedupe tool:
 
@@ -62,16 +62,16 @@ The active autonomous publishing path exposes two publishing tools and one state
 | `run_carousel` | publishing | `pipelines/carousel/ship_carousel_post.py` | Carousel from a written brief: editorial, comparison, timeline, current story, or list-style ranking. Brief provided directly by the agent. |
 | `list_unposted_topics` | state / dedupe | reads `insta-brain/data/posted.jsonl` | Returns a compact summary of recent posts so the agent can apply the prompt-level duplicate guard. Not a pipeline; never publishes anything. |
 
-Legacy scripts may remain on disk but are not called by current workflows. Active posting is handled by `autonomous-reel.yml` (scheduled evergreen) and `news-watcher.yml` (watcher-triggered breaking news).
+Legacy scripts and the breaking-news pipeline are no longer called by any workflow. Active posting is handled solely by `autonomous-reel.yml` (scheduled evergreen).
 
 **Deleted on 2026-05-07** (architecture switch from multi-cron to autonomous-only):
 
 | Former pipeline | Status |
 |---|---|
-| Scheduled fact carousel (`pipelines/carousel/ship_first_post.py`) | Workflow deleted. Script remains on disk but no cron calls it. The agent's `run_carousel` is intended to cover carousel needs going forward. |
-| List carousel (`pipelines/list/ship_list_post.py`) | Workflow deleted. Pre-built list packs unused. List-style content is intended to be posted via `run_carousel` with a list-style brief. |
-| News carousel (`pipelines/news/ship_news_post.py`) | No longer scheduled. Breaking news is now watcher-triggered from `news-watcher.yml` via `pipelines/news/ship_news_breaking.py`. The renderer code in this file is still imported by the manual pipeline (known dual-role mismatch flagged in section 10.1). |
-| Reddit-discovery cron (`weekly-plan.yml`) | Deleted. The agent now sources ideas directly from Sonnet's knowledge under the prompt's INTERESTINGNESS / EVENT-VS-ANGLE / QUALITY gates. The legacy `rare_fact_bank.py` and `discovered_facts.jsonl` are dormant. |
+| Scheduled fact carousel (`pipelines/carousel/ship_first_post.py`) | Workflow deleted on 2026-05-07; script deleted in audit Phase G.3 on 2026-05-10. The agent's `run_carousel` covers carousel needs. |
+| List carousel (`pipelines/list/ship_list_post.py`) | Workflow deleted on 2026-05-07; script deleted in audit Phase G.3 on 2026-05-10. List-style content posts via `run_carousel` with a list-style brief. |
+| News carousel (`pipelines/news/ship_news_post.py`) | News pipeline killed in audit Phase G.2 on 2026-05-10 (workflow `news-watcher.yml`, wrapper `ship_news_breaking.py`, RSS helper `check_guardian_rss.py` all deleted). The `ship_news_post.py` module itself is retained because the manual pipeline imports its renderer functions (known dual-role mismatch flagged in section 10.1); its CLI entry point is dead. |
+| Reddit-discovery cron (`weekly-plan.yml`) | Deleted. The agent sources ideas directly from Sonnet's knowledge under the prompt's INTERESTINGNESS / EVENT-VS-ANGLE / QUALITY gates. `rare_fact_bank.py` and `discovered_facts.jsonl` were retired in audit Phase G.1 on 2026-05-10. |
 | Legacy reset-and-relaunch helpers | Deleted. Token refresh + IG metrics fetch run as soft steps inside `autonomous-reel.yml`. |
 
 The architectural principles in sections 5, 7, 8, 9, 11 still hold. Lifecycle stages, shared-module rules, media-intent contract, ledger discipline, and the brain-as-source-of-truth principle survive the architectural change. What changed is the cadence and active path count, not the structure.
@@ -129,7 +129,7 @@ If no candidate clears the quality gate, the agent calls `skip` with a one-line 
 Autonomous mode runs on this stack:
 
 - **GitHub Actions is the production scheduler and the sole posting environment.** It runs 24/7 regardless of Toby's Mac. Every autonomous post leaves the system from a GitHub Actions runner.
-- **GitHub's built-in cron** fires `autonomous-reel.yml` at 08:00 / 13:00 / 19:30 UTC (09:00 / 14:00 / 20:30 BST). `news-watcher.yml` is on the audit-2026-05-09 deletion list (decision B), to be removed in Phase G. No backup cron and no legacy `CRON_TRIGGER_PAT`.
+- **GitHub's built-in cron** fires `autonomous-reel.yml` at 08:00 / 13:00 / 19:30 UTC (09:00 / 14:00 / 20:30 BST). `news-watcher.yml` was deleted in audit Phase G.2. No backup cron and no legacy `CRON_TRIGGER_PAT`.
 - **launchd jobs are disabled.** Local launchd-based publishing is legacy. Re-enabling launchd without first disabling the GitHub workflow will cause double-posts.
 - **Queue-based local publishing** (`scripts/publish_due.py`, `review_queue.py`) is legacy. The README still describes it; the live system does not use it.
 

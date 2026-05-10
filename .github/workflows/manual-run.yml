@@ -246,8 +246,7 @@ jobs:
             data/ledgers/reel_performance.jsonl \
             data/ledgers/api_usage_costs.jsonl \
             data/ledgers/youtube_uploads.jsonl \
-            data/ledgers/carousel_quality.jsonl \
-            data/ledgers/news_posts.jsonl
+            data/ledgers/carousel_quality.jsonl
           do
             if [ -e "$f" ]; then
               git add "$f" || true

@@ -46,7 +46,7 @@ These are environment-coded duplicates of the principles in `SPEC_FACTJOT_SYSTEM
    - Code comments, docstrings.
    - Internal logs (`print` / `_log` / `brain.append_log`).
    - Regex character classes that match separator characters.
-   - Quoted third-party material (e.g. archived Guardian copy in `data/ledgers/news_posts.jsonl`).
+   - Quoted third-party material in archived assets under `Brain/raw/archive/`.
    - `.md` technical docs (`CLAUDE.md`, `SPEC_FACTJOT_SYSTEM.md`, `ROADMAP.md`, `SPEC_IMAGE_PIPELINE.md`, `gotchas.md`).
 
    Use hyphens, commas, full stops, parentheses, or rewrite when stripping.
@@ -95,7 +95,7 @@ An edit for one purpose can silently affect the other. Inspect both manual and n
 
 ## 5. What this project is
 
-Fully automated Instagram account (@factjot). Scheduled evergreen slots run via `autonomous-reel.yml` on GitHub-hosted cron, and breaking news runs via `news-watcher.yml` when Guardian watcher criteria are met. The agent (Sonnet 4.6) writes the brief or script and calls one of `run_reel` / `run_carousel`, or `skip` if nothing clears the quality gate. **The Mac does not need to be on.**
+Fully automated Instagram account (@factjot). Scheduled evergreen slots run via `autonomous-reel.yml` on GitHub-hosted cron. The agent (Sonnet 4.6) writes the brief or script and calls one of `run_reel` / `run_carousel`, or `skip` if nothing clears the quality gate. **The Mac does not need to be on.**
 
 | Mode | BST | UTC cron | Format |
 |---|---|---|---|
@@ -105,7 +105,7 @@ Fully automated Instagram account (@factjot). Scheduled evergreen slots run via 
 
 (Cut from 5 slots to 3 on 2026-05-10 per audit Q4 quality bet, distribution test against the prior 4 weeks of 5-slot data, two-week window before reassessment.)
 
-Breaking news pipeline is on the audit-2026-05-09 deletion list (decision B); `news-watcher.yml` to be removed in Phase G.
+The breaking-news pipeline was killed in audit Phase G.2 (decision B). `news-watcher.yml`, `pipelines/news/ship_news_breaking.py`, and `pipelines/news/check_guardian_rss.py` are gone. The `pipelines/news/ship_news_post.py` module is retained because `pipelines/manual/ship_manual_post.py` imports its renderer functions for the autonomous carousel flow (dual-role tracked in §3 and SPEC §10.1); its CLI entry point is dead.
 
 Crons are UTC, tracked to BST in summer. UK clocks fall back in October; UTC equals GMT then, so posts fire at the same UK clock time year-round without intervention.
 
@@ -147,10 +147,8 @@ The product goal is not just to avoid wrong images. It is a finished carousel th
 cd ~/Developer/Insta-bot
 PY=/Library/Frameworks/Python.framework/Versions/Current/bin/python3
 
-# Reel: dry-run first, always
-$PY pipelines/reel/make_reel.py --dry-run
-$PY pipelines/reel/make_reel.py --topic earth
-$PY pipelines/reel/make_reel.py --list-facts
+# Reel: dry-run first, always. --script + --title are required.
+$PY pipelines/reel/make_reel.py --script "..." --title "..." --topic earth --dry-run
 
 # Manual carousel (current autonomous carousel path)
 $PY pipelines/carousel/ship_carousel_post.py --dry-run
@@ -214,7 +212,7 @@ Image scoring under `readable_list` runs `ImageSourcer(relax=True)`: R3 score fl
 
 - **Pipelines:** `pipelines/{reel,manual,news,carousel,list,shared}/`. Only `reel/make_reel.py` and `carousel/ship_carousel_post.py` are intentional production entry points (autonomous workflow calls them via the agent's `run_reel` / `run_carousel` tools). Other pipeline files are legacy; see `docs/PIPELINE_OPERATIONS_REFERENCE.md` §2.
 - **Shared modules:** `src/{core,research,content,verification,render,publish,utils}/`. Responsibilities table in `SPEC_FACTJOT_SYSTEM.md` §7.
-- **Workflows:** `.github/workflows/`. Active posting workflows are `autonomous-reel.yml` (scheduled reel/list/reel/list/reel sequence), `news-watcher.yml` (breaking news watcher-triggered posts), and `manual-run.yml` (workflow_dispatch prompt-driven manual reel/carousel runs). `test.yml` runs PR pytest, `pages.yml` builds docs.
+- **Workflows:** `.github/workflows/`. Active posting workflows are `autonomous-reel.yml` (scheduled three-slot reel/list/reel sequence) and `manual-run.yml` (workflow_dispatch prompt-driven manual reel/carousel runs). `test.yml` runs PR pytest, `pages.yml` builds docs.
 - **State (git-tracked):** `insta-brain/data/posted.jsonl`, `insta-brain/data/reels.jsonl`, `data/ledgers/used_images.jsonl`, `data/ledgers/used_footage_urls.jsonl`, `data/ledgers/api_usage_costs.jsonl`, `data/ledgers/youtube_uploads.jsonl`, `data/ledgers/reel_performance.jsonl` (mutable). Invariant each ledger guards: `SPEC_FACTJOT_SYSTEM.md` §11.2.
 - **Brain:** `insta-brain/`. `gotchas.md` is mandatory reading.
 - **Per-run output:** `output/<pipeline>/...` (gitignored, local only).
@@ -224,14 +222,22 @@ Image scoring under `readable_list` runs `ImageSourcer(relax=True)`: R3 score fl
 
 ## 12. Legacy and dormant code
 
-These exist on disk but no scheduled workflow calls them. Do not re-introduce a scheduled cron without first disabling the autonomous workflow, or double-posting will follow.
+The audit-2026-05-09 Phase G cleanup deleted the obviously-dormant scripts. What remains here is a short list of dual-role files and lingering helpers that survived the sweep, plus the deleted infrastructure.
 
-- `src/research/rare_fact_bank.py` and `data/ledgers/discovered_facts.jsonl`: dormant. The autonomous reel path provides `--script` directly via the agent and bypasses `_pick_fact()`. The historical rule "facts must come from Reddit only" applied to the deleted Reddit-discovery pipeline; it does not apply to the autonomous flow.
+- `pipelines/news/ship_news_post.py`: CLI entry point is dead (Phase G.2 deleted the news-watcher workflow and the breaking-news wrapper). The renderer functions in this module are still imported by `pipelines/manual/ship_manual_post.py` for the autonomous carousel flow. Untangling tracked in `SPEC_FACTJOT_SYSTEM.md` §10.1.
+- `src/research/fact_discovery.py` and `pipelines/carousel/smoke_render.py`: orphaned; no live caller. Left in place because they sit outside the explicit Phase G deletion list. Do not import; pick up in a follow-up cleanup if useful.
 - `pipelines/shared/publish_due.py`, `review_queue.py`, `queue.jsonl`: legacy queue-based publishing. Not used by the autonomous flow.
-- `pipelines/carousel/ship_first_post.py`, `pipelines/list/ship_list_post.py`, `pipelines/news/ship_news_post.py` (as a CLI entry point): scheduled workflows are deleted. `ship_news_post.py` is still imported as a renderer by the manual pipeline (see §3).
-- `pipelines/reel/discover_reel_facts.py`, `pipelines/reel/runway.py`, `pipelines/carousel/restock.py`, `pipelines/reel/check_reel_runway.py`: discovery / runway helpers tied to the deleted weekly-plan workflow.
 - launchd jobs: disabled.
 - cron-job.org backup: removed; `CRON_TRIGGER_PAT` is no longer required by any active workflow.
+
+Deleted in Phase G.1 (rare_fact_bank retire):
+- `src/research/rare_fact_bank.py`, `pipelines/reel/validate_reel_facts.py`. The legacy `_pick_fact()` selection path in `make_reel.py` was removed; `--script` is now mandatory. The autonomous reel path always supplies it via `run_reel`. The `data/ledgers/discovered_facts.jsonl` ledger was archived to `Brain/raw/archive/relevance/`.
+
+Deleted in Phase G.2 (news pipeline kill):
+- `.github/workflows/news-watcher.yml`, `pipelines/news/ship_news_breaking.py`, `pipelines/news/check_guardian_rss.py`. The `data/ledgers/news_posts.jsonl` ledger was archived to `Brain/raw/archive/relevance/`.
+
+Deleted in Phase G.3 (dormant code sweep):
+- `pipelines/shared/publish_now.py`, `pipelines/shared/plan_week.py`, `pipelines/list/ship_list_post.py`, `pipelines/list/generate_list_packs.py`, `pipelines/list/prepare_packs.py`, `pipelines/list/verify_pack_ids.py`, `pipelines/carousel/ship_first_post.py`, `pipelines/carousel/restock.py`, `pipelines/carousel/discover_facts.py`, `pipelines/reel/discover_reel_facts.py`, `pipelines/reel/runway.py`, `pipelines/reel/check_reel_runway.py`.
 
 ---
 
