@@ -224,14 +224,22 @@ Image scoring under `readable_list` runs `ImageSourcer(relax=True)`: R3 score fl
 
 ## 12. Legacy and dormant code
 
-These exist on disk but no scheduled workflow calls them. Do not re-introduce a scheduled cron without first disabling the autonomous workflow, or double-posting will follow.
+The audit-2026-05-09 Phase G cleanup deleted the obviously-dormant scripts. What remains here is a short list of dual-role files and lingering helpers that survived the sweep, plus the deleted infrastructure.
 
-- `src/research/rare_fact_bank.py` and `data/ledgers/discovered_facts.jsonl`: dormant. The autonomous reel path provides `--script` directly via the agent and bypasses `_pick_fact()`. The historical rule "facts must come from Reddit only" applied to the deleted Reddit-discovery pipeline; it does not apply to the autonomous flow.
+- `pipelines/news/ship_news_post.py`: CLI entry point is dead (Phase G.2 deleted the news-watcher workflow and the breaking-news wrapper). The renderer functions in this module are still imported by `pipelines/manual/ship_manual_post.py` for the autonomous carousel flow. Untangling tracked in `SPEC_FACTJOT_SYSTEM.md` §10.1.
+- `src/research/fact_discovery.py` and `pipelines/carousel/smoke_render.py`: orphaned; no live caller. Left in place because they sit outside the explicit Phase G deletion list. Do not import; pick up in a follow-up cleanup if useful.
 - `pipelines/shared/publish_due.py`, `review_queue.py`, `queue.jsonl`: legacy queue-based publishing. Not used by the autonomous flow.
-- `pipelines/carousel/ship_first_post.py`, `pipelines/list/ship_list_post.py`, `pipelines/news/ship_news_post.py` (as a CLI entry point): scheduled workflows are deleted. `ship_news_post.py` is still imported as a renderer by the manual pipeline (see §3).
-- `pipelines/reel/discover_reel_facts.py`, `pipelines/reel/runway.py`, `pipelines/carousel/restock.py`, `pipelines/reel/check_reel_runway.py`: discovery / runway helpers tied to the deleted weekly-plan workflow.
 - launchd jobs: disabled.
 - cron-job.org backup: removed; `CRON_TRIGGER_PAT` is no longer required by any active workflow.
+
+Deleted in Phase G.1 (rare_fact_bank retire):
+- `src/research/rare_fact_bank.py`, `pipelines/reel/validate_reel_facts.py`. The legacy `_pick_fact()` selection path in `make_reel.py` was removed; `--script` is now mandatory. The autonomous reel path always supplies it via `run_reel`. The `data/ledgers/discovered_facts.jsonl` ledger was archived to `Brain/raw/archive/relevance/`.
+
+Deleted in Phase G.2 (news pipeline kill):
+- `.github/workflows/news-watcher.yml`, `pipelines/news/ship_news_breaking.py`, `pipelines/news/check_guardian_rss.py`. The `data/ledgers/news_posts.jsonl` ledger was archived to `Brain/raw/archive/relevance/`.
+
+Deleted in Phase G.3 (dormant code sweep):
+- `pipelines/shared/publish_now.py`, `pipelines/shared/plan_week.py`, `pipelines/list/ship_list_post.py`, `pipelines/list/generate_list_packs.py`, `pipelines/list/prepare_packs.py`, `pipelines/list/verify_pack_ids.py`, `pipelines/carousel/ship_first_post.py`, `pipelines/carousel/restock.py`, `pipelines/carousel/discover_facts.py`, `pipelines/reel/discover_reel_facts.py`, `pipelines/reel/runway.py`, `pipelines/reel/check_reel_runway.py`.
 
 ---
 

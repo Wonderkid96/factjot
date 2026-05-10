@@ -1,7 +1,8 @@
-"""Generate and publish a factjot Reel from a top-tier fact.
+"""Generate and publish a factjot Reel from a Claude-authored script.
 
 End-to-end pipeline:
-    1.  Select a quirky_score=3 fact not yet used as a Reel.
+    1.  Take the autonomous agent's --script + --title (legacy fact-bank
+        selection retired in audit Phase G.1; --script is mandatory).
     2.  Find portrait footage via multi-source video_finder.
     3.  Synthesise voice-over via ElevenLabs (edge-tts fallback).
     4.  Render PNG overlay frames (category label, hook text, fact chunks, CTA, logo).
@@ -10,11 +11,12 @@ End-to-end pipeline:
     7.  Publish as IG Reel via Graph API.
     8.  Record in brain + log.
 
-Usage:
-    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 -u pipelines/reel/make_reel.py
-    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 -u pipelines/reel/make_reel.py --topic space
-    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 -u pipelines/reel/make_reel.py --topic history --dry-run
-    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 pipelines/reel/make_reel.py --list-facts
+Usage (manual smoke runs):
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 -u pipelines/reel/make_reel.py \\
+        --script "..." --title "..." --topic earth --dry-run
+
+The autonomous workflow calls this via the agent's `run_reel` tool, which
+always supplies --script and --title.
 
 Logs (each full run): output/reel/<reel_id>/pipeline.log and logs/reel_runs/<UTC>_<reel_id>.log
 Stale local jobs: scripts/kill_local_reel_jobs.sh
@@ -56,10 +58,6 @@ from src.render.reel_text_renderer import (
 from src.content.reel_title import make_title
 from src.render.tts_engine import group_into_chunks, synthesise
 from src.research.video_finder import find_videos
-# load_all_facts is intentionally a lazy import (see _pick_fact and the
-# --list-facts CLI path). The autonomous agent provides --script via
-# run_reel and never selects from the fact bank, so importing it at
-# module level would load legacy data on every autonomous run.
 from src.utils.logging_utils import configure_logging
 
 
@@ -233,162 +231,6 @@ def _pick_music(topic: str, tone: str = "curious") -> Path | None:
 
 
 # ------------------------------------------------------------------ #
-# Fact selection
-# ------------------------------------------------------------------ #
-
-# Reel script length bounds.
-# Floor: 70 words minimum -- below this, reels feel too short (22s incident).
-# Ceiling: 90 words maximum -- above this, reel exceeds 45s and render times
-# spike on 2-core CI runners. At ~140 WPM: 70w=30s, 90w=39s, 130w=56s.
-# All curated reel_scripts MUST stay within 70-90 words.
-MIN_REEL_SCRIPT_WORDS = 70
-MAX_REEL_SCRIPT_WORDS = 100
-
-
-class ReelFactInvariantError(RuntimeError):
-    """Raised when the picked fact violates a reel-quality invariant.
-
-    Hard guarantees enforced by `_pick_fact`:
-      1. quirky_score == 3
-      2. sensitivity != 'controversial' (mirrors plan_week.py — never auto-publish flagged facts)
-      3. has a curated `reel_title`        (no nonsense auto-titles like "The Story of Until Switzerland")
-      4. has a curated `reel_script`       (no 22-second auto-formatted reels)
-      5. reel_script word count >= MIN_REEL_SCRIPT_WORDS (length floor)
-    """
-
-
-_BORING_TITLE_PHRASES = (
-    "history of",
-    "story of",
-    "explained",
-    "how it works",
-    "guide to",
-)
-
-
-def _interestingness_score(row: dict) -> int:
-    """Lightweight quality signal for reel candidate selection.
-
-    Higher is better. This is intentionally conservative: it should demote
-    clearly flat candidates while still allowing varied subjects.
-    """
-    text = " ".join([
-        str(row.get("claim", "")),
-        str(row.get("reel_title", "")),
-        str(row.get("reel_script", ""))[:320],
-    ]).lower()
-    score = 0
-    if any(ch.isdigit() for ch in text):
-        score += 2
-    if any(w in text for w in ("dead", "death", "killed", "disaster", "explod", "poison", "banned", "illegal")):
-        score += 2
-    if any(w in text for w in ("first", "only", "largest", "smallest", "fastest", "oldest", "weird", "strange", "unlikely")):
-        score += 2
-    if any(w in text for w in ("surpris", "shock", "bizarre", "unusual", "unexpected")):
-        score += 2
-    if any(p in str(row.get("reel_title", "")).lower() for p in _BORING_TITLE_PHRASES):
-        score -= 2
-    if len(str(row.get("claim", "")).split()) < 8:
-        score -= 1
-    return score
-
-
-def _pick_fact(topic: str | None) -> dict | None:
-    """Pick the best unused fact that passes every reel-quality invariant.
-
-    See `ReelFactInvariantError` for the full list. Facts that fail any gate
-    are silently skipped here; the caller logs which gates eliminated them
-    via `_log_pick_diagnostics`.
-    """
-    from src.research.sensitivity_guide import CONTROVERSIAL
-    from src.research.rare_fact_bank import load_all_facts
-
-    used_as_reel = brain.list_reel_claims()  # reads reels.jsonl fresh from disk
-    all_facts = [r for r in load_all_facts() if r.get("quirky_score", 0) == 3]
-    if topic:
-        all_facts = [r for r in all_facts if r["topic"] == topic]
-
-    # Try q3 first (shock/viral tier). Fall back to q2 when q3 exhausted.
-    # q2 facts from discover_facts.py (15k+ upvotes) are genuine "surprising" facts
-    # that work well as reels — just not quite "wait, WHAT?!" level.
-    for min_score in (3, 2):
-        candidates = [
-            r for r in all_facts
-            if r.get("quirky_score", 0) >= min_score
-            and not brain.is_fact_posted(r["claim"])
-            and r["claim"] not in used_as_reel
-            and r.get("sensitivity") != CONTROVERSIAL
-        ]
-        if candidates:
-            break
-    # Require curation for both q3 and q2 fallback — no auto-generated scripts.
-    fresh = [
-        r for r in candidates
-        if r.get("reel_title")
-        and r.get("reel_script")
-        and MIN_REEL_SCRIPT_WORDS <= len(r.get("reel_script", "").split()) <= MAX_REEL_SCRIPT_WORDS
-    ]
-    if not fresh:
-        return None
-    interesting = [r for r in fresh if _interestingness_score(r) >= 2]
-    if interesting:
-        fresh = interesting
-
-    from src.analytics.topic_scorer import get_topic_weights
-    weights = get_topic_weights()
-    topic_w = weights["topic"]
-    tone_w  = weights["tone"]
-
-    def _perf_key(r: dict) -> float:
-        tw = topic_w.get(r.get("topic", ""), 0.5)
-        nw = tone_w.get(r.get("tone", ""), 0.5)
-        base = tw * 0.7 + nw * 0.3
-        interest = _interestingness_score(r) / 10.0
-        return base + interest + random.uniform(0, 0.2)  # jitter prevents topic lock-in
-
-    fresh.sort(key=_perf_key, reverse=True)
-    return fresh[0]
-
-
-def _log_pick_diagnostics(topic: str | None) -> None:
-    """Print why no fact qualified, so failures are immediately actionable."""
-    from src.research.sensitivity_guide import CONTROVERSIAL
-    from src.research.rare_fact_bank import load_all_facts
-    used_as_reel = brain.list_reel_claims()
-    pool = [r for r in load_all_facts() if r.get("quirky_score", 0) == 3]
-    if topic:
-        pool = [r for r in pool if r["topic"] == topic]
-
-    posted = used = controversial = no_title = no_script = short_script = dull = ok = 0
-    for r in pool:
-        if brain.is_fact_posted(r["claim"]):
-            posted += 1; continue
-        if r["claim"] in used_as_reel:
-            used += 1; continue
-        if r.get("sensitivity") == CONTROVERSIAL:
-            controversial += 1; continue
-        if not r.get("reel_title"):
-            no_title += 1; continue
-        if not r.get("reel_script"):
-            no_script += 1; continue
-        if len(r["reel_script"].split()) < MIN_REEL_SCRIPT_WORDS:
-            short_script += 1; continue
-        if _interestingness_score(r) < 2:
-            dull += 1; continue
-        ok += 1
-
-    print(f"  pool: {len(pool)} q3 facts  (topic={topic or 'any'})")
-    print(f"    posted-elsewhere : {posted}")
-    print(f"    already-as-reel  : {used}")
-    print(f"    controversial    : {controversial}")
-    print(f"    missing reel_title : {no_title}")
-    print(f"    missing reel_script: {no_script}")
-    print(f"    script < {MIN_REEL_SCRIPT_WORDS} words   : {short_script}")
-    print(f"    low interestingness: {dull}")
-    print(f"    eligible         : {ok}")
-
-
-# ------------------------------------------------------------------ #
 # Footage dedup ledger
 # ------------------------------------------------------------------ #
 
@@ -484,22 +326,18 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             return 5
         print(f"  [ffmpeg] binary: {ff_bin}")
 
-        # Step 1: Select fact (or use autonomously generated content)
-        if _autonomous is not None:
-            fact = _autonomous
-            print(f"\n[AUTONOMOUS] Claude-generated reel")
-        else:
-            fact = _pick_fact(topic)
-            if not fact:
-                msg = f"No reel-eligible fact found"
-                if topic:
-                    msg += f" for topic={topic!r}"
-                print(msg + ".")
-                _log_pick_diagnostics(topic)
-                print("\nFix: add curated reel_title + reel_script (>= "
-                      f"{MIN_REEL_SCRIPT_WORDS} words) to a q3 fact in rare_fact_bank.py, "
-                      "or run pipelines/reel/validate_reel_facts.py for the full audit.")
-                return 2
+        # Step 1: Use autonomously generated content. The legacy fact-bank
+        # selection path (_pick_fact) was retired in audit Phase G.1: the
+        # autonomous agent always supplies --script via run_reel, so callers
+        # without a script are misuse, not a fallback.
+        if _autonomous is None:
+            print(
+                "ERROR: --script is required. The autonomous flow always "
+                "passes it; manual runs must too. See pipelines/reel/make_reel.py --help."
+            )
+            return 12
+        fact = _autonomous
+        print(f"\n[AUTONOMOUS] Claude-generated reel")
 
         claim    = fact["claim"]
         ftopic   = fact["topic"]
@@ -551,29 +389,11 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             brain.append_log(f"reel BLOCKED early — duplicate claim: {claim[:80]}")
             return 8
 
-        # Step 2: Voice-over
-        # Use curated reel_script if available (preferred — hand-crafted quality).
-        # If missing, auto-generate from the claim using reel_script.py.
-        # The 22-second bug (2026-05-01) was caused by auto-generation running on a
-        # claim that was too short. Guard: abort if result < MIN_REEL_SCRIPT_WORDS.
-        from src.content.reel_script import to_voice_script as build_reel_script
-        curated = fact.get("reel_script", "")
-        if _autonomous is not None:
-            # Autonomous scripts bypass word-count floors — Claude owns quality
-            vo_body = curated
-            print(f"\n[AUTONOMOUS] script: {len(vo_body.split())} words")
-        elif curated and len(curated.split()) >= MIN_REEL_SCRIPT_WORDS:
-            vo_body = curated
-            print(f"\nUsing curated reel_script ({len(vo_body.split())} words)")
-        else:
-            vo_body = build_reel_script(claim, fact.get("reel_title") or "")
-            word_count = len(vo_body.split())
-            print(f"\nAuto-generated reel_script ({word_count} words)")
-            if word_count < MIN_REEL_SCRIPT_WORDS:
-                raise ReelFactInvariantError(
-                    f"Auto-generated script for {claim[:60]!r} is only {word_count} words "
-                    f"(floor: {MIN_REEL_SCRIPT_WORDS}). Claim may be too short to script."
-                )
+        # Step 2: Voice-over. Autonomous scripts bypass word-count floors:
+        # Claude owns quality, the legacy fact-bank floor was retired with
+        # _pick_fact in Phase G.1.
+        vo_body = fact.get("reel_script", "")
+        print(f"\n[AUTONOMOUS] script: {len(vo_body.split())} words")
 
         # Append a randomised outro. Each variation contains "factjot" so the
         # compositor can sync the CTA card to the exact moment it is spoken.
@@ -1340,20 +1160,20 @@ def main() -> int:
     parser.add_argument(
         "--topic",
         default=None,
-        help="Restrict to: space, nature, ocean, history, tech, earth, biology, technology, science",
+        help="Topic tag for the reel. One of: space, nature, ocean, history, tech, earth, biology, technology, science.",
     )
     parser.add_argument("--dry-run", action="store_true", help="Compose video but skip upload + publish")
     parser.add_argument("--force", action="store_true", help="Bypass today's duplicate guard (use when posting a second reel intentionally)")
-    parser.add_argument("--list-facts", action="store_true", help="List available quirky_score=3 facts and exit")
     parser.add_argument("--voice", default="en-GB-RyanNeural",
                         help="Edge TTS voice. Defaults to en-GB-RyanNeural (British male). "
                              "Other good picks: en-US-AndrewMultilingualNeural, en-US-BrianNeural, "
                              "en-GB-ThomasNeural, en-GB-SoniaNeural (female).")
-    # Autonomous agent flags — bypass fact selection entirely
+    # Autonomous agent flags — script + title are mandatory after Phase G.1
+    # retired the legacy fact-bank selection path.
     parser.add_argument("--script", default=None,
-                        help="Provide a custom VO script. Bypasses fact bank. Requires --title.")
+                        help="Voice-over script for the reel. REQUIRED. The autonomous agent supplies this via run_reel.")
     parser.add_argument("--title", default=None,
-                        help="Hook card title for the reel (used with --script).")
+                        help="Hook card title for the reel. REQUIRED with --script.")
     parser.add_argument("--hint", default=None,
                         help="Image hint for footage search (used with --script).")
     parser.add_argument("--tone-override", default="curious",
@@ -1361,54 +1181,35 @@ def main() -> int:
                         help="Tone override for TTS voice settings (used with --script).")
     args = parser.parse_args()
 
-    if args.list_facts:
-        from src.research.sensitivity_guide import CONTROVERSIAL
-        from src.research.rare_fact_bank import load_all_facts
-        all_q3 = [r for r in load_all_facts() if r.get("quirky_score", 0) == 3]
-        if args.topic:
-            all_q3 = [r for r in all_q3 if r["topic"] == args.topic]
-        used_as_reel = brain.list_reel_claims()
-        print(f"\n{len(all_q3)} quirky_score=3 facts:")
-        for r in all_q3:
-            if brain.is_fact_posted(r["claim"]) or r["claim"] in used_as_reel:
-                tag = "(used)"
-            elif r.get("sensitivity") == CONTROVERSIAL:
-                flags = ", ".join(r.get("sensitivity_flags") or [])
-                tag = f"(BLOCKED: controversial [{flags}])"
-            else:
-                tag = ""
-            print(f"  [{r['topic']}] {r['claim'][:90]} {tag}")
-        blocked = sum(1 for r in all_q3 if r.get("sensitivity") == CONTROVERSIAL)
-        used = sum(1 for r in all_q3 if brain.is_fact_posted(r["claim"]) or r["claim"] in used_as_reel)
-        print(f"\n  {used} used, {blocked} blocked (controversial), {len(all_q3) - used - blocked} available")
-        return 0
-
     # Per-day reel cap removed: the autonomous agent is now the single
     # poster and runs its own duplicate guard via the post bank summary.
     # Capping reels at 1/day here prevented legitimate format choices
     # made after a same-day blocked attempt.
 
-    # Autonomous agent path — script provided directly via CLI
-    if args.script:
-        if not args.title:
-            print("ERROR: --script requires --title")
-            return 1
-        autonomous_fact = {
-            "claim":        args.script[:300],
-            "reel_script":  args.script,
-            "reel_title":   args.title,
-            "topic":        args.topic or "history",
-            "tone":         args.tone_override,
-            "image_hint":   args.hint or "",
-            "quirky_score": 3,
-            "allow_archival": False,
-            "sources":      [],
-            "autonomous":   True,
-        }
-        return make_reel(topic=None, dry_run=args.dry_run, voice=args.voice,
-                         _autonomous=autonomous_fact)
+    if not args.script:
+        print(
+            "ERROR: --script is required (autonomous flow always passes it; "
+            "manual runs must too)."
+        )
+        return 12
+    if not args.title:
+        print("ERROR: --script requires --title")
+        return 1
 
-    return make_reel(topic=args.topic, dry_run=args.dry_run, voice=args.voice)
+    autonomous_fact = {
+        "claim":        args.script[:300],
+        "reel_script":  args.script,
+        "reel_title":   args.title,
+        "topic":        args.topic or "history",
+        "tone":         args.tone_override,
+        "image_hint":   args.hint or "",
+        "quirky_score": 3,
+        "allow_archival": False,
+        "sources":      [],
+        "autonomous":   True,
+    }
+    return make_reel(topic=None, dry_run=args.dry_run, voice=args.voice,
+                     _autonomous=autonomous_fact)
 
 
 if __name__ == "__main__":

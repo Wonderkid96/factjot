@@ -120,20 +120,22 @@ def _fetch_insights(media_id: str) -> dict:
         return {}
 
 
-def _load_fact_meta(claim: str) -> dict:
-    try:
-        from src.research.rare_fact_bank import load_all_facts
-        for f in load_all_facts():
-            if f.get("claim", "").strip() == claim.strip():
-                script = f.get("reel_script", "")
-                return {
-                    "tone":             f.get("tone", ""),
-                    "reel_title":       f.get("reel_title", ""),
-                    "script_word_count": len(script.split()) if script else 0,
-                }
-    except Exception:
-        pass
-    return {"tone": "", "reel_title": "", "script_word_count": 0}
+def _existing_meta(reel_id: str, existing: dict[str, dict]) -> dict:
+    """Read tone, reel_title, script_word_count from a prior performance record.
+
+    The performance ledger is mutable and rewritten on each fetch
+    (see CLAUDE.md hard rule 8), so the prior record is the canonical
+    source of these fields once a reel has been fetched at least once.
+    The autonomous flow records them at first fetch via the make_reel
+    metadata that survives in the ledger; rare_fact_bank lookups are
+    no longer required.
+    """
+    prior = existing.get(reel_id) or {}
+    return {
+        "tone":              prior.get("tone", ""),
+        "reel_title":        prior.get("reel_title", ""),
+        "script_word_count": int(prior.get("script_word_count", 0) or 0),
+    }
 
 
 def _derive(raw: dict, reach: int) -> dict:
@@ -220,16 +222,24 @@ def main() -> int:
             continue
 
         reach     = raw.get("reach", 0)
-        fact_meta = _load_fact_meta(reel.get("claim", ""))
+        # Carry forward tone, reel_title, script_word_count from the prior
+        # ledger entry (or from the reels.jsonl publish record) rather than
+        # re-resolving via the deleted rare_fact_bank.
+        prior     = _existing_meta(reel_id, existing)
+        tone        = prior["tone"]        or reel.get("tone", "")
+        reel_title  = prior["reel_title"]  or reel.get("reel_title", "")
+        word_count  = prior["script_word_count"] or len(
+            (reel.get("reel_script", "") or "").split()
+        )
 
         record = {
             "reel_id":           reel_id,
             "ig_media_id":       real_id,
             "topic":             reel.get("topic", ""),
-            "tone":              fact_meta["tone"],
-            "reel_title":        fact_meta["reel_title"],
+            "tone":              tone,
+            "reel_title":        reel_title,
             "claim":             reel.get("claim", "")[:120],
-            "script_word_count": fact_meta["script_word_count"],
+            "script_word_count": word_count,
             "posted_at":         published,
             "metrics_fetched_at": now_iso,
             **_derive(raw, reach),
