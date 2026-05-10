@@ -517,6 +517,58 @@ def find_videos(
     _ENTITY_STILL_CAP = 2
     _ENTITY_VIDEO_CAP = max(2, min(3, count // 2))
 
+    # E.3: Haiku image validator rejects wrong-subject Wikimedia hits before
+    # they enter the reel. Soft-fails when ANTHROPIC_API_KEY is missing or the
+    # model errors so the existing fallback chain stays unbroken.
+    from src.research.entity_image_validator import validate_entity_image
+    _validate_api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+    _validate_cache: dict[str, dict] = {}
+
+    def _entity_still_passes_validation(path: Path, source_label: str) -> bool:
+        """Check an entity-tier still image with Haiku 4.5 vision.
+
+        Returns True when validation passes OR soft-fails (no api_key,
+        infra error, parse failure). Returns False only when the model
+        actively says the image does not match the claim, or when
+        confidence is below 0.5.
+        """
+        if not _validate_api_key:
+            return True
+        val = validate_entity_image(
+            image_url=str(path),
+            claim_text=claim,
+            image_hint=image_hint or "",
+            api_key=_validate_api_key,
+            cache=_validate_cache,
+        )
+        if not val["ok"]:
+            print(
+                f"  [entity-validate] REJECT {path.name} "
+                f"({source_label}) reason={val['reason']!r} "
+                f"conf={val['confidence']:.2f}"
+            )
+            try:
+                path.unlink()
+            except OSError:
+                pass
+            return False
+        if val["confidence"] < 0.5:
+            print(
+                f"  [entity-validate] REJECT-LOW-CONF {path.name} "
+                f"({source_label}) reason={val['reason']!r} "
+                f"conf={val['confidence']:.2f}"
+            )
+            try:
+                path.unlink()
+            except OSError:
+                pass
+            return False
+        print(
+            f"  [entity-validate] OK {path.name} ({source_label}) "
+            f"conf={val['confidence']:.2f}"
+        )
+        return True
+
     # Film/TV reels: seed entity tier with canonical TMDB stills before generic
     # stock retrieval so visuals match named titles in the script.
     tmdb_seed = _tmdb_entity_images(
@@ -531,6 +583,8 @@ def find_videos(
         if len(clips) >= count or _entity_still_count >= _ENTITY_STILL_CAP:
             break
         if str(p) in used_paths:
+            continue
+        if not _entity_still_passes_validation(p, "tmdb"):
             continue
         _push_clip(p, 1.0)
         _entity_still_count += 1
@@ -556,6 +610,14 @@ def find_videos(
             # Long video: slice into multiple snippets to fill more slots.
             if not is_still and _entity_video_count >= _ENTITY_VIDEO_CAP:
                 print(f"  [video] ENTITY-0  SKIP {ec.name} (video cap reached)")
+                continue
+            # E.3: Haiku validation runs only on stills. Entity videos cannot
+            # be image-validated (vision call expects a still frame), but
+            # they are far rarer than stills in the production failure set.
+            if is_still and not _entity_still_passes_validation(ec, "entity"):
+                # used_paths was populated inside _entity_sources, so we
+                # need to retract it so a future term can attempt anew.
+                used_paths.discard(str(ec))
                 continue
             if not is_still and len(clips) < count:
                 slots_needed = min(count - len(clips), _ENTITY_VIDEO_CAP - _entity_video_count)
