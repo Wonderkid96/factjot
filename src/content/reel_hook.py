@@ -64,27 +64,43 @@ _WEAK_ENDINGS = frozenset(
     }
 )
 
-_CURIOSITY_WORDS = frozenset(
+# Event verbs that imply a specific moment of action. These narrow the
+# subject; not the same thing as hype framing.
+_EVENT_VERBS = frozenset(
     {
         "accidentally",
         "accident",
         "almost",
         "nearly",
-        "secret",
-        "shocking",
-        "surprising",
-        "unexpected",
-        "unexpectedly",
-        "hidden",
-        "almost",
-        "danger",
-        "dangerous",
-        "wiped",
         "detonated",
         "exploded",
         "dropped",
+        "wiped",
+        "hidden",
     }
 )
+
+# Hype framing. Banned in factjot voice per project CLAUDE.md and
+# distribution audit (hook-balance principle: shock through specificity,
+# not hype). Score is penalised, not rewarded, when these appear.
+_HYPE_WORDS = frozenset(
+    {
+        "shocking",
+        "shockingly",
+        "surprising",
+        "unexpected",
+        "unexpectedly",
+        "secret",
+        "crazy",
+        "insane",
+        "unbelievable",
+        "danger",
+        "dangerous",
+    }
+)
+
+# Kept as an alias for back-compat with anything that imports it.
+_CURIOSITY_WORDS = _EVENT_VERBS
 
 _YEAR_RE = re.compile(r"\b(?:18|19|20)\d{2}s?\b")
 _NUMBER_TOKEN_RE = re.compile(r"\b\d+(?:st|nd|rd|th)?\b")
@@ -234,9 +250,14 @@ def _score_candidate(text: str, *, claim: str) -> float:
     elif 3 <= n_words <= 7:
         score += 0.20
 
-    # Curiosity: reward explicit curiosity words present in the text.
-    if any(w in wl for w in _CURIOSITY_WORDS):
+    # Event verbs: reward specific-moment action words.
+    if any(w in wl for w in _EVENT_VERBS):
         score += 0.25
+
+    # Hype framing: factjot voice bans these (CLAUDE.md voice rules).
+    # Penalise so the scorer cannot prefer a hype-laden span.
+    if any(w in wl for w in _HYPE_WORDS):
+        score -= 0.30
 
     # Numbers and years: strong anchors for attention.
     has_digit = bool(_NUMBER_TOKEN_RE.search(text))
@@ -257,6 +278,12 @@ def _score_candidate(text: str, *, claim: str) -> float:
     overlap = len(span_toks.intersection(claim_toks))
     if claim_toks:
         score += min(0.20, 0.20 * overlap / max(len(span_toks), 1))
+
+    # Punctuation: prefer an open phrase over one that ends on a full
+    # stop. A complete sentence resolves the curiosity gap; a phrase
+    # leaves it open. Spans ending in . ! ? get a small penalty.
+    if text.rstrip().endswith((".", "!", "?")):
+        score -= 0.05
 
     # Penalise weak trailing word.
     if words:
