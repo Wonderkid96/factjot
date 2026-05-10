@@ -100,12 +100,12 @@ Fully automated Instagram account (@factjot). Scheduled evergreen slots run via 
 | Mode | BST | UTC cron | Format |
 |---|---|---|---|
 | `reel_morning`   | 09:00 | `0 8 * * *`    | Evergreen reel |
-| `list_midday`    | 12:30 | `30 11 * * *`  | List carousel |
-| `reel_afternoon` | 15:30 | `30 14 * * *`  | Evergreen reel |
-| `list_evening`   | 18:00 | `0 17 * * *`   | List carousel |
+| `list_midday`    | 14:00 | `0 13 * * *`   | List carousel |
 | `reel_night`     | 20:30 | `30 19 * * *`  | Evergreen reel |
 
-Breaking news is unscheduled: `news-watcher.yml` polls Guardian RSS and only triggers `pipelines/news/ship_news_breaking.py` when a qualifying story is found.
+(Cut from 5 slots to 3 on 2026-05-10 per audit Q4 quality bet, distribution test against the prior 4 weeks of 5-slot data, two-week window before reassessment.)
+
+Breaking news pipeline is on the audit-2026-05-09 deletion list (decision B); `news-watcher.yml` to be removed in Phase G.
 
 Crons are UTC, tracked to BST in summer. UK clocks fall back in October; UTC equals GMT then, so posts fire at the same UK clock time year-round without intervention.
 
