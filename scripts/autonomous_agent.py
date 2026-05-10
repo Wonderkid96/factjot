@@ -12,13 +12,12 @@ calls a small set of typed tools:
 The pipelines themselves (make_reel.py, ship_carousel_post.py) run with
 full repo access in the host process. Only the model's view is restricted.
 
-Five post modes via --post-mode (fixed daily sequence). Each mode exposes
-ONLY the tools it needs and a sharpened, format-locked prompt:
+Three post modes via --post-mode (fixed daily sequence, cut from 5 slots
+on 2026-05-10 per audit Q4 quality bet). Each mode exposes ONLY the tools
+it needs and a sharpened, format-locked prompt:
 
   reel_morning   - 09:00 BST  evergreen reel (run_reel only)
-  list_midday    - 12:30 BST  list carousel (run_carousel only)
-  reel_afternoon - 15:30 BST  evergreen reel (run_reel only)
-  list_evening   - 18:00 BST  list carousel (run_carousel only)
+  list_midday    - 14:00 BST  list carousel (run_carousel only)
   reel_night     - 20:30 BST  evergreen reel (run_reel only)
 
 Better to skip a slot than ship a weak post. Each mode must call `skip`
@@ -89,8 +88,6 @@ SYSTEM = textwrap.dedent("""\
 VALID_MODES = (
     "reel_morning",
     "list_midday",
-    "reel_afternoon",
-    "list_evening",
     "reel_night",
 )
 
@@ -98,7 +95,6 @@ VALID_MODES = (
 # (run_reel modes are absent here.)
 MODE_FORMAT_TYPE: dict[str, str] = {
     "list_midday": "list",
-    "list_evening": "list",
 }
 
 # Which tools is each mode allowed to call?
@@ -106,10 +102,8 @@ MODE_FORMAT_TYPE: dict[str, str] = {
 # to the model. list_unposted_topics + skip are universal.
 MODE_TOOLS: dict[str, tuple[str, ...]] = {
     "reel_morning": ("list_unposted_topics", "list_story_candidates", "run_reel", "skip"),
-    "reel_afternoon": ("list_unposted_topics", "list_story_candidates", "run_reel", "skip"),
     "reel_night": ("list_unposted_topics", "list_story_candidates", "run_reel", "skip"),
     "list_midday": ("list_unposted_topics", "list_story_candidates", "run_carousel", "skip"),
-    "list_evening": ("list_unposted_topics", "list_story_candidates", "run_carousel", "skip"),
 }
 
 
@@ -1278,10 +1272,8 @@ _CAROUSEL_RULE_BINDINGS = dict(
 
 MODE_PROMPTS: dict[str, str] = {
     "reel_morning": REEL_PROMPT,
-    "reel_afternoon": REEL_PROMPT,
     "reel_night": REEL_PROMPT,
     "list_midday": LIST_PROMPT.format(**_CAROUSEL_RULE_BINDINGS),
-    "list_evening": LIST_PROMPT.format(**_CAROUSEL_RULE_BINDINGS),
 }
 
 

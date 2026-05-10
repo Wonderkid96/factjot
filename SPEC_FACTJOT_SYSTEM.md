@@ -108,32 +108,28 @@ A pipeline that skips Verify is not a pipeline, it is a content laundromat. A pi
 
 Every pipeline runs in one of two modes. The mode determines whether human approval is in the loop.
 
-### 6.1 Autonomous mode (revised 2026-05-07, format-locked 2026-05-07b, schedule revised 2026-05-09)
+### 6.1 Autonomous mode (revised 2026-05-07, format-locked 2026-05-07b, cadence cut to 3 slots 2026-05-10)
 
-Used by the autonomous workflow that posts five scheduled evergreen slots a day. Each slot is locked to one format. The agent does not choose format at runtime; the cron determines the mode and the mode determines the tools and prompt.
+Used by the autonomous workflow that posts three scheduled evergreen slots a day. Each slot is locked to one format. The agent does not choose format at runtime; the cron determines the mode and the mode determines the tools and prompt.
 
 | Mode | BST | UTC cron | Format |
 |---|---|---|---|
 | `reel_morning`   | 09:00 | `0 8 * * *`    | Evergreen reel |
-| `list_midday`    | 12:30 | `30 11 * * *`  | List carousel |
-| `reel_afternoon` | 15:30 | `30 14 * * *`  | Evergreen reel |
-| `list_evening`   | 18:00 | `0 17 * * *`   | List carousel |
+| `list_midday`    | 14:00 | `0 13 * * *`   | List carousel |
 | `reel_night`     | 20:30 | `30 19 * * *`  | Evergreen reel |
 
-The earlier 4-slot table (with a `fact` carousel mode) was the 2026-05-07 design. The 5-slot mix above is what `autonomous-reel.yml` actually fires today and is the reference for any code that dispatches on mode. The `fact` mode is removed; `run_carousel` runs in `list` mode only.
+Cadence history: 2026-05-07 design was 4 slots (with a `fact` carousel mode). 2026-05-07b moved to 5 slots (replacing `fact` with `list_evening`/`reel_afternoon`). 2026-05-10 cut to 3 slots per audit Q4 quality bet (volume vs quality test against the prior 4 weeks of 5-slot reach data; reassess at the two-week mark).
 
 Crons are UTC and tracked to BST in summer. In winter (GMT) they fire at the same UK clock time, since UTC == GMT.
 
-The agent's tool surface is sandboxed AND mode-filtered. `list_unposted_topics` and `skip` are universal. `run_reel` is exposed on every `reel_*` mode (`reel_morning`, `reel_afternoon`, `reel_night`). `run_carousel` is exposed on every `list_*` mode (`list_midday`, `list_evening`) and the mode determines the writer-prompt sub-type. A wrong-format call is impossible: the model never sees the tool.
+The agent's tool surface is sandboxed AND mode-filtered. `list_unposted_topics` and `skip` are universal. `run_reel` is exposed on every `reel_*` mode (`reel_morning`, `reel_night`). `run_carousel` is exposed on `list_midday` and the mode determines the writer-prompt sub-type. A wrong-format call is impossible: the model never sees the tool.
 
 If no candidate clears the quality gate, the agent calls `skip` with a one-line reason and the slot is left empty. Better to miss a slot than ship a weak post.
-
-**Planned change (audit 2026-05-09, not yet implemented):** the cadence will be cut to three slots a day (two reels + one list) at 09:00 BST / 14:00 BST / 20:30 BST. Decision K (deferred-work queue) covers the workflow, prompt, and SPEC update; treat the 5-slot table above as the live reference until that lands.
 
 Autonomous mode runs on this stack:
 
 - **GitHub Actions is the production scheduler and the sole posting environment.** It runs 24/7 regardless of Toby's Mac. Every autonomous post leaves the system from a GitHub Actions runner.
-- **GitHub's built-in cron** fires `autonomous-reel.yml` at 08:00 / 11:30 / 14:30 / 17:00 / 19:30 UTC (09:00 / 12:30 / 15:30 / 18:00 / 20:30 BST). `news-watcher.yml` exists in the repo but is dispatch-only with no schedule; the news pipeline is on the audit-2026-05-09 deletion list (decision B). No backup cron and no legacy `CRON_TRIGGER_PAT`.
+- **GitHub's built-in cron** fires `autonomous-reel.yml` at 08:00 / 13:00 / 19:30 UTC (09:00 / 14:00 / 20:30 BST). `news-watcher.yml` is on the audit-2026-05-09 deletion list (decision B), to be removed in Phase G. No backup cron and no legacy `CRON_TRIGGER_PAT`.
 - **launchd jobs are disabled.** Local launchd-based publishing is legacy. Re-enabling launchd without first disabling the GitHub workflow will cause double-posts.
 - **Queue-based local publishing** (`scripts/publish_due.py`, `review_queue.py`) is legacy. The README still describes it; the live system does not use it.
 
