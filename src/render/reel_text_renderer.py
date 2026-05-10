@@ -20,7 +20,7 @@ from html import escape
 from pathlib import Path
 from typing import Iterable
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2 import Environment, FileSystemLoader
 from playwright.sync_api import sync_playwright
 
 # ------------------------------------------------------------------ #

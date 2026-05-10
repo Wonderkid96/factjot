@@ -4,7 +4,6 @@ import hashlib
 import random
 import re
 from dataclasses import dataclass
-from typing import Iterable
 
 
 _NUMBER_WORDS: dict[str, int] = {

@@ -14,9 +14,9 @@ pipeline:
     - guaranteed
     - miracle
   # Daily schedule
-  # 10:00 UTC — morning carousel
-  # 18:00 UTC — evening carousel
-  # 19:00 UTC — daily Reel (generated fresh each day, posted with story)
+  # 10:00 UTC, morning carousel
+  # 18:00 UTC, evening carousel
+  # 19:00 UTC, daily Reel (generated fresh each day, posted with story)
   carousel_slots_utc: [10, 18]
   reel_slot_utc: 19
   reel_low_runway_threshold: 14   # trigger discovery if fewer than 14 unused q3 facts

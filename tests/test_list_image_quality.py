@@ -11,8 +11,6 @@ Covers:
 """
 from __future__ import annotations
 
-import pytest
-
 from pipelines.manual.ship_manual_post import (
     _hash_data_url,
     _image_meta_matches_item,

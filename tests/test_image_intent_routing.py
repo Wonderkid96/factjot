@@ -1,4 +1,3 @@
-import pytest
 from src.research.image_sourcer import (
     _classify_slot_intent,
     _literalise_slot_text_query,
@@ -92,7 +91,6 @@ def test_negative_term_hits_compound_phrase():
     assert "place de la concorde" in hits
 
 
-from unittest.mock import MagicMock
 from src.research.image_sourcer import ImageSourcer, MAX_REUSES
 
 

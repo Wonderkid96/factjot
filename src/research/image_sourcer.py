@@ -22,9 +22,8 @@ import os
 import re
 import tempfile
 from dataclasses import dataclass
-from pathlib import Path
 
-from src.research.image_fetcher import ImageFetcher, NoImageFound, PoolCandidate
+from src.research.image_fetcher import ImageFetcher, PoolCandidate
 from src.research.used_images import UsedImageLedger
 
 log = logging.getLogger(__name__)

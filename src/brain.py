@@ -35,11 +35,7 @@ class DuplicatePostError(RuntimeError):
 # Path constants are imported from src.core.paths (single source of truth).
 # Local aliases preserved so the rest of this file reads naturally.
 from src.core.paths import (
-    REPO_ROOT,
     BRAIN_DIR,
-    BRAIN_DATA as DATA_DIR,
-    BRAIN_RULES as RULES_DIR,
-    BRAIN_BANK as BANK_DIR,
     POSTED as POSTED_PATH,
     POSTED_QUOTES as POSTED_QUOTES_PATH,
     REELS_LEDGER as REELS_PATH,

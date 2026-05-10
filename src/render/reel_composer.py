@@ -147,7 +147,7 @@ def _normalise_still(still_path: Path, out_dir: Path) -> Path:
     them; we convert to clean RGB JPEG capped at _STILL_MAX_PX on the long
     edge, then FFmpeg receives a perfectly standard input.
     """
-    from PIL import Image  # noqa: import inside fn keeps startup fast
+    from PIL import Image  # import inside fn keeps startup fast
 
     img = Image.open(still_path)
     if img.mode not in ("RGB", "L"):
