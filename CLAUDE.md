@@ -46,7 +46,7 @@ These are environment-coded duplicates of the principles in `SPEC_FACTJOT_SYSTEM
    - Code comments, docstrings.
    - Internal logs (`print` / `_log` / `brain.append_log`).
    - Regex character classes that match separator characters.
-   - Quoted third-party material (e.g. archived Guardian copy in `data/ledgers/news_posts.jsonl`).
+   - Quoted third-party material in archived assets under `Brain/raw/archive/`.
    - `.md` technical docs (`CLAUDE.md`, `SPEC_FACTJOT_SYSTEM.md`, `ROADMAP.md`, `SPEC_IMAGE_PIPELINE.md`, `gotchas.md`).
 
    Use hyphens, commas, full stops, parentheses, or rewrite when stripping.
@@ -95,7 +95,7 @@ An edit for one purpose can silently affect the other. Inspect both manual and n
 
 ## 5. What this project is
 
-Fully automated Instagram account (@factjot). Scheduled evergreen slots run via `autonomous-reel.yml` on GitHub-hosted cron, and breaking news runs via `news-watcher.yml` when Guardian watcher criteria are met. The agent (Sonnet 4.6) writes the brief or script and calls one of `run_reel` / `run_carousel`, or `skip` if nothing clears the quality gate. **The Mac does not need to be on.**
+Fully automated Instagram account (@factjot). Scheduled evergreen slots run via `autonomous-reel.yml` on GitHub-hosted cron. The agent (Sonnet 4.6) writes the brief or script and calls one of `run_reel` / `run_carousel`, or `skip` if nothing clears the quality gate. **The Mac does not need to be on.**
 
 | Mode | BST | UTC cron | Format |
 |---|---|---|---|
@@ -105,7 +105,7 @@ Fully automated Instagram account (@factjot). Scheduled evergreen slots run via 
 
 (Cut from 5 slots to 3 on 2026-05-10 per audit Q4 quality bet, distribution test against the prior 4 weeks of 5-slot data, two-week window before reassessment.)
 
-Breaking news pipeline is on the audit-2026-05-09 deletion list (decision B); `news-watcher.yml` to be removed in Phase G.
+The breaking-news pipeline was killed in audit Phase G.2 (decision B). `news-watcher.yml`, `pipelines/news/ship_news_breaking.py`, and `pipelines/news/check_guardian_rss.py` are gone. The `pipelines/news/ship_news_post.py` module is retained because `pipelines/manual/ship_manual_post.py` imports its renderer functions for the autonomous carousel flow (dual-role tracked in §3 and SPEC §10.1); its CLI entry point is dead.
 
 Crons are UTC, tracked to BST in summer. UK clocks fall back in October; UTC equals GMT then, so posts fire at the same UK clock time year-round without intervention.
 
@@ -147,10 +147,8 @@ The product goal is not just to avoid wrong images. It is a finished carousel th
 cd ~/Developer/Insta-bot
 PY=/Library/Frameworks/Python.framework/Versions/Current/bin/python3
 
-# Reel: dry-run first, always
-$PY pipelines/reel/make_reel.py --dry-run
-$PY pipelines/reel/make_reel.py --topic earth
-$PY pipelines/reel/make_reel.py --list-facts
+# Reel: dry-run first, always. --script + --title are required.
+$PY pipelines/reel/make_reel.py --script "..." --title "..." --topic earth --dry-run
 
 # Manual carousel (current autonomous carousel path)
 $PY pipelines/carousel/ship_carousel_post.py --dry-run
@@ -214,7 +212,7 @@ Image scoring under `readable_list` runs `ImageSourcer(relax=True)`: R3 score fl
 
 - **Pipelines:** `pipelines/{reel,manual,news,carousel,list,shared}/`. Only `reel/make_reel.py` and `carousel/ship_carousel_post.py` are intentional production entry points (autonomous workflow calls them via the agent's `run_reel` / `run_carousel` tools). Other pipeline files are legacy; see `docs/PIPELINE_OPERATIONS_REFERENCE.md` §2.
 - **Shared modules:** `src/{core,research,content,verification,render,publish,utils}/`. Responsibilities table in `SPEC_FACTJOT_SYSTEM.md` §7.
-- **Workflows:** `.github/workflows/`. Active posting workflows are `autonomous-reel.yml` (scheduled reel/list/reel/list/reel sequence), `news-watcher.yml` (breaking news watcher-triggered posts), and `manual-run.yml` (workflow_dispatch prompt-driven manual reel/carousel runs). `test.yml` runs PR pytest, `pages.yml` builds docs.
+- **Workflows:** `.github/workflows/`. Active posting workflows are `autonomous-reel.yml` (scheduled three-slot reel/list/reel sequence) and `manual-run.yml` (workflow_dispatch prompt-driven manual reel/carousel runs). `test.yml` runs PR pytest, `pages.yml` builds docs.
 - **State (git-tracked):** `insta-brain/data/posted.jsonl`, `insta-brain/data/reels.jsonl`, `data/ledgers/used_images.jsonl`, `data/ledgers/used_footage_urls.jsonl`, `data/ledgers/api_usage_costs.jsonl`, `data/ledgers/youtube_uploads.jsonl`, `data/ledgers/reel_performance.jsonl` (mutable). Invariant each ledger guards: `SPEC_FACTJOT_SYSTEM.md` §11.2.
 - **Brain:** `insta-brain/`. `gotchas.md` is mandatory reading.
 - **Per-run output:** `output/<pipeline>/...` (gitignored, local only).

@@ -12,9 +12,11 @@ For **files that may be archived or removed** (with evidence and caveats), use t
 | Workflow | Role |
 |----------|------|
 | `.github/workflows/autonomous-reel.yml` | Scheduled evergreen poster: `reel_morning`, `list`, `reel_evening`, `fact` via autonomous agent. |
-| `.github/workflows/news-watcher.yml` | Breaking-news watcher: polls Guardian RSS and triggers news publish only when a qualifying story is found. |
+| `.github/workflows/manual-run.yml` | `workflow_dispatch` prompt-driven manual reel/carousel runs. |
 | `.github/workflows/test.yml` | PR and non-main pushes: `pytest tests/ -v` only. Does not execute pipeline entrypoints. |
 | `.github/workflows/pages.yml` | Builds `docs/` for GitHub Pages. No Instagram or pipeline posting. |
+
+The breaking-news watcher (`.github/workflows/news-watcher.yml`) was deleted in audit Phase G.2. See section 2 below for the impact on `pipelines/news/`.
 
 ---
 
@@ -32,10 +34,7 @@ For **files that may be archived or removed** (with evidence and caveats), use t
 
 Routing lives in `scripts/autonomous_agent.py:run_carousel`: the agent appends `--layout-mode readable_list` for `format_type == "list"`. Direct CLI invocations of `ship_carousel_post.py` without `--layout-mode` default to `compact_legacy` for any sub-type, including news. See CLAUDE.md §10 and `src/content/carousel_rules.py:LAYOUT_PROFILES` for the per-profile font / cap / autosize details.
 
-**Breaking-news path (watcher-triggered, unscheduled):**
-- Watcher: `pipelines/news/check_guardian_rss.py`
-- Publisher entrypoint: `pipelines/news/ship_news_breaking.py` (canonical wrapper)
-- Pipeline implementation: `pipelines/news/ship_news_post.py`
+**Breaking-news path:** killed in audit Phase G.2 (decision B). The watcher (`check_guardian_rss.py`), the wrapper (`ship_news_breaking.py`), and the workflow (`news-watcher.yml`) were all deleted on 2026-05-10. Only `pipelines/news/ship_news_post.py` survives because the manual carousel pipeline imports its renderer functions; do not invoke its CLI.
 
 **Other steps in `autonomous-reel.yml` (direct `python3` calls):**
 

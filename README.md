@@ -10,10 +10,10 @@ Automated Instagram carousel pipeline. One daily post under [@factjot](https://i
 >
 > - **Production scheduler is GitHub Actions, not local launchd.** The launchd plist install steps, `scripts/publish_due.py`, `scripts/review_queue.py`, and the queue-based "approve then publish" flow described in this README are **legacy** unless explicitly revived. Autonomous posting now happens entirely from GitHub Actions runners. See `CLAUDE.md` "Daily automation" and `SPEC_FACTJOT_SYSTEM.md` section 6 for the current flow.
 > - **Pipeline entrypoints live under `pipelines/<name>/`, not `scripts/`.** Most rows in this README's "Scripts" table point at `scripts/<name>.py` paths that no longer exist there. The current entrypoints are `pipelines/carousel/ship_carousel_post.py`, `pipelines/reel/make_reel.py`, plus shared operational scripts in `pipelines/shared/`.
-> - **Manual / editorial carousels are gated, autonomous pipelines are not.** Approval today means a human inspecting rendered output before publish, only for editorial content. Scheduled autonomous slots currently run reel/list/reel/list/reel; breaking news posts are watcher-triggered, not scheduled. The old queue/approve-and-ship rhythm is legacy.
+> - **Manual / editorial carousels are gated, autonomous pipelines are not.** Approval today means a human inspecting rendered output before publish, only for editorial content. Scheduled autonomous slots currently run reel/list/reel (three-slot cadence). The breaking-news pipeline was killed in audit Phase G.2 on 2026-05-10. The old queue/approve-and-ship rhythm is legacy.
 > - **Higher authority on current architecture:** `SPEC_FACTJOT_SYSTEM.md` (system constitution) and `CLAUDE.md` (project operating rules). On any conflict, prefer the spec, then `CLAUDE.md`, then this README.
 > - **Image provider order and manual carousel image behaviour are owned by `SPEC_IMAGE_PIPELINE.md`.** The "Image source coverage" list further down may be stale and is being deferred to the spec.
-> - **`pipelines/news/ship_news_post.py` currently has dual responsibility** as the breaking-news implementation and the renderer used by the manual carousel pipeline. The canonical workflow entrypoint is `pipelines/news/ship_news_breaking.py` (wrapper). This remains a known architecture risk to untangle deliberately, not in passing.
+> - **`pipelines/news/ship_news_post.py` retains a renderer-only role.** The news pipeline was killed in audit Phase G.2 on 2026-05-10 (workflow `news-watcher.yml`, wrapper `ship_news_breaking.py`, and Guardian RSS helper `check_guardian_rss.py` all deleted). The remaining file's CLI is dead; the manual carousel pipeline imports its renderer functions, and that dual-role mismatch is tracked in `SPEC_FACTJOT_SYSTEM.md` §10.1 to untangle deliberately.
 >
 > Sections describing the older flow are tagged **[LEGACY]** below. They are kept for reference, not because they reflect today's behaviour.
 
@@ -80,7 +80,6 @@ Three engineering disasters killed more people than many wars, and each one foll
 | `RuntimeError: OVERCAP_SLIDE_LINES` | `compact_legacy` cap blocked an unreadable slide | Shorten the brief wording and re-run. The gate is working as intended. |
 | Reel aborts `below floor` duration | Reel quality gate rejected too-short composition | Re-run with a longer script or richer topic facts; keep floor unchanged. |
 | List dry-run takes too long in image sourcing | Multi-round provider search still active | Keep run as dry-run and inspect logs/artifacts; if repeated, re-run with a more concrete brief. |
-| No breaking-news post appears | Watcher found no qualifying Guardian story | Run `news-watcher.yml` manually with `article_url` input to force a test post path. |
 | Workflow succeeds but no state commit | No tracked ledger files changed | This is normal; no action needed. |
 
 ---
@@ -209,7 +208,7 @@ See `.env.example`. Bot will refuse to publish unless `INSTAGRAM_ACCOUNT_ID`, `M
 > | `scripts/auto_schedule_weekly.py` | `pipelines/shared/auto_schedule_weekly.py` |
 > | `scripts/refresh_token.py` | `pipelines/shared/refresh_token.py` |
 >
-> Posting entrypoints (which the table below does not list) are in `pipelines/<pipeline>/`: `ship_carousel_post.py` (carousel), `make_reel.py` (reel), `ship_news_breaking.py` (watcher-triggered breaking news). Legacy files remain on disk (`ship_first_post.py`, `ship_list_post.py`, `ship_news_post.py`, `ship_manual_post.py`) but are not scheduled autonomous production entrypoints.
+> Posting entrypoints (which the table below does not list) are in `pipelines/<pipeline>/`: `ship_carousel_post.py` (carousel) and `make_reel.py` (reel). The breaking-news pipeline was killed in audit Phase G.2 on 2026-05-10 (decision B); `ship_news_breaking.py` and the watcher are gone. `ship_news_post.py` survives as a renderer library only (imported by `ship_manual_post.py`). Other legacy files (`ship_first_post.py`, `ship_list_post.py`) were deleted in Phase G.3.
 >
 > `scripts/run_pipeline.py`, `scripts/fetch_metrics.py`, and `scripts/weekly_report.py` are not in the live `scripts/` directory. Their successors (where they exist) are in `pipelines/reel/fetch_reel_metrics.py` and the `weekly-plan.yml` workflow. The "Auto-fired by launchd" notes are legacy.
 >

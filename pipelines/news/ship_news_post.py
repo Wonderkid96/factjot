@@ -1,18 +1,12 @@
-"""Fetch a breaking Guardian article and publish a red-tinted news carousel to Instagram.
+"""DEAD as a CLI entry point per audit-2026-05-09 decision B (news pipeline killed).
 
-Flow:
-  1. Pick the Guardian section for today (weekday rotation)
-  2. Fetch the most recent article published within the last 24 hours
-  3. Dedup check against data/ledgers/news_posts.jsonl
-  4. Compress article to 8 slides with Claude (single-stage -- article is already prose)
-  5. Render 1080x1350 PNGs with red brand overlay
-  6. Host on imgbb, publish via Instagram Graph API
-  7. Log to ledger and insta-brain
+Renderer functions in this module are still imported by
+pipelines/manual/ship_manual_post.py for the autonomous carousel flow.
+Untangling tracked in SPEC §10.1.
 
-Usage (local):
-    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 pipelines/news/ship_news_post.py --dry-run
-    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 pipelines/news/ship_news_post.py --section technology
-    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 pipelines/news/ship_news_post.py --article-url "https://www.theguardian.com/..."
+The news-watcher workflow, ship_news_breaking wrapper, and Guardian RSS
+helper were deleted in audit Phase G.2. Do not invoke main() here; treat
+this module strictly as a renderer library going forward.
 """
 from __future__ import annotations
 
