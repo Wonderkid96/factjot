@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from src.brain import BRAIN_DIR, brain
+from src.content.voice_normaliser import normalise
 
 QUOTES_PATH = BRAIN_DIR / "bank" / "quotes.md"
 
@@ -63,14 +64,20 @@ class QuoteBank:
             body = m.group(1).strip()
             attr_m = _ATTR_RE.match(body)
             if attr_m:
+                # Apply the shared voice normaliser at parse time so
+                # downstream consumers (closing-slide renderer, carousel
+                # caption builder, etc.) all see brand-safe quote text:
+                # smart quotes straightened, em / en dashes resolved,
+                # spacing tidied. Replaces the ad-hoc per-call cleanup
+                # that used to live in callers.
                 out.append(Quote(
-                    text=attr_m.group("quote").strip(),
-                    attribution=attr_m.group("attribution").strip(),
+                    text=normalise(attr_m.group("quote").strip()),
+                    attribution=normalise(attr_m.group("attribution").strip()),
                 ))
             else:
                 # Plain originals: no attribution, strip any surrounding quote chars.
                 clean = body.strip('"“”')
-                out.append(Quote(text=clean, attribution=""))
+                out.append(Quote(text=normalise(clean), attribution=""))
         return out
 
     def pick_unused(self, *, rng: random.Random | None = None) -> Quote | None:

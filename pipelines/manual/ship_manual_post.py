@@ -37,6 +37,7 @@ from pipelines.news.ship_news_post import (
     _log,
 )
 from src.content.hashtag_builder import build_hashtags
+from src.content.voice_normaliser import normalise as normalise_caption
 from src.publish.image_host import make_image_host
 from src.publish.instagram_publisher import InstagramGraphPublisher
 from src.brain import brain, DuplicatePostError, claim_hash
@@ -1864,6 +1865,12 @@ def main() -> int:
             post_type="fact",
         )
         caption = f"{caption_body}\n\n{hashtags}" if caption_body else hashtags
+        # Phase C runtime guarantee: every caption that ships goes through
+        # the shared voice normaliser. Em / en dashes resolved, smart
+        # quotes straightened, spacing tidied. Applied to the final
+        # assembled string so both dry-run preview and live publish see
+        # exactly what Instagram will render.
+        caption = normalise_caption(caption)
 
         # Save locally regardless of dry-run. save_dir was already
         # created up-front (right after content generation) so the

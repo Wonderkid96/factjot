@@ -7,6 +7,7 @@ import re
 from urllib.parse import urlparse
 
 from src.content.hashtag_builder import build_hashtags
+from src.content.voice_normaliser import normalise
 
 _CTAS = [
     "Follow @factjot for more facts like this.",
@@ -19,17 +20,12 @@ _CTAS = [
 ]
 
 
-# Hard rule: no em-dashes anywhere in caption output.
-# Brand voice convention. Catch any em-dash that slips through string
-# concatenation (sources, titles, music credits, etc).
-# Sentinels are constructed at runtime via codepoint so the source itself
-# stays clean for the targeted em-dash linter (scripts/check_em_dashes.py).
-_EM_DASH = chr(0x2014)  # U+2014 EM DASH
-_EN_DASH = chr(0x2013)  # U+2013 EN DASH
-
-
-def _strip_em_dashes(text: str) -> str:
-    return text.replace(_EM_DASH, ",").replace(_EN_DASH, ",")
+# Brand-voice normalisation (em / en dashes, smart quotes, spacing) lives
+# in src.content.voice_normaliser.normalise(). The local _strip_em_dashes
+# helper was removed 2026-05-10 (Phase C of the audit) when the
+# normaliser became the single shared entrypoint for every caption
+# builder. Apply normalise() to the assembled caption right before we
+# return it from build_reel_caption.
 
 # _BROAD removed 2026-05-09 per audit Q8 decision: hashtags now flow only
 # through build_hashtags() which generates topic-specific tags via Haiku.
@@ -232,5 +228,5 @@ def build_reel_caption(
 
     parts = [hook, body, "", cta, "", "\n".join(credit_lines), "", hashtags]
     caption = "\n".join(parts)
-    caption = _strip_em_dashes(caption)
+    caption = normalise(caption)
     return caption[:2200]
