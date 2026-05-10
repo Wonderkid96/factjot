@@ -222,7 +222,13 @@ def verify_consistency(brief: dict, api_key: str) -> dict:
     except Exception as exc:
         # Fail-open on infra error. The Haiku call is cheap and should
         # rarely fail; treat any exception as a soft-pass with the reason
-        # captured for telemetry.
+        # captured for telemetry. Surface the failure to the workflow log
+        # so quota exhaustion or key rotation does not silently disable
+        # the verifier across runs.
+        print(
+            f"[fact_checker] Haiku consistency check failed open: {exc}",
+            flush=True,
+        )
         return {
             "ok": True,
             "reason": f"api_error:{str(exc)[:80]}",
@@ -507,8 +513,15 @@ def verify_anchors(claims: list, api_key: str = "") -> dict:
                 break
 
     # If every lookup failed on infra, soft-pass with a warning rather
-    # than block production on Wikipedia downtime.
+    # than block production on Wikipedia downtime. Log the all-fail so
+    # a Wikipedia outage during a run is visible in the workflow log,
+    # not just embedded in a return-dict the caller may not surface.
     if total_lookups > 0 and infra_fail_count == total_lookups and not flagged:
+        print(
+            f"[fact_checker] verify_anchors soft-pass: all {total_lookups} "
+            f"Wikipedia lookups failed on infra; anchors not verified",
+            flush=True,
+        )
         return {
             "ok": True,
             "flagged": [],

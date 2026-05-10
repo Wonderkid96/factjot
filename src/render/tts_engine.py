@@ -593,8 +593,10 @@ def _synthesise_elevenlabs(
             pct_used = used / limit * 100
             if pct_used > 80:
                 print(f"WARNING: ElevenLabs {pct_used:.0f}% quota used ({used}/{limit} chars)")
-    except Exception:
-        pass
+    except Exception as exc:
+        # Quota check is best-effort. Surface failure so we know when
+        # the check itself is broken (vs the quota being fine).
+        print(f"[tts] ElevenLabs quota check failed: {exc}", flush=True)
 
     resp = _req.post(
         f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/with-timestamps",

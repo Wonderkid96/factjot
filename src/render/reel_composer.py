@@ -112,7 +112,13 @@ def _probe_intro_duration(path: Path, fallback: float = 1.37) -> float:
     so a missing ffprobe binary does not break the compose pipeline.
     """
     if not path.exists():
+        print(
+            f"[composer] intro probe: file missing at {path}, "
+            f"using fallback {fallback}s",
+            flush=True,
+        )
         return fallback
+    last_exc: Exception | None = None
     for ffprobe in ("ffprobe", "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe"):
         try:
             r = subprocess.run(
@@ -122,8 +128,16 @@ def _probe_intro_duration(path: Path, fallback: float = 1.37) -> float:
             )
             if r.returncode == 0 and r.stdout.strip():
                 return round(float(r.stdout.strip()), 3)
-        except Exception:
+        except Exception as exc:
+            last_exc = exc
             continue
+    # All ffprobe attempts exhausted. Surface so a re-recorded intro
+    # of different length is not silently mis-timed on every reel.
+    print(
+        f"[composer] intro probe failed for all ffprobe candidates "
+        f"(last error: {last_exc!r}), using fallback {fallback}s",
+        flush=True,
+    )
     return fallback
 
 

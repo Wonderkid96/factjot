@@ -198,7 +198,13 @@ class InstagramGraphPublisher:
                 timeout=8,
             ).json()
             return r.get("permalink")
-        except Exception:
+        except Exception as exc:
+            # Failure here loses the YouTube cross-post linking but is not
+            # fatal. Surface to the workflow log so the loss is visible.
+            print(
+                f"[publisher] ig_permalink failed for {ig_media_id}: {exc}",
+                flush=True,
+            )
             return None
 
     def publish_reel(
@@ -319,6 +325,13 @@ class InstagramGraphPublisher:
                     if expected_media_type not in (pt, mt):
                         continue
                 return post["id"]
-        except Exception:
-            pass
+        except Exception as exc:
+            # The duplicate-post recovery probe. If this fails silently,
+            # the caller has no ig_media_id, the post is never recorded
+            # to the dedup ledger, and the next cron slot can ship the
+            # same content. Surface the failure.
+            print(
+                f"[publisher] _find_recently_published probe failed: {exc}",
+                flush=True,
+            )
         return None
