@@ -352,32 +352,82 @@ def ranked_candidates_for_mode(mode: str, top_n: int = 12) -> list[dict]:
     return [asdict(c) for c in pool[:top_n]]
 
 
+# Allowed list superlatives. Phase D.2 (Q10 hybrid) banned every
+# opinion-based superlative ("scariest", "best", "most underrated", etc.)
+# because they cannot be defended without fabricated rank reasons. Only
+# numeric / defensible superlatives survive, and every one MUST be
+# paired with a stated criterion on the cover (see CRITERION_SHAPES).
 LIST_SUPERLATIVE_POOL = (
     "biggest",
     "smallest",
-    "best",
-    "worst",
     "deadliest",
-    "safest",
-    "strangest",
     "oldest",
     "newest",
     "fastest",
     "slowest",
+    "longest",
+    "shortest",
+    "tallest",
+    "largest",
+    "richest",
+    "youngest",
     "most expensive",
     "least expensive",
     "most profitable",
     "least profitable",
-    "most dangerous",
-    "least survivable",
-    "most bizarre",
-    "most underrated",
+    "costliest",
     "most catastrophic",
+)
+
+
+# Criterion shape per surviving superlative. The criterion is an
+# explicit, defensible measurement that anchors the ranking on the
+# cover ("Five engineering disasters by death toll"). Every list
+# emitted by build_list_reel_possibilities() MUST carry one.
+CRITERION_SHAPES: dict[str, str] = {
+    "biggest":             "by total size or scale",
+    "smallest":             "by recorded size",
+    "deadliest":           "by confirmed death toll",
+    "oldest":              "by date of origin",
+    "newest":              "by date of completion",
+    "fastest":             "by recorded speed",
+    "slowest":             "by recorded duration",
+    "longest":             "by recorded length",
+    "shortest":            "by recorded length",
+    "tallest":             "by recorded height",
+    "largest":             "by total area or volume",
+    "richest":             "by recorded net worth",
+    "youngest":            "by date of birth or founding",
+    "most expensive":      "by recorded cost in USD",
+    "least expensive":     "by recorded cost in USD",
+    "most profitable":     "by recorded net profit",
+    "least profitable":    "by recorded net loss",
+    "costliest":           "by total recorded cost",
+    "most catastrophic":   "by total recorded damage in USD",
+}
+
+
+# Banned superlatives. Documented here so the autonomous agent prompt
+# and the manual pipeline writer prompt can list them explicitly. Each
+# is opinion / aesthetic and cannot be ranked from public records.
+BANNED_LIST_SUPERLATIVES: tuple[str, ...] = (
     "scariest",
+    "most underrated",
+    "strangest",
+    "most bizarre",
+    "best",
+    "worst",
+    "coolest",
+    "weirdest",
+    "most surprising",
     "funniest",
+    "cutest",
     "most iconic",
     "most influential",
     "most disturbing",
+    "safest",
+    "most dangerous",
+    "least survivable",
 )
 
 _LIST_SUBJECT_STOPWORDS = {
@@ -446,6 +496,17 @@ def _subject_seed_from_row(title: str, weird_bit: str, topic: str) -> str:
     return _TOPIC_LIST_HEADS.get(topic, "historical events")
 
 
+def _criterion_for_superlative(outcome: str) -> str:
+    """Return the canonical criterion phrase for a surviving superlative.
+
+    Phase D.2: every list candidate MUST carry a criterion so the agent
+    cannot fall back on "scariest"-style rank fabrication. The criterion
+    is the measurable axis the ranking sits on. Falls back to a generic
+    "by recorded measurement" for any new superlative not yet mapped.
+    """
+    return CRITERION_SHAPES.get(outcome, "by recorded measurement")
+
+
 def build_list_reel_possibilities(
     mode: str,
     *,
@@ -453,7 +514,9 @@ def build_list_reel_possibilities(
 ) -> list[dict]:
     """Return dynamic top-5 list-reel concepts from live candidate titles.
 
-    Output rows are lightweight idea seeds for script drafting.
+    Output rows are lightweight idea seeds for script drafting. Phase D.2
+    adds a mandatory `criterion` field to every emitted candidate, so the
+    agent never sees a bare-superlative seed without a defensible axis.
     """
     top = ranked_candidates_for_mode(mode, top_n=30)
     if not top:
@@ -472,7 +535,8 @@ def build_list_reel_possibilities(
     used_titles: set[str] = set()
     for i, (topic, subject) in enumerate(seeds):
         outcome = LIST_SUPERLATIVE_POOL[i % len(LIST_SUPERLATIVE_POOL)]
-        title = f"Top 5 {outcome} {subject}"
+        criterion = _criterion_for_superlative(outcome)
+        title = f"Five {subject} {criterion}"
         key = title.lower()
         if key in used_titles:
             continue
@@ -482,6 +546,7 @@ def build_list_reel_possibilities(
             "topic": topic,
             "outcome": outcome,
             "subject": subject,
+            "criterion": criterion,
         })
         if len(ideas) >= max_outcomes:
             break

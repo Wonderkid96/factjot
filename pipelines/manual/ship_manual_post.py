@@ -533,21 +533,48 @@ ITEM FIELDS (all required):
 CLOSING SLIDE (NOT a list item):
 
 - closing.lines: EXACTLY 3 strings. Target 30-50 chars per line, max
-  {hard_cap}. Summarise the ranking by stating a pattern about the
-  five items themselves. The closer is structural, not moral.
+  {hard_cap}. The closing slide MUST cite the criterion source
+  explicitly. At least one of the three lines must read like
+  "Source: USGS confirmed fatalities, 1900-present" or
+  "Source: Box Office Mojo, domestic gross" or
+  "Source: BFI Sight & Sound 2022 critics' poll". This is the closer's
+  primary job: it tells the viewer where the ranking came from.
+  The remaining lines may state a structural pattern about the items
+  themselves; the closer is structural and source-backed, not moral.
   FORBIDDEN closer shapes:
     - rhetorical questions ("who chose...?", "what if...?")
     - moral imperatives ("we must...", "the world should...")
     - "the lesson is...", "the takeaway is..."
     - second person hectoring ("you have to...")
     - vague universals ("everyone knows...")
+    - bare picks with no source ("just our picks", "wow")
 - closing.image_query: 2-5 words, photographable proxy.
 
-COVER:
+COVER (Phase D.2 list format rule):
 
-- cover_title: 5-9 words. MUST include the superlative in plain English
-  (most / biggest / deadliest / smallest / oldest / fastest / etc.).
-  No full stop.
+- cover_title: 5-9 words. MUST follow EXACTLY one of these two shapes:
+    a) "Five [items] by [criterion]"
+       e.g. "Five engineering disasters by death toll"
+            "Five films by domestic box office"
+    b) "Five [items] that [verifiable condition]"
+       e.g. "Five films that grossed under five million dollars"
+            "Five companies that have traded since before 1700"
+  No full stop. The criterion must be measurable from public records
+  (a number, a record, a yes / no fact).
+  Allowed superlatives (numeric / defensible only) when paired with a
+  criterion: biggest, oldest, fastest, deadliest, longest, tallest,
+  largest, richest, youngest, shortest, costliest, smallest, newest,
+  slowest, most expensive, most profitable, least expensive,
+  least profitable, most catastrophic.
+  BANNED superlatives (opinion / aesthetic, never use):
+    scariest, most underrated, strangest, most bizarre, best, worst,
+    coolest, weirdest, most surprising, funniest, cutest, most iconic,
+    most influential, most disturbing, safest, most dangerous,
+    least survivable.
+  Bare-superlative covers ("Five scariest films", "Five most iconic
+  moments") are FORBIDDEN. If you cannot find a defensible criterion
+  for the topic, do not ship the list; ask the brief for a different
+  topic. The pipeline rejects bare-superlative covers post-write.
 - cover_image_query: 2-5 words, photographable proxy.
 
 VISUAL FALLBACK QUERIES (separate from image_query above):
@@ -1028,6 +1055,193 @@ def _validate_list_images(
     return filtered, audit
 
 
+# Phase D.2 list format rule. Banned superlatives must never appear on
+# the cover, even softened. Allowed superlatives must be paired with a
+# stated criterion (the "by" or "that" clause). The validator runs after
+# the writer returns, before render starts, so a bare-superlative cover
+# is killed before any image / Playwright cost is paid.
+_BANNED_LIST_SUPERLATIVES_LC: tuple[str, ...] = (
+    "scariest",
+    "most underrated",
+    "strangest",
+    "most bizarre",
+    "best",
+    "worst",
+    "coolest",
+    "weirdest",
+    "most surprising",
+    "funniest",
+    "cutest",
+    "most iconic",
+    "most influential",
+    "most disturbing",
+    "safest",
+    "most dangerous",
+    "least survivable",
+)
+
+# Phrases that look like a criterion clause but carry no actual axis
+# ("Five films that are amazing" -> "that are" is empty). The validator
+# rejects covers whose "that ..." clause matches one of these.
+_EMPTY_THAT_CLAUSES: tuple[str, ...] = (
+    "that are",
+    "that were",
+    "that is",
+    "that was",
+    "that you",
+    "that we",
+    "that everyone",
+    "that nobody",
+)
+
+# Phrases that look like a criterion clause but carry no actual axis
+# ("Five disasters by far the worst" -> "by far" is filler). The
+# validator rejects covers whose "by ..." clause matches one of these.
+_EMPTY_BY_CLAUSES: tuple[str, ...] = (
+    "by far",
+    "by accident",
+    "by mistake",
+    "by chance",
+    "by no means",
+    "by any measure",
+)
+
+
+def _validate_list_criterion(data: dict) -> tuple[bool, str]:
+    """Phase D.2 list format rule check.
+
+    Hard rules:
+      1. The cover title must follow either
+         "Five [items] by [criterion]" or
+         "Five [items] that [verifiable condition]". The "by" or
+         "that" clause must carry an actual axis, not filler ("by
+         far", "that are").
+      2. The cover title must not contain a banned opinion superlative
+         (scariest, most iconic, etc.), even when softened.
+      3. The closing slide must cite a source. Heuristic: the joined
+         closing copy must contain "source", "sources", "data:",
+         "ranked by", "according to", or "per ", followed by a
+         non-trivial token.
+
+    Returns (True, "") on pass, (False, reason) on fail. Reason is a
+    one-line human-readable explanation suitable for surfacing to the
+    autonomous agent's failure-kind tag.
+    """
+    cover_title_raw = data.get("cover_title")
+    if not isinstance(cover_title_raw, str) or not cover_title_raw.strip():
+        return False, "cover_title is missing or empty"
+    cover_title = cover_title_raw.strip()
+    cover_lc = cover_title.lower()
+
+    # Rule 2 first: banned superlatives kill the cover unconditionally.
+    # Match on whole-word boundaries so "best" does not match "biggest".
+    for banned in _BANNED_LIST_SUPERLATIVES_LC:
+        pattern = r"\b" + re.escape(banned) + r"\b"
+        if re.search(pattern, cover_lc):
+            return False, (
+                f"cover_title uses banned opinion superlative '{banned}': "
+                f"{cover_title!r}. Use 'Five [items] by [criterion]' or "
+                f"'Five [items] that [verifiable condition]' instead."
+            )
+
+    # Rule 1: cover must contain a "by" or "that" clause with content.
+    # Find the first " by " or " that " token and inspect what follows.
+    by_idx = cover_lc.find(" by ")
+    that_idx = cover_lc.find(" that ")
+    clause_kind = ""
+    clause = ""
+    if by_idx != -1 and (that_idx == -1 or by_idx < that_idx):
+        clause_kind = "by"
+        clause = cover_lc[by_idx + 1 :].strip()  # includes "by ..."
+    elif that_idx != -1:
+        clause_kind = "that"
+        clause = cover_lc[that_idx + 1 :].strip()  # includes "that ..."
+    else:
+        return False, (
+            f"cover_title missing 'by [criterion]' or 'that "
+            f"[verifiable condition]' clause: {cover_title!r}. The "
+            f"Phase D.2 list format rule requires an explicit measurable "
+            f"axis on the cover."
+        )
+
+    # Reject empty filler clauses that masquerade as criteria.
+    if clause_kind == "by":
+        for empty in _EMPTY_BY_CLAUSES:
+            if clause.startswith(empty):
+                rest = clause[len(empty) :].strip()
+                if not rest:
+                    return False, (
+                        f"cover_title 'by' clause is filler "
+                        f"('{empty}'), no actual criterion: "
+                        f"{cover_title!r}."
+                    )
+        # The clause should have a noun-like token after "by".
+        after_by = clause[3:].strip()  # strip "by "
+        if len(after_by) < 3:
+            return False, (
+                f"cover_title 'by' clause is too short to be a real "
+                f"criterion: {cover_title!r}."
+            )
+    else:  # clause_kind == "that"
+        for empty in _EMPTY_THAT_CLAUSES:
+            if clause == empty or clause.startswith(empty + " "):
+                rest = clause[len(empty) :].strip()
+                # "that are amazing" / "that were great" -> empty axis.
+                if not rest or rest in {
+                    "amazing", "great", "incredible", "iconic",
+                    "interesting", "weird", "strange", "cool",
+                    "fascinating",
+                }:
+                    return False, (
+                        f"cover_title 'that' clause is filler "
+                        f"('{empty} {rest}'), no verifiable condition: "
+                        f"{cover_title!r}."
+                    )
+        after_that = clause[5:].strip()  # strip "that "
+        if len(after_that) < 3:
+            return False, (
+                f"cover_title 'that' clause is too short to be a real "
+                f"verifiable condition: {cover_title!r}."
+            )
+
+    # Rule 3: closing slide must cite a source. Pull text from the
+    # closing block (preferred) or closing_headline (legacy field used
+    # by the news pipeline). Either has to mention a source.
+    closing_text_parts: list[str] = []
+    closing_block = data.get("closing")
+    if isinstance(closing_block, dict):
+        lines = closing_block.get("lines")
+        if isinstance(lines, list):
+            for line in lines:
+                if isinstance(line, str) and line.strip():
+                    closing_text_parts.append(line.strip())
+    closing_headline = data.get("closing_headline")
+    if isinstance(closing_headline, str) and closing_headline.strip():
+        closing_text_parts.append(closing_headline.strip())
+
+    if not closing_text_parts:
+        return False, (
+            "closing slide is missing or empty: Phase D.2 list format "
+            "rule requires the closing to cite the criterion source."
+        )
+
+    closing_lc = " ".join(closing_text_parts).lower()
+    source_markers = (
+        "source:", "sources:", "data:", "ranked by",
+        "according to", "per the ", "per a ", "per data",
+        "from the ", "official ", "records:",
+    )
+    if not any(marker in closing_lc for marker in source_markers):
+        return False, (
+            f"closing does not cite the criterion source. Phase D.2 "
+            f"list format rule requires an explicit source citation "
+            f"(e.g. 'Source: USGS confirmed fatalities, 1900-present'). "
+            f"Got: {' / '.join(closing_text_parts)[:120]!r}"
+        )
+
+    return True, ""
+
+
 def _verify_facts_or_raise(
     *,
     brief: str,
@@ -1251,6 +1465,31 @@ def _generate_list_content(
     data["_line_warnings"] = warnings
     data["_fitter_attempts"] = 1
     data["_probe_attempts"] = 0
+
+    # D.2 list format rule. Cover must follow "Five [items] by
+    # [criterion]" or "Five [items] that [verifiable condition]"; banned
+    # opinion superlatives ("scariest", "most iconic", etc.) are
+    # rejected; closing must cite the criterion source. Runs before fact
+    # verification so the Wikipedia-anchor cost is not paid on a
+    # bare-superlative cover.
+    list_ok, list_reason = _validate_list_criterion(data)
+    if not list_ok:
+        raise CarouselShapeError(
+            f"ERROR: list format rule failed: {list_reason}",
+            diagnostics={
+                "list_format_rule": "phase_d2",
+                "reason": list_reason,
+                "cover_title": data.get("cover_title", ""),
+            },
+            usage={
+                "editorial_cost_usd": float(usage["cost_usd"]),
+                "fitter_cost_usd": float(
+                    sum(u["cost_usd"] for u in usage_records[1:])
+                ),
+                "fitter_attempts": 1,
+                "probe_attempts":  0,
+            },
+        )
 
     # D.1 fact verification gate (list path). Same gate as the non-list
     # branch in generate_content; runs after shape repairs so verification
