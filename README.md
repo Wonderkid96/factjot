@@ -200,7 +200,7 @@ See `.env.example`. Bot will refuse to publish unless `INSTAGRAM_ACCOUNT_ID`, `M
 > | Old path in this table | Current location |
 > |---|---|
 > | `scripts/plan_week.py` | Deleted in Phase G.3. Weekly planning is no longer used; the autonomous agent posts directly. |
-> | `scripts/smoke_render.py` | `pipelines/carousel/smoke_render.py` (orphaned; no live caller). |
+> | `scripts/smoke_render.py` | Deleted 2026-05-11 (was orphaned in Phase G; cleared in follow-up). |
 > | `scripts/review_queue.py` | `pipelines/shared/review_queue.py` (legacy queue, not used by autonomous flow). |
 > | `scripts/publish_now.py` | Deleted in Phase G.3. |
 > | `scripts/publish_due.py` | `pipelines/shared/publish_due.py` (legacy, launchd-era). |

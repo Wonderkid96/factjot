@@ -382,15 +382,23 @@ def render_case_doc(
 
     value_size = 22 if len(value) > 18 else (26 if len(value) > 12 else 30)
 
+    # AI-generated content lands in `label`/`value`/`body`. Other render
+    # paths in this module escape via `_tokens_to_html` and `_title_to_html`;
+    # this one was inconsistent. Escape so a value containing < / > / & does
+    # not break the rendered HTML or corrupt the Playwright screenshot.
+    safe_label = escape(label.upper())
+    safe_value = escape(value)
+    safe_body  = escape(body) if body else body
+
     template_dir = Path(__file__).parent / "templates"
     env = Environment(loader=FileSystemLoader(str(template_dir)), autoescape=False)
     tmpl = env.get_template("reel_case_doc.html.j2")
     html = tmpl.render(
         width=_W, height=_H,
         font_sans_bold=FONT_SANS_BOLD.as_uri(),
-        label=label.upper(),
-        value=value,
-        body=body,
+        label=safe_label,
+        value=safe_value,
+        body=safe_body,
         x=x, y=y,
         w=width,
         rotation=rotation,

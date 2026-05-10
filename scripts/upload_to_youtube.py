@@ -51,7 +51,14 @@ REEL_CACHE = _REELS_CACHE
 try:
     from src.content.youtube_description import build_shorts_description
     from src.content.youtube_title import build_shorts_title
-except Exception:  # pragma: no cover - defensive against import-path drift
+except ImportError as _exc:  # pragma: no cover - defensive against import-path drift
+    # Narrowed from bare Exception so a real broken module surfaces a real
+    # error rather than silently degrading to truncated-fallback mode.
+    print(
+        f"[youtube] divergent title/description helpers unavailable: {_exc}; "
+        "falling back to IG-shaped reel title and caption",
+        flush=True,
+    )
     build_shorts_description = None  # type: ignore[assignment]
     build_shorts_title = None        # type: ignore[assignment]
 

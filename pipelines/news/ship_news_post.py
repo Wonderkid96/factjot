@@ -62,6 +62,7 @@ from anthropic import Anthropic
 from playwright.sync_api import sync_playwright
 
 from src.content.hashtag_builder import build_hashtags
+from src.content.voice_normaliser import normalise as _normalise_voice
 from src.core.brand import LABEL_FONT_CANONICAL_PATH
 from src.publish.image_host import make_image_host
 from src.publish.instagram_publisher import InstagramGraphPublisher
@@ -487,12 +488,19 @@ def build_caption(article: dict, carousel_title: str, trail: str) -> str:
         post_type="news",
     )
 
-    return (
+    # Phase C of the 2026-05-10 audit wired voice_normaliser through the
+    # reel caption + manual carousel paths but skipped this builder because
+    # the news CLI was on the deletion list. The renderer functions in this
+    # module are still imported by pipelines/manual/ship_manual_post.py, so
+    # any caption shaped here ships to the autonomous carousel flow. Apply
+    # the same normaliser at the assembly boundary.
+    raw = (
         f"{intro}\n\n"
         f"Source: The Guardian ({pub})\n"
         f"Read more: {article['url']}\n\n"
         f"{hashtags}"
     )
+    return _normalise_voice(raw)
 
 
 # ------------------------------------------------------------------ #

@@ -27,110 +27,12 @@ _CTAS = [
 # builder. Apply normalise() to the assembled caption right before we
 # return it from build_reel_caption.
 
-# _BROAD removed 2026-05-09 per audit Q8 decision: hashtags now flow only
-# through build_hashtags() which generates topic-specific tags via Haiku.
-# The other dead constants below (_TOPIC_TAGS, _DEFAULT_TOPIC, _BRAND_TAGS,
-# _STOP, _subject_hashtags) are unused but left for Phase B's ruff lint pass.
-
-# Tier 2: topic-specific
-_TOPIC_TAGS: dict[str, str] = {
-    "space":      "#space #astronomy #universe #cosmos #nasa",
-    "earth":      "#earth #geology #nature #earthscience #geography",
-    "ocean":      "#ocean #marinelife #deepocean #oceanography #sealife",
-    "biology":    "#biology #nature #wildlife #science #evolution",
-    "nature":     "#nature #wildlife #animals #ecology #science",
-    "history":    "#history #historyfacts #truecrime #historical #archive",
-    "technology": "#technology #tech #innovation #engineering #science",
-    "tech":       "#technology #tech #innovation #engineering #science",
-    "science":    "#science #neuroscience #psychology #brain #learning",
-}
-_DEFAULT_TOPIC = "#science #nature #history #facts #learning"
-
-# Always appended
-_BRAND_TAGS = "#factjot #dailyfact"
-
-# Words to ignore when extracting subject hashtags
-_STOP = frozenset({
-    "a", "an", "the", "in", "on", "at", "to", "for", "of", "and", "or",
-    "but", "is", "was", "are", "were", "be", "been", "have", "had", "has",
-    "do", "did", "does", "will", "would", "could", "should", "that", "this",
-    "with", "from", "as", "by", "he", "she", "it", "they", "his", "her",
-    "its", "their", "who", "which", "when", "where", "not", "no", "can",
-    "so", "if", "about", "after", "before", "than", "also", "just", "only",
-    "more", "may", "most", "some", "such", "even", "still", "then", "each",
-    "every", "both", "all", "any", "many", "same", "own", "over", "between",
-    "through", "during", "without", "however", "although", "while", "because",
-    "since", "once", "until", "unless", "roughly", "nearly", "almost",
-    "around", "early", "late", "first", "last", "next", "never", "always",
-    "often", "used", "made", "said", "found", "came", "went", "took", "came",
-    "began", "ended", "killed", "lived", "died", "went", "sent", "kept",
-    "force", "years", "days", "time", "world", "people", "known", "human",
-    "entire", "single", "whole", "large", "small", "long", "short", "high",
-    # Common weak verbs that slip through
-    "erupted", "reduced", "painted", "glowed", "called", "compels", "found",
-    "created", "started", "ended", "become", "became", "happened", "appear",
-    "appears", "remains", "remained", "believed", "thought", "estimated",
-    "shows", "causes", "allows", "makes", "gives", "takes", "holds", "keeps",
-    # Generic nouns too broad to be useful as niche tags
-    "thing", "place", "story", "event", "moment", "record", "result", "point",
-    "example", "reason", "matter", "system", "process", "effect", "impact",
-})
-
-
-def _subject_hashtags(claim: str, title: str | None, topic: str) -> str:
-    """Extract 4-5 subject-specific hashtags from the claim and title.
-
-    Uses individual proper nouns and key content words, not multi-word
-    phrases which produce garbage like #EruptionEnded. Niche tags reach
-    people who care specifically about this subject.
-    """
-    # Use claim only - title is already the hook and its words are redundant as tags
-    sentences = re.split(r"(?<=[.!?])\s+", claim.strip())
-    text = " ".join(sentences[:2])
-    tokens = text.split()
-
-    tags: list[str] = []
-    seen: set[str] = set()
-
-    # Pass 1: individual proper nouns - capitalised mid-sentence only.
-    # Skip i=0 (first word of text) and skip words that follow sentence-final
-    # punctuation (they're sentence-starters, not proper nouns).
-    for i, tok in enumerate(tokens):
-        clean = tok.strip(".,;:!?\"'()")
-        prev_ends_sentence = i > 0 and tokens[i - 1].rstrip("\"'") [-1:] in ".!?"
-        if (
-            i > 0
-            and not prev_ends_sentence
-            and clean
-            and clean[0].isupper()
-            and len(clean) >= 4
-            and clean.lower() not in _STOP
-            and re.match(r"^[A-Za-z]+$", clean)
-        ):
-            tag = f"#{clean}"
-            if tag.lower() not in seen:
-                seen.add(tag.lower())
-                tags.append(tag)
-        if len(tags) >= 3:
-            break
-
-    # Pass 2: significant lowercase content words (6+ chars, not generic)
-    for tok in tokens:
-        clean = tok.strip(".,;:!?\"'()").lower()
-        if (
-            len(clean) >= 6
-            and clean not in _STOP
-            and re.match(r"^[a-z]+$", clean)
-        ):
-            tag = f"#{clean}"
-            if tag.lower() not in seen:
-                seen.add(tag.lower())
-                tags.append(tag)
-        if len(tags) >= 5:
-            break
-
-    return " ".join(tags[:5])
-
+# Hashtag generation moved entirely to src.content.hashtag_builder.build_hashtags()
+# (Haiku-generated, topic-specific) on 2026-05-09 per audit Q8. The previous
+# static _TOPIC_TAGS / _DEFAULT_TOPIC / _BRAND_TAGS / _STOP / _subject_hashtags
+# helpers were deferred for cleanup in Phase B; deleted now since no caller
+# references them and ruff's F841 selection set does not catch module-level
+# dead names.
 
 # Publisher name overrides for common domains
 _PUBLISHER_NAMES: dict[str, str] = {
@@ -172,16 +74,40 @@ def _source_credit(sources: list[str]) -> str:
     return "📚 Source: " + " | ".join(publishers) if publishers else ""
 
 
+_WORD_RE = re.compile(r"[a-z0-9]+")
+
+
+def _content_words(text: str) -> set[str]:
+    """Return content words (4+ chars, lowercased) for overlap detection."""
+    return {w for w in _WORD_RE.findall(text.lower()) if len(w) >= 4}
+
+
 def _punchline(claim: str, title: str | None) -> str:
-    """Return the single most striking sentence from the claim.
+    """Return the single most striking sentence from the claim, distinct
+    from the title.
 
     If a title is set, skip the first sentence (used as hook already)
-    and return the second. Otherwise return a compressed version of
-    the first sentence.
+    and return the next sentence that does NOT repeat the title's
+    content words. The IG caption first line is what shows before the
+    "more" cut, so a sentence that paraphrases the title wastes that
+    real estate. Falls back to the second sentence if no later sentence
+    is sufficiently distinct.
     """
     sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", claim.strip()) if s.strip()]
     if title and len(sentences) > 1:
+        title_words = _content_words(title)
         line = sentences[1]
+        if title_words:
+            # Try sentences 1..N in order; pick the first whose content
+            # words are <50% overlap with the title.
+            for cand in sentences[1:]:
+                cand_words = _content_words(cand)
+                if not cand_words:
+                    continue
+                overlap = len(title_words & cand_words) / max(len(cand_words), 1)
+                if overlap < 0.5:
+                    line = cand
+                    break
     else:
         line = sentences[0]
     # Trim to 160 chars

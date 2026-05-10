@@ -225,7 +225,6 @@ Image scoring under `readable_list` runs `ImageSourcer(relax=True)`: R3 score fl
 The audit-2026-05-09 Phase G cleanup deleted the obviously-dormant scripts. What remains here is a short list of dual-role files and lingering helpers that survived the sweep, plus the deleted infrastructure.
 
 - `pipelines/news/ship_news_post.py`: CLI entry point is dead (Phase G.2 deleted the news-watcher workflow and the breaking-news wrapper). The renderer functions in this module are still imported by `pipelines/manual/ship_manual_post.py` for the autonomous carousel flow. Untangling tracked in `SPEC_FACTJOT_SYSTEM.md` §10.1.
-- `src/research/fact_discovery.py` and `pipelines/carousel/smoke_render.py`: orphaned; no live caller. Left in place because they sit outside the explicit Phase G deletion list. Do not import; pick up in a follow-up cleanup if useful.
 - `pipelines/shared/publish_due.py`, `review_queue.py`, `queue.jsonl`: legacy queue-based publishing. Not used by the autonomous flow.
 - launchd jobs: disabled.
 - cron-job.org backup: removed; `CRON_TRIGGER_PAT` is no longer required by any active workflow.
@@ -238,6 +237,9 @@ Deleted in Phase G.2 (news pipeline kill):
 
 Deleted in Phase G.3 (dormant code sweep):
 - `pipelines/shared/publish_now.py`, `pipelines/shared/plan_week.py`, `pipelines/list/ship_list_post.py`, `pipelines/list/generate_list_packs.py`, `pipelines/list/prepare_packs.py`, `pipelines/list/verify_pack_ids.py`, `pipelines/carousel/ship_first_post.py`, `pipelines/carousel/restock.py`, `pipelines/carousel/discover_facts.py`, `pipelines/reel/discover_reel_facts.py`, `pipelines/reel/runway.py`, `pipelines/reel/check_reel_runway.py`.
+
+Deleted in Phase J (2026-05-11 cleanup, post audit /debatemax 001 follow-up):
+- `src/research/fact_discovery.py`, `pipelines/carousel/smoke_render.py`. Both were orphans flagged in Phase G but left behind. Now removed.
 
 ---
 
