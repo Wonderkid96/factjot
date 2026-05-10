@@ -195,20 +195,20 @@ See `.env.example`. Bot will refuse to publish unless `INSTAGRAM_ACCOUNT_ID`, `M
 
 ## Scripts (entry points) [PARTLY LEGACY, paths stale]
 
-> **[LEGACY paths]** Almost every row below names a path under `scripts/`. The `scripts/` directory is now effectively empty, the operational scripts have moved. Current locations:
+> **[LEGACY paths]** Almost every row below names a path under `scripts/`. The `scripts/` directory is now effectively empty, the operational scripts have moved. Current locations (after the audit Phase G cleanup on 2026-05-10):
 >
-> | Old path in this table | Current path |
+> | Old path in this table | Current location |
 > |---|---|
-> | `scripts/plan_week.py` | `pipelines/shared/plan_week.py` |
-> | `scripts/smoke_render.py` | `pipelines/carousel/smoke_render.py` |
-> | `scripts/review_queue.py` | `pipelines/shared/review_queue.py` (legacy queue, not used by autonomous flow) |
-> | `scripts/publish_now.py` | `pipelines/shared/publish_now.py` (legacy, manual override only) |
-> | `scripts/publish_due.py` | `pipelines/shared/publish_due.py` (legacy, launchd-era) |
+> | `scripts/plan_week.py` | Deleted in Phase G.3. Weekly planning is no longer used; the autonomous agent posts directly. |
+> | `scripts/smoke_render.py` | `pipelines/carousel/smoke_render.py` (orphaned; no live caller). |
+> | `scripts/review_queue.py` | `pipelines/shared/review_queue.py` (legacy queue, not used by autonomous flow). |
+> | `scripts/publish_now.py` | Deleted in Phase G.3. |
+> | `scripts/publish_due.py` | `pipelines/shared/publish_due.py` (legacy, launchd-era). |
 > | `scripts/check_meta_setup.py` | `pipelines/shared/check_meta_setup.py` |
 > | `scripts/auto_schedule_weekly.py` | `pipelines/shared/auto_schedule_weekly.py` |
 > | `scripts/refresh_token.py` | `pipelines/shared/refresh_token.py` |
 >
-> Posting entrypoints (which the table below does not list) are in `pipelines/<pipeline>/`: `ship_carousel_post.py` (carousel) and `make_reel.py` (reel). The breaking-news pipeline was killed in audit Phase G.2 on 2026-05-10 (decision B); `ship_news_breaking.py` and the watcher are gone. `ship_news_post.py` survives as a renderer library only (imported by `ship_manual_post.py`). Other legacy files (`ship_first_post.py`, `ship_list_post.py`) were deleted in Phase G.3.
+> Posting entrypoints (which the table below does not list) are in `pipelines/<pipeline>/`: `ship_carousel_post.py` (carousel) and `make_reel.py` (reel). The breaking-news pipeline was killed in audit Phase G.2 on 2026-05-10 (decision B); `ship_news_breaking.py` and the watcher are gone. `ship_news_post.py` survives as a renderer library only (imported by `ship_manual_post.py`). Other legacy files (`ship_first_post.py`, `ship_list_post.py`, `discover_facts.py`, `restock.py`, `prepare_packs.py`, `verify_pack_ids.py`, `generate_list_packs.py`, `discover_reel_facts.py`, `runway.py`, `check_reel_runway.py`) were all deleted in Phase G.3.
 >
 > `scripts/run_pipeline.py`, `scripts/fetch_metrics.py`, and `scripts/weekly_report.py` are not in the live `scripts/` directory. Their successors (where they exist) are in `pipelines/reel/fetch_reel_metrics.py` and the `weekly-plan.yml` workflow. The "Auto-fired by launchd" notes are legacy.
 >
