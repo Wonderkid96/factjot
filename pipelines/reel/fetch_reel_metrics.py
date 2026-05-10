@@ -158,6 +158,26 @@ def _derive(raw: dict, reach: int) -> dict:
     }
 
 
+def atomic_write_ledger(path: Path, records: dict[str, dict]) -> None:
+    """Atomically rewrite a JSONL ledger from a {key: row} dict.
+
+    Writes to `path.tmp` first, fsyncs, then os.replace into place. On
+    POSIX this is atomic on the same filesystem: a SIGKILL or process
+    crash mid-write leaves either the original file fully intact or
+    the fully-written new file. Never a half-written ledger. Used by
+    the metrics flow but written as a free function so tests can hit
+    it without standing up the whole `main()`.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with tmp.open("w", encoding="utf-8") as fh:
+        for record in records.values():
+            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp, path)
+
+
 def main() -> int:
     _load_env()
 
@@ -254,10 +274,8 @@ def main() -> int:
         print(f"  reach={reach}  views={raw.get('views',0)}  saves={raw.get('saved',0)}  viral_score={record['viral_score']}")
         time.sleep(0.3)
 
-    PERF_LOG.parent.mkdir(parents=True, exist_ok=True)
-    with PERF_LOG.open("w", encoding="utf-8") as fh:
-        for record in existing.values():
-            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+    # Atomic rewrite via the shared helper (Audit /debatemax 001 R2).
+    atomic_write_ledger(PERF_LOG, existing)
 
     print(f"\nDone. {updated} updated, {skipped} skipped. Ledger: {PERF_LOG}")
     return 0
