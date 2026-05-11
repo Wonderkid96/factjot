@@ -174,7 +174,22 @@ def _compute_cost(usage: Any) -> float:
 
 
 def _soft_pass(reason: str, cost_usd: float = 0.0) -> dict:
-    """Return the canonical soft-fail dict shape."""
+    """Return the canonical soft-fail dict shape.
+
+    The validator fails OPEN on infra issues (missing api_key, fetch
+    error, Anthropic SDK missing, API error) so a single failing
+    upstream cannot block production. But the caller in video_finder
+    discards the returned dict to a bool, hiding which path soft-passed.
+    A quota exhaustion or rotated key would let every image through
+    the validator unchecked, silently. Surface to the workflow log
+    so 'why does my validator never fire' has a visible cause.
+
+    Confidence 1.0 results never come through here so we can be loud.
+    """
+    print(
+        f"[entity-validate] SOFT-PASS reason={reason}",
+        flush=True,
+    )
     return {
         "ok": True,
         "confidence": 0.0,

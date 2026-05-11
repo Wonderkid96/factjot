@@ -28,6 +28,22 @@ from typing import Any
 
 
 _HAIKU_MODEL = "claude-haiku-4-5-20251001"
+
+
+class ThumbnailUnavailable(RuntimeError):
+    """Picker could not produce ANY thumbnail frame.
+
+    Subclasses RuntimeError for back-compat with the existing `except
+    RuntimeError` catch in make_reel.py. Callers that want to recover
+    (e.g. ship the reel without a custom cover and let IG auto-pick)
+    can match this class specifically and avoid catching unrelated
+    RuntimeErrors.
+
+    Raised when:
+    - `pick_best_thumbnail` is called with an empty `footage_clips` list.
+    - The soft-fall fallback fails to extract even a single first frame
+      from `footage_clips[0]`.
+    """
 _PRICING_IN_PER_M = 1.00   # Haiku 4.5: $1 / 1M input tokens
 _PRICING_OUT_PER_M = 5.00  # Haiku 4.5: $5 / 1M output tokens
 
@@ -335,11 +351,13 @@ def _soft_fallback(
     the thumbnail is just the legacy first-frame heuristic.
     """
     if not footage_clips:
-        raise RuntimeError("no footage clips available for thumbnail fallback")
+        raise ThumbnailUnavailable(
+            "no footage clips available for thumbnail fallback"
+        )
     fallback_clip = footage_clips[0]
     fallback_frame = candidate_dir / "fallback_first_frame.png"
     if not _extract_frame(ffmpeg_bin, fallback_clip, 0.0, fallback_frame):
-        raise RuntimeError(
+        raise ThumbnailUnavailable(
             f"fallback frame extraction failed for {fallback_clip.name}"
         )
     return fallback_frame, {
@@ -406,7 +424,9 @@ def pick_best_thumbnail(
     candidate_dir.mkdir(parents=True, exist_ok=True)
 
     if not footage_clips:
-        raise RuntimeError("pick_best_thumbnail called with empty footage_clips")
+        raise ThumbnailUnavailable(
+            "pick_best_thumbnail called with empty footage_clips"
+        )
 
     # 1. Plan + extract candidate frames
     plans = _plan_candidates(footage_clips, ffmpeg_bin)
