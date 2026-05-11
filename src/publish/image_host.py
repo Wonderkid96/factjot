@@ -73,10 +73,14 @@ class ImgbbHost:
         path = Path(local_path)
         if not path.exists():
             raise FileNotFoundError(path)
-        # Salt the PNG with an invisible per-upload nonce so imgbb's
-        # content-hash dedupe doesn't hand back a stale URL on retry.
-        # See module docstring.
-        payload = base64.b64encode(self._salted_png_bytes(path)).decode("ascii")
+        # Route by source format. PNG inputs are re-encoded with a salt
+        # chunk so imgbb's content-hash dedupe issues a fresh URL on
+        # retry. JPEG inputs upload raw - re-encoding through PIL would
+        # discard format and re-emit as PNG (the bug that caused reel
+        # covers to be silently rejected by IG, 2026-05-11). For reel
+        # thumbnails the salt is unnecessary anyway: each reel produces
+        # a unique frame + overlay, so imgbb dedupe is a non-issue.
+        payload = base64.b64encode(self._bytes_for_upload(path)).decode("ascii")
         params = {"key": self.api_key}
         if self.expiration_seconds:
             params["expiration"] = str(self.expiration_seconds)
@@ -101,17 +105,27 @@ class ImgbbHost:
         return out
 
     @staticmethod
-    def _salted_png_bytes(path: Path) -> bytes:
-        """Return PNG bytes with an invisible per-upload nonce embedded.
+    def _bytes_for_upload(path: Path) -> bytes:
+        """Return image bytes for the imgbb upload, format-preserving.
 
-        Adds a `tEXt` chunk under key `factjot-salt`. PNG decoders ignore
-        unrecognised text chunks, so visually-identical pixels still render
-        but the content hash differs from any prior upload. imgbb's dedupe
-        sees a new file and issues a new URL.
+        PNG inputs are re-encoded with a `tEXt` salt chunk so imgbb's
+        content-hash dedupe doesn't hand back a stale URL on retry
+        (carousel use case: cover slides can be byte-identical across
+        re-renders).
 
-        Falls back to raw bytes if Pillow can't open the file (unlikely
-        for a screenshot we just rendered, but safer than silently breaking).
+        JPEG inputs upload raw. Re-encoding a JPEG via PIL.save("PNG")
+        was the 2026-05-11 reel-cover bug: imgbb received PNG bytes,
+        returned a `.png` URL, and IG Reels silently rejected the
+        cover (Reels covers accept JPEG only). For reels the salt is
+        moot anyway - each frame + overlay differs between runs.
+
+        Unknown formats pass through raw.
         """
+        suffix = path.suffix.lower()
+        if suffix in (".jpg", ".jpeg"):
+            return path.read_bytes()
+        if suffix != ".png":
+            return path.read_bytes()
         try:
             img = Image.open(path)
             img.load()
@@ -130,6 +144,10 @@ class ImgbbHost:
         except Exception as exc:
             log.warning("PNG salt failed for %s (%s); uploading raw bytes", path, exc)
             return path.read_bytes()
+
+    # Back-compat alias: any external caller still reaching for the old
+    # name gets the same behaviour. Remove after one cycle.
+    _salted_png_bytes = _bytes_for_upload
 
 
 class CloudinaryHost:
