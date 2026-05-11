@@ -1,5 +1,7 @@
 # factjot brain log
 
+- 2026-05-11 12:48 TTS FALLBACK to edge-tts: ElevenLabs failed (RuntimeError: ElevenLabs API error 401: quota_exceeded) - falling back to edge-tts
+- 2026-05-11 12:47 TTS FALLBACK to edge-tts: ElevenLabs failed (RuntimeError: ElevenLabs API error 401: quota_exceeded) - falling back to edge-tts
 - 2026-05-11 09:07 reel BLOCKED - fact verification (consistency): Title 'The Chess Machine That Wasn't' combined with the framing suggests the pos - claim=In 1770, an inventor named Wolfgang von Kempelen unveiled a
 - 2026-05-11 09:07 token refreshed: new expiry ~59 days
 - 2026-05-11 07:59 WORKFLOW FAILED: .github/workflows/autonomous-reel.yml | run=25657695121 | trigger=workflow_dispatch | ref=main
