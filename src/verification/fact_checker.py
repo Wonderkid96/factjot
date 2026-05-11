@@ -11,17 +11,28 @@ from src.core.models import FactCandidate, SourceEvidence, VerifiedFact
 HIGH_TRUST_DOMAINS = {"nasa.gov", "who.int", "nature.com", "science.org", "britannica.com"}
 
 
-# Words that indicate the brief is fictional or framed as a stunt/experiment.
-# A real production carousel triggered this rule: "Five fictional films ranked
-# by pipeline absurdity" sailed through with the brief still containing
-# "fictional" because no code-level gate looked at it.
+# Words that indicate the POST itself is fictional - i.e. signal that
+# the content was made up rather than describing a real event.
+#
+# Calibrated narrow on 2026-05-11 after a false-positive rejection of
+# the Mechanical Turk story (a real 1770 hoax). The previous list also
+# included "experiment", "invented", "fabricated" - all of which catch
+# legitimate fact stories about real experiments, inventions, or
+# document forgeries. Examples that the previous list would have
+# wrongly blocked:
+#   - "B.F. Skinner's pigeon-guided missile experiment" (real)
+#   - "The CIA's Acoustic Kitty experiment" (real)
+#   - "The Wright brothers invented powered flight" (real)
+#   - "She fabricated the documents to escape Auschwitz" (real)
+#
+# The remaining three words are unambiguous: a fact post that uses
+# "fictional", "imaginary", or describes itself as an "absurdity"
+# (the original incident: "Five fictional films ranked by absurdity")
+# really is signalling its own fabrication, not describing a real event.
 _RED_FLAG_WORDS = (
     "fictional",
-    "absurdity",
-    "experiment",
-    "fabricated",
     "imaginary",
-    "invented",
+    "absurdity",
 )
 
 # Wikipedia REST summary endpoint. Free, no API key, ~5kb per response.
@@ -115,19 +126,43 @@ def _consistency_prompt(title: str, claim: str, caption_body: str, format_type: 
     """
     flagged_words = ", ".join(f'"{w}"' for w in _RED_FLAG_WORDS)
     return (
-        "You are a fact-consistency checker for an Instagram fact account. "
-        "Given a post's TITLE, CLAIM, optional CAPTION, and FORMAT, decide:\n"
-        "1. Do the title and claim contradict each other? (e.g. title says "
-        "'Britain rationed bread during WW2' but claim opens 'Britain never "
-        "rationed bread during WW2'). If yes, NOT consistent.\n"
-        "2. Does the title, claim, or caption contain any of these red-flag "
-        f"words: {flagged_words}? These indicate the post is fictional or "
-        "framed as a stunt and should not ship as a real fact. If yes, "
-        "NOT consistent.\n"
-        "3. Are the title and claim about the same subject? If they describe "
-        "different things entirely, NOT consistent.\n\n"
-        "Return ONLY a single JSON object on one line, no fenced block, no "
-        "commentary, exactly this shape:\n"
+        "You are a fact-consistency checker for an Instagram fact account "
+        "(@factjot). The account ships stories about real, documented "
+        "events - often weird-but-true: historical hoaxes, failed "
+        "government experiments, accidents, oddities, forgotten projects.\n\n"
+        "CRITICAL CONTEXT - these subjects ARE valid fact content:\n"
+        "- Real historical hoaxes (e.g. the Mechanical Turk chess "
+        "automaton, the Cottingley Fairies photographs).\n"
+        "- Failed or absurd government / military programs that really "
+        "happened (e.g. CIA Acoustic Kitty, Project Pigeon, the Emu War, "
+        "the 1958 plan to nuke the Moon).\n"
+        "- Counter-intuitive historical facts (e.g. Britain rationed "
+        "bread AFTER WW2, not during).\n"
+        "- Mass-hysteria events, weird accidents, scientific mistakes.\n"
+        "Do NOT reject any of these just because the framing sounds "
+        "surprising, ironic, or 'too weird to be true'. The point of the "
+        "account is that they ARE true. The title is a hook; it is "
+        "allowed to be playful, ironic, or to withhold the punchline.\n\n"
+        "Given a post's TITLE, CLAIM, optional CAPTION, and FORMAT, "
+        "decide consistency on these three checks ONLY:\n"
+        "1. FACTUAL CONTRADICTION between title and claim. The title "
+        "asserts X but the claim asserts not-X. Example contradiction: "
+        "title 'Britain rationed bread during WW2' / claim 'Britain "
+        "never rationed bread during WW2'. NOT a contradiction: title "
+        "'The Chess Machine That Wasn't' / claim describing the "
+        "Mechanical Turk hoax (the title is a hook for the real story).\n"
+        "2. EXPLICIT RED-FLAG WORD in title, claim, or caption. Trigger "
+        f"ONLY on the exact words: {flagged_words}. Do not extend this "
+        "rule to your own interpretation of 'sounds like fiction' or "
+        "'framed as deception'. If those exact words are not present, "
+        "this check passes.\n"
+        "3. SUBJECT MISMATCH. Title is about one subject, claim is "
+        "about a completely different subject. NOT a mismatch if both "
+        "are about the same event from different angles.\n\n"
+        "All three checks must pass for consistent=true. Be strict on "
+        "actual contradictions; be permissive on tone and framing.\n\n"
+        "Return ONLY a single JSON object on one line, no fenced block, "
+        "no commentary, exactly this shape:\n"
         '{"consistent": true|false, "reason": "<short specific reason or '
         "'consistent'>\"}\n\n"
         f"TITLE: {title}\n"
