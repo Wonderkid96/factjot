@@ -1,20 +1,16 @@
-"""ORPHAN — DO NOT IMPORT. Both named callers were deleted Phase G.3.
+"""Shared TMDB resolution logic for curated list carousel packs.
 
-`ship_list_post.py` and `prepare_packs.py` were removed in Phase G.3 (see
-`CLAUDE.md §12`). This module has no live callers and forms a mutual-import
-cluster with `src/render/list_renderer.py` (which is also orphaned). The
-"single source of truth" claim below is stale archaeology — preserved only
-so a future agent reading the file understands what it WAS rather than
-trying to wire it back in. Do not import this module to "fix list rendering"
-— the active list path is `pipelines/carousel/ship_carousel_post.py
---type list` via `pipelines/manual/ship_manual_post.py`.
+Revived 2026-05-11 as part of Phase N (curated film-list system).
+The new caller is pipelines/list/ship_curated_list.py.
 
-(Original docstring follows.)
+Responsibilities:
+- Resolve each pack item's tmdb_id to title, poster, backdrop, cast.
+- Verify expected_title matches TMDB (catches a wrong-id mistake early).
+- Apply OMDb fallback when TMDB metadata is incomplete.
+- Download poster + backdrop assets to a local cache dir.
 
-Shared TMDB resolution logic for list carousel packs.
-
-Used by both ship_list_post.py (post time) and prepare_packs.py (prep time).
-Single source of truth — change here, both scripts benefit.
+All TMDB metadata flows through src.research.tmdb_client.TMDBClient;
+this module is the only thing that orchestrates per-pack resolution.
 """
 from __future__ import annotations
 

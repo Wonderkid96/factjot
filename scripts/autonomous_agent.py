@@ -1357,6 +1357,23 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     dry_run = os.getenv("DRY_RUN", "false").strip().lower() == "true"
+
+    # Phase N (2026-05-11): list_midday bypasses the LLM loop entirely
+    # and ships a curated film/TV pack via pipelines/list/ship_curated_list.
+    # The 8 hand-curated packs in src/content/list_packs.py rotate by
+    # last-used timestamp (backfilled from posted.jsonl history). TMDB
+    # provides posters + backdrops + Rotten Tomatoes scores; the list
+    # renderer matches the visual vibe of the early film carousels
+    # (war_films_definitive, mind_bending_scifi, etc) that shipped
+    # 2026-05-01 to 2026-05-06.
+    if mode == "list_midday":
+        print(f"[autonomous-agent] mode={mode} -> curated list pack", flush=True)
+        cmd = [sys.executable or "python3", "-u",
+               "-m", "pipelines.list.ship_curated_list"]
+        if dry_run:
+            cmd.append("--dry-run")
+        return subprocess.run(cmd, cwd=str(REPO_ROOT)).returncode
+
     print(
         f"[autonomous-agent] mode={mode} dry_run={dry_run} "
         f"model={MODEL} max_turns={MAX_TURNS}",

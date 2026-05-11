@@ -1,30 +1,22 @@
-"""ORPHAN — DO NOT IMPORT. Mutual-import cluster with src.content.pack_resolver.
+"""Renderer for curated list-format carousels (films, TV, books).
 
-This module has no callers outside `src/content/pack_resolver.py`, which is
-itself an orphan (its named callers `ship_list_post.py` and `prepare_packs.py`
-were deleted Phase G.3). The active list-carousel renderer is
-`src/render/render_carousel.py:CarouselRenderer` invoked via
-`pipelines/manual/ship_manual_post.py` with `--layout-mode readable_list`.
+Revived 2026-05-11 as part of Phase N. Caller is
+pipelines/list/ship_curated_list.py via src/content/pack_resolver.py.
 
-Also note: line 136 in this file contains the silent JetBrains Mono fallback
-(`ty.get("label_font_canonical", ty["label_font"])`) flagged in the
-2026-05-10 audit. Because this file is dead code, the fallback is currently
-inert — but if anyone resuscitates this module, the fallback becomes a live
-font-regression vector. Don't.
+Distinct from `src/render/render_carousel.py:CarouselRenderer` because:
+- Image source is TMDB (poster + backdrop), not stock-photo search.
+- Each slide carries multiple text fields (title, year, director, hook,
+  IMDb + Rotten Tomatoes scores).
+- Layout is poster-card + text-column, not full-bleed-text-overlay.
+- Three templates (hook / item / closing) instead of two.
 
-(Original docstring follows.)
+Inputs are pre-built `ListSlideSpec` records — the ship script does the
+TMDB lookups and asset downloads BEFORE calling render(), so this class
+is a pure HTML + Playwright stage.
 
-Renderer for list-format carousels (films, TV, books).
-
-Different from BrandKitRenderer because:
-    - Image source is TMDB (not stock-photo search)
-    - Each slide carries multiple text fields (title, year, director, hook)
-    - Layout is poster-card + text-column, not full-bleed-text-overlay
-    - Three templates (hook / item / closing) instead of two
-
-Inputs are pre-built `ListSlideSpec` records — the ship script does the TMDB
-lookups and asset downloads BEFORE calling render(), so this class is a
-pure HTML+Playwright stage.
+Font handling: `label_font_canonical` is REQUIRED in the brand kit (post
+Phase H, v2.1). If the legacy `label_font` is the only key present the
+renderer hard-fails rather than silently shipping JetBrains Mono Bold.
 """
 from __future__ import annotations
 
@@ -146,10 +138,17 @@ class ListCarouselRenderer:
     def _build_html(self, spec: ListSlideSpec, category: str) -> str:
         ty = self.brand["typography"]
         index_label = f"{spec.number:02d} / {spec.total:02d}"
-        # v2.1: templates use Space Grotesk Bold via font_sans_bold; the
-        # legacy font_mono_bold is wired through for any caller still using
-        # the old @font-face name (none in active templates).
-        label_canonical = ty.get("label_font_canonical", ty["label_font"])
+        # v2.1: templates use Space Grotesk Bold via font_sans_bold.
+        # `label_font_canonical` is required - never silently fall back
+        # to the legacy `label_font` (JetBrains Mono), since that's the
+        # silent regression vector the 2026-05-10 audit flagged.
+        if "label_font_canonical" not in ty:
+            raise KeyError(
+                "brand_kit.typography.label_font_canonical missing - "
+                "required since v2.1; do not silently fall back to "
+                "the legacy label_font (JetBrains Mono Bold)"
+            )
+        label_canonical = ty["label_font_canonical"]
         common = dict(
             width=self.width, height=self.height,
             font_serif_regular=self._asset_url(ty["headline_font"]),
