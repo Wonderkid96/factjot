@@ -85,6 +85,53 @@ def _append_outro(script: str) -> str:
 
 
 # ------------------------------------------------------------------ #
+# TTS voice resolution
+# ------------------------------------------------------------------ #
+# Single source of truth for "which voice will this reel use?". The
+# autonomous workflow writes ELEVENLABS_VOICE from a GitHub Secret;
+# this helper makes that the binding decision when TTS_BACKEND is
+# elevenlabs (the default). The `--voice` CLI flag is only used by
+# local CLI runs that opt into edge-tts via TTS_BACKEND=edge.
+#
+# Surfacing this as a pure function so a regression test can assert
+# that the env override path is wired and that the hardcoded George
+# default in `src/render/tts_engine.py:55` is NEVER reached from the
+# autonomous path. That regression was the root cause of the 2026-05-11
+# voice confusion (where Claude inferred the production voice from a
+# stale local .env that did not match the GitHub Secret).
+
+class _TtsConfigError(RuntimeError):
+    """Raised when the TTS backend requires env config that is missing."""
+
+
+def _resolve_tts_voice(cli_voice: str) -> tuple[str, str]:
+    """Resolve the TTS voice + backend at runtime.
+
+    Returns (resolved_voice, backend). When TTS_BACKEND=elevenlabs
+    (the default), ELEVENLABS_VOICE env overrides `cli_voice` and is
+    the authoritative value. When TTS_BACKEND=edge, `cli_voice` is
+    returned as-is.
+
+    Raises _TtsConfigError when TTS_BACKEND=elevenlabs but
+    ELEVENLABS_API_KEY or ELEVENLABS_VOICE is missing or blank.
+    """
+    backend = os.getenv("TTS_BACKEND", "elevenlabs")
+    if backend == "elevenlabs":
+        el_key = os.getenv("ELEVENLABS_API_KEY", "").strip()
+        el_voice = os.getenv("ELEVENLABS_VOICE", "").strip()
+        if not el_key:
+            raise _TtsConfigError(
+                "ELEVENLABS_API_KEY missing while TTS_BACKEND=elevenlabs"
+            )
+        if not el_voice:
+            raise _TtsConfigError(
+                "ELEVENLABS_VOICE missing while TTS_BACKEND=elevenlabs"
+            )
+        return el_voice, backend
+    return cli_voice, backend
+
+
+# ------------------------------------------------------------------ #
 # Video upload — tmpfiles.org (free, no signup, URL lives long enough
 # for Meta to fetch it, which is all we need)
 # ------------------------------------------------------------------ #
@@ -480,20 +527,13 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             return 11
 
         print(f"Synthesising voice-over (voice={voice})...")
-        tts_backend = os.getenv("TTS_BACKEND", "elevenlabs")
-        el_key = os.getenv("ELEVENLABS_API_KEY", "").strip()
-        el_voice = os.getenv("ELEVENLABS_VOICE", "").strip()
+        try:
+            tts_voice, tts_backend = _resolve_tts_voice(cli_voice=voice)
+        except _TtsConfigError as exc:
+            print(f"ERROR: {exc}")
+            return 4
         if tts_backend == "elevenlabs":
-            if not el_key:
-                print("ERROR: ELEVENLABS_API_KEY missing while TTS_BACKEND=elevenlabs")
-                return 4
-            if not el_voice:
-                print("ERROR: ELEVENLABS_VOICE missing while TTS_BACKEND=elevenlabs")
-                return 4
-            tts_voice = el_voice
             print(f"  [tts] enforcing ElevenLabs voice from env: {tts_voice}")
-        else:
-            tts_voice = voice
         mp3_path, word_beats = synthesise(vo_script, out_dir, voice=tts_voice, backend=tts_backend, tone=fact.get("tone", "curious"))
         if not word_beats:
             print("ERROR: TTS returned no word timing. Check edge-tts is installed.")
@@ -1141,6 +1181,11 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             reel_title=fact.get("reel_title", ""),
             word_count=len(vo_script.split()),
             caption=caption,
+            # Telemetry: True when both thumbnail upload attempts failed
+            # and the reel shipped letting IG auto-pick a frame. Lets us
+            # query "how many reels lost their custom thumbnail" without
+            # re-parsing the workflow log (which masks/expires).
+            cover_missing=(cover_url is None),
         )
         return 0
 
@@ -1168,6 +1213,7 @@ def _record(
     reel_title: str = "",
     word_count: int = 0,
     caption: str = "",
+    cover_missing: bool = False,
 ) -> None:
     """Persist the Reel to the ledger and brain log.
 
@@ -1201,6 +1247,10 @@ def _record(
         "story_png":     str(story_png) if story_png else None,
         "caption":       caption,
     }
+    # Only write the flag when it actually fired - keeps the common
+    # success-case ledger rows compact.
+    if cover_missing:
+        reel_record["cover_missing"] = True
     from src.core.paths import REELS_LEDGER
     ledger = REELS_LEDGER
     ledger.parent.mkdir(parents=True, exist_ok=True)

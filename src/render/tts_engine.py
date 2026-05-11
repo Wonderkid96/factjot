@@ -641,13 +641,20 @@ def _synthesise_elevenlabs(
     return mp3_path, beats
 
 
-# Known voice name → ElevenLabs voice_id shortcuts
+# Known voice name → ElevenLabs voice_id shortcuts. The autonomous
+# production path does NOT use these - it reads ELEVENLABS_VOICE
+# straight from env (see pipelines/reel/make_reel.py::_resolve_tts_voice).
+# These are convenience aliases for local CLI runs and documentation.
 _EL_VOICES: dict[str, str] = {
     "george":  "JBFqnCBsd6RMkjVDRZzb",  # British male, warm, authoritative
     "daniel":  "onwK4e9ZLuTAKqWW03F9",  # British male, calm, precise
     "brian":   "nPczCjzI2devNBz1zQrb",  # British male, conversational
     "charlie": "IKne3meq5aSn9XLyUdCD",  # British male, natural
     "adam":    "pNInz6obpgDQGcFmaJgB",  # American male, deep
+    # factjot brand voice. Locked 2026-05-11 after live A/B. The
+    # production GitHub Secret ELEVENLABS_VOICE points here; this
+    # alias is for local CLI use and to self-document the choice.
+    "factjot": "MFZUKuGQUsGJPQjTS4wC",  # American, brand voice
 }
 
 
