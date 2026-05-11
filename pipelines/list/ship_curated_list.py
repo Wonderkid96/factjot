@@ -32,6 +32,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from dotenv import load_dotenv                                        # noqa: E402
+
+load_dotenv(ROOT / ".env")
+
 from src.brain import brain, DuplicatePostError                       # noqa: E402
 from src.content.dynamic_pack_generator import (                      # noqa: E402
     DynamicPackError, generate_dynamic_pack,
