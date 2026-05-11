@@ -33,6 +33,9 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from src.brain import brain, DuplicatePostError                       # noqa: E402
+from src.content.dynamic_pack_generator import (                      # noqa: E402
+    DynamicPackError, generate_dynamic_pack,
+)
 from src.content.list_packs import LIST_PACKS                         # noqa: E402
 from src.content.pack_resolver import (                               # noqa: E402
     resolve_pack, slug_post_id, list_dedupe_claim,
@@ -106,25 +109,87 @@ def _load_used_slugs() -> dict[str, str]:
     return used
 
 
-def _record_used(slug: str) -> None:
+def _record_used(slug: str, *, title: str = "", subtitle: str = "",
+                 fingerprint: str = "", dynamic: bool = False) -> None:
     """Append a row to the used-themes ledger. Append-only invariant
-    (per SPEC §11.2)."""
+    (per SPEC §11.2). Captures title + fingerprint so the dynamic
+    generator can avoid near-duplicate themes on later runs.
+    """
     USED_LIST_THEMES.parent.mkdir(parents=True, exist_ok=True)
-    row = {
+    row: dict = {
         "slug": slug,
         "posted_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
+    if title:
+        row["title"] = title
+    if subtitle:
+        row["subtitle"] = subtitle
+    if fingerprint:
+        row["fingerprint"] = fingerprint
+    if dynamic:
+        row["dynamic"] = True
     with USED_LIST_THEMES.open("a", encoding="utf-8") as f:
         f.write(json.dumps(row) + "\n")
 
 
-def _pick_pack(force_slug: str | None = None) -> tuple[str, dict]:
-    """Return (slug, pack) for the next pack to ship.
+def _recent_theme_descriptors(limit: int = 20) -> list[str]:
+    """Return the last `limit` shipped themes as short descriptors so
+    the dynamic generator can avoid re-proposing them. Reads BOTH
+    used_list_themes.jsonl (preferred, has title) and posted.jsonl
+    (fallback, only has slug).
+    """
+    rows: list[tuple[str, str]] = []  # (posted_at, descriptor)
+    if USED_LIST_THEMES.exists():
+        for line in USED_LIST_THEMES.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            ts = row.get("posted_at") or ""
+            title = row.get("title") or ""
+            subtitle = row.get("subtitle") or ""
+            slug = row.get("slug") or ""
+            descriptor = (
+                f"{title} ({subtitle})".strip(" ()")
+                if title else slug
+            )
+            if descriptor:
+                rows.append((ts, descriptor))
+    # Backfill from posted.jsonl for any pre-Phase-O history.
+    from src.core.paths import POSTED
+    if POSTED.exists():
+        seen_slugs = {d for _, d in rows}
+        for line in POSTED.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            claim = row.get("claim", "")
+            if not isinstance(claim, str) or not claim.startswith("list:"):
+                continue
+            slug = claim[len("list:"):]
+            if slug in seen_slugs:
+                continue
+            ts = row.get("published_at") or ""
+            # Pretty-print known curated slugs from LIST_PACKS title; for
+            # dynamic slugs (dyn_*) fall back to the raw slug.
+            pack = LIST_PACKS.get(slug)
+            descriptor = pack["title"] if pack else slug
+            rows.append((ts, descriptor))
+    rows.sort(key=lambda r: r[0])
+    return [d for _, d in rows[-limit:]]
 
-    Order of preference:
-    1. The explicitly forced slug if provided and valid.
-    2. The least-recently-used pack from LIST_PACKS that has never shipped.
-    3. The least-recently-used pack overall (recycle when all have shipped).
+
+def _pick_curated_pack(force_slug: str | None = None) -> tuple[str, dict]:
+    """Pick a hand-curated pack from LIST_PACKS using least-recently-used
+    rotation. Used as a backup when dynamic generation is unavailable
+    or has been turned off via --curated.
     """
     if force_slug:
         if force_slug not in LIST_PACKS:
@@ -136,10 +201,17 @@ def _pick_pack(force_slug: str | None = None) -> tuple[str, dict]:
 
     used = _load_used_slugs()
     candidates = list(LIST_PACKS.keys())
-    # Never-used first, then oldest-used.
     candidates.sort(key=lambda slug: used.get(slug, ""))
     chosen = candidates[0]
     return chosen, LIST_PACKS[chosen]
+
+
+def _pick_dynamic_pack() -> tuple[str, dict]:
+    """Generate a fresh pack via Sonnet. Returns (slug, pack)."""
+    recent = _recent_theme_descriptors(limit=20)
+    _log(f"\nGenerating dynamic list (avoiding {len(recent)} recent themes)...")
+    pack = generate_dynamic_pack(recent_themes=recent)
+    return pack["slug"], pack
 
 
 # ------------------------------------------------------------------ #
@@ -265,9 +337,16 @@ def ship(pack_slug: str, pack: dict, *, dry_run: bool) -> int:
             "sources":  sources,
         }],
     )
-    _record_used(pack_slug)
+    _record_used(
+        pack_slug,
+        title=pack.get("title", ""),
+        subtitle=pack.get("subtitle", ""),
+        fingerprint=pack.get("_theme_fingerprint", ""),
+        dynamic=bool(pack.get("_dynamic", False)),
+    )
+    kind_tag = "dynamic" if pack.get("_dynamic") else "curated"
     brain.append_log(
-        f"curated list {pack_slug!r} published ({pack.get('category')}, "
+        f"{kind_tag} list {pack_slug!r} published ({pack.get('category')}, "
         f"ig_media={ig_media_id})"
     )
 
@@ -281,11 +360,13 @@ def ship(pack_slug: str, pack: dict, *, dry_run: bool) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Ship a curated film/TV list carousel")
     parser.add_argument("--pack", default=None,
-                        help="Pack slug (omit for auto-rotation)")
+                        help="Force a specific curated pack slug (implies --curated)")
+    parser.add_argument("--curated", action="store_true",
+                        help="Use the hand-curated rotation instead of dynamic generation")
     parser.add_argument("--dry-run", action="store_true",
                         help="Render locally, skip upload + publish")
     parser.add_argument("--list", action="store_true",
-                        help="List available packs and exit")
+                        help="List curated packs and exit")
     args = parser.parse_args()
 
     if args.list:
@@ -297,8 +378,22 @@ def main() -> int:
             _log(f"  {slug:35s} [{cat:15s}] {n} items  last_used={last}")
         return 0
 
-    slug, pack = _pick_pack(force_slug=args.pack)
-    _log(f"Picked pack: {slug}")
+    # Default path: generate dynamically. Falls back to curated rotation
+    # if generation fails for any reason (model error, TMDB outage,
+    # not enough items resolved, missing API key, etc).
+    use_curated = args.curated or bool(args.pack)
+    if not use_curated:
+        try:
+            slug, pack = _pick_dynamic_pack()
+            _log(f"Picked dynamic pack: {slug} ({pack.get('title')!r})")
+        except DynamicPackError as exc:
+            _log(f"  [dynamic-pack] failed ({exc}); falling back to curated rotation")
+            use_curated = True
+
+    if use_curated:
+        slug, pack = _pick_curated_pack(force_slug=args.pack)
+        _log(f"Picked curated pack: {slug}")
+
     return ship(slug, pack, dry_run=args.dry_run)
 
 

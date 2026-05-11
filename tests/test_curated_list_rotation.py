@@ -84,11 +84,11 @@ def test_both_sources_merge_keeping_latest(monkeypatch, tmp_path):
     assert used["horror_films"] == "2026-05-09T00:00:00Z"
 
 
-# ----- _pick_pack rotation ------------------------------------------
+# ----- _pick_curated_pack rotation ------------------------------------------
 
 def test_pick_pack_force_returns_named(monkeypatch):
     monkeypatch.setattr(ship, "_load_used_slugs", lambda: {})
-    slug, pack = ship._pick_pack(force_slug="horror_films")
+    slug, pack = ship._pick_curated_pack(force_slug="horror_films")
     assert slug == "horror_films"
     assert pack is LIST_PACKS["horror_films"]
 
@@ -96,7 +96,7 @@ def test_pick_pack_force_returns_named(monkeypatch):
 def test_pick_pack_force_unknown_exits(monkeypatch):
     monkeypatch.setattr(ship, "_load_used_slugs", lambda: {})
     with pytest.raises(SystemExit):
-        ship._pick_pack(force_slug="not_a_real_pack")
+        ship._pick_curated_pack(force_slug="not_a_real_pack")
 
 
 def test_pick_pack_prefers_never_used(monkeypatch):
@@ -107,7 +107,7 @@ def test_pick_pack_prefers_never_used(monkeypatch):
         "series_worth_your_weekend": "2026-05-01T06:53:43Z",
     }
     monkeypatch.setattr(ship, "_load_used_slugs", lambda: used)
-    slug, _ = ship._pick_pack()
+    slug, _ = ship._pick_curated_pack()
     # Picked slug must be one of the never-used packs.
     never_used = [s for s in LIST_PACKS.keys() if s not in used]
     assert slug in never_used
@@ -120,7 +120,7 @@ def test_pick_pack_recycles_oldest_when_all_used(monkeypatch):
     oldest_slug = "horror_films"
     used[oldest_slug] = "2026-01-01T00:00:00Z"
     monkeypatch.setattr(ship, "_load_used_slugs", lambda: used)
-    slug, _ = ship._pick_pack()
+    slug, _ = ship._pick_curated_pack()
     assert slug == oldest_slug
 
 
