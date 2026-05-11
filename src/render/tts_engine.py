@@ -40,6 +40,18 @@ except ImportError:
 
 VOICE = "en-GB-RyanNeural"  # edge-tts default
 
+# Edge-tts voice names follow the Microsoft locale-prefixed pattern:
+# `<lang>-<region>-<NameNeural>` (e.g. en-GB-RyanNeural, en-US-AndrewNeural).
+# Used to distinguish edge voice names from ElevenLabs voice_ids when
+# the ElevenLabs path falls back. ElevenLabs IDs are 20-char alphanumeric
+# strings (e.g. MFZUKuGQUsGJPQjTS4wC) which do not match this shape.
+_EDGE_VOICE_RE = re.compile(r"^[a-z]{2,3}-[A-Z]{2}-[A-Za-z]+Neural$")
+
+
+def _looks_like_edge_voice(voice: str) -> bool:
+    """True when the string looks like an edge-tts voice name."""
+    return bool(_EDGE_VOICE_RE.match((voice or "").strip()))
+
 
 def _alert_tts_fallback(reason: str) -> None:
     """Surface ElevenLabs failures into the brain log so silent fallback
@@ -250,7 +262,9 @@ def synthesise(
 
     resolved = (backend or os.getenv("TTS_BACKEND", "elevenlabs")).lower()
 
+    elevenlabs_attempted = False
     if resolved == "elevenlabs":
+        elevenlabs_attempted = True
         api_key = os.getenv("ELEVENLABS_API_KEY", "").strip()
         if not api_key:
             msg = "ELEVENLABS_API_KEY not set - falling back to edge-tts"
@@ -272,7 +286,24 @@ def synthesise(
 
     mp3_path = out_dir / "voice.mp3"
 
-    beats = asyncio.run(_synthesise_async(text, mp3_path, voice, rate, volume))
+    # When falling back from ElevenLabs, `voice` is an ElevenLabs
+    # voice_id (or one of the _EL_VOICES name shortcuts). edge-tts
+    # expects a Microsoft Edge voice name like en-GB-RyanNeural and
+    # ValueErrors on anything else. Swap to a known-good edge voice
+    # so the fallback can actually render audio rather than crashing
+    # the reel. (Live regression 2026-05-11: ElevenLabs quota
+    # exhausted mid-run, fallback fired, then crashed in edge-tts
+    # with `ValueError: Invalid voice 'MFZUKuGQUsGJPQjTS4wC'`.)
+    edge_voice = voice
+    if elevenlabs_attempted or not _looks_like_edge_voice(voice):
+        edge_voice = VOICE  # en-GB-RyanNeural default
+        print(
+            f"  [tts] edge-tts fallback using voice={edge_voice} "
+            f"(orig caller voice={voice!r} is not edge-compatible)",
+            flush=True,
+        )
+
+    beats = asyncio.run(_synthesise_async(text, mp3_path, edge_voice, rate, volume))
     print(f"  [tts] {len(beats)} words, audio={mp3_path.name}, duration~{beats[-1].end_s:.1f}s" if beats else "  [tts] no beats returned")
     return mp3_path, beats
 
