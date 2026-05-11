@@ -938,14 +938,12 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         # Step 8: Generate thumbnail (Haiku-picked frame + brand overlay) and story
         # E.4 (2026-05-10): the previous footage_clips[0] heuristic is replaced
         # with thumbnail_picker.pick_best_thumbnail (3 candidate frames, scored
-        # by Haiku 4.5 vision). The chosen frame gets the brand overlay
-        # (PAPER lower-third scrim + Archivo Black headline + Space Grotesk
-        # kicker + factjot wordmark). The same overlay-bearing PNG is used
-        # for both the IG cover and the YouTube custom thumbnail per Q6.
-        from src.render.reel_thumbnail import render_thumbnail_overlay
+        # by Haiku 4.5 vision). The chosen frame is then rendered via the
+        # story template (full-bleed frame + centred Archivo Black headline
+        # + red "New Reel" pill). The same story-style asset feeds the IG
+        # Reel cover, the YouTube Short cover, and the IG Stories crosspost.
         from src.render.reel_story import render_story
         from src.content.reel_caption import build_reel_caption
-        from src.content.thumbnail_headline import build_thumbnail_headline
         from src.render.thumbnail_picker import pick_best_thumbnail
 
         story_title = make_title(claim, ftopic, reel_title=fact.get("reel_title"))
@@ -1005,30 +1003,24 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             f"haiku_cost=${picker_meta.get('total_cost_usd', 0.0):.5f}"
         )
 
-        # Build the overlay headline (4-6 word version of the title).
-        overlay_headline = build_thumbnail_headline(
-            story_title or claim.split(".")[0],
-            api_key=anth_key,
-        )
-        overlay_kicker = ftopic.upper() if ftopic else ""
-        print(
-            f"  [overlay] headline={overlay_headline!r} kicker={overlay_kicker!r}"
-        )
-
-        print("Compositing thumbnail (chosen frame + brand overlay)...")
-        render_thumbnail_overlay(
-            frame_path=chosen_frame,
-            headline=overlay_headline,
-            kicker=overlay_kicker,
+        # Cover + story share the story-style layout: full-bleed frame,
+        # centred Archivo Black headline (full reel title), red "New Reel"
+        # pill. The IG Reel cover, the YouTube Short cover, and the IG
+        # Stories crosspost are all rendered from reel_story.html.j2 so
+        # the three surfaces stay visually consistent.
+        print("Rendering thumbnail (story-style cover)...")
+        render_story(
+            title=story_title or claim.split(".")[0],
+            topic=ftopic,
             out_path=thumbnail_png,
+            frame_path=frame_jpg,
         )
 
         # IG Reels cover_url accepts JPEG only and is hard-capped under
-        # ~0.5MB; the rendered overlay PNG is ~3.3MB. YouTube's 2MB cap is
-        # looser. Emit one IG-compliant JPEG here so both surfaces consume
-        # the same artefact (Phase E.4 "one asset, two surfaces" finally
-        # honoured on the IG side too). YouTube prefers thumbnail.jpg when
-        # present and falls back to PNG-conversion only for older runs.
+        # ~0.5MB. YouTube's 2MB cap is looser. Emit one IG-compliant JPEG
+        # so both surfaces consume the same artefact. YouTube prefers
+        # thumbnail.jpg when present and falls back to PNG-conversion only
+        # for older runs.
         _shrink_thumbnail_to_ig_jpeg(thumbnail_png, thumbnail_jpg)
 
         print("Rendering story asset...")
