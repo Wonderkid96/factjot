@@ -1,5 +1,8 @@
 # factjot brain log
 
+- 2026-05-11 07:59 WORKFLOW FAILED: .github/workflows/autonomous-reel.yml | run=25657695121 | trigger=workflow_dispatch | ref=main
+- 2026-05-11 07:59 TTS FALLBACK to edge-tts: ElevenLabs failed (RuntimeError: ElevenLabs API error 401: {"detail":{"status":"quota_exceeded","message":"This request exceeds your API key (Ferocious Saltwater Crocodile) quota of 30000. You have 108 credits remaining, while 176 credits are required for this request."}}) - falling back to edge-tts
+- 2026-05-11 07:58 token refreshed: new expiry ~59 days
 - 2026-05-11 00:29 reel 9029ba51dbafe9 published (history, ig_media=18129629080599454)
 - 2026-05-11 00:22 token refreshed: new expiry ~59 days
 - 2026-05-11 00:02 reel 021e4dc8763fde published (history, ig_media=17962527138114649)
