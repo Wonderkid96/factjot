@@ -74,8 +74,9 @@ experiments/*/output/
 .make_reel.lock
 
 # ── Brand reference docs (kept locally, never committed) ──────────
-brand/style-guide-v2.pdf
-brand/style-guide-*.pdf
+# No leading slash = matches at any depth, so root-level
+# `style-guide-v2.pdf` is also covered.
+style-guide-*.pdf
 
 # ── Loose log / temp files ─────────────────────────────────────────
 *.log
