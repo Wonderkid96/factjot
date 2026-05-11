@@ -1,5 +1,7 @@
 # factjot brain log
 
+- 2026-05-11 13:53 WORKFLOW FAILED: .github/workflows/autonomous-reel.yml | run=25674408715 | trigger=schedule | ref=main
+- 2026-05-11 13:52 token refreshed: new expiry ~59 days
 - 2026-05-11 09:07 reel BLOCKED - fact verification (consistency): Title 'The Chess Machine That Wasn't' combined with the framing suggests the pos - claim=In 1770, an inventor named Wolfgang von Kempelen unveiled a
 - 2026-05-11 09:07 token refreshed: new expiry ~59 days
 - 2026-05-11 07:59 WORKFLOW FAILED: .github/workflows/autonomous-reel.yml | run=25657695121 | trigger=workflow_dispatch | ref=main
