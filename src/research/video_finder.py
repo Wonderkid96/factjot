@@ -520,9 +520,10 @@ def find_videos(
     # E.3: Haiku image validator rejects wrong-subject Wikimedia hits before
     # they enter the reel. Soft-fails when ANTHROPIC_API_KEY is missing or the
     # model errors so the existing fallback chain stays unbroken.
-    from src.research.entity_image_validator import validate_entity_image
+    from src.research.entity_image_validator import validate_entity_image, validate_entity_images_batch
     _validate_api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
     _validate_cache: dict[str, dict] = {}
+    _wikidata_trusted_paths: set[str] = set()
 
     def _entity_still_passes_validation(path: Path, source_label: str) -> bool:
         """Check an entity-tier still image with Haiku 4.5 vision.
@@ -531,7 +532,13 @@ def find_videos(
         infra error, parse failure). Returns False only when the model
         actively says the image does not match the claim, or when
         confidence is below 0.5.
+
+        Wikidata category hits skip the vision call — the semantic
+        category lookup already anchors them to the correct subject.
         """
+        if str(path) in _wikidata_trusted_paths:
+            print(f"  [entity-validate] TRUSTED (wikidata-category) {path.name}")
+            return True
         if not _validate_api_key:
             return True
         val = validate_entity_image(
@@ -599,7 +606,28 @@ def find_videos(
             used_source_urls=used_source_urls,
             used_paths=used_paths,
             max_clips=count - len(clips),
+            wikidata_trusted_out=_wikidata_trusted_paths,
         )
+
+        # Batch-validate all stills from this entity term in one Haiku call
+        # instead of one call per image. Results land in _validate_cache so
+        # the per-image call inside _entity_still_passes_validation is a hit.
+        if _validate_api_key:
+            _batch_stills = [
+                str(ec) for ec in _ec
+                if ec.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}
+                and str(ec) not in _validate_cache
+                and str(ec) not in _wikidata_trusted_paths
+            ]
+            if len(_batch_stills) >= 2:
+                validate_entity_images_batch(
+                    image_paths=_batch_stills,
+                    claim_text=claim,
+                    image_hint=image_hint or "",
+                    api_key=_validate_api_key,
+                    cache=_validate_cache,
+                )
+
         for ec in _ec:
             if len(clips) >= count:
                 break
@@ -901,7 +929,16 @@ def _collect_beat_candidates(
         # - fps/bitrate proxy for motion/complexity
         # - query keyword hints for intensity/face-like content
         quality_delta = _visual_quality_delta(query=query, path=path)
-        score = max(0.0, min(1.0, base_score + quality_delta))
+        is_still = path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}
+        if beat_idx in {1, 2, 3} and not is_still:
+            type_bonus = 0.08
+        elif beat_idx == 4 and not is_still:
+            type_bonus = 0.04
+        elif beat_idx == 0 and is_still:
+            type_bonus = 0.04
+        else:
+            type_bonus = 0.0
+        score = max(0.0, min(1.0, base_score + quality_delta + type_bonus))
         found.append(_Candidate(path=path, score=score, beat_idx=beat_idx))
         used_paths.add(str(path))
         blocked_stems.add(path.stem)
@@ -1609,6 +1646,138 @@ def _wikimedia_entity_files(
     return None
 
 
+def _wikimedia_category_members(
+    category: str,
+    out_dir: Path,
+    *,
+    used_source_urls: set[str] | None = None,
+    cmlimit: int = 20,
+) -> list[Path]:
+    """Fetch and download image/video members of a Wikimedia Commons category.
+
+    Uses the categorymembers API rather than text search — more precise when
+    the category name is known (e.g. resolved via Wikidata P373).
+
+    Args:
+        category:  Category name without the "Category:" prefix.
+        out_dir:   Directory to write downloaded files into.
+        used_source_urls: Shared dedup set; already-used URLs are skipped.
+        cmlimit:   Max category members to query (default 20).
+
+    Returns:
+        List of downloaded Paths (may be empty on failure or no results).
+    """
+    out: list[Path] = []
+    try:
+        cm_r = requests.get(
+            "https://commons.wikimedia.org/w/api.php",
+            params={
+                "action": "query",
+                "list": "categorymembers",
+                "cmtitle": f"Category:{category}",
+                "cmtype": "file",
+                "cmlimit": str(cmlimit),
+                "format": "json",
+            },
+            headers={"User-Agent": "factjot-bot/1.0 (tobyjohnsonemail@gmail.com)"},
+            timeout=_HTTP_TIMEOUT,
+        )
+        cm_r.raise_for_status()
+        members = cm_r.json().get("query", {}).get("categorymembers", [])
+        if not members:
+            return out
+
+        titles_pipe = "|".join(m["title"] for m in members)
+        info_r = requests.get(
+            "https://commons.wikimedia.org/w/api.php",
+            params={
+                "action": "query",
+                "titles": titles_pipe,
+                "prop": "imageinfo",
+                "iiprop": "url|size|mime|extmetadata",
+                "iiextmetadatafilter": "LicenseShortName|License|Restrictions",
+                "format": "json",
+            },
+            headers={"User-Agent": "factjot-bot/1.0 (tobyjohnsonemail@gmail.com)"},
+            timeout=_HTTP_TIMEOUT,
+        )
+        info_r.raise_for_status()
+        pages = info_r.json().get("query", {}).get("pages", {})
+
+        for page in pages.values():
+            info = (page.get("imageinfo") or [{}])[0]
+            url = info.get("url", "")
+            mime = info.get("mime", "")
+            size = info.get("size", 0)
+            title = page.get("title", "")
+
+            if not url or size < _MIN_BYTES_ARK or size > _MAX_BYTES:
+                continue
+            if not _nsfw_safe(title):
+                continue
+            if used_source_urls and url in used_source_urls:
+                continue
+
+            meta = info.get("extmetadata", {})
+            license_short = meta.get("LicenseShortName", {}).get("value", "")
+            license_code  = meta.get("License", {}).get("value", "")
+            restrictions  = meta.get("Restrictions", {}).get("value", "")
+            if restrictions and restrictions.lower() not in ("", "none"):
+                continue
+            if not _is_rights_cleared(license_short, license_code):
+                continue
+
+            is_video = mime.startswith("video/")
+            is_image = mime.startswith("image/")
+            if not is_video and not is_image:
+                continue
+
+            ext = "mp4"
+            lower = url.lower().split("?")[0]
+            if is_image:
+                ext = "jpg" if lower.endswith(".jpg") or lower.endswith(".jpeg") else "png"
+            elif ".webm" in lower:
+                ext = "webm"
+            elif ".ogv" in lower or ".ogg" in lower:
+                ext = "ogv"
+
+            slug = hashlib.sha1(url.encode()).hexdigest()[:10]
+            out_path = out_dir / f"wm_cat_{slug}.{ext}"
+
+            r3 = requests.get(
+                url,
+                headers={"User-Agent": "factjot-bot/1.0 (tobyjohnsonemail@gmail.com)"},
+                stream=True, timeout=60,
+            )
+            r3.raise_for_status()
+            with open(out_path, "wb") as f:
+                for chunk in r3.iter_content(chunk_size=65536):
+                    f.write(chunk)
+
+            size_dl = out_path.stat().st_size if out_path.exists() else 0
+            if size_dl < _MIN_BYTES_ARK:
+                out_path.unlink(missing_ok=True)
+                continue
+
+            if is_video:
+                dur = _probe_duration(out_path)
+                if dur is not None and dur < _MIN_CLIP_DURATION_S:
+                    out_path.unlink(missing_ok=True)
+                    continue
+            elif not _valid_image(out_path):
+                out_path.unlink(missing_ok=True)
+                continue
+
+            print(f"  [wm-category] downloaded {size_dl//1024}KB -> {out_path.name}")
+            if used_source_urls is not None:
+                used_source_urls.add(url)
+            out.append(out_path)
+
+    except Exception as exc:
+        print(f"  [wm-category] error: {exc}")
+    return out
+
+
 def _archive_entity_search(
     entity: str, out_dir: Path, *, used_source_urls: set[str] | None = None
 ) -> Optional[Path]:
@@ -1694,6 +1863,7 @@ def _entity_sources(
     used_source_urls: set[str] | None = None,
     used_paths: set[str] | None = None,
     max_clips: int = 2,
+    wikidata_trusted_out: set[str] | None = None,
 ) -> list[Path]:
     """Try entity-specific sources for a named entity or image_hint term.
 
@@ -1721,6 +1891,24 @@ def _entity_sources(
         if len(clips) >= max_clips:
             break
         print(f"  [entity-sources] trying entity: {entity!r}")
+
+        # 0. Wikidata → Commons category members (most precise: known category)
+        from src.research.wikidata_resolver import resolve_commons_category
+        _cat = resolve_commons_category(entity)
+        if _cat:
+            print(f"  [entity-sources] Wikidata category: {_cat!r}")
+            _cat_clips = _wikimedia_category_members(_cat, out_dir, used_source_urls=used_source_urls)
+            for _cp in _cat_clips:
+                if len(clips) >= max_clips:
+                    break
+                if used_paths is None or str(_cp) not in used_paths:
+                    clips.append(_cp)
+                    if used_paths is not None:
+                        used_paths.add(str(_cp))
+                    if wikidata_trusted_out is not None:
+                        wikidata_trusted_out.add(str(_cp))
+            if len(clips) >= max_clips:
+                break
 
         # 1a. Wikipedia lead image (fastest, most relevant single image)
         path = _wikipedia_lead_image(entity, out_dir, used_source_urls=used_source_urls)

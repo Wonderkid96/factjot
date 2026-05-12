@@ -135,6 +135,25 @@ REJECT_TERMS = (
     "nsfw", "graphic", "gore",
 )
 
+_SHOCK_NUMBER_RE = re.compile(
+    r"\b\d+\s+(?:people|men|women|children|soldiers|victims|survivors|nations|countries|years|days|hours|months)\b"
+    r"|\bonly\s+\d+\b"
+    r"|\b\d{4}\b"
+)
+_SHOCK_OUTCOME_VERBS = (
+    "survived", "killed", "executed", "died", "banned", "forbidden",
+    "discovered", "exposed",
+)
+_SHOCK_OUTCOME_VERB_RE = re.compile(
+    r"\b(?:" + "|".join(_SHOCK_OUTCOME_VERBS) + r")\b"
+)
+_SHOCK_CONTRADICTION_SIGNALS = ("despite", " but ", "turned out", "actually", "never knew", "no one told")
+_SHOCK_SCALE_SUPERLATIVES = ("world's only", "last ever", "first time", "never before", "only known")
+_SHOCK_OUTCOME_NEAR_PROPER_RE = re.compile(
+    r"\b[A-Z][a-z]{2,}\b.{0,40}\b(?:" + "|".join(_SHOCK_OUTCOME_VERBS) + r")\b"
+    r"|\b(?:" + "|".join(_SHOCK_OUTCOME_VERBS) + r")\b.{0,40}\b[A-Z][a-z]{2,}\b"
+)
+
 
 @dataclass
 class Candidate:
@@ -148,6 +167,7 @@ class Candidate:
     hook_score: float
     novelty_score: float
     visual_score: float
+    shock_score: float
     confidence: float
     total_score: float
 
@@ -212,10 +232,31 @@ def _extract_weird_bit(title: str) -> str:
     return parts[-1] if parts else title
 
 
-def _score_title(title: str, post_bank: list[str]) -> tuple[float, float, float, float, str]:
+def _shock_score(title: str) -> float:
+    """Heuristic shock signal for a Reddit title. Returns 0.0–1.0.
+
+    Signals: specific numbers, outcome verbs, contradiction markers,
+    scale superlatives, named person near a shocking outcome verb.
+    """
+    tl = title.lower()
+    score = 0.0
+    if _SHOCK_NUMBER_RE.search(tl):
+        score += 0.15
+    verb_hits = len(_SHOCK_OUTCOME_VERB_RE.findall(tl))
+    score += min(0.24, 0.08 * verb_hits)
+    if any(s in tl for s in _SHOCK_CONTRADICTION_SIGNALS):
+        score += 0.10
+    if any(s in tl for s in _SHOCK_SCALE_SUPERLATIVES):
+        score += 0.12
+    if _SHOCK_OUTCOME_NEAR_PROPER_RE.search(title):
+        score += 0.10
+    return min(1.0, score)
+
+
+def _score_title(title: str, post_bank: list[str]) -> tuple[float, float, float, float, float, str]:
     tl = title.lower()
     if any(bad in tl for bad in REJECT_TERMS):
-        return 0.0, 0.0, 0.0, 0.0, ""
+        return 0.0, 0.0, 0.0, 0.0, 0.0, ""
     hook = 0.1
     hook += min(0.6, 0.1 * sum(1 for t in HOOK_TERMS if t in tl))
     hook += min(0.4, 0.08 * sum(1 for t in STORY_TRIGGER_KEYWORDS if t in tl))
@@ -223,9 +264,10 @@ def _score_title(title: str, post_bank: list[str]) -> tuple[float, float, float,
         hook += 0.1
     visual = 0.2 + min(0.6, 0.08 * sum(1 for t in VISUAL_TERMS if t in tl))
     novelty = _novelty(title, post_bank)
+    shock = _shock_score(title)
     confidence = min(1.0, 0.4 * hook + 0.3 * visual + 0.3 * novelty)
     weird_bit = _extract_weird_bit(title)
-    return hook, novelty, visual, confidence, weird_bit
+    return hook, novelty, visual, confidence, shock, weird_bit
 
 
 def _format_type_for_title(title: str) -> str:
@@ -311,12 +353,12 @@ def build_story_candidates(limit_per_source: int = 20) -> list[Candidate]:
         if key in seen_titles:
             continue
         seen_titles.add(key)
-        hook, novelty, visual, confidence, weird_bit = _score_title(title, post_bank)
+        hook, novelty, visual, confidence, shock, weird_bit = _score_title(title, post_bank)
         if confidence <= 0.0:
             continue
         topic = row.get("topic") or _infer_topic(f"{title} {row.get('summary', '')}")
         fmt = _format_type_for_title(title)
-        total = 0.45 * hook + 0.35 * novelty + 0.20 * visual
+        total = 0.35 * hook + 0.25 * novelty + 0.15 * visual + 0.25 * shock
         candidates.append(Candidate(
             source=row.get("source", "unknown"),
             source_id=row.get("source_id", ""),
@@ -328,6 +370,7 @@ def build_story_candidates(limit_per_source: int = 20) -> list[Candidate]:
             hook_score=round(hook, 3),
             novelty_score=round(novelty, 3),
             visual_score=round(visual, 3),
+            shock_score=round(shock, 3),
             confidence=round(confidence, 3),
             total_score=round(total, 3),
         ))
