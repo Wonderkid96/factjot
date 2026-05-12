@@ -9,13 +9,14 @@ def test_infer_topic_space():
 
 
 def test_score_title_rejects_bad_terms():
-    hook, novelty, visual, confidence, weird = story_scout._score_title(
+    hook, novelty, visual, confidence, shock, weird = story_scout._score_title(
         "Celebrity drama rumour leak update", []
     )
     assert hook == 0.0
     assert novelty == 0.0
     assert visual == 0.0
     assert confidence == 0.0
+    assert shock == 0.0
     assert weird == ""
 
 

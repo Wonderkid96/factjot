@@ -323,3 +323,183 @@ def validate_entity_image(
     if cache is not None:
         cache[image_url] = result
     return result
+
+
+# ---------------------------------------------------------------------------
+# Batch validation — sends up to batch_size images in a single Haiku call,
+# storing results in cache so subsequent single-image calls are cache hits.
+# ---------------------------------------------------------------------------
+
+def _build_batch_prompt(claim_text: str, image_hint: str, n_images: int) -> str:
+    claim = (claim_text or "").strip()
+    hint = (image_hint or "").strip()
+    return (
+        f"You are validating whether {n_images} image(s) match a topic claim.\n\n"
+        f"Topic claim: \"{claim}\"\n"
+        f"Subject hint: \"{hint}\"\n\n"
+        f"The images are numbered 0 to {n_images - 1} in the order shown.\n"
+        "For EACH image judge: does it plausibly depict the subject?\n\n"
+        "Return a JSON array with one object per image, in order:\n"
+        "[{\"id\": 0, \"matches\": true|false, \"confidence\": 0.0-1.0, \"reason\": \"short\"}, ...]\n\n"
+        "- matches=true  → image clearly shows the subject.\n"
+        "- matches=false → unrelated location, wrong person, generic stock.\n"
+        "- Be strict: wrong subject → false."
+    )
+
+
+def _parse_batch_response(raw_text: str) -> list[dict]:
+    if not raw_text:
+        return []
+    m = re.search(r"\[[\s\S]*\]", raw_text)
+    if not m:
+        return []
+    try:
+        data = json.loads(m.group(0))
+        if isinstance(data, list):
+            return data
+    except json.JSONDecodeError:
+        pass
+    return []
+
+
+def _validate_batch_chunk(
+    image_paths: list[str],
+    claim_text: str,
+    image_hint: str,
+    api_key: str,
+    *,
+    cache: dict[str, dict] | None = None,
+) -> list[dict]:
+    """Send up to 4 images in one Haiku call. Returns one result per input."""
+    n = len(image_paths)
+
+    # Load image bytes; soft-pass immediately on fetch failure.
+    loaded: list[tuple[int, bytes, str]] = []  # (original_idx, img_bytes, media_type)
+    pre_results: dict[int, dict] = {}
+    for idx, path in enumerate(image_paths):
+        img_bytes = _read_image_bytes(path)
+        if img_bytes is None or len(img_bytes) < 64:
+            pre_results[idx] = _soft_pass("fetch_failed")
+        else:
+            loaded.append((idx, img_bytes, _detect_media_type(img_bytes)))
+
+    if not loaded:
+        out = [pre_results[i] for i in range(n)]
+        if cache is not None:
+            for path, result in zip(image_paths, out):
+                cache[path] = result
+        return out
+
+    # Build content: one image block per loaded image, then the batch prompt.
+    content: list[dict] = []
+    for _, img_bytes, media_type in loaded:
+        content.append({
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": media_type,
+                "data": base64.standard_b64encode(img_bytes).decode("ascii"),
+            },
+        })
+    content.append({"type": "text", "text": _build_batch_prompt(claim_text, image_hint, len(loaded))})
+
+    try:
+        from anthropic import Anthropic
+        client = Anthropic(api_key=api_key)
+        res = client.messages.create(
+            model=_HAIKU_MODEL,
+            max_tokens=max(200, 80 * len(loaded)),
+            temperature=0.0,
+            messages=[{"role": "user", "content": content}],
+        )
+    except Exception as exc:
+        soft = _soft_pass(f"api_error:{str(exc)[:80]}")
+        out = [pre_results.get(i, soft) for i in range(n)]
+        if cache is not None:
+            for path, result in zip(image_paths, out):
+                cache[path] = result
+        return out
+
+    cost = _compute_cost(getattr(res, "usage", None))
+    cost_per = cost / max(1, len(loaded))
+
+    raw_text = ""
+    try:
+        raw_text = res.content[0].text or ""
+    except (AttributeError, IndexError):
+        pass
+
+    parsed = _parse_batch_response(raw_text)
+
+    api_results: dict[int, dict] = {}
+    for batch_pos, (orig_idx, _, _) in enumerate(loaded):
+        if batch_pos < len(parsed):
+            pr = parsed[batch_pos]
+            matches = pr.get("matches")
+            conf = max(0.0, min(1.0, float(pr.get("confidence", 0.0))))
+            reason = str(pr.get("reason", "")).strip()[:120]
+            if matches is None:
+                api_results[orig_idx] = {"ok": True, "confidence": 0.0, "reason": f"parse_failed:{reason}", "cost_usd": cost_per}
+            else:
+                api_results[orig_idx] = {"ok": bool(matches), "confidence": conf, "reason": reason, "cost_usd": cost_per}
+        else:
+            api_results[orig_idx] = _soft_pass("parse_failed", cost_usd=cost_per)
+
+    out = []
+    for i in range(n):
+        result = pre_results.get(i) or api_results.get(i) or _soft_pass("missing_result")
+        out.append(result)
+        if cache is not None:
+            cache[image_paths[i]] = result
+    return out
+
+
+def validate_entity_images_batch(
+    image_paths: list[str],
+    claim_text: str,
+    image_hint: str,
+    api_key: str,
+    *,
+    cache: dict[str, dict] | None = None,
+    batch_size: int = 4,
+) -> list[dict]:
+    """Validate multiple still images against a claim in batched Haiku calls.
+
+    Sends up to `batch_size` images per API call instead of one at a time.
+    Results are stored in `cache` (keyed by image path string) so subsequent
+    calls to `validate_entity_image()` for the same paths are cache hits.
+
+    Args:
+        image_paths: Ordered list of local paths or HTTP URLs to validate.
+        claim_text:  Reel/carousel claim text.
+        image_hint:  Subject hint (may be empty).
+        api_key:     Anthropic API key. Empty string → all soft-pass.
+        cache:       Shared result cache (mutated in place).
+        batch_size:  Images per API call (max 4; Anthropic vision limit).
+
+    Returns:
+        List of result dicts in the same order as `image_paths`.
+    """
+    results: list[dict | None] = [None] * len(image_paths)
+
+    # Check cache and soft-pass on missing api_key first.
+    pending: list[int] = []
+    for i, path in enumerate(image_paths):
+        if cache is not None and path in cache:
+            results[i] = cache[path]
+        elif not api_key:
+            results[i] = _soft_pass("api_key_missing")
+            if cache is not None:
+                cache[path] = results[i]
+        else:
+            pending.append(i)
+
+    # Process uncached images in batches.
+    for start in range(0, len(pending), batch_size):
+        chunk_indices = pending[start:start + batch_size]
+        chunk_paths = [image_paths[i] for i in chunk_indices]
+        chunk_results = _validate_batch_chunk(chunk_paths, claim_text, image_hint, api_key, cache=cache)
+        for i, result in zip(chunk_indices, chunk_results):
+            results[i] = result
+
+    return [r for r in results]  # type: ignore[misc]

@@ -35,28 +35,14 @@ Run `/compact` when context usage hits 60% to avoid hitting limits mid-task.
 These are environment-coded duplicates of the principles in `SPEC_FACTJOT_SYSTEM.md` §12. The principle lives there; the implementation rule lives here.
 
 1. **Never force-push to main.** Force-push silently deletes state commits being written by running workflows (caused the 2026-05-05 triple-post incident). Large-history rewrites happen on a separate branch with workflows paused, then merge.
-2. **Em dashes: scoped to shipping content and YAML.** The user-level CLAUDE.md (`/Users/Music/.claude/CLAUDE.md`) is the canonical voice rule: em dashes are banned in anything written in Toby's voice and in shipping post copy, but fine in code comments, internal logs, technical docs, regex character classes, and quoted third-party material. **Project addition:** `.yml`/`.yaml` files also strip them, because GitHub's Go YAML parser silently rejects em dashes and breaks `workflow_dispatch` (422 "no workflow_dispatch trigger").
-
-   **In scope to strip:**
-   - All `.yml`/`.yaml`.
-   - All `.j2` templates (they emit shipping copy).
-   - Python string literals that ship as user-facing text: title/caption/subtitle constants in `src/content/*.py`, list-pack content, prompt example text the model is asked to mirror.
-
-   **Out of scope (keep as-is):**
-   - Code comments, docstrings.
-   - Internal logs (`print` / `_log` / `brain.append_log`).
-   - Regex character classes that match separator characters.
-   - Quoted third-party material in archived assets under `Brain/raw/archive/`.
-   - `.md` technical docs (`CLAUDE.md`, `SPEC_FACTJOT_SYSTEM.md`, `ROADMAP.md`, `SPEC_IMAGE_PIPELINE.md`, `gotchas.md`).
-
-   Use hyphens, commas, full stops, parentheses, or rewrite when stripping.
+2. **Em dashes in YAML only.** Strip em dashes from `.yml`/`.yaml` files only — GitHub's Go YAML parser silently rejects them and breaks `workflow_dispatch` (422 "no workflow_dispatch trigger"). Em dashes are fine everywhere else: scripts, captions, templates, Python strings. The subtitle chunker treats `—` as a phrase-break signal, so using them in reel scripts actively improves subtitle timing.
 3. **British English** throughout copy, captions, comments.
 4. **Image-pipeline changes require plan mode.** Any change to `image_sourcer.py`, `image_fetcher.py`, manual carousel rendering, provider order, or candidate scoring begins in plan mode. Plan must list files touched, functions touched, expected behaviour, acceptance tests, rollback path. See `SPEC_IMAGE_PIPELINE.md`.
 5. **No empty image boxes.** A carousel slide either shows a real image or uses the intentional typography-only layout. Never a blank rectangle, near-invisible placeholder, or trust-the-renderer empty string. Verify in rendered output, not in unit tests.
 6. **Visual success is success.** Tests passing is not enough. Open the rendered artefact (slides, MP4, thumbnail, story) and judge it. See `SPEC_FACTJOT_SYSTEM.md` §10.3, §13.
 7. **Reel transitions are hardwired.** `case_file_dynamic` is the only transition mode (hardcoded in `src/render/reel_composer.py`). Do not add env flags, classic fallbacks, or feature toggles. The legacy `REEL_TRANSITIONS_MODE` env var is gone.
 8. **Append-only ledgers.** One named exception: `data/ledgers/reel_performance.jsonl` is mutable, fully rewritten on each `fetch_reel_metrics.py` run as engagement numbers accumulate. Do not convert it to append-only.
-9. **Font hierarchy.** Four families, weights documented in `brand/brand_kit.json` v2.1: Archivo (Black 900 hook/thumbnail/story cards + Bold 700 kinetic subtitles); Instrument Serif (Regular + Italic for headlines, wordmark, carousel titles); Space Grotesk (SemiBold for carousel body in readable_list profile + Bold 700 for labels/kickers/chips/metadata, replaces JetBrains Mono Bold); JetBrains Mono retained on disk for backwards compatibility but no template references it. Any new label/kicker/chip rule using Space Grotesk Bold 700 must apply `text-transform: uppercase` + `letter-spacing: 0.06em-0.1em` to preserve the data-tag affordance lost by dropping monospace.
+9. **Font hierarchy.** Four families, weights documented in `brand/brand_kit.json` v2.1: Archivo (Black 900 hook/thumbnail/story cards + Black 900 kinetic subtitles); Instrument Serif (Regular + Italic for headlines, wordmark, carousel titles); Space Grotesk (SemiBold for carousel body in readable_list profile + Bold 700 for labels/kickers/chips/metadata, replaces JetBrains Mono Bold); JetBrains Mono retained on disk for backwards compatibility but no template references it. Any new label/kicker/chip rule using Space Grotesk Bold 700 must apply `text-transform: uppercase` + `letter-spacing: 0.06em-0.1em` to preserve the data-tag affordance lost by dropping monospace.
 10. **Canonical Python locally:** `/Library/Frameworks/Python.framework/Versions/Current/bin/python3`. Bare `python3` finds no packages locally. Bare `python3` is only correct inside GitHub Actions.
 11. **No repost.** The autonomous agent reads `insta-brain/data/posted.jsonl` and applies a prompt-level duplicate guard rejecting topic, angle, and "same subject framed differently" overlaps. No image reuse across posts (`data/ledgers/used_images.jsonl`). No footage reuse across reels (`data/ledgers/used_footage_urls.jsonl`).
 12. **Fix the tool, not the symptom.** A wrong value in a data file means the process that wrote it is broken. Fix the process, then run it to clean up. Patching one bad value guarantees the next one will be wrong too.

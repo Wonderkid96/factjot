@@ -722,124 +722,55 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             if _start >= _end:
                 continue
             _text = " ".join(b.word for b in _chunk)
+            # Skip chunks that contain "factjot" — the CTA logo appears
+            # immediately after and showing it twice is jarring.
+            if "factjot" in _text.lower():
+                continue
             _chunk_path = overlay_dir / f"chunk_{_ci:02d}.png"
             text_frames.append(TextFrame(style="subtitle", text=_text, out_path=_chunk_path))
             overlays.append(OverlayFrame(png=_chunk_path, start_s=_start, end_s=_end, fade_in_s=0.0, fade_out_s=0.0))
             _sub_count += 1
         print(f"  kinetic subtitles: {len(chunks)} chunks -> {_sub_count} subtitle PNGs")
 
-        # 5e: Documentary photo inserts — archival/entity images appear over footage
-        # timed to when the narrator first mentions the subject's name.
-        # 5e: Casefile documents — sequential reveal rhythm.
-        #
-        # Documents appear, hold for a beat, then disappear. Nothing sits for
-        # the full video. The rhythm:
-        #
-        #   [INTRO ends]
-        #   → Subject card appears (4.5s) → clears
-        #   → 2-3s of clean footage
-        #   → Photo insert appears when narrator says the name (4.5s) → clears
-        #   → clean footage
-        #   → Date/location card appears mid-reel (4.5s) → clears
-        #   → clean footage until CTA
-        #
-        from src.render.reel_text_renderer import render_photo_insert, render_case_doc
+        # 5e: Info line — single Space Grotesk Bold uppercase line in the upper-mid
+        # zone showing "ENTITY · YEAR" (or just topic). Appears briefly early in
+        # the reel to give context without competing with subtitles.
         from src.research.narrative_beats import extract_entities as _ext_ents
         import re as _re
 
-        _DOC_HOLD_S = 4.5   # how long each casefile document is visible
-        _DOC_GAP_S  = 2.5   # clean footage gap between consecutive documents
-
         _claim_ents = _ext_ents(claim)
-        _entity_name = " ".join(_claim_ents.proper_nouns[:2]) if _claim_ents.proper_nouns else ftopic.title()
         _year_m = _re.search(r'\b(1[0-9]{3}|20[0-9]{2})\b', claim)
         _year_str = _year_m.group(0) if _year_m else ""
-        _insert_zone_end = cta_s - 1.5
 
-        # Track where the next casefile document can appear (avoid overlapping)
-        _next_doc_t = INTRO_S + 0.4
-
-        # --- Doc 1: Subject name card (always rendered) ---
-        _d1_start = _next_doc_t
-        _d1_end   = _d1_start + _DOC_HOLD_S
-        if _d1_end < _insert_zone_end:
-            print(f"  [casefile] doc1 subject: {_entity_name!r} / {_year_str or 'no year'} @ {_d1_start:.1f}–{_d1_end:.1f}s")
-            _d1_png = overlay_dir / "case_doc_00.png"
-            try:
-                render_case_doc(
-                    out_path=_d1_png,
-                    label="subject" if _claim_ents.proper_nouns else "topic",
-                    value=_entity_name,
-                    body=_year_str,
-                    x=55, y=440, rotation=-2.0, width=460,
-                )
-                overlays.append(OverlayFrame(png=_d1_png, start_s=_d1_start, end_s=_d1_end, rgba=True))
-                _next_doc_t = _d1_end + _DOC_GAP_S
-            except Exception as _e:
-                print(f"  [casefile] doc1 failed ({_e})")
-
-        # --- Doc 2: Photo insert — anchored to the word beat where the name is spoken ---
-        _entity_images = [
-            p for p in footage_clips
-            if p.name.startswith(("wiki_article_", "wiki_lead_"))
+        # Filter proper nouns: require > 5 chars and exclude common words that
+        # appear capitalised at sentence starts (Around, After, While, etc.)
+        _CAPS_NOISE = {
+            "around", "after", "before", "while", "which", "where", "there",
+            "their", "these", "those", "every", "still", "found", "earth",
+            "world", "first", "other", "since", "until", "about", "above",
+        }
+        _strong_nouns = [
+            n for n in _claim_ents.proper_nouns
+            if len(n) > 5 and n.lower() not in _CAPS_NOISE
         ]
-        if _entity_images and word_beats:
-            _subject_words = {w.lower() for w in _claim_ents.proper_nouns[:3]} or {""}
-            _d2_start = _next_doc_t  # fallback: after doc1 gap
-            for _wb in word_beats:
-                if any(s in _wb.word.lower() for s in _subject_words if len(s) > 3):
-                    _candidate = INTRO_S + _wb.start_s + 0.4
-                    if _candidate >= _next_doc_t:
-                        _d2_start = _candidate
-                    break
-            # Stay out of the first clip window (entity image may be the background)
-            _first_window_end = INTRO_S + total_dur * 0.18
-            _d2_start = max(_d2_start, _first_window_end + 0.3)
-            _d2_end = _d2_start + _DOC_HOLD_S
+        _entity_name = _strong_nouns[0] if _strong_nouns else ""
 
-            if _d2_end < _insert_zone_end:
-                _img = _entity_images[0]
-                _cap = (fact.get("reel_title") or " ".join(_claim_ents.proper_nouns[:2]) or "").split(" — ")[0][:35]
-                _d2_png = overlay_dir / "photo_insert_00.png"
-                print(f"  [casefile] doc2 photo: {_img.name} @ {_d2_start:.1f}–{_d2_end:.1f}s")
-                try:
-                    render_photo_insert(image_path=_img, out_path=_d2_png, caption=_cap)
-                    overlays.append(OverlayFrame(png=_d2_png, start_s=_d2_start, end_s=_d2_end, rgba=True))
-                    _next_doc_t = _d2_end + _DOC_GAP_S
-
-                    # Second photo insert if another image exists
-                    if len(_entity_images) > 1:
-                        _d2b_start = _next_doc_t
-                        _d2b_end   = _d2b_start + _DOC_HOLD_S
-                        if _d2b_end < _insert_zone_end:
-                            _d2b_png = overlay_dir / "photo_insert_01.png"
-                            try:
-                                render_photo_insert(image_path=_entity_images[1], out_path=_d2b_png, caption=_cap)
-                                overlays.append(OverlayFrame(png=_d2b_png, start_s=_d2b_start, end_s=_d2b_end, rgba=True))
-                                _next_doc_t = _d2b_end + _DOC_GAP_S
-                            except Exception:
-                                pass
-                except Exception as _e:
-                    print(f"  [casefile] doc2 photo skipped ({_e})")
-
-        # --- Doc 3: Date / topic card — mid-reel reveal (only if year known and time available) ---
+        _info_parts = []
+        if _entity_name:
+            _info_parts.append(_entity_name.upper())
         if _year_str:
-            _d3_start = max(_next_doc_t, total_dur * 0.50)
-            _d3_end   = _d3_start + _DOC_HOLD_S
-            if _d3_end < _insert_zone_end - 1.0:
-                _d3_png = overlay_dir / "case_doc_01.png"
-                print(f"  [casefile] doc3 date: {_year_str} / {ftopic} @ {_d3_start:.1f}–{_d3_end:.1f}s")
-                try:
-                    render_case_doc(
-                        out_path=_d3_png,
-                        label="date",
-                        value=_year_str,
-                        body=ftopic.upper(),
-                        x=500, y=520, rotation=2.5, width=420,
-                    )
-                    overlays.append(OverlayFrame(png=_d3_png, start_s=_d3_start, end_s=_d3_end, rgba=True))
-                except Exception as _e:
-                    print(f"  [casefile] doc3 failed ({_e})")
+            _info_parts.append(_year_str)
+        if not _info_parts:
+            _info_parts.append(ftopic.upper())
+        _info_text = " · ".join(_info_parts)
+
+        _info_start = INTRO_S + 0.8
+        _info_end   = _info_start + 3.0
+        if _info_text and _info_end < cta_s - 1.0:
+            print(f"  [info] '{_info_text}' @ {_info_start:.1f}–{_info_end:.1f}s")
+            _info_png = overlay_dir / "info.png"
+            text_frames.append(TextFrame(style="info", text=_info_text, out_path=_info_png))
+            overlays.append(OverlayFrame(png=_info_png, start_s=_info_start, end_s=_info_end, fade_in_s=0.3, fade_out_s=0.4))
 
         # 5f: CTA frame
         cta_path = overlay_dir / "cta.png"

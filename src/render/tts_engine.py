@@ -313,12 +313,22 @@ def group_into_chunks(
     words_per_line: int = 5,
     max_chars: int = 32,
     original_text: str | None = None,
+    pause_gap_s: float = 0.15,
 ) -> list[list[WordBeat]]:
     """Group word beats into chunks, preserving the constituent WordBeats.
 
     Returns a list of chunks, where each chunk is a list of WordBeats that
     belong together. Lets the caller render word-by-word reveal frames
     (kinetic subtitles) by walking through each chunk's beats in order.
+
+    Break priority (highest to lowest):
+      1. Timing gap — gap between consecutive words >= pause_gap_s always
+         breaks, because the speaker has already paused. This is the most
+         reliable signal: it fires on sentence ends, breath pauses, and
+         em-dash pauses without needing any text heuristic.
+      2. Hard punctuation — ., !, ?, ; always break.
+      3. Comma — breaks when current chunk already has >= 2 words.
+      4. Word/char cap — fallback when speech is uninterrupted and long.
     """
     if not beats:
         return []
@@ -331,18 +341,28 @@ def group_into_chunks(
     current: list[WordBeat] = []
 
     for i, beat in enumerate(beats):
+        # 1. Gap break: speaker has paused — start a fresh chunk now.
+        if current and i > 0:
+            gap = beat.start_s - beats[i - 1].end_s
+            if gap >= pause_gap_s:
+                chunks.append(current)
+                current = []
+
         current.append(beat)
         tentative_text = " ".join(b.word for b in current)
         punct = end_punct.get(i, "")
 
+        # 2. Hard punctuation break.
         if punct in {".", "!", "?", ";"}:
             chunks.append(current)
             current = []
             continue
-        if punct == "," and len(current) >= 3:
+        # 3. Comma break (only after >= 2 words so "In 1991," splits cleanly).
+        if punct == "," and len(current) >= 2:
             chunks.append(current)
             current = []
             continue
+        # 4. Word/char cap fallback.
         if len(current) >= words_per_line or len(tentative_text) > max_chars:
             chunks.append(current)
             current = []
@@ -358,7 +378,7 @@ def generate_ass_file(
     *,
     play_res_x: int = 1080,
     play_res_y: int = 1920,
-    font_name: str = "Space Grotesk SemiBold",
+    font_name: str = "Archivo Bold",
     font_size: int = 72,
     margin_v: int = 140,
     voice_delay_s: float = 3.5,
@@ -514,6 +534,12 @@ def _map_punctuation_to_beats(text: str, beats: list[WordBeat]) -> dict[int, str
     for tok in tokens:
         if beat_idx >= len(beats):
             break
+        # Em dash is a standalone token in text but maps to no beat word.
+        # Mark the preceding beat (if any) as a hard break and move on.
+        if tok in {"—", "--"}:
+            if beat_idx > 0:
+                end_punct[beat_idx - 1] = "."
+            continue
         # Strip any leading symbols, then take the last char if it's punctuation
         trailing = ""
         if tok and tok[-1] in ".,;:!?":

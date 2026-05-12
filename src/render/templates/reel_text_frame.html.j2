@@ -188,14 +188,36 @@
     left: 72px;
     right: 72px;
     font-family: "Archivo", system-ui, sans-serif;
-    font-weight: 700;
+    font-weight: 900;
     font-size: {{ subtitle_size }}px;
     line-height: 1.20;
     letter-spacing: -0.010em;
     text-align: center;
     color: var(--white);
+    /* Inline shadow pad keeps text above any composited element behind it */
+    padding: 8px 12px;
+    background: rgba(0,0,0,0.18);
+    border-radius: 6px;
   }
   .subtitle em { font-style: normal; color: var(--accent); }
+
+  /* ------------------------------------------------------------------ */
+  /* Info line · upper-mid · Space Grotesk Bold · e.g. "ENTITY · YEAR"   */
+  /* ------------------------------------------------------------------ */
+  .info {
+    position: absolute;
+    top: 640px;
+    left: 72px;
+    right: 72px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 52px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    text-align: center;
+    color: var(--accent);
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.65);
+  }
 
   /* ------------------------------------------------------------------ */
   /* CTA - wordmark spec hardwired from make_avatar.py (source of truth) */
@@ -204,7 +226,7 @@
   /* ------------------------------------------------------------------ */
   .cta {
     position: absolute;
-    top: 45%;
+    top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
     text-align: center;
@@ -277,6 +299,9 @@
 
 {% elif style == "subtitle" %}
   <div class="subtitle legible">{{ text|safe }}</div>
+
+{% elif style == "info" %}
+  <div class="info">{{ text|safe }}</div>
 
 {% elif style == "cta" %}
   <div class="cta">

@@ -604,6 +604,15 @@ def _build_filter_graph(
         else:             # pan left from mid-frame (keeps all clips in motion)
             pan_x = f"{pan_x_range//2}*(1-t/{dur:.3f})"
 
+        # Sinusoidal handheld wiggle: smooth sine on x and y, per-clip phase
+        # offset so consecutive clips don't pulse in sync. Amplitude 4px/3px
+        # is subtle enough to feel organic without looking unstable.
+        # Sine is smooth (low entropy) so Instagram's transcoder handles it
+        # fine — unlike the removed random noise filter.
+        phase = i * 1.3   # radians, desynchronises adjacent clips
+        wiggle_x = f"4*sin(2*PI*0.45*t+{phase:.3f})"
+        wiggle_y = f"3*sin(2*PI*0.38*t+{phase + 0.8:.3f})"
+
         filter_lines.append(
             f"[{inp_idx}:v]"
             f"scale={ow}:{oh}:force_original_aspect_ratio=increase:flags=bicubic,"
@@ -611,7 +620,7 @@ def _build_filter_graph(
             f"setsar=1,"
             f"trim=duration={dur:.3f},"
             f"setpts=PTS-STARTPTS,"
-            f"crop=1080:1920:x='{pan_x}':y={pan_y_mid},"
+            f"crop=1080:1920:x='{pan_x}+{wiggle_x}':y='{pan_y_mid}+{wiggle_y}',"
             f"fps=30,"
             f"settb=AVTB"
             f"[clip{inp_idx}]"
