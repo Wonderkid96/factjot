@@ -1,5 +1,8 @@
 # factjot brain log
 
+- 2026-05-12 21:51 WORKFLOW FAILED: .github/workflows/autonomous-reel.yml | run=25764021448 | trigger=workflow_dispatch | ref=main
+- 2026-05-12 21:51 reel 8fd5f12a5bdada published (history, ig_media=18022883495833037)
+- 2026-05-12 21:45 token refreshed: new expiry ~59 days
 - 2026-05-12 21:32 TTS FALLBACK to edge-tts: ElevenLabs failed (RuntimeError: ElevenLabs API error 401: quota_exceeded) - falling back to edge-tts
 - 2026-05-12 20:29 TTS FALLBACK to edge-tts: ElevenLabs failed (RuntimeError: ElevenLabs API error 401: quota_exceeded) - falling back to edge-tts
 - 2026-05-12 13:35 dynamic list 'dyn_8205fa68b7d362' published (FILM LIST, ig_media=18169963693412981)
