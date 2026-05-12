@@ -479,17 +479,23 @@ TOOLS = [
                 "title": {
                     "type": "string",
                     "description": (
-                        "Short hook title for the thumbnail (3-7 words). "
-                        "Withhold the punchline. The title creates the "
-                        "knowledge gap that earns the watch; it does not "
-                        "resolve it. BAD: 'Pepsi Once Owned a Navy' "
-                        "(the whole story is in five words). "
-                        "GOOD: 'Pepsi's Strangest Trade Deal' (you have "
-                        "to watch to find out what they got). "
-                        "BAD: 'He Proved Handwashing Saves Lives'. "
-                        "GOOD: 'The Doctor Nobody Believed'. "
-                        "Specificity beats hype words; do not use "
-                        "'shocking', 'crazy', 'insane', 'unbelievable'."
+                        "3-6 words. Name the subject — not the event. "
+                        "Ask: what IS this thing? Not: what happened? "
+                        "A good title names the object, person, creature, "
+                        "or situation by its defining quality. It does not "
+                        "describe a sequence of events. "
+                        "GOOD: 'The Demon Core' — names the object. "
+                        "GOOD: 'The Soldier Nobody Could Discharge' — names "
+                        "the person by their defining situation. "
+                        "GOOD: 'The Explosion With No Crater' — names the "
+                        "paradox that IS the story. "
+                        "GOOD: 'The Army That Surrendered to Emus' — names "
+                        "the army by its one defining act. "
+                        "BAD: 'The War That Ended For 1 Man In 1974' — "
+                        "describes an event, not a subject. "
+                        "BAD: 'Australia Lost a War to Birds' — plot summary. "
+                        "If it reads like a sentence describing what happened, "
+                        "ask instead: what is the NAME of this thing?"
                     ),
                 },
                 "topic": {
@@ -991,14 +997,14 @@ REEL_PROMPT = textwrap.dedent("""\
     2. Call list_story_candidates().
     3. Generate at least 5 candidate evergreen ideas from scout results and
        the TOP5_LIST_POOL block (Top 5 biggest/smallest/best/worst/etc.).
-    3. Reject duplicates and near-duplicates against the bank.
-    4. Reject any current/news/topical idea outright.
-    5. For each remaining candidate, name the actual weird bit.
-    6. Apply the interestingness, event-vs-angle, and quality gates.
-    7. If nothing clears the bar, call skip(reason).
-    8. Otherwise, write the script + ranked footage hints.
-    9. Write a short decision note (chosen idea, weird bit, why it
-       passed, why weaker candidates failed). Then call run_reel ONCE.
+    4. Reject duplicates and near-duplicates against the bank.
+    5. Reject any current/news/topical idea outright.
+    6. For each remaining candidate, name the actual weird bit.
+    7. Apply the interestingness, event-vs-angle, and quality gates.
+    8. If nothing clears the bar, call skip(reason).
+    9. Write the script + ranked footage hints.
+    10. Write a short decision note (chosen idea, weird bit, why it
+        passed, why weaker candidates failed). Then call run_reel ONCE.
 """)
 
 

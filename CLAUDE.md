@@ -259,7 +259,17 @@ If you discover a new failure mode, append to `insta-brain/gotchas.md` before cl
 
 ---
 
-## 15. Open work
+## 15. ECC harness rules
+
+The machine runs the `everything-claude-code` plugin. Standard rules apply:
+
+- **Use ECC tools when the task fits.** Python review → `python-reviewer` or `/ecc:code-review`. Planning → `planner` or `/ecc:plan`. TDD → `tdd-guide`. Build/test fails → `*-build-resolver` agents (none match Python directly; use `/ecc:build-fix`). Library docs (Anthropic SDK, Playwright, etc.) → `documentation-lookup` (Context7). Non-trivial decisions → `/debate` or `/debatemax`. Name the tool in chat before invoking.
+- **Brain authority wins over ECC stores.** Do not write Toby-specific facts (identity, clients, rates, voice rules, finances) to ECC's MCP memory graph (`mcp__plugin_everything-claude-code_memory__*`) or promote them via `/ecc:promote` / `/ecc:learn`. Generic factjot pipeline patterns are fine. Brain path: `/Users/Music/Developer/Mind/Brain/`.
+- Voice/brand profile lives in `Brain/wiki/freelance/voice.md` and `brand.md`. Point `brand-voice` / `article-writing` at those, never at a parallel store.
+
+---
+
+## 16. Open work
 
 - `ROADMAP.md` tracks deferred phases (currently Phase 8, vision-based frame selector). Do not pick up without explicit instruction.
 - TikTok: app submitted for review 2026-05-02; not yet wired into the autonomous workflow.

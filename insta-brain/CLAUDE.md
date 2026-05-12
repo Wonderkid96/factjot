@@ -32,7 +32,7 @@ The agent (Sonnet 4.6) writes the brief or script and calls one of `run_reel` / 
 
 Cut from 5 slots to 3 on 2026-05-10 (audit Q4 quality bet, two-week distribution test before reassessment).
 
-The breaking-news pipeline was killed in audit Phase G.2 (decision B). `news-watcher.yml`, `pipelines/news/ship_news_breaking.py`, and `pipelines/news/check_guardian_rss.py` are gone. Manual carousel still imports rendering helpers from `pipelines/news/ship_news_post.py` (dual-role file; do not delete without untangling).
+The breaking-news pipeline was killed in audit Phase G.2 (decision B). `news-watcher.yml`, `pipelines/news/ship_news_breaking.py`, and `pipelines/news/check_guardian_rss.py` are gone. Phase K.4 (2026-05-11) deleted the dual-role `pipelines/news/ship_news_post.py` and the empty `pipelines/news/` package; renderer primitives now live in `src/render/carousel_slides.py`.
 
 Crons are UTC, tracked to BST in summer. UK clocks fall back to GMT in October; UTC equals GMT then, so posts fire at the same UK clock time year-round.
 
@@ -174,6 +174,14 @@ Fix the code. Do not weaken the rule. Add to **[[gotchas]]** if a new failure mo
 ## When uncertain
 
 Stop and ask Toby. Do not silently work around a rule.
+
+## ECC harness rules
+
+The machine runs the `everything-claude-code` plugin. Standard rules apply:
+
+- **Use ECC tools when the task fits.** Python review → `python-reviewer` or `/ecc:code-review`. Planning → `planner` or `/ecc:plan`. TDD → `tdd-guide`. Build/test fails → relevant `*-build-resolver` agent. Voice/brand writing → `brand-voice` with `/Users/Music/Developer/Mind/Brain/wiki/freelance/voice.md` and `brand.md` as the source. Name the tool in chat before invoking.
+- **Brain authority wins over ECC stores.** Do not write Toby-specific facts (clients, rates, voice rules, project history) to ECC's MCP memory graph or via `/ecc:promote`. Generic factjot pipeline patterns are fine. Identity, voice, finances live in the Brain only.
+- Brain path: `/Users/Music/Developer/Mind/Brain/`. Any other path is legacy.
 
 ## Related
 

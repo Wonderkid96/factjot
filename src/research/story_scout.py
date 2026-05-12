@@ -25,20 +25,21 @@ REDDIT_SOURCES = (
     ("interestingasfuck", 10000),
     ("Damnthatsinteresting", 10000),
     ("UnresolvedMysteries", 1500),
-    ("history", 3000),
+    ("natureismetal", 2000),
+    ("Astronomy", 2000),
+    ("biology", 1500),
+    ("geology", 1000),
     ("science", 2000),
 )
 
 TOPIC_KEYWORDS = {
     "history": (
-        "war", "battle", "empire", "king", "queen", "monarch", "dynasty",
-        "revolution", "rebellion", "uprising", "invasion", "conquest",
-        "ancient", "medieval", "century", "historic", "historical",
-        "civilization", "kingdom", "throne", "crown", "castle", "army",
-        "general", "soldier", "trial", "execution", "betrayal", "assassination",
-        "treaty", "colony", "colonial", "slavery", "archaeology", "artifact",
-        "ruins", "legend", "myth", "lost city", "royal", "succession",
-        "plague", "famine", "explorer", "expedition", "old", "forgotten",
+        "war", "battle", "empire", "monarch", "dynasty",
+        "revolution", "rebellion", "invasion", "conquest",
+        "medieval", "historic", "historical",
+        "civilization", "kingdom", "assassination",
+        "treaty", "colonial", "slavery", "archaeology", "artifact",
+        "plague", "famine", "explorer",
     ),
     "science": (
         "experiment", "research", "scientist", "discovery", "breakthrough",
@@ -216,8 +217,8 @@ def _novelty(title: str, post_bank: list[str]) -> float:
 
 def _infer_topic(text: str) -> str:
     text_l = text.lower()
-    best_topic = "history"
-    best_score = -1
+    best_topic = "science"  # neutral fallback — avoids defaulting ambiguous titles to history
+    best_score = 0          # require at least one keyword match to assign a topic
     for topic, kws in TOPIC_KEYWORDS.items():
         score = sum(1 for kw in kws if kw in text_l)
         if score > best_score:
@@ -379,11 +380,11 @@ def build_story_candidates(limit_per_source: int = 20) -> list[Candidate]:
 
 
 def ranked_candidates_for_mode(mode: str, top_n: int = 12) -> list[dict]:
-    """Return ranked candidates for autonomous mode.
+    """Return ranked candidates for autonomous mode with per-topic diversity cap.
 
     Prefix-matches mode names so any reel_* or list_* slot variant routes
-    to the right pool. Catches reel_afternoon, reel_night, list_midday,
-    list_evening, which previously fell through to the legacy fact branch.
+    to the right pool. Enforces a per-topic cap so no single topic dominates
+    the returned list regardless of raw score order.
     """
     cands = build_story_candidates()
     if mode.startswith("reel_"):
@@ -392,7 +393,20 @@ def ranked_candidates_for_mode(mode: str, top_n: int = 12) -> list[dict]:
         pool = [c for c in cands if c.suggested_format == "list"]
     else:
         pool = [c for c in cands if c.suggested_format in ("reel", "list")]
-    return [asdict(c) for c in pool[:top_n]]
+
+    # Cap per-topic at 3 out of top_n so a single topic can never flood the list.
+    per_topic_cap = max(1, top_n // 4)
+    topic_counts: dict[str, int] = {}
+    diverse: list = []
+    for c in pool:
+        t = c.topic or "unknown"
+        if topic_counts.get(t, 0) < per_topic_cap:
+            diverse.append(c)
+            topic_counts[t] = topic_counts.get(t, 0) + 1
+        if len(diverse) >= top_n:
+            break
+
+    return [asdict(c) for c in diverse]
 
 
 # Allowed list superlatives. Phase D.2 (Q10 hybrid) banned every
