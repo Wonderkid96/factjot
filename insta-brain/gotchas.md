@@ -6,6 +6,18 @@ Related (Obsidian graph hub): [[CLAUDE]] · [[CRITICAL_FACTS]] · [[MEMORY_INDEX
 
 ---
 
+## 2026-05-13 Radium Girls double post — fingerprint dedup structural failure
+
+The Radium Girls story was posted twice. The fingerprint dedup gate passed because:
+
+1. The legacy `posted.jsonl` entry had no `reel_title` field (manually added). `_entry_subject_text()` fell back to the 250-word script body, producing fingerprint `brushes-established-materials-poisoning-radiation`. The new title fingerprint had zero tokens in common. Jaccard = 0.0.
+
+2. Even with a correct `reel_title`, title-to-title Jaccard for same-subject differently-framed titles is 0.0–0.33 — always below the 0.6 threshold. The fingerprint system detects near-identical text rewrites, not "same real-world story told differently".
+
+**Fix:** Added mandatory `subject_key` field to `run_reel` and `run_carousel`. This is the canonical lowercase hyphenated name for the real-world subject (e.g. `"radium-girls"`). Hard-blocked on exact match against `insta-brain/data/subject_keys.jsonl` (all-time, no window). Fuzzy Jaccard block at 0.4 catches close variants. The ledger is seeded with `"radium-girls"` so it is permanently blocked.
+
+---
+
 ## YAML / GitHub Actions
 
 **GitHub's Go YAML parser rejects UTF-8 em dashes (`—`) in comments.**

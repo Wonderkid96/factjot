@@ -65,10 +65,11 @@ PRICE_OUTPUT_PER_M = 15.00
 PRICE_CACHE_WRITE_PER_M = round(PRICE_INPUT_PER_M * 1.25, 4)
 PRICE_CACHE_READ_PER_M  = round(PRICE_INPUT_PER_M * 0.10, 4)
 
-REPO_ROOT   = Path(__file__).resolve().parent.parent
-POSTED_LOG  = REPO_ROOT / "insta-brain" / "data" / "posted.jsonl"
-REELS_LOG   = REPO_ROOT / "insta-brain" / "data" / "reels.jsonl"
-COST_LEDGER = REPO_ROOT / "data" / "ledgers" / "api_usage_costs.jsonl"
+REPO_ROOT        = Path(__file__).resolve().parent.parent
+POSTED_LOG       = REPO_ROOT / "insta-brain" / "data" / "posted.jsonl"
+REELS_LOG        = REPO_ROOT / "insta-brain" / "data" / "reels.jsonl"
+SUBJECT_KEYS_LOG = REPO_ROOT / "insta-brain" / "data" / "subject_keys.jsonl"
+COST_LEDGER      = REPO_ROOT / "data" / "ledgers" / "api_usage_costs.jsonl"
 
 # Subject fingerprint dedup window. The 2026-05-06 incident shipped 8 near-
 # duplicate "phone with no apps" carousels in 5 hours; 14 days is wide
@@ -233,6 +234,45 @@ def load_recent_fingerprints(
     return list(seen.values())
 
 
+def load_used_subject_keys() -> set[str]:
+    """Return the set of all canonical subject keys ever posted."""
+    keys: set[str] = set()
+    if not SUBJECT_KEYS_LOG.exists():
+        return keys
+    with SUBJECT_KEYS_LOG.open("r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+                k = row.get("subject_key", "")
+                if k:
+                    keys.add(k.strip().lower())
+            except json.JSONDecodeError:
+                continue
+    return keys
+
+
+def _find_key_collision(candidate: str, used: set[str]) -> str | None:
+    """Return a stored key that is too similar to `candidate`, or None.
+
+    Jaccard on hyphen-split tokens at threshold 0.4. Catches near-variants
+    like 'radium-girl' blocked by 'radium-girls'.
+    """
+    c_tokens = set(candidate.strip().lower().split("-")) - {""}
+    if not c_tokens:
+        return None
+    for stored in used:
+        s_tokens = set(stored.split("-")) - {""}
+        if not s_tokens:
+            continue
+        union = c_tokens | s_tokens
+        if union and len(c_tokens & s_tokens) / len(union) >= 0.4:
+            return stored
+    return None
+
+
 def find_subject_collision(
     candidate_text: str,
     recent: list[tuple[str, str, str]],
@@ -371,6 +411,8 @@ def run_reel(args: dict, dry_run: bool) -> str:
         "--tone-override", args["tone_override"],
         "--hint",          args["hint"],
     ]
+    if args.get("subject_key"):
+        cmd += ["--subject-key", args["subject_key"].strip().lower()]
     if dry_run:
         cmd.append("--dry-run")
     raw = _run_pipeline(cmd)
@@ -400,6 +442,8 @@ def run_carousel(args: dict, dry_run: bool, format_type: str = "fact") -> str:
         "--slides", str(args.get("slides", 6)),
         "--type",   format_type,
     ]
+    if args.get("subject_key"):
+        cmd += ["--subject-key", args["subject_key"].strip().lower()]
     # Layout-profile routing is owned by src/content/carousel_rules.py
     # (single source of truth). The previous inline `if format_type in
     # ("list", "news")` lived here AND in ship_manual_post.py; either
@@ -520,8 +564,19 @@ TOOLS = [
                         "is likely more accurate or interesting than generic stock."
                     ),
                 },
+                "subject_key": {
+                    "type": "string",
+                    "description": (
+                        "Canonical lowercase hyphenated identifier for the real-world subject. "
+                        "Name the THING, not the title of the reel. "
+                        "GOOD: 'radium-girls', 'great-molasses-flood', 'operation-acoustic-kitty'. "
+                        "BAD: 'girls-who-glowed', 'the-flood-that-got-a-refund'. "
+                        "Must be specific enough that two posts about the same subject always "
+                        "produce the same key. Hard-blocked against all previous posts permanently."
+                    ),
+                },
             },
-            "required": ["script", "title", "topic", "tone_override", "hint"],
+            "required": ["script", "title", "topic", "tone_override", "hint", "subject_key"],
             "additionalProperties": False,
         },
     },
@@ -557,8 +612,18 @@ TOOLS = [
                         "5-item list (cover + 5 items + closing)."
                     ),
                 },
+                "subject_key": {
+                    "type": "string",
+                    "description": (
+                        "Canonical lowercase hyphenated identifier for the real-world subject. "
+                        "For list posts: name the list subject, not the title. "
+                        "GOOD: 'biggest-dam-failures', 'most-expensive-military-projects'. "
+                        "BAD: 'five-dam-failures-by-death-toll'. "
+                        "Hard-blocked against all previous posts permanently."
+                    ),
+                },
             },
-            "required": ["brief", "label"],
+            "required": ["brief", "label", "subject_key"],
             "additionalProperties": False,
         },
     },
@@ -643,6 +708,7 @@ def execute_tool(
     dry_run: bool,
     mode: str,
     recent_fingerprints: list[tuple[str, str, str]] | None = None,
+    used_subject_keys: set[str] | None = None,
 ) -> str:
     if name == "list_unposted_topics":
         return build_history_summary()
@@ -672,6 +738,38 @@ def execute_tool(
     if name == "skip":
         return f"SKIPPED: {args.get('reason', '(no reason given)')}"
     if name in ("run_reel", "run_carousel"):
+        # --- Subject-key dedup (permanent, all-time hard block) ---
+        # This catches "same real-world story told differently", which fingerprint
+        # similarity cannot detect when titles are creatively reframed.
+        # 2026-05-13: Radium Girls double-post root cause — title Jaccard = 0.0.
+        sk = (args.get("subject_key") or "").strip().lower()
+        if sk:
+            sk_pool = used_subject_keys if used_subject_keys is not None \
+                else load_used_subject_keys()
+            if sk in sk_pool:
+                print(f"[dedup] subject_key exact block: '{sk}'", flush=True)
+                return (
+                    f"FAILURE_KIND: duplicate_subject\n\n"
+                    f"REJECTED: subject_key '{sk}' has already been posted. "
+                    "Choose a different subject or call skip(reason)."
+                )
+            collision_key = _find_key_collision(sk, sk_pool)
+            if collision_key:
+                print(
+                    f"[dedup] subject_key fuzzy block: '{sk}' ~ '{collision_key}'",
+                    flush=True,
+                )
+                return (
+                    f"FAILURE_KIND: duplicate_subject\n\n"
+                    f"REJECTED: subject_key '{sk}' is too similar to '{collision_key}' "
+                    "(already posted). Choose a different subject or call skip(reason)."
+                )
+            # Poison in-session so a second turn in the same session is blocked
+            # before the on-disk ledger is updated.
+            if used_subject_keys is not None:
+                used_subject_keys.add(sk)
+            print(f"[dedup] subject_key cleared: '{sk}'", flush=True)
+
         # Code-level subject-fingerprint dedup. Runs before the subprocess
         # fires so we save the cost of running a pipeline only to reject.
         recent = recent_fingerprints if recent_fingerprints is not None \
@@ -752,6 +850,13 @@ SHARED_CORE = textwrap.dedent("""\
     - the same story framed differently
     - a near-duplicate with only minor wording changes
     This applies across every format.
+
+    Every run_reel and run_carousel call MUST include subject_key.
+    subject_key is the canonical lowercase hyphenated name for the
+    real-world subject (e.g. 'radium-girls', 'great-molasses-flood').
+    It is hard-blocked against all previous posts permanently — no
+    time window. A repeated subject_key is rejected before the
+    pipeline runs, regardless of title or script wording.
 
     INTERESTINGNESS GATE - HARD RULE
 
@@ -1003,7 +1108,11 @@ REEL_PROMPT = textwrap.dedent("""\
     7. Apply the interestingness, event-vs-angle, and quality gates.
     8. If nothing clears the bar, call skip(reason).
     9. Write the script + ranked footage hints.
-    10. Write a short decision note (chosen idea, weird bit, why it
+    10. Name the subject_key: the canonical lowercase hyphenated identifier
+        for the real-world subject (e.g. 'radium-girls', 'molasses-flood-1919').
+        This is the name of the THING, not the title of the reel.
+        Two posts about the same subject must always produce the same key.
+    11. Write a short decision note (chosen idea, weird bit, why it
         passed, why weaker candidates failed). Then call run_reel ONCE.
 """)
 
@@ -1399,6 +1508,12 @@ def main(argv: list[str] | None = None) -> int:
         f"fingerprints from last {FINGERPRINT_WINDOW_DAYS} days",
         flush=True,
     )
+    # Pre-load all-time subject keys (permanent dedup, no time window).
+    used_subject_keys = load_used_subject_keys()
+    print(
+        f"[dedup] loaded {len(used_subject_keys)} subject keys (all-time)",
+        flush=True,
+    )
     # The first user message carries the giant per-mode prompt. Marking
     # it cache_control=ephemeral pins the prefix (tools + system + this
     # message) in Anthropic's prompt cache for ~5 minutes, so every turn
@@ -1474,6 +1589,7 @@ def main(argv: list[str] | None = None) -> int:
                 output = execute_tool(
                     block.name, block.input, dry_run, mode,
                     recent_fingerprints=recent_fingerprints,
+                    used_subject_keys=used_subject_keys,
                 )
                 if block.name in ("run_reel", "run_carousel"):
                     first_line = output.split("\n", 1)[0]

@@ -102,6 +102,9 @@ LIST_POSTS      = BRAIN_DATA / "list_posts.jsonl"
 BRAIN_QUEUE     = BRAIN_DATA / "queue.jsonl"
 STATS           = BRAIN_DATA / "stats.jsonl"
 TRENDS          = BRAIN_DATA / "trends.jsonl"
+# Permanent subject-key dedup — one entry per reel/carousel subject ever posted.
+# Hard-blocks exact and near-duplicate subjects across all time (no window).
+SUBJECT_KEYS    = BRAIN_DATA / "subject_keys.jsonl"
 
 # Publish history and asset dedup: never truncate or "reset" these when clearing
 # scout caches. Workflows commit these after each post; losing them allows
@@ -113,6 +116,7 @@ PUBLISH_AND_DEDUP_LEDGERS: tuple[Path, ...] = (
     LIST_POSTS,
     USED_IMAGES,
     USED_FOOTAGE,
+    SUBJECT_KEYS,
 )
 
 # Discovery and list-prep caches only. Safe to empty for a fresh candidate

@@ -1102,6 +1102,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             story_png=story_png,
             tone=fact.get("tone", "curious"),
             reel_title=fact.get("reel_title", ""),
+            subject_key=fact.get("subject_key", ""),
             word_count=len(vo_script.split()),
             caption=caption,
             # Telemetry: True when both thumbnail upload attempts failed
@@ -1134,6 +1135,7 @@ def _record(
     story_png: Path | None = None,
     tone: str = "curious",
     reel_title: str = "",
+    subject_key: str = "",
     word_count: int = 0,
     caption: str = "",
     cover_missing: bool = False,
@@ -1202,6 +1204,7 @@ def _record(
             "sources":    [],
             "reel_title": reel_title,
         }],
+        subject_key=subject_key,
     )
     brain.append_log(
         f"reel {reel_id} published ({topic}, ig_media={ig_media_id})"
@@ -1236,6 +1239,8 @@ def main() -> int:
     parser.add_argument("--tone-override", default="curious",
                         choices=["shocking", "curious", "sober", "wholesome"],
                         help="Tone override for TTS voice settings (used with --script).")
+    parser.add_argument("--subject-key", default="",
+                        help="Canonical subject key for permanent dedup (e.g. 'radium-girls').")
     args = parser.parse_args()
 
     # Per-day reel cap removed: the autonomous agent is now the single
@@ -1264,6 +1269,7 @@ def main() -> int:
         "allow_archival": False,
         "sources":      [],
         "autonomous":   True,
+        "subject_key":  args.subject_key or "",
     }
     return make_reel(topic=None, dry_run=args.dry_run, voice=args.voice,
                      _autonomous=autonomous_fact)

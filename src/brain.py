@@ -45,6 +45,7 @@ from src.core.paths import (
     TRENDS as TRENDS_PATH,
     BRAIN_LOG as LOG_PATH,
     BRAIN_INBOX as INBOX_PATH,
+    SUBJECT_KEYS as SUBJECT_KEYS_PATH,
 )
 
 
@@ -160,15 +161,18 @@ class Brain:
         self.data_dir = self.brain_dir / "data"
         self.brain_dir.mkdir(parents=True, exist_ok=True)
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        for path in (POSTED_PATH, QUEUE_PATH, STATS_PATH, TRENDS_PATH, LOG_PATH, INBOX_PATH):
+        for path in (POSTED_PATH, QUEUE_PATH, STATS_PATH, TRENDS_PATH, LOG_PATH, INBOX_PATH,
+                     SUBJECT_KEYS_PATH):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.touch(exist_ok=True)
 
         self._lock = Lock()
         self._posted_hashes: set[str] = set()
         self._posted_quote_hashes: set[str] = set()
+        self._subject_keys: set[str] = set()
         self._load_posted()
         self._load_posted_quotes()
+        self._load_subject_keys()
 
         # Image dedupe - uses the canonical path from paths.py so brain and
         # image_fetcher both read/write the same file.
@@ -193,6 +197,31 @@ class Brain:
 
     def posted_count(self) -> int:
         return len(self._posted_hashes)
+
+    # ----- subject-key dedup (permanent, all-time) -----
+
+    def is_subject_used(self, key: str) -> bool:
+        """Return True if this canonical subject key has ever been posted."""
+        return key.strip().lower() in self._subject_keys
+
+    def find_subject_collision(self, key: str) -> str | None:
+        """Return the first stored key that is too similar to `key`, or None.
+
+        Uses Jaccard similarity on raw hyphen-split tokens at threshold 0.4.
+        Catches near-variants like 'radium-girl' vs 'radium-girls'.
+        """
+        candidate_tokens = set((key.strip().lower()).split("-")) - {""}
+        if not candidate_tokens:
+            return None
+        for stored in self._subject_keys:
+            stored_tokens = set(stored.split("-")) - {""}
+            if not stored_tokens:
+                continue
+            intersection = candidate_tokens & stored_tokens
+            union = candidate_tokens | stored_tokens
+            if union and len(intersection) / len(union) >= 0.4:
+                return stored
+        return None
 
     def assert_no_duplicate(self, claims: list[str]) -> None:
         """Hard gate - raises DuplicatePostError if ANY claim has already been posted.
@@ -253,11 +282,35 @@ class Brain:
 
     # ----- write APIs -----
 
-    def record_publish(self, *, post_id: str, ig_media_id: str, slides: list[dict]) -> None:
+    def record_subject_key(self, key: str, *, post_id: str = "", published_at: str = "") -> None:
+        """Append one subject_key entry to the permanent dedup ledger.
+
+        Idempotent: if the key is already in-memory it is not written again.
+        Call this after a successful publish, not before.
+        """
+        key = key.strip().lower()
+        if not key:
+            return
+        if key in self._subject_keys:
+            return
+        row = {
+            "subject_key": key,
+            "post_id": post_id,
+            "published_at": published_at or _now_iso(),
+        }
+        with self._lock:
+            with SUBJECT_KEYS_PATH.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(row, ensure_ascii=True) + "\n")
+            self._subject_keys.add(key)
+
+    def record_publish(self, *, post_id: str, ig_media_id: str, slides: list[dict],
+                       subject_key: str = "") -> None:
         """Append one row per slide claim. `slides` items must have:
             claim, topic, category, sources (list of urls)
         Optional per-slide fields written through if present:
             reel_title (subject identity for reels - feeds fingerprint dedup)
+        Optional kwarg:
+            subject_key (canonical dedup identifier, permanent all-time block)
         """
         when = _now_iso()
         with self._lock:
@@ -281,8 +334,22 @@ class Brain:
                     reel_title = slide.get("reel_title")
                     if reel_title:
                         row["reel_title"] = reel_title
+                    sk = (slide.get("subject_key") or subject_key or "").strip().lower()
+                    if sk:
+                        row["subject_key"] = sk
                     fh.write(json.dumps(row, ensure_ascii=True) + "\n")
                     self._posted_hashes.add(h)
+        # Record subject key in its own permanent ledger (outside the POSTED lock
+        # so record_subject_key acquires the lock independently).
+        sk = subject_key.strip().lower() if subject_key else ""
+        if not sk:
+            # Fall back to slide-level key if kwarg was not supplied.
+            for slide in slides:
+                sk = (slide.get("subject_key") or "").strip().lower()
+                if sk:
+                    break
+        if sk:
+            self.record_subject_key(sk, post_id=post_id, published_at=when)
 
     def append_log(self, line: str) -> None:
         """Prepend a line to insta-brain/log.md.
@@ -365,6 +432,21 @@ class Brain:
                 h = row.get("quote_hash")
                 if h:
                     self._posted_quote_hashes.add(h)
+
+    def _load_subject_keys(self) -> None:
+        SUBJECT_KEYS_PATH.touch(exist_ok=True)
+        with SUBJECT_KEYS_PATH.open("r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                k = row.get("subject_key", "")
+                if k:
+                    self._subject_keys.add(k.strip().lower())
 
 
 # Module-level singleton. Importing `from src.brain import brain` gives every

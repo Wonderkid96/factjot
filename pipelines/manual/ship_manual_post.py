@@ -1809,6 +1809,8 @@ def main() -> int:
         action="store_true",
         help="Fast validation mode for dry-runs: reduce image pool work and skip R3 fallback.",
     )
+    parser.add_argument("--subject-key", default="",
+                        help="Canonical subject key for permanent dedup (e.g. 'biggest-dam-failures').")
     args = parser.parse_args()
 
     # Layout-profile routing lives in src/content/carousel_rules.py
@@ -2368,6 +2370,7 @@ def main() -> int:
                     "category": label,
                     "sources":  [],
                 }],
+                subject_key=args.subject_key or "",
             )
             _write_quality_ledger_entry(
                 ledger_path=quality_ledger_path,
