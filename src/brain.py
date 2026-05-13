@@ -207,8 +207,10 @@ class Brain:
     def find_subject_collision(self, key: str) -> str | None:
         """Return the first stored key that is too similar to `key`, or None.
 
-        Uses Jaccard similarity on raw hyphen-split tokens at threshold 0.4.
-        Catches near-variants like 'radium-girl' vs 'radium-girls'.
+        Uses Jaccard similarity on raw hyphen-split tokens at threshold 0.7.
+        Catches near-identical variants (typos, singular/plural) without
+        blocking genuinely different stories that share common words like
+        'great', 'flood', or a year number.
         """
         candidate_tokens = set((key.strip().lower()).split("-")) - {""}
         if not candidate_tokens:
@@ -219,7 +221,7 @@ class Brain:
                 continue
             intersection = candidate_tokens & stored_tokens
             union = candidate_tokens | stored_tokens
-            if union and len(intersection) / len(union) >= 0.4:
+            if union and len(intersection) / len(union) >= 0.7:
                 return stored
         return None
 

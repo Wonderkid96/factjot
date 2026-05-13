@@ -268,7 +268,7 @@ def _find_key_collision(candidate: str, used: set[str]) -> str | None:
         if not s_tokens:
             continue
         union = c_tokens | s_tokens
-        if union and len(c_tokens & s_tokens) / len(union) >= 0.4:
+        if union and len(c_tokens & s_tokens) / len(union) >= 0.7:
             return stored
     return None
 

@@ -3,7 +3,7 @@
 Behavioural contract:
 - run_reel / run_carousel with a subject_key already in the used set are
   hard-blocked before the pipeline subprocess fires.
-- Fuzzy Jaccard matching at 0.4 blocks close variants (e.g. 'radium-girl'
+- Fuzzy Jaccard matching at 0.7 blocks near-identical variants (e.g. 'radium-girl'
   blocked by 'radium-girls').
 - An unrelated subject_key is not blocked.
 - In-session poisoning blocks a second dispatch before the on-disk ledger
@@ -82,7 +82,7 @@ def test_brain_find_subject_collision_close_variant():
 
 
 def test_brain_find_subject_collision_high_overlap():
-    # 'great-molasses-flood-1919' vs 'great-molasses-flood': 3/4=0.75 >= 0.4
+    # 'great-molasses-flood-1919' vs 'great-molasses-flood': 3/4=0.75 >= 0.7
     b = Brain.__new__(Brain)
     b._subject_keys = {"great-molasses-flood"}
     result = b.find_subject_collision("great-molasses-flood-1919")
@@ -120,7 +120,7 @@ def test_find_key_collision_exact_match():
 def test_find_key_collision_high_jaccard():
     used = {"great-molasses-flood"}
     # 'great-molasses-flood-1919' -> tokens {'great','molasses','flood','1919'}
-    # stored -> {'great','molasses','flood'}, intersection 3, union 4 -> 0.75
+    # stored -> {'great','molasses','flood'}, intersection 3, union 4 -> 0.75 >= 0.7
     assert agent._find_key_collision("great-molasses-flood-1919", used) == "great-molasses-flood"
 
 
@@ -164,7 +164,7 @@ def test_exact_subject_key_blocks_dispatch():
 
 
 def test_fuzzy_subject_key_blocks_close_variant():
-    # 'great-molasses-flood-1919' has 0.75 Jaccard overlap with 'great-molasses-flood'
+    # 'great-molasses-flood-1919' has 0.75 Jaccard overlap (>= 0.7) with 'great-molasses-flood'
     used = {"great-molasses-flood"}
     args = {
         "script": "In January 1919...",
