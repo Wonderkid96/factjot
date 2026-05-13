@@ -44,6 +44,11 @@ except Exception:
     _REELS_CACHE = REPO_ROOT / "output" / "reel"
 REEL_CACHE = _REELS_CACHE
 
+try:
+    from src.render.reel_composer import INTRO_OVERLAY_DURATION_S as _INTRO_OVERLAY_S
+except Exception:
+    _INTRO_OVERLAY_S = 1.37
+
 # Phase F (Q7): YouTube gets its own description + title shape rather
 # than reusing the verbatim IG caption. These imports are guarded so the
 # script keeps working if anyone runs it without the rest of src/ on the
@@ -390,11 +395,15 @@ def upload(video_path: Path, title: str, description: str,
             print(f"[youtube] {int(status.progress() * 100)}% uploaded", flush=True)
     video_id = response["id"]
     print(f"[youtube] done. video_id={video_id}", flush=True)
+    print(
+        f"[youtube] THUMBNAIL SCRUB: open YouTube Studio -> Details -> "
+        f"scrub timeline to {_INTRO_OVERLAY_S:.1f}s (intro overlay ends here)",
+        flush=True,
+    )
 
-    # Custom thumbnail (soft - YouTube auto-picks a frame if this fails).
-    thumb = _prepare_thumbnail(video_path)
-    if thumb is not None:
-        _set_thumbnail(youtube, video_id, thumb)
+    # Custom thumbnail upload is skipped for Shorts — YouTube ignores API-set
+    # thumbnails in the Shorts feed. The scrub-to-frame approach above is the
+    # only mechanism that controls the in-feed thumbnail.
 
     return response
 
