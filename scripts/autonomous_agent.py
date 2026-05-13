@@ -55,7 +55,7 @@ from src.research.story_scout import (
 # proportional to time and that delays the next slot.
 MAX_TURNS = 6
 MODEL     = "claude-sonnet-4-6"
-HISTORY_LIMIT = 30
+HISTORY_LIMIT = 500
 
 # Anthropic Sonnet 4.6 pricing (USD per million tokens, May 2026).
 PRICE_INPUT_PER_M  = 3.00
@@ -567,16 +567,15 @@ TOOLS = [
                 "subject_key": {
                     "type": "string",
                     "description": (
-                        "Canonical lowercase hyphenated identifier for the real-world subject. "
-                        "Name the THING, not the title of the reel. "
+                        "Optional. Canonical lowercase hyphenated name for the real-world subject. "
+                        "When you supply this, it is hard-blocked forever — no future session can "
+                        "re-post the same subject key. Use it when you want certainty. "
                         "GOOD: 'radium-girls', 'great-molasses-flood', 'operation-acoustic-kitty'. "
-                        "BAD: 'girls-who-glowed', 'the-flood-that-got-a-refund'. "
-                        "Must be specific enough that two posts about the same subject always "
-                        "produce the same key. Hard-blocked against all previous posts permanently."
+                        "BAD: 'girls-who-glowed', 'the-flood-that-got-a-refund'."
                     ),
                 },
             },
-            "required": ["script", "title", "topic", "tone_override", "hint", "subject_key"],
+            "required": ["script", "title", "topic", "tone_override", "hint"],
             "additionalProperties": False,
         },
     },
@@ -615,15 +614,14 @@ TOOLS = [
                 "subject_key": {
                     "type": "string",
                     "description": (
-                        "Canonical lowercase hyphenated identifier for the real-world subject. "
-                        "For list posts: name the list subject, not the title. "
-                        "GOOD: 'biggest-dam-failures', 'most-expensive-military-projects'. "
-                        "BAD: 'five-dam-failures-by-death-toll'. "
-                        "Hard-blocked against all previous posts permanently."
+                        "Optional. Canonical lowercase hyphenated name for the subject. "
+                        "When supplied, hard-blocked forever against future sessions. "
+                        "GOOD: 'biggest-dam-failures', 'five-deadliest-product-recalls'. "
+                        "BAD: 'five-dam-failures-by-death-toll'."
                     ),
                 },
             },
-            "required": ["brief", "label", "subject_key"],
+            "required": ["brief", "label"],
             "additionalProperties": False,
         },
     },
@@ -711,7 +709,16 @@ def execute_tool(
     used_subject_keys: set[str] | None = None,
 ) -> str:
     if name == "list_unposted_topics":
-        return build_history_summary()
+        summary = build_history_summary()
+        covered = sorted(load_used_subject_keys())
+        if covered:
+            keys_block = (
+                "\n\nCOVERED SUBJECTS — every story ever posted, by canonical name. "
+                "Never re-post any of these, regardless of angle or framing:\n"
+                + "\n".join(f"  {k}" for k in covered)
+            )
+            return summary + keys_block
+        return summary
     if name == "list_story_candidates":
         rows = ranked_candidates_for_mode(mode=mode, top_n=12)
         list_pool = build_list_reel_possibilities(mode=mode, max_outcomes=15)
@@ -851,12 +858,11 @@ SHARED_CORE = textwrap.dedent("""\
     - a near-duplicate with only minor wording changes
     This applies across every format.
 
-    Every run_reel and run_carousel call MUST include subject_key.
-    subject_key is the canonical lowercase hyphenated name for the
-    real-world subject (e.g. 'radium-girls', 'great-molasses-flood').
-    It is hard-blocked against all previous posts permanently — no
-    time window. A repeated subject_key is rejected before the
-    pipeline runs, regardless of title or script wording.
+    subject_key is optional on run_reel and run_carousel. When you
+    supply it, it is hard-blocked permanently against all future posts.
+    Use it when you are confident of the canonical name and want to
+    guarantee the story can never run again (e.g. 'radium-girls',
+    'great-molasses-flood', 'operation-acoustic-kitty').
 
     INTERESTINGNESS GATE - HARD RULE
 
