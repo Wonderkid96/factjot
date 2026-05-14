@@ -3,8 +3,9 @@
 {# factjot. Reel story (1080×1920)                                           #}
 {# Style: TJCreate Visual Style Guide v2.0 (Caption Type Update · 05/2026)  #}
 {#                                                                           #}
-{# Layout: stripped, central headline only. No masthead, no pill, no CTA.    #}
-{# The story is the hook in its purest form; the Reel cover carries brand.   #}
+{# Layout: central headline with brand chrome bars at top and bottom,        #}
+{# matching the list thumbnail visual language (factjot. wordmark + rule +   #}
+{# topic label at top; accent pill at bottom).                               #}
 {#                                                                           #}
 {# Type rule (NON-NEGOTIABLE): Archivo Black 900 is used ONLY on the         #}
 {# central headline. Labels use Space Grotesk Bold per v2.1 hierarchy.       #}
@@ -12,9 +13,7 @@
 {# Required vars: width, height, frame_url, title_html,                     #}
 {#                font_serif_regular, font_serif_italic,                    #}
 {#                font_sans_semibold, font_sans_bold, font_archivo_black    #}
-{# Optional vars: kicker, title_size (default 132)                          #}
-{# Variables kept in signature for agent compatibility but unused here:     #}
-{#   topic                                                                   #}
+{# Optional vars: kicker, title_size (default 132), topic                   #}
 {# ----------------------------------------------------------------------- #}
 <html lang="en">
 <head>
@@ -162,9 +161,8 @@
     text-transform: none;
   }
 
-  /* NEW REEL pill, sits below the headline, the only branding chrome on
-     the story. Space Grotesk Bold 700 (label role per v2.1 hierarchy);
-     Archivo Black is reserved for the central headline only. */
+  /* NEW REEL pill, sits below the headline. Space Grotesk Bold 700 per
+     v2.1 hierarchy; Archivo Black reserved for the central headline only. */
   .new-reel-pill {
     margin-top: 44px;
     background: var(--accent);
@@ -178,6 +176,63 @@
     text-transform: uppercase;
     line-height: 1;
   }
+
+  /* Brand chrome bars: top and bottom, matching the list thumbnail. */
+  .info-bar {
+    position: absolute;
+    left: 60px;
+    right: 60px;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+  .info-bar--top  { top: 54px; }
+  .info-bar--bottom { bottom: 60px; }
+
+  .wordmark {
+    font-family: "Instrument Serif", Georgia, serif;
+    font-size: 42px;
+    font-weight: 400;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--off-white);
+    text-shadow: 2px 2px 0 rgba(0,0,0,0.5);
+    white-space: nowrap;
+  }
+  .wordmark .ital { font-style: italic; }
+  .wordmark .dot  { color: var(--accent); }
+
+  .top-rule {
+    flex: 1;
+    height: 1px;
+    background: rgba(237,232,221,0.35);
+  }
+
+  .topic-label {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--off-white);
+    opacity: 0.70;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.55);
+    white-space: nowrap;
+  }
+
+  .topic-pill {
+    background: var(--accent);
+    color: var(--off-white);
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    letter-spacing: 0.22em;
+    padding: 11px 22px 13px;
+    border-radius: 9999px;
+    text-transform: uppercase;
+    line-height: 1;
+  }
 </style>
 </head>
 <body>
@@ -185,10 +240,20 @@
   <div class="dark-overlay"></div>
   <div class="grain"></div>
 
+  <div class="info-bar info-bar--top">
+    <span class="wordmark">fact<span class="ital">jot</span><span class="dot">.</span></span>
+    <span class="top-rule"></span>
+    {% if topic %}<span class="topic-label">{{ topic }}</span>{% endif %}
+  </div>
+
   <div class="center">
     {% if kicker %}<div class="kicker">{{ kicker }}</div>{% endif %}
     <div class="headline">{{ title_html | safe }}</div>
     <span class="new-reel-pill">New Reel</span>
+  </div>
+
+  <div class="info-bar info-bar--bottom">
+    {% if topic %}<span class="topic-pill">{{ topic }}</span>{% endif %}
   </div>
 </div>
 </body>

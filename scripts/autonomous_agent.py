@@ -820,6 +820,68 @@ def execute_tool(
 # Prompt
 # ------------------------------------------------------------------ #
 
+def _build_performance_signal() -> str:
+    """Return a brief performance note to append to the agent prompt.
+
+    Suppressed when fewer than MIN_RECORDS reels have reach > 0 and when
+    any topic/tone bucket has fewer than 2 data points (too noisy to guide).
+    Fails silently on any read error so it never blocks a run.
+    """
+    MIN_RECORDS = 5
+    MIN_BUCKET  = 2
+    try:
+        from collections import defaultdict
+        from src.core.paths import REEL_PERFORMANCE
+        if not REEL_PERFORMANCE.exists():
+            return ""
+        records = [
+            json.loads(l)
+            for l in REEL_PERFORMANCE.read_text(encoding="utf-8").strip().splitlines()
+            if l.strip()
+        ]
+        usable = [r for r in records if r.get("reach", 0) > 0]
+        if len(usable) < MIN_RECORDS:
+            return ""
+
+        topic_reach: dict[str, list[int]] = defaultdict(list)
+        tone_reach:  dict[str, list[int]] = defaultdict(list)
+        for r in usable:
+            t = (r.get("topic") or "").strip()
+            n = (r.get("tone")  or "").strip()
+            reach = r.get("reach", 0)
+            if t:
+                topic_reach[t].append(reach)
+            if n:
+                tone_reach[n].append(reach)
+
+        topic_avgs = {t: sum(v) / len(v) for t, v in topic_reach.items() if len(v) >= MIN_BUCKET}
+        tone_avgs  = {t: sum(v) / len(v) for t, v in tone_reach.items()  if len(v) >= MIN_BUCKET}
+
+        if not topic_avgs and not tone_avgs:
+            return ""
+
+        lines = ["[Performance signal — soft guide, small sample, not a hard constraint]"]
+        if topic_avgs:
+            ranked = sorted(topic_avgs.items(), key=lambda x: -x[1])[:3]
+            parts  = ", ".join(
+                f"{t} (avg {int(v)} reach, n={len(topic_reach[t])})" for t, v in ranked
+            )
+            lines.append(f"Top topics by reach: {parts}")
+        if tone_avgs:
+            ranked = sorted(tone_avgs.items(), key=lambda x: -x[1])[:3]
+            parts  = ", ".join(
+                f"{t} (avg {int(v)} reach, n={len(tone_reach[t])})" for t, v in ranked
+            )
+            lines.append(f"Top tones by reach: {parts}")
+        lines.append(
+            "Lean toward these where the story quality is equal. "
+            "A stronger story in a weaker topic always wins."
+        )
+        return "\n\n" + "\n".join(lines)
+    except Exception:
+        return ""
+
+
 SHARED_CORE = textwrap.dedent("""\
     You are running the factjot Instagram account (@factjot).
 
@@ -1454,7 +1516,7 @@ MODE_PROMPTS: dict[str, str] = {
 
 
 def build_prompt(mode: str) -> str:
-    return SHARED_CORE + MODE_PROMPTS[mode]
+    return SHARED_CORE + _build_performance_signal() + MODE_PROMPTS[mode]
 
 
 # ------------------------------------------------------------------ #
