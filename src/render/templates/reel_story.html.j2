@@ -1,19 +1,19 @@
 <!doctype html>
 {# ----------------------------------------------------------------------- #}
-{# factjot. Reel story (1080×1920)                                           #}
-{# Style: TJCreate Visual Style Guide v2.0 (Caption Type Update · 05/2026)  #}
-{#                                                                           #}
-{# Layout: central headline with brand chrome bars at top and bottom,        #}
-{# matching the list thumbnail visual language (factjot. wordmark + rule +   #}
-{# topic label at top; accent pill at bottom).                               #}
-{#                                                                           #}
-{# Type rule (NON-NEGOTIABLE): Archivo Black 900 is used ONLY on the         #}
-{# central headline. Labels use Space Grotesk Bold per v2.1 hierarchy.       #}
-{#                                                                           #}
-{# Required vars: width, height, frame_url, title_html,                     #}
-{#                font_serif_regular, font_serif_italic,                    #}
-{#                font_sans_semibold, font_sans_bold, font_archivo_black    #}
-{# Optional vars: kicker, title_size (default 132), topic                   #}
+{# factjot. Reel story (1080x1920)                                          #}
+{# Style: TJCreate Visual Style Guide v2.0 (Caption Type Update 05/2026)   #}
+{#                                                                          #}
+{# Safe zone: y=285..1635 (1350px) matches Instagram 4:5 profile grid crop. #}
+{# All brand chrome (wordmark, headline, pill) lives inside .safe so        #}
+{# nothing is lost when the feed crops the top and bottom 285px.            #}
+{#                                                                          #}
+{# Type rule (NON-NEGOTIABLE): Archivo Black 900 is used ONLY on the        #}
+{# central headline. Labels use Space Grotesk Bold per v2.1 hierarchy.      #}
+{#                                                                          #}
+{# Required vars: width, height, frame_url, title_html,                    #}
+{#                font_serif_regular, font_serif_italic,                   #}
+{#                font_sans_semibold, font_sans_bold, font_archivo_black   #}
+{# Optional vars: kicker, title_size (default 132), topic                  #}
 {# ----------------------------------------------------------------------- #}
 <html lang="en">
 <head>
@@ -49,10 +49,6 @@
     --off-white: #EDE8DD;
     --muted:     #6B645A;
     --accent:    #E6352A;
-    --lime:      #C8DB45;
-    --lilac:     #C4A9D0;
-    --sky:       #C9D8E2;
-    --white:     #FFFFFF;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -81,7 +77,6 @@
     {% endif %}
   }
 
-  /* Single full-canvas darken to keep the headline legible over any frame */
   .dark-overlay {
     position: absolute;
     inset: 0;
@@ -96,7 +91,6 @@
     pointer-events: none;
   }
 
-  /* Grain, sits below all text */
   .grain {
     position: absolute;
     inset: 0;
@@ -107,98 +101,38 @@
     pointer-events: none;
   }
 
-  /* CENTRE: Archivo Black headline + NEW REEL pill, vertically centred. */
-  .center {
+  /* Safe zone: constrained to Instagram's 4:5 profile-grid crop window.
+     Everything outside y=285..1635 is invisible in the feed grid. */
+  .safe {
     position: absolute;
-    top: 50%;
-    left: 72px;
-    right: 72px;
-    transform: translateY(-50%);
+    left: 0; right: 0;
+    top: 285px;
+    height: 1350px;
     z-index: 20;
-    text-align: left;
+    padding: 72px 72px 84px 72px;
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 0;
-  }
-  .kicker {
-    font-family: "Space Grotesk", system-ui, sans-serif;
-    font-weight: 700;
-    font-size: 22px;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: var(--accent);
-    margin-bottom: 36px;
-    text-shadow: 1px 1px 0 rgba(0,0,0,0.55);
-  }
-  /* The ONE place Archivo Black is allowed in this template. */
-  .headline {
-    font-family: "Archivo Black", "Inter", system-ui, sans-serif;
-    font-weight: 900;
-    font-size: {{ title_size or 132 }}px;
-    line-height: 0.98;
-    letter-spacing: -0.01em;
-    text-transform: lowercase;
-    color: var(--off-white);
-    text-wrap: balance;
-    text-shadow: 3px 3px 0 rgba(0,0,0,0.55);   /* hard, short, subtle */
-  }
-  .headline em {
-    font-style: normal;
-    font-weight: 900;
-    color: inherit;
-  }
-  .headline .h,
-  .headline strong {
-    font-style: normal;
-    font-weight: 900;
-    color: var(--accent);
-  }
-  .headline::after {
-    content: ".";
-    color: var(--accent);
-    font-family: "Archivo Black", "Inter", system-ui, sans-serif;
-    text-transform: none;
+    justify-content: space-between;
   }
 
-  /* NEW REEL pill, sits below the headline. Space Grotesk Bold 700 per
-     v2.1 hierarchy; Archivo Black reserved for the central headline only. */
-  .new-reel-pill {
-    margin-top: 44px;
-    background: var(--accent);
-    color: var(--off-white);
-    font-family: "Space Grotesk", system-ui, sans-serif;
-    font-weight: 700;
-    font-size: 22px;
-    letter-spacing: 0.24em;
-    padding: 12px 22px 14px;
-    border-radius: 9999px;
-    text-transform: uppercase;
-    line-height: 1;
-  }
-
-  /* Brand chrome bars: top and bottom, matching the list thumbnail. */
-  .info-bar {
-    position: absolute;
-    left: 60px;
-    right: 60px;
-    z-index: 30;
+  /* TOP ROW: wordmark + rule + topic label */
+  .top-row {
     display: flex;
     align-items: center;
     gap: 18px;
+    flex-shrink: 0;
   }
-  .info-bar--top  { top: 54px; }
-  .info-bar--bottom { bottom: 60px; }
 
   .wordmark {
     font-family: "Instrument Serif", Georgia, serif;
-    font-size: 42px;
+    font-size: 38px;
     font-weight: 400;
     line-height: 1;
     letter-spacing: -0.02em;
     color: var(--off-white);
     text-shadow: 2px 2px 0 rgba(0,0,0,0.5);
     white-space: nowrap;
+    opacity: 0.96;
   }
   .wordmark .ital { font-style: italic; }
   .wordmark .dot  { color: var(--accent); }
@@ -221,17 +155,89 @@
     white-space: nowrap;
   }
 
-  .topic-pill {
+  /* MIDDLE: headline vertically centred within the safe zone. */
+  .hook {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 0;
+  }
+
+  .kicker {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 22px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 36px;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.55);
+  }
+
+  /* The ONE place Archivo Black is allowed in this template. */
+  .headline {
+    font-family: "Archivo Black", "Inter", system-ui, sans-serif;
+    font-weight: 900;
+    font-size: {{ title_size or 132 }}px;
+    line-height: 0.98;
+    letter-spacing: -0.01em;
+    text-transform: lowercase;
+    color: var(--off-white);
+    text-wrap: balance;
+    text-shadow: 3px 3px 0 rgba(0,0,0,0.55);
+  }
+  .headline em {
+    font-style: normal;
+    font-weight: 900;
+    color: inherit;
+  }
+  .headline .h,
+  .headline strong {
+    font-style: normal;
+    font-weight: 900;
+    color: var(--accent);
+  }
+  .headline::after {
+    content: ".";
+    color: var(--accent);
+    font-family: "Archivo Black", "Inter", system-ui, sans-serif;
+    text-transform: none;
+  }
+
+  /* BOTTOM ROW: topic pill. Space Grotesk Bold 700 per v2.1 hierarchy. */
+  .bottom-row {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 20px;
+  }
+
+  .new-reel-pill {
     background: var(--accent);
     color: var(--off-white);
     font-family: "Space Grotesk", system-ui, sans-serif;
     font-weight: 700;
     font-size: 20px;
-    letter-spacing: 0.22em;
+    letter-spacing: 0.24em;
     padding: 11px 22px 13px;
     border-radius: 9999px;
     text-transform: uppercase;
     line-height: 1;
+  }
+
+  .topic-pill {
+    background: transparent;
+    color: var(--off-white);
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    line-height: 1;
+    opacity: 0.70;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.55);
   }
 </style>
 </head>
@@ -240,20 +246,22 @@
   <div class="dark-overlay"></div>
   <div class="grain"></div>
 
-  <div class="info-bar info-bar--top">
-    <span class="wordmark">fact<span class="ital">jot</span><span class="dot">.</span></span>
-    <span class="top-rule"></span>
-    {% if topic %}<span class="topic-label">{{ topic }}</span>{% endif %}
-  </div>
+  <div class="safe">
+    <div class="top-row">
+      <span class="wordmark">fact<span class="ital">jot</span><span class="dot">.</span></span>
+      <span class="top-rule"></span>
+      {% if topic %}<span class="topic-label">{{ topic }}</span>{% endif %}
+    </div>
 
-  <div class="center">
-    {% if kicker %}<div class="kicker">{{ kicker }}</div>{% endif %}
-    <div class="headline">{{ title_html | safe }}</div>
-    <span class="new-reel-pill">New Reel</span>
-  </div>
+    <div class="hook">
+      {% if kicker %}<div class="kicker">{{ kicker }}</div>{% endif %}
+      <div class="headline">{{ title_html | safe }}</div>
+    </div>
 
-  <div class="info-bar info-bar--bottom">
-    {% if topic %}<span class="topic-pill">{{ topic }}</span>{% endif %}
+    <div class="bottom-row">
+      <span class="new-reel-pill">New Reel</span>
+      {% if topic %}<span class="topic-pill">{{ topic }}</span>{% endif %}
+    </div>
   </div>
 </div>
 </body>
