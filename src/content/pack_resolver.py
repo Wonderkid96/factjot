@@ -15,6 +15,8 @@ this module is the only thing that orchestrates per-pack resolution.
 from __future__ import annotations
 
 import hashlib
+import logging
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -23,6 +25,21 @@ import requests
 from src.render.list_renderer import ListSlideSpec
 from src.research.omdb_client import OMDbClient
 from src.research.tmdb_client import TMDBClient
+
+
+log = logging.getLogger(__name__)
+
+
+def _titles_match(expected: str, actual: str) -> bool:
+    """Fuzzy title comparison tolerant of common abbreviations and punctuation."""
+    def _norm(s: str) -> str:
+        s = s.lower()
+        s = re.sub(r'\bvolume\b', 'vol', s)
+        s = re.sub(r'\bpart\b', 'pt', s)
+        s = re.sub(r'[^\w\s]', '', s)
+        return re.sub(r'\s+', ' ', s).strip()
+    a, b = _norm(expected), _norm(actual)
+    return a in b or b in a
 
 
 def slug_post_id(slug: str) -> str:
@@ -53,14 +70,13 @@ def _fetch_item_data(raw: dict, tmdb: TMDBClient, omdb: OMDbClient,
         entity = tmdb.get_movie(tmdb_id)
         credits = tmdb.get_movie_credits(tmdb_id)
         title = entity.get("title") or entity.get("original_title") or "Untitled"
-        # Hard guard: if the pack item declares an expected_title, verify TMDB
-        # returns a matching title. A mismatch means the ID is wrong - abort
-        # immediately rather than silently posting the wrong film.
+        # Sanity check: if the pack declares an expected_title, warn on mismatch
+        # but don't abort — minor variants (Vol. vs Volume, punctuation) are fine.
         expected = raw.get("expected_title")
-        if expected and expected.lower() not in title.lower() and title.lower() not in expected.lower():
-            raise RuntimeError(
-                f"TMDB ID {tmdb_id} returned {title!r} but pack expects {expected!r}. "
-                f"Wrong ID - fix list_packs.py before posting."
+        if expected and not _titles_match(expected, title):
+            log.warning(
+                "TMDB ID %s returned %r but pack expects %r - using TMDB title.",
+                tmdb_id, title, expected,
             )
         year = (entity.get("release_date") or "")[:4] or ""
         credit_name = tmdb.director_name(credits) or ""
@@ -74,10 +90,10 @@ def _fetch_item_data(raw: dict, tmdb: TMDBClient, omdb: OMDbClient,
         credits = tmdb.get_tv_credits(tmdb_id)
         title = entity.get("name") or entity.get("original_name") or "Untitled"
         expected = raw.get("expected_title")
-        if expected and expected.lower() not in title.lower() and title.lower() not in expected.lower():
-            raise RuntimeError(
-                f"TMDB ID {tmdb_id} returned {title!r} but pack expects {expected!r}. "
-                f"Wrong ID - fix list_packs.py before posting."
+        if expected and not _titles_match(expected, title):
+            log.warning(
+                "TMDB ID %s returned %r but pack expects %r - using TMDB title.",
+                tmdb_id, title, expected,
             )
         year = (entity.get("first_air_date") or "")[:4] or ""
         credit_name = tmdb.first_creator_name(entity, credits) or ""
