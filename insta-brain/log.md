@@ -1,5 +1,7 @@
 # factjot brain log
 
+- 2026-05-15 20:09 reel 1c9dcb3c136a9a published (history, ig_media=18074217278289610)
+- 2026-05-15 20:02 token refreshed: new expiry ~59 days
 - 2026-05-15 18:03 TTS FALLBACK to edge-tts: ElevenLabs failed (RuntimeError: ElevenLabs API error 401: quota_exceeded) - falling back to edge-tts
 - 2026-05-15 16:35 TTS FALLBACK to edge-tts: ElevenLabs failed (RuntimeError: ElevenLabs API error 401: quota_exceeded) - falling back to edge-tts
 - 2026-05-15 16:34 TTS FALLBACK to edge-tts: ElevenLabs failed (RuntimeError: ElevenLabs API error 401: quota_exceeded) - falling back to edge-tts
