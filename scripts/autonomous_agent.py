@@ -1001,6 +1001,23 @@ SHARED_CORE = textwrap.dedent("""\
 
     If it does not pass, reject it.
 
+    NOVELTY GATE - HARD RULE
+
+    Reject any fact that is already a well-worn internet staple.
+    Ask: 'Is this genuinely surprising to someone who reads widely,
+    or only surprising to someone who reads nothing?'
+
+    Reject if:
+    - It regularly appears on 'amazing facts' or '50 things you
+      didn't know' listicles.
+    - It is the kind of entry a standard pub-quiz app would include.
+    - It is a fixture of viral 'did you know' tweet threads.
+    - A broadly curious person has a high chance of having seen it.
+
+    A strong factjot fact is obscure enough that the viewer feels
+    let in on something. If the reaction is 'oh yeah I know that
+    one', it was the wrong pick. Reject it and keep looking.
+
     GOOD FACTJOT AREAS
 
     Good ideas often come from:
@@ -1153,6 +1170,34 @@ REEL_PROMPT = textwrap.dedent("""\
     - No ranking fluff ("number three will shock you").
     - No generic categories as items.
     - The hook must still carry the weird bit immediately.
+
+    REEL TITLE
+
+    The title shows on the hook card and in search. It should feel
+    earned by the specific weird bit, not like a documentary chapter
+    slot was filled in.
+
+    The most overused shape is: 'The [Noun] That [Verb]'
+    or 'The [Descriptor] [Noun]'. Both are fine occasionally but
+    they become wallpaper when every post uses them. If you catch
+    yourself writing that pattern, try a different shape first.
+
+    Other shapes that work:
+    - Hard facts in collision: '5,000 Sailors. No Coastline.'
+    - Plain contradiction: 'Bolivia Kept Its Navy After Losing Its Coast'
+    - Consequence first: 'Eight People Died. The Brewery Got a Tax Refund.'
+    - Named subject + twist: 'Radium Girls Were Told to Point Their Brushes with Their Lips'
+    - Short and flat: 'A Safety Rule Sank a Ship'
+    - Irony without explanation: 'The Flood Was 100,000 Gallons of Beer'
+
+    None of these are required formats. Let the shape come from the
+    fact. If 'The X That Y' is genuinely the sharpest version of this
+    specific weird bit, use it. Just do not reach for it by default.
+
+    Rules:
+    - No hype words (stunning, shocking, incredible, mind-blowing).
+    - Under 60 characters preferred; hard cap 70.
+    - The weird bit must be present or strongly implied.
 
     FOOTAGE QUERIES
 
