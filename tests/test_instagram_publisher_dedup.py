@@ -185,9 +185,10 @@ def test_make_reel_wires_dedup_check_into_publisher():
     edit that removes the wiring.
     """
     src = (Path(__file__).resolve().parents[1] / "pipelines" / "reel" / "make_reel.py").read_text()
-    assert "dedup_check=brain.assert_no_duplicate" in src, (
-        "make_reel.py must wire brain.assert_no_duplicate into the publisher"
-    )
+    assert (
+        "dedup_check=brain.assert_no_duplicate" in src
+        or "dedup_check=_brain.assert_no_duplicate" in src
+    ), "make_reel.py must wire brain.assert_no_duplicate into the publisher"
     assert "dedup_subjects=[claim]" in src, (
         "make_reel.py must pass dedup_subjects on publish_reel"
     )
