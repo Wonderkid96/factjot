@@ -106,12 +106,9 @@ from src.render.reel_composer import (
     compose,
     n_clips_for_duration,
 )
-from src.render.reel_text_renderer import (
-    ReelTextRenderer,
-    TextFrame,
-)
+from src.render.reel_text_renderer import TextFrame
 from src.content.reel_title import make_title
-from src.render.tts_engine import group_into_chunks, synthesise
+from src.render.tts_engine import synthesise
 from src.utils.logging_utils import configure_logging
 
 
@@ -434,6 +431,12 @@ def _append_footage_ledger(
 # ------------------------------------------------------------------ #
 
 @dataclass
+class _RenderPhaseResult:
+    overlays:   list
+    music_path: "Path | None"
+
+
+@dataclass
 class _FootagePhaseResult:
     footage_clips:            list
     global_footage_registry:  set
@@ -452,6 +455,137 @@ class _TtsPhaseResult:
 # ------------------------------------------------------------------ #
 # Phase functions
 # ------------------------------------------------------------------ #
+
+def _render_phase(
+    fact: AutonomousReelInput,
+    out_dir: Path,
+    word_beats: list,
+    cta_s: float,
+    total_dur: float,
+    vo_script: str,
+) -> _RenderPhaseResult:
+    """Render all text overlay PNGs and select music.
+
+    Builds the ordered overlay list (shadow, label, title card, kinetic
+    subtitles, info line, CTA), renders them via a single Playwright session,
+    and picks background music. Returns a _RenderPhaseResult.
+    """
+    import re as _re
+
+    from src.content.reel_title import make_title as _make_title
+    from src.render.reel_composer import INTRO_S, OverlayFrame
+    from src.render.reel_text_renderer import ReelTextRenderer, TextFrame
+    from src.render.tts_engine import group_into_chunks
+    from src.research.narrative_beats import extract_entities as _ext_ents
+
+    ftopic      = fact["topic"]
+    claim       = fact["claim"]
+    story_title = _make_title(claim, ftopic, reel_title=fact.get("reel_title"))
+
+    overlay_dir = out_dir / "overlays"
+    overlay_dir.mkdir(exist_ok=True)
+
+    overlays: list[OverlayFrame] = []
+    text_frames: list[TextFrame] = []
+
+    # Shadow overlay — persistent cinematic framing
+    shadow_path = overlay_dir / "shadow.png"
+    text_frames.append(TextFrame(style="overlay", text="", out_path=shadow_path))
+    overlays.append(OverlayFrame(png=shadow_path, start_s=0.0, end_s=total_dur, fade_in_s=0.0, fade_out_s=0.0))
+
+    # Category label (persistent, top-centre)
+    label_path = overlay_dir / "label.png"
+    text_frames.append(TextFrame(style="label", text=ftopic, out_path=label_path))
+    overlays.append(OverlayFrame(png=label_path, start_s=0.0, end_s=total_dur, fade_in_s=0.6, fade_out_s=0.0))
+
+    # Story title card — shows during silent intro window
+    if story_title:
+        print(f"  title: '{story_title}'")
+        TITLE_FADE_IN  = 0.6
+        TITLE_FADE_OUT = 0.8
+        title_png = overlay_dir / "title.png"
+        text_frames.append(TextFrame(style="hook", text=story_title, out_path=title_png))
+        overlays.append(OverlayFrame(
+            png=title_png, start_s=0.0, end_s=INTRO_S,
+            fade_in_s=TITLE_FADE_IN, fade_out_s=TITLE_FADE_OUT,
+        ))
+        subtitle_start_gate = INTRO_S
+    else:
+        subtitle_start_gate = 0.0
+
+    # Kinetic subtitles — one PNG per word-beat chunk
+    chunks = group_into_chunks(
+        word_beats, words_per_line=4, max_chars=28, original_text=vo_script,
+    )
+    _sub_count = 0
+    for _ci, _chunk in enumerate(chunks):
+        _raw_start = _chunk[0].start_s + INTRO_S
+        _raw_end   = (
+            chunks[_ci + 1][0].start_s + INTRO_S
+            if _ci + 1 < len(chunks)
+            else _chunk[-1].end_s + INTRO_S + 0.35
+        )
+        _start = max(_raw_start, subtitle_start_gate)
+        _end   = min(_raw_end, cta_s - 0.05)
+        if _start >= _end:
+            continue
+        _text = " ".join(b.word for b in _chunk)
+        if "factjot" in _text.lower():
+            continue
+        _chunk_path = overlay_dir / f"chunk_{_ci:02d}.png"
+        text_frames.append(TextFrame(style="subtitle", text=_text, out_path=_chunk_path))
+        overlays.append(OverlayFrame(png=_chunk_path, start_s=_start, end_s=_end, fade_in_s=0.0, fade_out_s=0.0))
+        _sub_count += 1
+    print(f"  kinetic subtitles: {len(chunks)} chunks -> {_sub_count} subtitle PNGs")
+
+    # Info line — entity/year context shown briefly early in the reel
+    _claim_ents = _ext_ents(claim)
+    _year_m = _re.search(r'\b(1[0-9]{3}|20[0-9]{2})\b', claim)
+    _year_str = _year_m.group(0) if _year_m else ""
+    _CAPS_NOISE = {
+        "around", "after", "before", "while", "which", "where", "there",
+        "their", "these", "those", "every", "still", "found", "earth",
+        "world", "first", "other", "since", "until", "about", "above",
+    }
+    _strong_nouns = [
+        n for n in _claim_ents.proper_nouns
+        if len(n) > 5 and n.lower() not in _CAPS_NOISE
+    ]
+    _entity_name = _strong_nouns[0] if _strong_nouns else ""
+    _info_parts = []
+    if _entity_name:
+        _info_parts.append(_entity_name.upper())
+    if _year_str:
+        _info_parts.append(_year_str)
+    if not _info_parts:
+        _info_parts.append(ftopic.upper())
+    _info_text  = " · ".join(_info_parts)
+    _info_start = INTRO_S + 0.8
+    _info_end   = _info_start + 3.0
+    if _info_text and _info_end < cta_s - 1.0:
+        print(f"  [info] '{_info_text}' @ {_info_start:.1f}–{_info_end:.1f}s")
+        _info_png = overlay_dir / "info.png"
+        text_frames.append(TextFrame(style="info", text=_info_text, out_path=_info_png))
+        overlays.append(OverlayFrame(png=_info_png, start_s=_info_start, end_s=_info_end, fade_in_s=0.3, fade_out_s=0.4))
+
+    # CTA frame
+    cta_path = overlay_dir / "cta.png"
+    text_frames.append(TextFrame(style="cta", text="@factjot", out_path=cta_path))
+    overlays.append(OverlayFrame(png=cta_path, start_s=cta_s, end_s=total_dur, fade_in_s=0.4, fade_out_s=0.0))
+
+    # Single Playwright session renders everything
+    print(f"  rendering {len(text_frames)} text frames via Playwright...")
+    renderer = ReelTextRenderer()
+    renderer.render_all(text_frames)
+
+    music_path = _pick_music(ftopic, tone=fact.get("tone", "curious"))
+    if music_path:
+        print(f"  music: {music_path.name}")
+    else:
+        print("  music: none found")
+
+    return _RenderPhaseResult(overlays=overlays, music_path=music_path)
+
 
 def _acquire_footage_phase(
     fact: AutonomousReelInput,
@@ -762,138 +896,11 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         global_footage_registry  = footage_result.global_footage_registry
         rlog.emit(f"footage ok: {len(footage_clips)} clips -> {[p.name for p in footage_clips]}")
 
-        # Step 4: Group words into 5-6 word chunks. FFmpeg segfaults beyond ~50
-        # input streams on this build, so keep total inputs (footage + overlays)
-        # comfortably under that limit. Larger chunks = fewer overlay PNGs.
-        chunks = group_into_chunks(
-            word_beats,
-            words_per_line=4,
-            max_chars=28,
-            original_text=vo_script,
-        )
-
-        # Step 5: Render overlay frames via Playwright (brand-consistent typography)
+        # Steps 4–6: Render overlay frames + pick music
         print("\nRendering overlay frames (Playwright + Instrument Serif)...")
-        overlay_dir = out_dir / "overlays"
-        overlay_dir.mkdir(exist_ok=True)
-
-        overlays: list[OverlayFrame] = []
-        text_frames: list[TextFrame] = []
-
-        # 5a: Shadow overlay — persistent cinematic framing (top darken + bottom gradient + vignette)
-        shadow_path = overlay_dir / "shadow.png"
-        text_frames.append(TextFrame(style="overlay", text="", out_path=shadow_path))
-        overlays.append(OverlayFrame(png=shadow_path, start_s=0.0, end_s=total_dur, fade_in_s=0.0, fade_out_s=0.0))
-
-        # 5b: Category label (persistent, top-centre)
-        label_path = overlay_dir / "label.png"
-        text_frames.append(TextFrame(style="label", text=ftopic, out_path=label_path))
-        overlays.append(OverlayFrame(png=label_path, start_s=0.0, end_s=total_dur, fade_in_s=0.6, fade_out_s=0.0))
-
-        # 5c: Story title card — fades in during silence, fades out as voice begins.
-        # Title occupies the INTRO_S window: fades in at 0, holds, then fades out
-        # just as the VO starts so there's a clean handoff to subtitles.
-        story_title = make_title(claim, ftopic, reel_title=fact.get("reel_title"))
-        if story_title:
-            print(f"  title: '{story_title}'")
-            TITLE_FADE_IN  = 0.6
-            TITLE_FADE_OUT = 0.8   # completes fading just before voice starts
-            TITLE_HOLD     = INTRO_S - TITLE_FADE_IN - TITLE_FADE_OUT  # 3.5 - 0.6 - 0.8 = 2.1s
-
-            title_png = overlay_dir / "title.png"
-            text_frames.append(TextFrame(style="hook", text=story_title, out_path=title_png))
-            overlays.append(OverlayFrame(
-                png=title_png,
-                start_s=0.0,
-                end_s=INTRO_S,
-                fade_in_s=TITLE_FADE_IN,
-                fade_out_s=TITLE_FADE_OUT,
-            ))
-            subtitle_start_gate = INTRO_S
-        else:
-            subtitle_start_gate = 0.0
-
-        # 5d: KINETIC SUBTITLES via PNG overlays — one PNG per subtitle chunk.
-        # Each chunk is a static image shown during its word-beat window.
-        # Simpler than libass and avoids the ass filter deadlock on macOS ffmpeg-full.
-        _sub_count = 0
-        for _ci, _chunk in enumerate(chunks):
-            _raw_start = _chunk[0].start_s + INTRO_S
-            if _ci + 1 < len(chunks):
-                _raw_end = chunks[_ci + 1][0].start_s + INTRO_S
-            else:
-                _raw_end = _chunk[-1].end_s + INTRO_S + 0.35
-            _start = max(_raw_start, subtitle_start_gate)
-            _end = min(_raw_end, cta_s - 0.05)
-            if _start >= _end:
-                continue
-            _text = " ".join(b.word for b in _chunk)
-            # Skip chunks that contain "factjot" — the CTA logo appears
-            # immediately after and showing it twice is jarring.
-            if "factjot" in _text.lower():
-                continue
-            _chunk_path = overlay_dir / f"chunk_{_ci:02d}.png"
-            text_frames.append(TextFrame(style="subtitle", text=_text, out_path=_chunk_path))
-            overlays.append(OverlayFrame(png=_chunk_path, start_s=_start, end_s=_end, fade_in_s=0.0, fade_out_s=0.0))
-            _sub_count += 1
-        print(f"  kinetic subtitles: {len(chunks)} chunks -> {_sub_count} subtitle PNGs")
-
-        # 5e: Info line — single Space Grotesk Bold uppercase line in the upper-mid
-        # zone showing "ENTITY · YEAR" (or just topic). Appears briefly early in
-        # the reel to give context without competing with subtitles.
-        from src.research.narrative_beats import extract_entities as _ext_ents
-        import re as _re
-
-        _claim_ents = _ext_ents(claim)
-        _year_m = _re.search(r'\b(1[0-9]{3}|20[0-9]{2})\b', claim)
-        _year_str = _year_m.group(0) if _year_m else ""
-
-        # Filter proper nouns: require > 5 chars and exclude common words that
-        # appear capitalised at sentence starts (Around, After, While, etc.)
-        _CAPS_NOISE = {
-            "around", "after", "before", "while", "which", "where", "there",
-            "their", "these", "those", "every", "still", "found", "earth",
-            "world", "first", "other", "since", "until", "about", "above",
-        }
-        _strong_nouns = [
-            n for n in _claim_ents.proper_nouns
-            if len(n) > 5 and n.lower() not in _CAPS_NOISE
-        ]
-        _entity_name = _strong_nouns[0] if _strong_nouns else ""
-
-        _info_parts = []
-        if _entity_name:
-            _info_parts.append(_entity_name.upper())
-        if _year_str:
-            _info_parts.append(_year_str)
-        if not _info_parts:
-            _info_parts.append(ftopic.upper())
-        _info_text = " · ".join(_info_parts)
-
-        _info_start = INTRO_S + 0.8
-        _info_end   = _info_start + 3.0
-        if _info_text and _info_end < cta_s - 1.0:
-            print(f"  [info] '{_info_text}' @ {_info_start:.1f}–{_info_end:.1f}s")
-            _info_png = overlay_dir / "info.png"
-            text_frames.append(TextFrame(style="info", text=_info_text, out_path=_info_png))
-            overlays.append(OverlayFrame(png=_info_png, start_s=_info_start, end_s=_info_end, fade_in_s=0.3, fade_out_s=0.4))
-
-        # 5f: CTA frame
-        cta_path = overlay_dir / "cta.png"
-        text_frames.append(TextFrame(style="cta", text="@factjot", out_path=cta_path))
-        overlays.append(OverlayFrame(png=cta_path, start_s=cta_s, end_s=total_dur, fade_in_s=0.4, fade_out_s=0.0))
-
-        # Single Playwright session renders everything
-        print(f"  rendering {len(text_frames)} text frames via Playwright...")
-        renderer = ReelTextRenderer()
-        renderer.render_all(text_frames)
-
-        # Step 6: Music — random start point so every Reel sounds different
-        music_path = _pick_music(ftopic, tone=fact.get("tone", "curious"))
-        if music_path:
-            print(f"  music: {music_path.name}")
-        else:
-            print("  music: none found")
+        render_result = _render_phase(fact, out_dir, word_beats, cta_s, total_dur, vo_script)
+        overlays   = render_result.overlays
+        music_path = render_result.music_path
 
         # Step 7: Compose
         print("\nComposing video (FFmpeg)...")
