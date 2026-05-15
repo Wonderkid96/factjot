@@ -496,21 +496,39 @@ def find_videos(
         if _cn.lower() not in _ENTITY_SKIP:
             _add_term(_cn)
 
+    # Helper: True when a single token is already covered as a component
+    # word inside a compound phrase already queued in _entity_terms.
+    # Prevents "Mantis" alone from hitting the wrong Wikidata category
+    # when "mantis shrimp" is already queued as a compound.
+    def _compound_covers(token: str) -> bool:
+        tok = token.lower()
+        return any(
+            tok in term.lower().split()
+            for term in _entity_terms
+            if " " in term
+        )
+
     # 3. Proper nouns — named people, places, events (e.g. "Phineas Gage",
     #    "Chernobyl"). Often the most findable on Wikimedia.
+    #    The full joined form (e.g. "Vasili Arkhipov") is always added so
+    #    full-name Wikidata lookups work.  Individual tokens are skipped
+    #    when a compound already covers them.
     if _claim_ents.proper_nouns:
         _add_term(" ".join(_claim_ents.proper_nouns[:2]))
         for pn in _claim_ents.proper_nouns[:3]:
-            _add_term(pn)
+            if not _compound_covers(pn):
+                _add_term(pn)
 
     # 4. Specific subject nouns from the claim in natural order (not length).
     #    Proper nouns are added first so generic words cannot consume still cap.
+    #    Skip nouns already covered as component words of a compound phrase.
     subject_nouns = [
         n for n in _claim_ents.nouns
         if len(n) > 3 and n.lower() not in _ENTITY_SKIP
     ]
     for noun in subject_nouns[:6]:
-        _add_term(noun)
+        if not _compound_covers(noun):
+            _add_term(noun)
 
     # 5. Last resort: last word of image_hint (usually the subject noun,
     #    e.g. "fish" from "translucent deep sea fish"). Never the full hint.

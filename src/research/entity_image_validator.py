@@ -36,7 +36,11 @@ _HAIKU_MODEL = "claude-haiku-4-5-20251001"
 _PRICING_IN_PER_M = 1.00   # Haiku 4.5: $1 / 1M input tokens
 _PRICING_OUT_PER_M = 5.00  # Haiku 4.5: $5 / 1M output tokens
 _FETCH_TIMEOUT_S = 10
-_MAX_FETCH_BYTES = 4 * 1024 * 1024  # 4 MB ceiling on image bytes sent to Haiku
+# Anthropic vision API rejects images whose base64 encoding exceeds 5 MB
+# (5 * 1024 * 1024 = 5242880 bytes). Base64 inflates raw bytes by ~33%, so
+# the raw ceiling is 5242880 * 3/4 = 3932160 bytes. We use 3 MB for safety.
+_MAX_FETCH_BYTES = 3 * 1024 * 1024  # 3 MB raw — base64 ≤ 4 MB, safely under the 5 MB API limit
+_MAX_BASE64_BYTES = 5 * 1024 * 1024  # Anthropic hard limit on base64-encoded image size
 
 
 # Magic-byte to media-type mapping (Anthropic vision accepts these explicitly).
@@ -70,8 +74,14 @@ def _detect_media_type(data: bytes) -> str:
 def _read_image_bytes(image_url: str) -> bytes | None:
     """Read image bytes from an HTTP(S) URL or a local path.
 
-    Returns up to _MAX_FETCH_BYTES; returns None on any error. Soft-fail
-    so callers can continue without validation when network is unavailable.
+    For HTTP(S): streams up to _MAX_FETCH_BYTES to cap memory use.
+    For local files: reads the whole file OR returns None if the file
+    would exceed the Anthropic 5 MB base64 limit after encoding.
+    Truncating a local file corrupts the image data (a truncated PNG
+    sent to the API returns a 400 invalid_request_error).
+
+    Returns None on any error. Soft-fail so callers can continue
+    without validation when the network or filesystem is unavailable.
     """
     try:
         if image_url.startswith(("http://", "https://")):
@@ -88,16 +98,22 @@ def _read_image_bytes(image_url: str) -> bytes | None:
                 if len(buf) >= _MAX_FETCH_BYTES:
                     break
             return bytes(buf[:_MAX_FETCH_BYTES])
-        # Treat as local path (or file:// URL).
+        # Local path or file:// URL — read the whole file.
         local = image_url
         if local.startswith("file://"):
             local = local[7:]
         p = Path(local)
         if not p.exists() or not p.is_file():
             return None
+        # Skip before reading if the file is too large to encode within the
+        # Anthropic 5 MB base64 limit (base64 factor = 4/3, so max raw is
+        # 5 MB * 3/4 = 3.75 MB). Returning None here triggers a soft-pass in
+        # the caller, which is then caught as a size-skip, not a parse error.
+        raw_size = p.stat().st_size
+        if raw_size * 4 > _MAX_BASE64_BYTES * 3:  # raw > 3.75 MB -> base64 > 5 MB
+            return None
         with open(p, "rb") as f:
-            data = f.read(_MAX_FETCH_BYTES)
-        return data
+            return f.read()
     except Exception:
         return None
 
@@ -256,6 +272,16 @@ def validate_entity_image(
     media_type = _detect_media_type(img_bytes)
     b64 = base64.standard_b64encode(img_bytes).decode("ascii")
 
+    # Guard: Anthropic rejects images whose base64 size exceeds 5 MB.
+    # This fires when _MAX_FETCH_BYTES allows a file through but the
+    # base64 expansion pushes it over the API limit (e.g. a 4 MB PNG
+    # encodes to 5.3 MB base64 → 400 invalid_request_error).
+    if len(b64) > _MAX_BASE64_BYTES:
+        result = _soft_pass(f"image_too_large_for_api:{len(b64)//1024}KB_base64")
+        if cache is not None:
+            cache[image_url] = result
+        return result
+
     try:
         from anthropic import Anthropic
     except ImportError:
@@ -391,16 +417,24 @@ def _validate_batch_chunk(
         return out
 
     # Build content: one image block per loaded image, then the batch prompt.
+    # Skip images whose base64 encoding would exceed the 5 MB API limit.
     content: list[dict] = []
-    for _, img_bytes, media_type in loaded:
+    loaded_filtered: list[tuple[int, bytes, str]] = []
+    for orig_idx, img_bytes, media_type in loaded:
+        b64_data = base64.standard_b64encode(img_bytes).decode("ascii")
+        if len(b64_data) > _MAX_BASE64_BYTES:
+            pre_results[orig_idx] = _soft_pass(f"image_too_large_for_api:{len(b64_data)//1024}KB_base64")
+            continue
+        loaded_filtered.append((orig_idx, img_bytes, media_type))
         content.append({
             "type": "image",
             "source": {
                 "type": "base64",
                 "media_type": media_type,
-                "data": base64.standard_b64encode(img_bytes).decode("ascii"),
+                "data": b64_data,
             },
         })
+    loaded = loaded_filtered
     content.append({"type": "text", "text": _build_batch_prompt(claim_text, image_hint, len(loaded))})
 
     try:
