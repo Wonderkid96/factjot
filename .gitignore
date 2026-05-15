@@ -83,3 +83,4 @@ style-guide-*.pdf
 *.tmp
 *.swp
 *.swo
+.coverage
