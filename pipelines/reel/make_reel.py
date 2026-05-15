@@ -31,12 +31,66 @@ import hashlib
 import json
 import os
 import random
+import shutil
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
+from enum import IntEnum
 from pathlib import Path
+from typing import TypedDict
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
+
+
+# ------------------------------------------------------------------ #
+# Exit codes — returned by make_reel() and passed to sys.exit()
+# ------------------------------------------------------------------ #
+class ExitCode(IntEnum):
+    OK              = 0
+    UNKNOWN         = 1
+    NO_FOOTAGE      = 3
+    TTS_ERROR       = 4
+    FFMPEG_ERROR    = 5
+    UPLOAD_FAILED   = 6
+    PUBLISH_FAILED  = 7
+    DUPLICATE       = 8
+    THUMBNAIL_ERROR = 9
+    LOCK_HELD       = 10
+    FACT_VERIFY     = 11
+    SCRIPT_REQUIRED = 12
+
+
+# ------------------------------------------------------------------ #
+# Autonomous input contract
+# ------------------------------------------------------------------ #
+class AutonomousReelInput(TypedDict, total=False):
+    claim:          str   # required
+    reel_script:    str   # required
+    reel_title:     str   # required
+    topic:          str   # required
+    tone:           str   # required
+    image_hint:     str
+    subject_key:    str
+    allow_archival: bool
+    sources:        list
+    quirky_score:   int
+    autonomous:     bool
+
+
+def _validate_autonomous_input(fact: dict) -> AutonomousReelInput:
+    """Validate required keys in the autonomous input dict.
+
+    Raises KeyError with a clear message if any required key is absent or blank.
+    """
+    required = ("claim", "reel_script", "reel_title", "topic", "tone")
+    for key in required:
+        if not fact.get(key):
+            raise KeyError(
+                f"AutonomousReelInput missing required field '{key}'. "
+                f"The autonomous agent must supply all of: {required}."
+            )
+    return fact  # type: ignore[return-value]
 
 from dotenv import load_dotenv
 
@@ -404,7 +458,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             acquire_local_make_reel_lock(REELS_CACHE)
         except RuntimeError as exc:
             print(f"\n{exc}")
-            return 10
+            return ExitCode.LOCK_HELD
         _locked = True
 
         from src.core.ffmpeg_bin import assert_reel_ffmpeg_ready
@@ -413,7 +467,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             ff_bin = assert_reel_ffmpeg_ready()
         except RuntimeError as exc:
             print(f"\n{exc}")
-            return 5
+            return ExitCode.FFMPEG_ERROR
         print(f"  [ffmpeg] binary: {ff_bin}")
 
         # Step 1: Use autonomously generated content. The legacy fact-bank
@@ -425,33 +479,32 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
                 "ERROR: --script is required. The autonomous flow always "
                 "passes it; manual runs must too. See pipelines/reel/make_reel.py --help."
             )
-            return 12
-        fact = _autonomous
+            return ExitCode.SCRIPT_REQUIRED
+        try:
+            fact = _validate_autonomous_input(_autonomous)
+        except KeyError as exc:
+            print(f"ERROR: {exc}")
+            return ExitCode.SCRIPT_REQUIRED
         print(f"\n[AUTONOMOUS] Claude-generated reel")
 
         claim    = fact["claim"]
         ftopic   = fact["topic"]
         hint     = fact.get("image_hint", "")
-        # Include a timestamp so every run gets a unique cache directory.
-        # Without this, re-running the same fact reuses the same cache dir
-        # and serves stale footage from a previous test or deleted reel.
-        import time as _t, os as _os
         reel_id  = hashlib.sha1(
-            f"reel:{ftopic}:{claim}:{_t.time_ns()}:{_os.urandom(4).hex()}".encode()
+            f"reel:{ftopic}:{claim}:{time.time_ns()}:{os.urandom(4).hex()}".encode()
         ).hexdigest()[:14]
         out_dir  = REELS_CACHE / reel_id
         # Fresh tree every run: remove all previous build dirs under output/reel/
         # so video_finder downloads and FFmpeg outputs never mix with an older
         # reel_id. Advisory lock above prevents a concurrent run from deleting
         # an active directory. Preserve only the lock file.
-        import shutil as _sh
         REELS_CACHE.mkdir(parents=True, exist_ok=True)
         _lock_keep = ".make_reel.lock"
         for _entry in list(REELS_CACHE.iterdir()):
             if _entry.name == _lock_keep:
                 continue
             if _entry.is_dir():
-                _sh.rmtree(_entry, ignore_errors=True)
+                shutil.rmtree(_entry, ignore_errors=True)
         out_dir.mkdir(parents=True, exist_ok=True)
         print(
             f"  [cache] clean reel workspace -> {out_dir} "
@@ -477,7 +530,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         except DuplicatePostError as e:
             print(f"\nABORTED — duplicate block (early gate):\n{e}")
             brain.append_log(f"reel BLOCKED early — duplicate claim: {claim[:80]}")
-            return 8
+            return ExitCode.DUPLICATE
 
         # Step 2: Voice-over. Autonomous scripts bypass word-count floors:
         # Claude owns quality, the legacy fact-bank floor was retired with
@@ -512,7 +565,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
                 f"reel BLOCKED - fact verification (consistency): "
                 f"{consistency['reason'][:80]} - claim={claim[:60]}"
             )
-            return 11
+            return ExitCode.FACT_VERIFY
         anchors = verify_anchors([vo_script], api_key=anth_key)
         if not anchors["ok"]:
             flagged = "; ".join(
@@ -524,25 +577,24 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
                 f"reel BLOCKED - fact verification (anchors): "
                 f"{flagged[:80]} - claim={claim[:60]}"
             )
-            return 11
+            return ExitCode.FACT_VERIFY
 
         print(f"Synthesising voice-over (voice={voice})...")
         try:
             tts_voice, tts_backend = _resolve_tts_voice(cli_voice=voice)
         except _TtsConfigError as exc:
             print(f"ERROR: {exc}")
-            return 4
+            return ExitCode.TTS_ERROR
         if tts_backend == "elevenlabs":
             print(f"  [tts] enforcing ElevenLabs voice from env: {tts_voice}")
         mp3_path, word_beats = synthesise(vo_script, out_dir, voice=tts_voice, backend=tts_backend, tone=fact.get("tone", "curious"))
         if not word_beats:
             print("ERROR: TTS returned no word timing. Check edge-tts is installed.")
-            return 4
+            return ExitCode.TTS_ERROR
         rlog.emit(f"TTS ok -> {mp3_path.name} ({mp3_path.stat().st_size // 1024} KB)")
 
         # Silent intro - hook title shows here, voice starts AFTER it fades.
         padded_mp3 = out_dir / "voice_padded.mp3"
-        import subprocess as _sp
         # ElevenLabs (and many MP3 paths) are 44.1 kHz; anullsrc is 48 kHz. Raw concat
         # keeps 44.1 kHz on the muxed file (see gotchas: Meta rejects 44.1). Resample
         # both legs to 48 kHz mono before concat so voice_padded.mp3 is safe end-to-end.
@@ -551,7 +603,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             "[1:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono[vo];"
             "[sil][vo]concat=n=2:v=0:a=1[a]"
         )
-        _sp.run([
+        subprocess.run([
             ff_bin, "-y",
             "-f", "lavfi", "-t", str(INTRO_S), "-i", "anullsrc=r=48000:cl=mono",
             "-i", str(mp3_path),
@@ -602,7 +654,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
                    f"been truncated by TTS, or word floor needs raising.")
             print(f"\nABORTED — {msg}")
             brain.append_log(f"reel ABORTED — short duration {total_dur:.1f}s for {claim[:60]}")
-            return 9
+            return ExitCode.THUMBNAIL_ERROR
 
         # Step 3: Find N pieces of footage (multi-clip storytelling)
         allow_archival = bool(fact.get("allow_archival", False))
@@ -652,7 +704,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             print("ERROR: could not find any footage. Pre-download safety pool clips with:")
             print("  /Library/Frameworks/Python.framework/Versions/Current/bin/python3 pipelines/reel/setup_reel_assets.py")
             brain.append_log(f"reel FAILED no footage — fact={claim[:60]!r} hint={hint!r}")
-            return 3
+            return ExitCode.NO_FOOTAGE
 
         rlog.emit(f"footage ok: {len(footage_clips)} clips -> {[p.name for p in footage_clips]}")
 
@@ -807,7 +859,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         except RuntimeError as exc:
             print(f"\nFFmpeg error:\n{exc}")
             brain.append_log(f"reel FAILED ffmpeg — fact={claim[:60]!r} error={str(exc)[:300]}")
-            return 5
+            return ExitCode.FFMPEG_ERROR
 
         # Persist footage dedup ledger — log both URLs and filenames so future
         # reels can block by content (filename) not just by source URL.
@@ -836,7 +888,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         # re-render. Soft-fail: if this pass errors the upload script falls
         # back to `final.mp4` (legacy behaviour).
         youtube_mp4: Path | None = out_dir / "final_youtube.mp4"
-        youtube_encode_cmd = [
+        youtube_encode_cmd: list[str] = [
             ff_bin,
             "-i", str(final_mp4),
             "-c:v", "libx264",
@@ -849,8 +901,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             "-y", str(youtube_mp4),
         ]
         try:
-            import subprocess as _yt_sp
-            _yt_sp.run(
+            subprocess.run(
                 youtube_encode_cmd,
                 check=True,
                 capture_output=True,
@@ -915,7 +966,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
                 f"reel FAILED thumbnail picker — fact={claim[:60]!r} "
                 f"error={str(exc)[:300]}"
             )
-            return 9
+            return ExitCode.THUMBNAIL_ERROR
 
         # Persist the chosen frame as thumbnail_frame.jpg for downstream use
         # (story renderer + debug). Keep the original PNG too under
@@ -986,7 +1037,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         except DuplicatePostError as e:
             print(f"\nABORTED at publish-time — duplicate block:\n{e}")
             brain.append_log(f"reel BLOCKED at publish — duplicate claim: {claim[:80]}")
-            return 8
+            return ExitCode.DUPLICATE
 
         # Step 9: Upload video + thumbnail
         from src.publish.image_host import make_image_host
@@ -998,16 +1049,16 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         except RuntimeError as exc:
             print(f"\nVideo upload failed: {exc}")
             brain.append_log(f"reel FAILED video upload — fact={claim[:60]!r} error={exc}")
-            return 6
+            return ExitCode.UPLOAD_FAILED
 
         if not thumbnail_png.is_file() or thumbnail_png.stat().st_size < 1000:
             print("\nERROR: reel FAILED thumbnail — PNG missing or too small after render")
             brain.append_log(f"reel FAILED thumbnail file — fact={claim[:60]!r}")
-            return 9
+            return ExitCode.THUMBNAIL_ERROR
         if not thumbnail_jpg.is_file() or thumbnail_jpg.stat().st_size < 1000:
             print("\nERROR: reel FAILED thumbnail — JPEG missing or too small after shrink")
             brain.append_log(f"reel FAILED thumbnail jpeg — fact={claim[:60]!r}")
-            return 9
+            return ExitCode.THUMBNAIL_ERROR
 
         print("Uploading thumbnail...")
         img_host = make_image_host()
@@ -1069,7 +1120,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
                 f"reel FAILED publish — fact={claim[:60]!r} topic={ftopic} "
                 f"video_url={video_url[:60]} error={str(err)[:200]}"
             )
-            return 7
+            return ExitCode.PUBLISH_FAILED
 
         ig_media_id = result["ig_media_id"]
         print(f"\nREEL PUBLISHED — ig_media_id: {ig_media_id}")
@@ -1180,14 +1231,13 @@ def _record(
     ledger = REELS_LEDGER
     ledger.parent.mkdir(parents=True, exist_ok=True)
     # Atomic-ish append: open with O_APPEND, single write, fsync.
-    import os as _os
     line = json.dumps(reel_record) + "\n"
-    fd = _os.open(str(ledger), _os.O_WRONLY | _os.O_APPEND | _os.O_CREAT, 0o644)
+    fd = os.open(str(ledger), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
     try:
-        _os.write(fd, line.encode("utf-8"))
-        _os.fsync(fd)
+        os.write(fd, line.encode("utf-8"))
+        os.fsync(fd)
     finally:
-        _os.close(fd)
+        os.close(fd)
     print(f"Recorded in {ledger}")
 
     # Then mirror into shared dedup pool (carousels + future reels).
