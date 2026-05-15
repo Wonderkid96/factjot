@@ -27,6 +27,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import scripts.autonomous_agent as agent
 from src.brain import Brain
 
+# Minimal valid hint satisfying the 3-line / 8-char-per-line quality gate.
+_VALID_HINT = "Cold War submarine fleet at dock\nSoviet naval base 1980s\nsubmarine conning tower portrait"
+
 
 def _make_brain_with_keys(*keys: str) -> Brain:
     """Return a Brain whose in-memory subject_keys set is pre-seeded.
@@ -144,7 +147,7 @@ def _minimal_reel_args(subject_key: str) -> dict:
         "title":  "Girls Who Glowed",
         "topic":  "history",
         "tone_override": "sober",
-        "hint":   "radium factory workers vintage",
+        "hint":   _VALID_HINT,
         "subject_key": subject_key,
     }
 
@@ -171,7 +174,7 @@ def test_fuzzy_subject_key_blocks_close_variant():
         "title":  "The Flood That Got a Tax Refund",
         "topic":  "history",
         "tone_override": "sober",
-        "hint":   "boston molasses flood",
+        "hint":   "Boston industrial waterfront 1919\nmolasses flood historic photograph\nBoston North End street scene early 20th century",
         "subject_key": "great-molasses-flood-1919",
     }
     result = agent.execute_tool(
@@ -188,7 +191,7 @@ def test_different_subject_key_is_not_blocked():
         "title":  "Operation Acoustic Kitty",
         "topic":  "history",
         "tone_override": "curious",
-        "hint":   "CIA cold war spy cat",
+        "hint":   "CIA cold war operations 1960s\nspy cat surveillance equipment\nLangley Virginia intelligence archive",
         "subject_key": "operation-acoustic-kitty",
     }
     # Should NOT be blocked — we patch the subprocess so it doesn't actually run.
@@ -228,7 +231,7 @@ def test_missing_subject_key_does_not_crash():
         "title":  "Some Title",
         "topic":  "history",
         "tone_override": "curious",
-        "hint":   "something",
+        "hint":   _VALID_HINT,
         # subject_key intentionally absent — backward compat for old callers
     }
     with patch("scripts.autonomous_agent._run_pipeline", return_value="ok"):
