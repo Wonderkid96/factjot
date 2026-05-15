@@ -103,7 +103,6 @@ from src.render.reel_composer import (
     FADE_TO_BLACK_S,
     INTRO_S,
     OverlayFrame,
-    compose,
     n_clips_for_duration,
 )
 from src.render.reel_text_renderer import TextFrame
@@ -431,6 +430,12 @@ def _append_footage_ledger(
 # ------------------------------------------------------------------ #
 
 @dataclass
+class _ComposePhaseResult:
+    final_mp4:   Path
+    youtube_mp4: "Path | None"
+
+
+@dataclass
 class _RenderPhaseResult:
     overlays:   list
     music_path: "Path | None"
@@ -455,6 +460,63 @@ class _TtsPhaseResult:
 # ------------------------------------------------------------------ #
 # Phase functions
 # ------------------------------------------------------------------ #
+
+def _compose_phase(
+    footage_clips: list,
+    mp3_path: Path,
+    music_path: "Path | None",
+    overlays: list,
+    out_dir: Path,
+    total_dur: float,
+    ff_bin: str,
+    claim: str,
+) -> "_ComposePhaseResult | ExitCode":
+    """Run FFmpeg compose and encode a higher-quality YouTube variant.
+
+    Returns _ComposePhaseResult on success or ExitCode.FFMPEG_ERROR on failure.
+    """
+    from src.brain import brain as _brain
+    from src.render.reel_composer import INTRO_S, compose
+
+    final_mp4 = out_dir / "final.mp4"
+    print("\nComposing video (FFmpeg)...")
+    try:
+        compose(
+            footage_paths=footage_clips,
+            voice_path=mp3_path,
+            music_path=music_path,
+            overlays=overlays,
+            out_path=final_mp4,
+            total_duration_s=total_dur,
+            voice_delay_s=INTRO_S,
+            ffmpeg_bin=ff_bin,
+        )
+    except RuntimeError as exc:
+        print(f"\nFFmpeg error:\n{exc}")
+        _brain.append_log(f"reel FAILED ffmpeg — fact={claim[:60]!r} error={str(exc)[:300]}")
+        return ExitCode.FFMPEG_ERROR
+
+    print(f"\nReel composed: {final_mp4}")
+    print(f"  size: {final_mp4.stat().st_size / 1024 / 1024:.1f} MB")
+
+    # Higher-bitrate YouTube variant (crf 22 vs Meta's crf 23 ceiling)
+    youtube_mp4: Path | None = out_dir / "final_youtube.mp4"
+    youtube_encode_cmd: list[str] = [
+        ff_bin, "-i", str(final_mp4),
+        "-c:v", "libx264", "-crf", "22", "-maxrate", "4M", "-bufsize", "8M",
+        "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart",
+        "-y", str(youtube_mp4),
+    ]
+    try:
+        subprocess.run(youtube_encode_cmd, check=True, capture_output=True, timeout=120)
+        yt_kb = youtube_mp4.stat().st_size // 1024  # type: ignore[union-attr]
+        print(f"  [encode] YouTube variant: {youtube_mp4.name} ({yt_kb} KB)")  # type: ignore[union-attr]
+    except Exception as exc:
+        print(f"  [encode] YouTube variant failed (non-fatal): {exc}")
+        youtube_mp4 = None
+
+    return _ComposePhaseResult(final_mp4=final_mp4, youtube_mp4=youtube_mp4)
+
 
 def _render_phase(
     fact: AutonomousReelInput,
@@ -902,29 +964,23 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         overlays   = render_result.overlays
         music_path = render_result.music_path
 
-        # Step 7: Compose
-        print("\nComposing video (FFmpeg)...")
+        # Step 7: Compose video + YouTube variant
         rlog.emit("starting FFmpeg compose (see ffmpeg_compose_stderr.log in cache dir)")
-        final_mp4 = out_dir / "final.mp4"
-        try:
-            compose(
-                footage_paths=footage_clips,
-                voice_path=mp3_path,
-                music_path=music_path,
-                overlays=overlays,
-                out_path=final_mp4,
-                total_duration_s=total_dur,
-                voice_delay_s=INTRO_S,
-                ffmpeg_bin=ff_bin,
-            )
-        except RuntimeError as exc:
-            print(f"\nFFmpeg error:\n{exc}")
-            brain.append_log(f"reel FAILED ffmpeg — fact={claim[:60]!r} error={str(exc)[:300]}")
-            return ExitCode.FFMPEG_ERROR
+        compose_result = _compose_phase(
+            footage_clips, mp3_path, music_path, overlays,
+            out_dir, total_dur, ff_bin, claim,
+        )
+        if isinstance(compose_result, ExitCode):
+            return compose_result
+        final_mp4   = compose_result.final_mp4
+        youtube_mp4 = compose_result.youtube_mp4
+        rlog.emit(f"compose done -> {final_mp4.name} {final_mp4.stat().st_size / 1024 / 1024:.1f} MB")
+        if youtube_mp4:
+            rlog.emit(f"YouTube variant encoded -> {youtube_mp4.name} ({youtube_mp4.stat().st_size // 1024} KB)")
+        else:
+            rlog.emit("YouTube variant FAILED (non-fatal)")
 
-        # Persist footage dedup ledger — log both URLs and filenames so future
-        # reels can block by content (filename) not just by source URL.
-        # DRY-RUN does NOT write (see _append_footage_ledger).
+        # Persist footage dedup ledger
         from src.core.paths import USED_FOOTAGE
         _append_footage_ledger(
             dry_run=dry_run,
@@ -935,49 +991,6 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             reel_title=fact.get("reel_title") or "",
             topic=ftopic,
         )
-
-        print(f"\nReel composed: {final_mp4}")
-        print(f"  size: {final_mp4.stat().st_size / 1024 / 1024:.1f} MB")
-        rlog.emit(
-            f"compose done -> {final_mp4.name} {final_mp4.stat().st_size / 1024 / 1024:.1f} MB"
-        )
-
-        # Phase F (Q7): higher-bitrate variant for YouTube. The Meta-shaped
-        # `final.mp4` is encoded for the 5 MB URL-fetch ceiling; YouTube has
-        # no such ceiling and rewards a sharper upload. We re-encode the
-        # already-composed MP4 (keeping the same filter graph + audio) at
-        # crf 22 / maxrate 4M so the second pass costs ~5-10s, not a full
-        # re-render. Soft-fail: if this pass errors the upload script falls
-        # back to `final.mp4` (legacy behaviour).
-        youtube_mp4: Path | None = out_dir / "final_youtube.mp4"
-        youtube_encode_cmd: list[str] = [
-            ff_bin,
-            "-i", str(final_mp4),
-            "-c:v", "libx264",
-            "-crf", "22",
-            "-maxrate", "4M",
-            "-bufsize", "8M",
-            "-pix_fmt", "yuv420p",
-            "-c:a", "copy",
-            "-movflags", "+faststart",
-            "-y", str(youtube_mp4),
-        ]
-        try:
-            subprocess.run(
-                youtube_encode_cmd,
-                check=True,
-                capture_output=True,
-                timeout=120,
-            )
-            yt_kb = youtube_mp4.stat().st_size // 1024
-            print(f"  [encode] YouTube variant: {youtube_mp4.name} ({yt_kb} KB)")
-            rlog.emit(
-                f"YouTube variant encoded -> {youtube_mp4.name} ({yt_kb} KB)"
-            )
-        except Exception as exc:
-            print(f"  [encode] YouTube variant failed (non-fatal): {exc}")
-            rlog.emit(f"YouTube variant FAILED (non-fatal): {str(exc)[:200]}")
-            youtube_mp4 = None
 
         # Step 8: Generate thumbnail (Haiku-picked frame + brand overlay) and story
         # E.4 (2026-05-10): the previous footage_clips[0] heuristic is replaced
