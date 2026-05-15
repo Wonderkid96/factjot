@@ -1,5 +1,8 @@
 # factjot brain log
 
+- 2026-05-15 16:11 TTS FALLBACK to edge-tts: ElevenLabs failed (RuntimeError: ElevenLabs API error 401: quota_exceeded) - falling back to edge-tts
+- 2026-05-15 15:22 TTS FALLBACK to edge-tts: ElevenLabs failed (RuntimeError: ElevenLabs API error 401: quota_exceeded) - falling back to edge-tts
+- 2026-05-15 15:19 TTS FALLBACK to edge-tts: ElevenLabs failed (RuntimeError: ElevenLabs API error 401: quota_exceeded) - falling back to edge-tts
 - 2026-05-15 12:11 dynamic list 'dyn_6963fc61cef9a2' published (TV LIST, ig_media=17903806134422482)
 - 2026-05-15 12:08 token refreshed: new expiry ~59 days
 - 2026-05-15 10:09 dynamic list 'dyn_2378f18425dd50' published (FILM LIST, ig_media=17881475808578319)
