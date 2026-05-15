@@ -24,6 +24,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import scripts.autonomous_agent as agent  # noqa: E402
 from src.brain import subject_fingerprint  # noqa: E402
 
+# Minimal valid hint satisfying the 3-line / 8-char-per-line quality gate.
+_VALID_HINT = "Cold War submarine fleet at dock\nSoviet naval base 1980s\nsubmarine conning tower portrait"
+
 
 # ----- candidate text source: title-first for reels ----------------
 
@@ -94,6 +97,7 @@ def test_in_session_second_dispatch_with_same_title_is_blocked(
         {
             "title":  "Top 5 scariest films",
             "script": "Five horror films changed cinema...",
+            "hint":   _VALID_HINT,
         },
         dry_run=True,
         mode="reel_morning",
@@ -108,6 +112,7 @@ def test_in_session_second_dispatch_with_same_title_is_blocked(
         {
             "title":  "Top 5 scariest films",
             "script": "Horror history is basically five moments...",
+            "hint":   _VALID_HINT,
         },
         dry_run=True,
         mode="reel_morning",
@@ -130,7 +135,8 @@ def test_in_session_distinct_subjects_both_dispatch(monkeypatch):
     out1 = agent.execute_tool(
         "run_reel",
         {"title": "Pepsi Once Owned a Navy",
-         "script": "In 1989 PepsiCo briefly owned 17 Soviet submarines..."},
+         "script": "In 1989 PepsiCo briefly owned 17 Soviet submarines...",
+         "hint":  _VALID_HINT},
         dry_run=True,
         mode="reel_morning",
         recent_fingerprints=recent,
@@ -138,7 +144,8 @@ def test_in_session_distinct_subjects_both_dispatch(monkeypatch):
     out2 = agent.execute_tool(
         "run_reel",
         {"title": "The Syrup Wave That Killed 21",
-         "script": "In January 1919 a Boston molasses tank burst..."},
+         "script": "In January 1919 a Boston molasses tank burst...",
+         "hint":  "Boston industrial waterfront 1919\nmolasses flood historic photograph\nBoston North End street scene early 20th century"},
         dry_run=True,
         mode="reel_morning",
         recent_fingerprints=recent,

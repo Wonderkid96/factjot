@@ -26,8 +26,14 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+# Curated packs must not be reused within this window. With 8 packs and a
+# daily list slot, without a floor the oldest pack recycles every 8 days.
+# 30 days forces the dynamic generator to be the primary path and keeps
+# curated packs feeling fresh when they do appear.
+MIN_REUSE_DAYS = 30
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -204,9 +210,18 @@ def _pick_curated_pack(force_slug: str | None = None) -> tuple[str, dict]:
         return force_slug, LIST_PACKS[force_slug]
 
     used = _load_used_slugs()
-    candidates = list(LIST_PACKS.keys())
-    candidates.sort(key=lambda slug: used.get(slug, ""))
-    chosen = candidates[0]
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=MIN_REUSE_DAYS)).isoformat()
+    # Prefer packs not used in the last MIN_REUSE_DAYS days. Fall back to
+    # oldest-used if every pack has fired recently (e.g. small pack library).
+    eligible = [s for s in LIST_PACKS if used.get(s, "") < cutoff]
+    pool = eligible if eligible else list(LIST_PACKS.keys())
+    pool.sort(key=lambda slug: used.get(slug, ""))
+    chosen = pool[0]
+    if not eligible:
+        _log(
+            f"[curated-rotation] all {len(LIST_PACKS)} packs used within "
+            f"{MIN_REUSE_DAYS} days; recycling oldest ({chosen})"
+        )
     return chosen, LIST_PACKS[chosen]
 
 
