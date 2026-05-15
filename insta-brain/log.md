@@ -1,5 +1,7 @@
 # factjot brain log
 
+- 2026-05-15 10:09 dynamic list 'dyn_2378f18425dd50' published (FILM LIST, ig_media=17881475808578319)
+- 2026-05-15 10:06 token refreshed: new expiry ~59 days
 - 2026-05-15 09:08 reel 41072a9d6f4134 published (earth, ig_media=18591740908008656)
 - 2026-05-15 09:01 token refreshed: new expiry ~60 days
 - 2026-05-14 20:13 reel 014c0b09b192f0 published (history, ig_media=18046846775540434)
