@@ -112,7 +112,6 @@ from src.render.reel_text_renderer import (
 )
 from src.content.reel_title import make_title
 from src.render.tts_engine import group_into_chunks, synthesise
-from src.research.video_finder import find_videos
 from src.utils.logging_utils import configure_logging
 
 
@@ -435,6 +434,12 @@ def _append_footage_ledger(
 # ------------------------------------------------------------------ #
 
 @dataclass
+class _FootagePhaseResult:
+    footage_clips:            list
+    global_footage_registry:  set
+
+
+@dataclass
 class _TtsPhaseResult:
     mp3_path:     Path
     word_beats:   list
@@ -447,6 +452,67 @@ class _TtsPhaseResult:
 # ------------------------------------------------------------------ #
 # Phase functions
 # ------------------------------------------------------------------ #
+
+def _acquire_footage_phase(
+    fact: AutonomousReelInput,
+    out_dir: Path,
+    n_clips: int,
+) -> "_FootagePhaseResult | ExitCode":
+    """Load footage dedup ledger and find N portrait clips.
+
+    Returns a list of footage Paths on success or ExitCode.NO_FOOTAGE on failure.
+    """
+    from src.brain import brain as _brain
+    from src.core.paths import USED_FOOTAGE
+    from src.research.video_finder import find_videos as _find_videos
+
+    claim = fact["claim"]
+    ftopic = fact["topic"]
+    hint  = fact.get("image_hint", "")
+    allow_archival = bool(fact.get("allow_archival", False))
+
+    global_footage_registry: set[str] = set()
+    blocked_footage_filenames: set[str] = set()
+
+    if USED_FOOTAGE.exists():
+        for line in USED_FOOTAGE.read_text().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+                if "url" in entry:
+                    global_footage_registry.add(entry["url"])
+                if "filename" in entry:
+                    blocked_footage_filenames.add(entry["filename"])
+            except Exception as exc:
+                print(
+                    f"  [footage] skipping corrupt ledger line ({exc}): {line[:80]!r}",
+                    flush=True,
+                )
+
+    print(f"\nFinding {n_clips} footage clips (allow_archival={allow_archival})...")
+    print(f"  [footage] blocking {len(blocked_footage_filenames)} URLs/IDs from previous reels (ledger)")
+
+    footage_clips = _find_videos(
+        image_hint=hint, claim=claim, topic=ftopic,
+        out_dir=out_dir, count=n_clips,
+        allow_archival=allow_archival,
+        used_source_registry=global_footage_registry,
+        blocked_filenames=blocked_footage_filenames,
+        reel_script=fact.get("reel_script", ""),
+    )
+    if not footage_clips:
+        print("ERROR: could not find any footage. Pre-download safety pool clips with:")
+        print("  /Library/Frameworks/Python.framework/Versions/Current/bin/python3 pipelines/reel/setup_reel_assets.py")
+        _brain.append_log(f"reel FAILED no footage — fact={claim[:60]!r} hint={hint!r}")
+        return ExitCode.NO_FOOTAGE
+
+    return _FootagePhaseResult(
+        footage_clips=footage_clips,
+        global_footage_registry=global_footage_registry,
+    )
+
 
 def _synthesise_phase(
     fact: AutonomousReelInput,
@@ -689,55 +755,11 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         rlog.emit(f"TTS ok -> {mp3_path.name} ({mp3_path.stat().st_size // 1024} KB)")
 
         # Step 3: Find N pieces of footage (multi-clip storytelling)
-        allow_archival = bool(fact.get("allow_archival", False))
-        print(f"\nFinding {n_clips} footage clips (allow_archival={allow_archival})...")
-
-        # Load global footage registry. This prevents the same clip appearing in
-        # different reels. Do not auto-clear this ledger based on reels.jsonl state;
-        # if a genuine reset is needed, truncate manually:
-        #     : > data/ledgers/used_footage_urls.jsonl
-        from src.core.paths import USED_FOOTAGE
-        global_footage_registry: set[str] = set()   # blocked URLs + video IDs
-        blocked_footage_filenames: set[str] = set() # blocked filename stems
-
-        # Primary source: ledger
-        if USED_FOOTAGE.exists():
-            for line in USED_FOOTAGE.read_text().splitlines():
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    entry = json.loads(line)
-                    if "url" in entry:
-                        global_footage_registry.add(entry["url"])
-                    if "filename" in entry:
-                        blocked_footage_filenames.add(entry["filename"])
-                except Exception as exc:
-                    # A corrupt ledger line silently passing through means
-                    # a previously-used clip can leak back into eligibility.
-                    # Surface so the corruption is fixable.
-                    print(
-                        f"  [footage] skipping corrupt ledger line "
-                        f"({exc}): {line[:80]!r}",
-                        flush=True,
-                    )
-
-        print(f"  [footage] blocking {len(blocked_footage_filenames)} URLs/IDs from previous reels (ledger)")
-
-        footage_clips = find_videos(
-            image_hint=hint, claim=claim, topic=ftopic,
-            out_dir=out_dir, count=n_clips,
-            allow_archival=allow_archival,
-            used_source_registry=global_footage_registry,
-            blocked_filenames=blocked_footage_filenames,
-            reel_script=vo_body,
-        )
-        if not footage_clips:
-            print("ERROR: could not find any footage. Pre-download safety pool clips with:")
-            print("  /Library/Frameworks/Python.framework/Versions/Current/bin/python3 pipelines/reel/setup_reel_assets.py")
-            brain.append_log(f"reel FAILED no footage — fact={claim[:60]!r} hint={hint!r}")
-            return ExitCode.NO_FOOTAGE
-
+        footage_result = _acquire_footage_phase(fact, out_dir, n_clips)
+        if isinstance(footage_result, ExitCode):
+            return footage_result
+        footage_clips            = footage_result.footage_clips
+        global_footage_registry  = footage_result.global_footage_registry
         rlog.emit(f"footage ok: {len(footage_clips)} clips -> {[p.name for p in footage_clips]}")
 
         # Step 4: Group words into 5-6 word chunks. FFmpeg segfaults beyond ~50
@@ -896,6 +918,7 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         # Persist footage dedup ledger — log both URLs and filenames so future
         # reels can block by content (filename) not just by source URL.
         # DRY-RUN does NOT write (see _append_footage_ledger).
+        from src.core.paths import USED_FOOTAGE
         _append_footage_ledger(
             dry_run=dry_run,
             ledger_path=USED_FOOTAGE,
