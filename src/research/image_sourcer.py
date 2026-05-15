@@ -29,9 +29,6 @@ from src.research.used_images import UsedImageLedger
 log = logging.getLogger(__name__)
 
 
-class CoverImageFailed(RuntimeError):
-    """Raised by the pipeline when no image can be sourced for the cover slide."""
-
 # ------------------------------------------------------------------ #
 # Provider trust tiers
 # ------------------------------------------------------------------ #
