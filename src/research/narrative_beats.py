@@ -22,7 +22,7 @@ No LLM, no API. Pure regex + topic templates. Cheap, fast, deterministic.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 # ------------------------------------------------------------------ #
@@ -63,6 +63,7 @@ class Entities:
     nouns: list[str]
     verbs_present: list[str]
     period_label: str  # e.g. "1920s", "Victorian", "ancient", or ""
+    compound_nouns: list[str] = field(default_factory=list)
 
 
 def extract_entities(claim: str) -> Entities:
@@ -75,6 +76,8 @@ def extract_entities(claim: str) -> Entities:
     numbers:list[str] = []
     nouns:  list[str] = []
     verbs:  list[str] = []
+
+    _tok_class: dict[int, str] = {}
 
     for i, t in enumerate(tokens):
         low = t.lower()
@@ -89,6 +92,7 @@ def extract_entities(claim: str) -> Entities:
         if (i > 0 and t[0].isupper() and len(t) > 3 and t.isalpha()
                 and t not in _DEMONYMS):
             proper.append(t)
+            _tok_class[i] = "proper"
             continue
         # Crude verb sniffer: -ed, -ing, -ate, common action words
         if (
@@ -101,6 +105,19 @@ def extract_entities(claim: str) -> Entities:
             continue
         if len(t) > 3:
             nouns.append(low)
+            _tok_class[i] = "noun"
+
+    # Detect compound nouns: consecutive (proper|noun)+(proper|noun) pairs in the
+    # original token order. These are searched as phrases before individual tokens
+    # in video_finder so "mantis shrimp" ranks above "mantis" alone.
+    _seen_cmpd: set[str] = set()
+    compound_nouns: list[str] = []
+    for i in range(len(tokens) - 1):
+        if _tok_class.get(i) in ("proper", "noun") and _tok_class.get(i + 1) in ("proper", "noun"):
+            pair = f"{tokens[i].lower()} {tokens[i + 1].lower()}"
+            if pair not in _seen_cmpd:
+                _seen_cmpd.add(pair)
+                compound_nouns.append(pair)
 
     period = _detect_period(years, tokens)
     return Entities(
@@ -110,6 +127,7 @@ def extract_entities(claim: str) -> Entities:
         nouns=nouns[:8],
         verbs_present=verbs[:4],
         period_label=period,
+        compound_nouns=compound_nouns[:4],
     )
 
 

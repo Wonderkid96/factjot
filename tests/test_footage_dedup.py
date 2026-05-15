@@ -31,6 +31,7 @@ def _make_safety_pool(root: Path, names: list[str]) -> list[Path]:
 class _FakeEnts:
     nouns: list[str] = []
     proper_nouns: list[str] = []
+    compound_nouns: list[str] = []
 
 
 def _stub_find_videos_neighbours():

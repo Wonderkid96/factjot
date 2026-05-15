@@ -489,14 +489,21 @@ def find_videos(
         for w in hint_words[:3]:
             _add_singular_plural(w)
 
-    # 2. Proper nouns — named people, places, events (e.g. "Phineas Gage",
+    # 2. Compound noun phrases from the claim — consecutive (proper|noun)+(proper|noun)
+    #    bigrams detected by extract_entities. Searched BEFORE individual tokens so
+    #    "mantis shrimp" ranks above "mantis" (which would find a land mantis instead).
+    for _cn in _claim_ents.compound_nouns:
+        if _cn.lower() not in _ENTITY_SKIP:
+            _add_term(_cn)
+
+    # 3. Proper nouns — named people, places, events (e.g. "Phineas Gage",
     #    "Chernobyl"). Often the most findable on Wikimedia.
     if _claim_ents.proper_nouns:
         _add_term(" ".join(_claim_ents.proper_nouns[:2]))
         for pn in _claim_ents.proper_nouns[:3]:
             _add_term(pn)
 
-    # 3. Specific subject nouns from the claim in natural order (not length).
+    # 4. Specific subject nouns from the claim in natural order (not length).
     #    Proper nouns are added first so generic words cannot consume still cap.
     subject_nouns = [
         n for n in _claim_ents.nouns
@@ -505,7 +512,7 @@ def find_videos(
     for noun in subject_nouns[:6]:
         _add_term(noun)
 
-    # 4. Last resort: last word of image_hint (usually the subject noun,
+    # 5. Last resort: last word of image_hint (usually the subject noun,
     #    e.g. "fish" from "translucent deep sea fish"). Never the full hint.
     if image_hint:
         last_word = image_hint.strip().split()[-1]
