@@ -4,7 +4,7 @@ name: Autonomous Post (factjot agent)
 # per audit Q4: distribution test - quality bet over volume):
 #
 #   reel_morning   09:00 BST  evergreen reel
-#   list_midday    14:00 BST  list carousel
+#   list_midday    12:00 UTC  list carousel
 #   reel_night     20:30 BST  evergreen reel
 #
 # Crons are UTC and tracked to BST (summer). When UK clocks fall back to
@@ -18,7 +18,7 @@ name: Autonomous Post (factjot agent)
 on:
   schedule:
     - cron: "0 8 * * *"      # 08:00 UTC = 09:00 BST -> reel_morning
-    - cron: "0 13 * * *"     # 13:00 UTC = 14:00 BST -> list_midday
+    - cron: "30 11 * * *"    # 11:30 UTC -> list_midday (~12:00 UTC post time)
     - cron: "30 19 * * *"    # 19:30 UTC = 20:30 BST -> reel_night
   workflow_dispatch:
     inputs:
@@ -58,7 +58,7 @@ jobs:
           else
             case "$CRON" in
               "0 8 * * *")    MODE="reel_morning" ;;
-              "0 13 * * *")   MODE="list_midday" ;;
+              "30 11 * * *")  MODE="list_midday" ;;
               "30 19 * * *")  MODE="reel_night" ;;
               *)              MODE="reel_morning" ;;
             esac
