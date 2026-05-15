@@ -67,7 +67,7 @@ class TextFrame:
     text: str           # plain or with [i]/[h] tokens
     out_path: Path
     hook_size: int = 124    # Hero scale - large enough to command attention
-    subtitle_size: int = 72  # Body-scale, Space Grotesk SemiBold reads cleanly
+    subtitle_size: int = 84  # Archivo Bold 700 - legible on moving footage
 
 
 class ReelTextRenderer:

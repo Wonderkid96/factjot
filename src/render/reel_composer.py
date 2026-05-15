@@ -145,9 +145,8 @@ _INTRO_DURATION: float = _probe_intro_duration(_INTRO_PATH)
 # Public alias — upload scripts use this to print the scrub timestamp.
 INTRO_OVERLAY_DURATION_S: float = _INTRO_DURATION
 
-_DEFAULT_GRIT_PATH = (
-    "/Users/Music/Downloads/"
-    "film-grain-and-scratches-overlay-on-black-backgrou-2025-12-17-07-15-10-utc (2).mov"
+_DEFAULT_GRIT_PATH = str(
+    Path(__file__).resolve().parents[2] / "assets" / "grain" / "grain_overlay.mov"
 )
 
 
