@@ -41,27 +41,9 @@ def main() -> int:
             and not str(row.get("claim", "")).startswith("list:")
         )
     elif kind == "list":
-        # Check list_posts.jsonl (permanent) AND posted.jsonl.
-        # list_posts.jsonl is more reliable — never wiped, always current.
-        list_posts = Path("insta-brain/data/list_posts.jsonl")
-        if list_posts.exists():
-            try:
-                for line in list_posts.read_text(encoding="utf-8").splitlines():
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        row = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-                    if (
-                        row.get("published_at", "").startswith(today)
-                        and row.get("ig_media_id") != "skip"
-                    ):
-                        print("already_posted")
-                        return 1
-            except Exception:
-                pass
+        # list_posts.jsonl had no writer after ship_list_post.py was deleted in
+        # Phase G.3. The autonomous list path (ship_carousel_post.py --type list)
+        # writes to posted.jsonl with claim prefixed "list:". Read that only.
         ledger = Path("insta-brain/data/posted.jsonl")
         match = lambda row: (
             row.get("published_at", "").startswith(today)

@@ -9,3 +9,4 @@ Jinja2>=3.1.6
 anthropic>=0.40.0
 google-api-python-client>=2.151.0
 google-auth-oauthlib>=1.2.1
+pytest-cov>=5.0.0

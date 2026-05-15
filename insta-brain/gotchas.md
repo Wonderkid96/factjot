@@ -111,9 +111,9 @@ There is no auto-fallback path. If a discovered fact is missing either field, `m
 
 ---
 
-## Instagram carousel cap: 20 images (raised from 10 in August 2024)
+## Instagram carousel cap: 10 images (reverted from 20 — do not raise again without empirical proof)
 
-**`instagram_publisher.py` previously had a hardcoded cap of 10.** This caused the `top_war_films` post to fail on 2026-05-03 with `Carousel exceeds Instagram's 10-image cap (12)` — but the error was from our own code, not Meta's API. Instagram raised the limit to 20 frames in August 2024. The publisher cap has been updated to 20. `pack_resolver.py` enforces a maximum of 18 items (20 - 2 for hook and closing) and trims silently if exceeded. Do not set the publisher cap below 20 without verifying Meta's current policy.
+**`instagram_publisher.py` enforces a hard cap of 10 at line 62.** The cap was briefly raised to 20 after reading Meta's August 2024 changelog, but empirical testing showed Meta's Graph API hard-rejects carousels above 10 slides (commit 6d6be7c: 10-slide pack accepted, 12-slide pack rejected). `pack_resolver.py` trims to 8 items (10 - 2 for hook and closing). Do not raise the cap above 10 without a confirmed successful publish of an 11+ slide carousel through the Graph API — the changelog and the API's actual behaviour diverge.
 
 ---
 
