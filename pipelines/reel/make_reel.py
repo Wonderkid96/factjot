@@ -35,6 +35,7 @@ import shutil
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import IntEnum
 from pathlib import Path
@@ -99,10 +100,10 @@ load_dotenv()
 from src.brain import brain
 from src.core.config import load_config
 from src.render.reel_composer import (
-    OverlayFrame,
-    compose,
     FADE_TO_BLACK_S,
     INTRO_S,
+    OverlayFrame,
+    compose,
     n_clips_for_duration,
 )
 from src.render.reel_text_renderer import (
@@ -430,6 +431,147 @@ def _append_footage_ledger(
 
 
 # ------------------------------------------------------------------ #
+# Phase result dataclasses
+# ------------------------------------------------------------------ #
+
+@dataclass
+class _TtsPhaseResult:
+    mp3_path:     Path
+    word_beats:   list
+    voice_end_s:  float
+    cta_s:        float
+    total_dur:    float
+    n_clips:      int
+
+
+# ------------------------------------------------------------------ #
+# Phase functions
+# ------------------------------------------------------------------ #
+
+def _synthesise_phase(
+    fact: AutonomousReelInput,
+    out_dir: Path,
+    ff_bin: str,
+    voice: str,
+) -> "_TtsPhaseResult | ExitCode":
+    """Synthesise voice-over, pad with intro silence, compute timing.
+
+    Returns a _TtsPhaseResult on success or an ExitCode on failure.
+    """
+    from src.brain import brain as _brain
+    from src.verification.fact_checker import verify_anchors, verify_consistency
+
+    claim      = fact["claim"]
+    ftopic     = fact["topic"]
+    reel_title = fact.get("reel_title", "")
+
+    vo_body   = fact.get("reel_script", "")
+    vo_script = _append_outro(vo_body)
+    print(f"\n[AUTONOMOUS] script: {len(vo_body.split())} words")
+    print(f"  outro appended — total {len(vo_script.split())} words")
+
+    # Fact verification before TTS spend
+    anth_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+    consistency = verify_consistency({"title": reel_title, "claim": vo_script}, api_key=anth_key)
+    if not consistency["ok"]:
+        print(f"ERROR: fact verification failed (consistency): {consistency['reason']}")
+        _brain.append_log(
+            f"reel BLOCKED - fact verification (consistency): "
+            f"{consistency['reason'][:80]} - claim={claim[:60]}"
+        )
+        return ExitCode.FACT_VERIFY
+    anchors = verify_anchors([vo_script], api_key=anth_key)
+    if not anchors["ok"]:
+        flagged = "; ".join(
+            f"{f['claim'][:60]} ({f['reason']})" for f in anchors["flagged"][:3]
+        )
+        print(f"ERROR: fact verification failed (anchors): {flagged}")
+        _brain.append_log(
+            f"reel BLOCKED - fact verification (anchors): "
+            f"{flagged[:80]} - claim={claim[:60]}"
+        )
+        return ExitCode.FACT_VERIFY
+
+    print(f"Synthesising voice-over (voice={voice})...")
+    try:
+        tts_voice, tts_backend = _resolve_tts_voice(cli_voice=voice)
+    except _TtsConfigError as exc:
+        print(f"ERROR: {exc}")
+        return ExitCode.TTS_ERROR
+    if tts_backend == "elevenlabs":
+        print(f"  [tts] enforcing ElevenLabs voice from env: {tts_voice}")
+    mp3_path, word_beats = synthesise(
+        vo_script, out_dir, voice=tts_voice, backend=tts_backend,
+        tone=fact.get("tone", "curious"),
+    )
+    if not word_beats:
+        print("ERROR: TTS returned no word timing. Check edge-tts is installed.")
+        return ExitCode.TTS_ERROR
+
+    # Pad with intro silence so hook title shows before voice starts
+    padded_mp3 = out_dir / "voice_padded.mp3"
+    _pad_filter = (
+        "[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono[sil];"
+        "[1:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono[vo];"
+        "[sil][vo]concat=n=2:v=0:a=1[a]"
+    )
+    subprocess.run([
+        ff_bin, "-y",
+        "-f", "lavfi", "-t", str(INTRO_S), "-i", "anullsrc=r=48000:cl=mono",
+        "-i", str(mp3_path),
+        "-filter_complex", _pad_filter,
+        "-map", "[a]",
+        "-c:a", "libmp3lame", "-b:a", "192k", "-ar", "48000",
+        str(padded_mp3),
+    ], check=True, capture_output=True)
+    mp3_path = padded_mp3
+    print(f"  pre-padded voice with {INTRO_S}s intro silence -> {padded_mp3.name}")
+
+    voice_end_s = word_beats[-1].end_s + INTRO_S
+
+    # Sync CTA card to the exact beat the narrator says "factjot"
+    _fj_beats = [b for b in word_beats if "factjot" in b.word.lower()]
+    if not _fj_beats:
+        for _i, _b in enumerate(word_beats[:-1]):
+            _nxt = word_beats[_i + 1]
+            if _b.word.lower().startswith("fact") and _nxt.word.lower().startswith("jot"):
+                _fj_beats = [_b]
+                break
+    if _fj_beats:
+        cta_s = _fj_beats[-1].start_s + INTRO_S
+        print(f"  CTA locked to 'factjot' word beat at {cta_s:.1f}s")
+    else:
+        cta_s = max(0.0, voice_end_s - 3.5)
+        print(f"  CTA fallback (no 'factjot' beat found): {cta_s:.1f}s")
+
+    total_dur = round(voice_end_s + 0.8 + FADE_TO_BLACK_S, 2)
+    n_clips   = n_clips_for_duration(total_dur)
+    print(
+        f"  voice duration: {voice_end_s:.1f}s | total reel: {total_dur:.1f}s "
+        f"| CTA at {cta_s:.1f}s | clips: {n_clips}"
+    )
+
+    MIN_REEL_TOTAL_S = 33.5
+    if total_dur < MIN_REEL_TOTAL_S:
+        msg = (
+            f"Reel total duration {total_dur:.1f}s is below floor of "
+            f"{MIN_REEL_TOTAL_S}s. ABORTING."
+        )
+        print(f"\nABORTED — {msg}")
+        _brain.append_log(f"reel ABORTED — short duration {total_dur:.1f}s for {claim[:60]}")
+        return ExitCode.THUMBNAIL_ERROR
+
+    return _TtsPhaseResult(
+        mp3_path=mp3_path,
+        word_beats=word_beats,
+        voice_end_s=voice_end_s,
+        cta_s=cta_s,
+        total_dur=total_dur,
+        n_clips=n_clips,
+    )
+
+
+# ------------------------------------------------------------------ #
 # Main pipeline
 # ------------------------------------------------------------------ #
 
@@ -532,129 +674,19 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             brain.append_log(f"reel BLOCKED early — duplicate claim: {claim[:80]}")
             return ExitCode.DUPLICATE
 
-        # Step 2: Voice-over. Autonomous scripts bypass word-count floors:
-        # Claude owns quality, the legacy fact-bank floor was retired with
-        # _pick_fact in Phase G.1.
-        vo_body = fact.get("reel_script", "")
-        print(f"\n[AUTONOMOUS] script: {len(vo_body.split())} words")
-
-        # Append a randomised outro. Each variation contains "factjot" so the
-        # compositor can sync the CTA card to the exact moment it is spoken.
-        vo_script = _append_outro(vo_body)
-        print(f"  outro appended — total {len(vo_script.split())} words")
-
-        # D.1 fact verification gate. Runs BEFORE TTS so a contradictory or
-        # "fictional"-framed reel is rejected for ~$0.001 instead of paying
-        # the full TTS + FFmpeg + upload bill on a post that cannot ship.
-        # Both checks fail-OPEN on infra issues (no api_key, Wikipedia down)
-        # and fail-CLOSED on real quality issues. Print prefix matches the
-        # autonomous agent's `fact_verification_failed` sentinel.
-        from src.verification.fact_checker import verify_anchors, verify_consistency
-        anth_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
-        consistency_brief = {
-            "title": fact.get("reel_title", ""),
-            "claim": vo_script,
-        }
-        consistency = verify_consistency(consistency_brief, api_key=anth_key)
-        if not consistency["ok"]:
-            print(
-                f"ERROR: fact verification failed (consistency): "
-                f"{consistency['reason']}"
-            )
-            brain.append_log(
-                f"reel BLOCKED - fact verification (consistency): "
-                f"{consistency['reason'][:80]} - claim={claim[:60]}"
-            )
-            return ExitCode.FACT_VERIFY
-        anchors = verify_anchors([vo_script], api_key=anth_key)
-        if not anchors["ok"]:
-            flagged = "; ".join(
-                f"{f['claim'][:60]} ({f['reason']})"
-                for f in anchors["flagged"][:3]
-            )
-            print(f"ERROR: fact verification failed (anchors): {flagged}")
-            brain.append_log(
-                f"reel BLOCKED - fact verification (anchors): "
-                f"{flagged[:80]} - claim={claim[:60]}"
-            )
-            return ExitCode.FACT_VERIFY
-
-        print(f"Synthesising voice-over (voice={voice})...")
-        try:
-            tts_voice, tts_backend = _resolve_tts_voice(cli_voice=voice)
-        except _TtsConfigError as exc:
-            print(f"ERROR: {exc}")
-            return ExitCode.TTS_ERROR
-        if tts_backend == "elevenlabs":
-            print(f"  [tts] enforcing ElevenLabs voice from env: {tts_voice}")
-        mp3_path, word_beats = synthesise(vo_script, out_dir, voice=tts_voice, backend=tts_backend, tone=fact.get("tone", "curious"))
-        if not word_beats:
-            print("ERROR: TTS returned no word timing. Check edge-tts is installed.")
-            return ExitCode.TTS_ERROR
+        # Step 2: Synthesise voice-over, pad with intro silence, compute timing.
+        tts_result = _synthesise_phase(fact, out_dir, ff_bin, voice)
+        if isinstance(tts_result, ExitCode):
+            return tts_result
+        mp3_path    = tts_result.mp3_path
+        word_beats  = tts_result.word_beats
+        voice_end_s = tts_result.voice_end_s
+        cta_s       = tts_result.cta_s
+        total_dur   = tts_result.total_dur
+        n_clips     = tts_result.n_clips
+        vo_body     = fact.get("reel_script", "")
+        vo_script   = _append_outro(vo_body)
         rlog.emit(f"TTS ok -> {mp3_path.name} ({mp3_path.stat().st_size // 1024} KB)")
-
-        # Silent intro - hook title shows here, voice starts AFTER it fades.
-        padded_mp3 = out_dir / "voice_padded.mp3"
-        # ElevenLabs (and many MP3 paths) are 44.1 kHz; anullsrc is 48 kHz. Raw concat
-        # keeps 44.1 kHz on the muxed file (see gotchas: Meta rejects 44.1). Resample
-        # both legs to 48 kHz mono before concat so voice_padded.mp3 is safe end-to-end.
-        _pad_filter = (
-            "[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono[sil];"
-            "[1:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono[vo];"
-            "[sil][vo]concat=n=2:v=0:a=1[a]"
-        )
-        subprocess.run([
-            ff_bin, "-y",
-            "-f", "lavfi", "-t", str(INTRO_S), "-i", "anullsrc=r=48000:cl=mono",
-            "-i", str(mp3_path),
-            "-filter_complex", _pad_filter,
-            "-map", "[a]",
-            "-c:a", "libmp3lame", "-b:a", "192k", "-ar", "48000",
-            str(padded_mp3),
-        ], check=True, capture_output=True)
-        mp3_path = padded_mp3
-        print(f"  pre-padded voice with {INTRO_S}s intro silence -> {padded_mp3.name}")
-
-        voice_end_s = word_beats[-1].end_s + INTRO_S
-
-        # Sync CTA to the moment the narrator says "factjot" in the outro.
-        # ElevenLabs sometimes renders "factjot" as two tokens: "fact" + "jot".
-        # Check for both: single word containing "factjot", or consecutive "fact"+"jot".
-        _fj_beats = [b for b in word_beats if "factjot" in b.word.lower()]
-        if not _fj_beats:
-            for _i, _b in enumerate(word_beats[:-1]):
-                _nxt = word_beats[_i + 1]
-                if _b.word.lower().startswith("fact") and _nxt.word.lower().startswith("jot"):
-                    _fj_beats = [_b]
-                    break
-        if _fj_beats:
-            cta_s = _fj_beats[-1].start_s + INTRO_S
-            print(f"  CTA locked to 'factjot' word beat at {cta_s:.1f}s")
-        else:
-            cta_s = max(0.0, voice_end_s - 3.5)
-            print(f"  CTA fallback (no 'factjot' beat found): {cta_s:.1f}s")
-
-        # Total: voice ends + brief pause + fade to black
-        total_dur = round(voice_end_s + 0.8 + FADE_TO_BLACK_S, 2)
-        n_clips   = n_clips_for_duration(total_dur)
-
-        print(f"  voice duration: {voice_end_s:.1f}s | total reel: {total_dur:.1f}s | CTA at {cta_s:.1f}s | clips: {n_clips}")
-
-        # Hard duration gate — never publish a reel shorter than 35s.
-        # Direct response to the 2026-05-01 incident where an auto-generated
-        # script produced a 22.7s reel. With curated scripts this should never
-        # trigger, but if TTS truncates or a future edit shortens a script
-        # below the floor, fail loudly rather than ship a stub.
-        # Keep a hard floor, but avoid false aborts in the 34-35s band when
-        # TTS timing comes in slightly faster than expected.
-        MIN_REEL_TOTAL_S = 33.5
-        if total_dur < MIN_REEL_TOTAL_S:
-            msg = (f"Reel total duration {total_dur:.1f}s is below floor of "
-                   f"{MIN_REEL_TOTAL_S}s. ABORTING. Curated reel_script may have "
-                   f"been truncated by TTS, or word floor needs raising.")
-            print(f"\nABORTED — {msg}")
-            brain.append_log(f"reel ABORTED — short duration {total_dur:.1f}s for {claim[:60]}")
-            return ExitCode.THUMBNAIL_ERROR
 
         # Step 3: Find N pieces of footage (multi-clip storytelling)
         allow_archival = bool(fact.get("allow_archival", False))
