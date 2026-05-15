@@ -567,15 +567,16 @@ TOOLS = [
                 "subject_key": {
                     "type": "string",
                     "description": (
-                        "Optional. Canonical lowercase hyphenated name for the real-world subject. "
-                        "When you supply this, it is hard-blocked forever — no future session can "
-                        "re-post the same subject key. Use it when you want certainty. "
+                        "Required. Canonical lowercase hyphenated name for the real-world subject. "
+                        "Hard-blocked forever — no future session can re-post the same subject key. "
+                        "Name the THING, not the title. Two posts about the same subject must "
+                        "always produce the same key. "
                         "GOOD: 'radium-girls', 'great-molasses-flood', 'operation-acoustic-kitty'. "
                         "BAD: 'girls-who-glowed', 'the-flood-that-got-a-refund'."
                     ),
                 },
             },
-            "required": ["script", "title", "topic", "tone_override", "hint"],
+            "required": ["script", "title", "topic", "tone_override", "hint", "subject_key"],
             "additionalProperties": False,
         },
     },
@@ -614,14 +615,15 @@ TOOLS = [
                 "subject_key": {
                     "type": "string",
                     "description": (
-                        "Optional. Canonical lowercase hyphenated name for the subject. "
-                        "When supplied, hard-blocked forever against future sessions. "
+                        "Required. Canonical lowercase hyphenated name for the subject. "
+                        "Hard-blocked forever against future sessions. Name the list topic, "
+                        "not the format title. "
                         "GOOD: 'biggest-dam-failures', 'five-deadliest-product-recalls'. "
                         "BAD: 'five-dam-failures-by-death-toll'."
                     ),
                 },
             },
-            "required": ["brief", "label"],
+            "required": ["brief", "label", "subject_key"],
             "additionalProperties": False,
         },
     },
@@ -745,6 +747,23 @@ def execute_tool(
     if name == "skip":
         return f"SKIPPED: {args.get('reason', '(no reason given)')}"
     if name in ("run_reel", "run_carousel"):
+        # --- Hint quality gate (reels only) ---
+        # A hint with fewer than 3 non-blank lines or all lines shorter than
+        # 8 chars is effectively useless for video_finder and produces generic
+        # stock footage. Catch it here before burning pipeline cost.
+        if name == "run_reel":
+            hint_lines = [ln.strip() for ln in (args.get("hint") or "").splitlines() if ln.strip()]
+            if len(hint_lines) < 3 or all(len(ln) < 8 for ln in hint_lines):
+                return (
+                    "FAILURE_KIND: poor_hint\n\n"
+                    "The `hint` field must contain at least 3 non-blank lines, "
+                    "each describing a specific footage search term (era, setting, "
+                    "subject, mood, or a library URL). Generic single-word terms "
+                    "and short phrases produce unusable stock footage. "
+                    "Rewrite the hint with 4-6 specific, descriptive terms and "
+                    "call run_reel again."
+                )
+
         # --- Subject-key dedup (permanent, all-time hard block) ---
         # This catches "same real-world story told differently", which fingerprint
         # similarity cannot detect when titles are creatively reframed.
@@ -827,8 +846,8 @@ def _build_performance_signal() -> str:
     any topic/tone bucket has fewer than 2 data points (too noisy to guide).
     Fails silently on any read error so it never blocks a run.
     """
-    MIN_RECORDS = 5
-    MIN_BUCKET  = 2
+    MIN_RECORDS = 10
+    MIN_BUCKET  = 5
     try:
         from collections import defaultdict
         from src.core.paths import REEL_PERFORMANCE
@@ -920,11 +939,11 @@ SHARED_CORE = textwrap.dedent("""\
     - a near-duplicate with only minor wording changes
     This applies across every format.
 
-    subject_key is optional on run_reel and run_carousel. When you
-    supply it, it is hard-blocked permanently against all future posts.
-    Use it when you are confident of the canonical name and want to
-    guarantee the story can never run again (e.g. 'radium-girls',
-    'great-molasses-flood', 'operation-acoustic-kitty').
+    subject_key is required on run_reel and run_carousel. It is
+    hard-blocked permanently against all future posts. Supply the
+    canonical lowercase hyphenated name for the real-world subject
+    every time (e.g. 'radium-girls', 'great-molasses-flood',
+    'operation-acoustic-kitty'). Name the THING, not the title.
 
     INTERESTINGNESS GATE - HARD RULE
 

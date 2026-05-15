@@ -30,7 +30,23 @@ REDDIT_SOURCES = (
     ("biology", 1500),
     ("geology", 1000),
     ("science", 2000),
+    # Higher-signal sources: obscure, specific, lower viral-fact saturation.
+    ("history", 1500),
+    ("Paleontology", 500),
+    ("Anthropology", 500),
+    ("neuroanthropology", 300),
+    ("lost_technology", 200),
 )
+
+# Sources whose content skews toward already-viral internet facts.
+# Candidates from these sources receive a novelty penalty at scoring time
+# because the agent's NOVELTY GATE explicitly rejects "well-worn internet
+# staples" and TIL/IAF/DamnThats are the canonical feeds for those.
+VIRAL_FACT_SOURCES: frozenset[str] = frozenset({
+    "todayilearned",
+    "interestingasfuck",
+    "Damnthatsinteresting",
+})
 
 TOPIC_KEYWORDS = {
     "history": (
@@ -357,6 +373,14 @@ def build_story_candidates(limit_per_source: int = 20) -> list[Candidate]:
         hook, novelty, visual, confidence, shock, weird_bit = _score_title(title, post_bank)
         if confidence <= 0.0:
             continue
+        # Penalise candidates from viral-fact feeds. These subreddits surface
+        # already-famous facts that the agent's NOVELTY GATE will reject anyway;
+        # applying the penalty here lets higher-signal sources rank above them
+        # instead of wasting the agent's quality-gate budget on easy rejects.
+        raw_source = row.get("source", "")
+        sub = raw_source.split("r/")[-1] if "r/" in raw_source else raw_source
+        if sub in VIRAL_FACT_SOURCES:
+            novelty = max(0.0, novelty - 0.25)
         topic = row.get("topic") or _infer_topic(f"{title} {row.get('summary', '')}")
         fmt = _format_type_for_title(title)
         total = 0.35 * hook + 0.25 * novelty + 0.15 * visual + 0.25 * shock
