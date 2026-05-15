@@ -1,5 +1,6 @@
 # factjot brain log
 
+- 2026-05-15 18:03 TTS FALLBACK to edge-tts: ElevenLabs failed (RuntimeError: ElevenLabs API error 401: quota_exceeded) - falling back to edge-tts
 - 2026-05-15 16:35 TTS FALLBACK to edge-tts: ElevenLabs failed (RuntimeError: ElevenLabs API error 401: quota_exceeded) - falling back to edge-tts
 - 2026-05-15 16:34 TTS FALLBACK to edge-tts: ElevenLabs failed (RuntimeError: ElevenLabs API error 401: quota_exceeded) - falling back to edge-tts
 - 2026-05-15 16:33 TTS FALLBACK to edge-tts: ElevenLabs failed (RuntimeError: ElevenLabs API error 401: quota_exceeded) - falling back to edge-tts
