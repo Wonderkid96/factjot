@@ -468,6 +468,138 @@ class _TtsPhaseResult:
 # Phase functions
 # ------------------------------------------------------------------ #
 
+def _publish_phase(
+    fact: AutonomousReelInput,
+    final_mp4: Path,
+    thumbnail_png: Path,
+    thumbnail_jpg: Path,
+    story_png: Path,
+    caption: str,
+    claim: str,
+    ftopic: str,
+    reel_id: str,
+    ff_bin: str,
+    cfg: object,
+) -> "ExitCode":
+    """Upload video + thumbnail, publish Reel, post Story, record to ledgers.
+
+    Returns ExitCode.OK on success or a specific failure code.
+    """
+    from src.brain import DuplicatePostError, brain as _brain
+    from src.publish.image_host import make_image_host
+    from src.publish.instagram_publisher import InstagramGraphPublisher
+
+    # Final duplicate check just before publish — closes race with publish_due
+    try:
+        _brain.assert_no_duplicate([claim])
+    except DuplicatePostError as e:
+        print(f"\nABORTED at publish-time — duplicate block:\n{e}")
+        _brain.append_log(f"reel BLOCKED at publish — duplicate claim: {claim[:80]}")
+        return ExitCode.DUPLICATE
+
+    print("\nUploading video...")
+    try:
+        video_url = _upload_video(final_mp4)
+    except RuntimeError as exc:
+        print(f"\nVideo upload failed: {exc}")
+        _brain.append_log(f"reel FAILED video upload — fact={claim[:60]!r} error={exc}")
+        return ExitCode.UPLOAD_FAILED
+
+    if not thumbnail_png.is_file() or thumbnail_png.stat().st_size < 1000:
+        print("\nERROR: reel FAILED thumbnail — PNG missing or too small after render")
+        _brain.append_log(f"reel FAILED thumbnail file — fact={claim[:60]!r}")
+        return ExitCode.THUMBNAIL_ERROR
+    if not thumbnail_jpg.is_file() or thumbnail_jpg.stat().st_size < 1000:
+        print("\nERROR: reel FAILED thumbnail — JPEG missing or too small after shrink")
+        _brain.append_log(f"reel FAILED thumbnail jpeg — fact={claim[:60]!r}")
+        return ExitCode.THUMBNAIL_ERROR
+
+    print("Uploading thumbnail...")
+    img_host  = make_image_host()
+    cover_url = None
+    for attempt in (1, 2):
+        try:
+            cover_url = img_host.upload(thumbnail_jpg).public_url
+            print(f"  [thumbnail] {cover_url[:80]}")
+            break
+        except Exception as exc:
+            print(f"  [thumbnail] upload failed (attempt {attempt}/2): {exc}")
+            if attempt == 1:
+                time.sleep(2.0)
+            else:
+                print("  [thumbnail] publishing without cover (IG auto-picks frame)")
+
+    env = cfg.env  # type: ignore[attr-defined]
+    publisher = InstagramGraphPublisher(
+        account_id=env["INSTAGRAM_ACCOUNT_ID"],
+        access_token=env["META_ACCESS_TOKEN"],
+        graph_version=env["META_GRAPH_VERSION"],
+        host=env["META_GRAPH_HOST"],
+        dedup_check=_brain.assert_no_duplicate,
+    )
+
+    print("\nPublishing Reel to Instagram...")
+    result = None
+    for _attempt, (_crf, _rate) in enumerate([(None, None), (33, "600k"), (35, "500k")]):
+        if _attempt > 0:
+            print(f"  [adaptive] 413 on attempt {_attempt} — recompressing at crf={_crf}...")
+            _compressed = _recompress(final_mp4, crf=_crf, maxrate=_rate, ffmpeg_bin=ff_bin)
+            try:
+                video_url = _upload_video(_compressed)
+            except RuntimeError as _exc:
+                print(f"  [adaptive] re-upload failed: {_exc}")
+                break
+        result = publisher.publish_reel(
+            video_url=video_url, caption=caption,
+            cover_url=cover_url, dedup_subjects=[claim],
+        )
+        if result.get("ok"):
+            break
+        if not result.get("size_error"):
+            break
+
+    if not result or not result.get("ok"):
+        err = (result or {}).get("error", "unknown")
+        print(f"\nReel publish failed: {err}")
+        _brain.append_log(
+            f"reel FAILED publish — fact={claim[:60]!r} topic={ftopic} "
+            f"video_url={video_url[:60]} error={str(err)[:200]}"
+        )
+        return ExitCode.PUBLISH_FAILED
+
+    ig_media_id = result["ig_media_id"]
+    print(f"\nREEL PUBLISHED — ig_media_id: {ig_media_id}")
+
+    print("\nUploading story image...")
+    try:
+        story_result = img_host.upload(story_png)
+        story_url    = story_result.public_url
+        print(f"  [story] {story_url[:80]}")
+        story_pub = publisher.post_to_stories(image_url=story_url)
+        if story_pub.get("ok"):
+            print(f"  [story] published ig_media_id={story_pub['ig_media_id']}")
+            if story_pub.get("warning"):
+                print(f"  [story] note: {story_pub['warning']}")
+        else:
+            print(f"  [story] publish failed: {story_pub.get('error')} (Reel is still live)")
+    except Exception as exc:
+        print(f"  [story] failed ({exc}) — Reel is still live")
+
+    _record(
+        reel_id, ig_media_id, claim, ftopic,
+        final_mp4.parent,
+        thumbnail_png=thumbnail_png,
+        story_png=story_png,
+        tone=fact.get("tone", "curious"),
+        reel_title=fact.get("reel_title", ""),
+        subject_key=fact.get("subject_key", ""),
+        word_count=len(caption.split()),
+        caption=caption,
+        cover_missing=(cover_url is None),
+    )
+    return ExitCode.OK
+
+
 def _thumbnail_phase(
     fact: AutonomousReelInput,
     footage_clips: list,
@@ -1100,142 +1232,16 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             print(f"  Story:     open {story_png}")
             print(f"  Caption preview:\n---\n{caption}\n---")
             rlog.emit("DRY-RUN finished (no upload/publish)")
-            return 0
+            return ExitCode.OK
 
-        # Final duplicate re-check just before publish — closes the race window
-        # between the early gate and now (in case a parallel publish_due ran).
-        from src.brain import DuplicatePostError
-        try:
-            brain.assert_no_duplicate([claim])
-        except DuplicatePostError as e:
-            print(f"\nABORTED at publish-time — duplicate block:\n{e}")
-            brain.append_log(f"reel BLOCKED at publish — duplicate claim: {claim[:80]}")
-            return ExitCode.DUPLICATE
-
-        # Step 9: Upload video + thumbnail
-        from src.publish.image_host import make_image_host
-        from src.publish.instagram_publisher import InstagramGraphPublisher
-
-        print("\nUploading video...")
-        try:
-            video_url = _upload_video(final_mp4)
-        except RuntimeError as exc:
-            print(f"\nVideo upload failed: {exc}")
-            brain.append_log(f"reel FAILED video upload — fact={claim[:60]!r} error={exc}")
-            return ExitCode.UPLOAD_FAILED
-
-        if not thumbnail_png.is_file() or thumbnail_png.stat().st_size < 1000:
-            print("\nERROR: reel FAILED thumbnail — PNG missing or too small after render")
-            brain.append_log(f"reel FAILED thumbnail file — fact={claim[:60]!r}")
-            return ExitCode.THUMBNAIL_ERROR
-        if not thumbnail_jpg.is_file() or thumbnail_jpg.stat().st_size < 1000:
-            print("\nERROR: reel FAILED thumbnail — JPEG missing or too small after shrink")
-            brain.append_log(f"reel FAILED thumbnail jpeg — fact={claim[:60]!r}")
-            return ExitCode.THUMBNAIL_ERROR
-
-        print("Uploading thumbnail...")
-        img_host = make_image_host()
-        cover_url = None
-        for attempt in (1, 2):
-            try:
-                thumbnail_result = img_host.upload(thumbnail_jpg)
-                cover_url = thumbnail_result.public_url
-                print(f"  [thumbnail] {cover_url[:80]}")
-                break
-            except Exception as exc:
-                print(f"  [thumbnail] upload failed (attempt {attempt}/2): {exc}")
-                if attempt == 1:
-                    time.sleep(2.0)
-                else:
-                    print("  [thumbnail] publishing without cover (IG auto-picks frame)")
-
-        # Step 10: Publish Reel
-        # compose() already handles size: crf 23 first pass, two-pass VBR if >4.7MB.
-        # The 413 retry loop below is a last-resort safety net only.
-        print("\nPublishing Reel to Instagram...")
-        publisher = InstagramGraphPublisher(
-            account_id=cfg.env["INSTAGRAM_ACCOUNT_ID"],
-            access_token=cfg.env["META_ACCESS_TOKEN"],
-            graph_version=cfg.env["META_GRAPH_VERSION"],
-            host=cfg.env["META_GRAPH_HOST"],
-            # Defence-in-depth: the publisher itself re-reads the dedup
-            # ledger from disk just before the Graph API call, so any
-            # path that reaches publish_reel without a caller-level
-            # check still cannot post a duplicate. (Audit R6.)
-            dedup_check=brain.assert_no_duplicate,
+        # Steps 9-12: Upload, publish, story, record
+        publish_code = _publish_phase(
+            fact, final_mp4, thumbnail_png, thumbnail_jpg, story_png,
+            caption, claim, ftopic, reel_id, ff_bin, cfg,
         )
-
-        result = None
-        for _attempt, (_crf, _rate) in enumerate([(None, None), (33, "600k"), (35, "500k")]):
-            if _attempt > 0:
-                print(f"  [adaptive] 413 on attempt {_attempt} — recompressing at crf={_crf}...")
-                _compressed = _recompress(final_mp4, crf=_crf, maxrate=_rate, ffmpeg_bin=ff_bin)
-                try:
-                    video_url = _upload_video(_compressed)
-                except RuntimeError as _exc:
-                    print(f"  [adaptive] re-upload failed: {_exc}")
-                    break
-            result = publisher.publish_reel(
-                video_url=video_url,
-                caption=caption,
-                cover_url=cover_url,
-                dedup_subjects=[claim],
-            )
-            if result.get("ok"):
-                break
-            if not result.get("size_error"):
-                break  # non-size error — recompressing won't help
-
-        if not result or not result.get("ok"):
-            err = (result or {}).get("error", "unknown")
-            print(f"\nReel publish failed: {err}")
-            brain.append_log(
-                f"reel FAILED publish — fact={claim[:60]!r} topic={ftopic} "
-                f"video_url={video_url[:60]} error={str(err)[:200]}"
-            )
-            return ExitCode.PUBLISH_FAILED
-
-        ig_media_id = result["ig_media_id"]
-        print(f"\nREEL PUBLISHED — ig_media_id: {ig_media_id}")
-        rlog.emit(f"REEL PUBLISHED ig_media_id={ig_media_id}")
-
-        # Step 11: Post Story
-        print("\nUploading story image...")
-        try:
-            story_result = img_host.upload(story_png)
-            story_url = story_result.public_url
-            print(f"  [story] {story_url[:80]}")
-            story_pub = publisher.post_to_stories(image_url=story_url)
-            if story_pub.get("ok"):
-                print(f"  [story] published ig_media_id={story_pub['ig_media_id']}")
-                if story_pub.get("warning"):
-                    print(f"  [story] note: {story_pub['warning']}")
-            else:
-                print(f"  [story] publish failed: {story_pub.get('error')} (Reel is still live)")
-        except Exception as exc:
-            print(f"  [story] failed ({exc}) — Reel is still live")
-
-        # Step 12: Record
-        _record(
-            reel_id,
-            ig_media_id,
-            claim,
-            ftopic,
-            out_dir,
-            thumbnail_png=thumbnail_png,
-            story_png=story_png,
-            tone=fact.get("tone", "curious"),
-            reel_title=fact.get("reel_title", ""),
-            subject_key=fact.get("subject_key", ""),
-            word_count=len(vo_script.split()),
-            caption=caption,
-            # Telemetry: True when both thumbnail upload attempts failed
-            # and the reel shipped letting IG auto-pick a frame. Lets us
-            # query "how many reels lost their custom thumbnail" without
-            # re-parsing the workflow log (which masks/expires).
-            cover_missing=(cover_url is None),
-        )
-        return 0
+        if publish_code == ExitCode.OK:
+            rlog.emit(f"REEL PUBLISHED")
+        return publish_code
 
     finally:
         if rlog is not None:
