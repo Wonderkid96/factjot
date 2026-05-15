@@ -1171,6 +1171,25 @@ REEL_PROMPT = textwrap.dedent("""\
     - No motivational framing.
     - No fake profundity.
 
+    PROSE QUALITY
+
+    The script ships as voice-over. Every sentence must survive being
+    read aloud by a native English speaker without stumbling.
+
+    Before finalising, read the full script aloud. If any phrase sounds
+    like translated text, an awkward reach for emphasis, or a grammatical
+    stretch, rewrite it.
+
+    Specific patterns to avoid:
+    - "so [adverb] that" applied to a verb phrase.
+      Wrong: "they went to war so completely that..."
+      Right: "they went to war so bitterly that..." or restructure entirely.
+    - Stacked modifiers that obscure the verb: "published rushed findings
+      to claim species first" -- simplify to "raced to publish first."
+    - Clauses that only work on paper, not spoken aloud.
+
+    If the sentence works better written than said, it is the wrong sentence.
+
     LIST-TO-REEL FORMAT (allowed and encouraged when strong)
 
     A list can run as a reel if it is tight and weird-bit first.
