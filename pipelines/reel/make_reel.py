@@ -106,7 +106,6 @@ from src.render.reel_composer import (
     n_clips_for_duration,
 )
 from src.render.reel_text_renderer import TextFrame
-from src.content.reel_title import make_title
 from src.render.tts_engine import synthesise
 from src.utils.logging_utils import configure_logging
 
@@ -430,6 +429,14 @@ def _append_footage_ledger(
 # ------------------------------------------------------------------ #
 
 @dataclass
+class _ThumbnailPhaseResult:
+    thumbnail_png: Path
+    thumbnail_jpg: Path
+    story_png:     Path
+    caption:       str
+
+
+@dataclass
 class _ComposePhaseResult:
     final_mp4:   Path
     youtube_mp4: "Path | None"
@@ -460,6 +467,91 @@ class _TtsPhaseResult:
 # ------------------------------------------------------------------ #
 # Phase functions
 # ------------------------------------------------------------------ #
+
+def _thumbnail_phase(
+    fact: AutonomousReelInput,
+    footage_clips: list,
+    out_dir: Path,
+    ff_bin: str,
+    claim: str,
+    ftopic: str,
+) -> "_ThumbnailPhaseResult | ExitCode":
+    """Pick best thumbnail frame, render story asset and caption.
+
+    Returns _ThumbnailPhaseResult on success or ExitCode.THUMBNAIL_ERROR on failure.
+    """
+    from src.brain import brain as _brain
+    from src.content.reel_caption import build_reel_caption
+    from src.content.reel_title import make_title as _make_title
+    from src.render.reel_story import render_story
+    from src.render.thumbnail_picker import pick_best_thumbnail
+
+    story_title   = _make_title(claim, ftopic, reel_title=fact.get("reel_title"))
+    frame_jpg     = out_dir / "thumbnail_frame.jpg"
+    thumbnail_png = out_dir / "thumbnail.png"
+    thumbnail_jpg = out_dir / "thumbnail.jpg"
+    story_png     = out_dir / "story.png"
+    anth_key      = os.getenv("ANTHROPIC_API_KEY", "").strip()
+
+    # Prefer pre-rendered still MP4s for the picker
+    picker_clips: list[Path] = []
+    for fc in footage_clips:
+        if fc.suffix.lower() in _THUMB_STILL_EXTS:
+            _still_rendered = out_dir / f"still_rendered_{fc.stem}.mp4"
+            picker_clips.append(_still_rendered if _still_rendered.exists() else fc)
+        else:
+            picker_clips.append(fc)
+
+    print("\nExtracting + scoring 3 candidate thumbnail frames...")
+    cand_dir = out_dir / "thumb_candidates"
+    try:
+        chosen_frame, picker_meta = pick_best_thumbnail(
+            footage_clips=picker_clips,
+            claim=claim,
+            reel_title=story_title or "",
+            api_key=anth_key,
+            candidate_dir=cand_dir,
+            ffmpeg_bin=ff_bin,
+        )
+    except RuntimeError as exc:
+        print(f"\nERROR: reel FAILED thumbnail picker: {exc}")
+        _brain.append_log(
+            f"reel FAILED thumbnail picker — fact={claim[:60]!r} error={str(exc)[:300]}"
+        )
+        return ExitCode.THUMBNAIL_ERROR
+
+    try:
+        from PIL import Image
+        with Image.open(chosen_frame) as im:
+            im.convert("RGB").save(frame_jpg, format="JPEG", quality=92)
+    except Exception as exc:
+        print(f"  [thumb] PIL JPEG conversion failed ({exc}); copying PNG bytes")
+        frame_jpg.write_bytes(chosen_frame.read_bytes())
+    print(
+        f"  [frame] chosen={chosen_frame.name} -> {frame_jpg.name} "
+        f"({frame_jpg.stat().st_size // 1024}KB) "
+        f"haiku_cost=${picker_meta.get('total_cost_usd', 0.0):.5f}"
+    )
+
+    print("Rendering thumbnail (story-style cover)...")
+    render_story(title=story_title or claim.split(".")[0], topic=ftopic, out_path=thumbnail_png, frame_path=frame_jpg)
+    _shrink_thumbnail_to_ig_jpeg(thumbnail_png, thumbnail_jpg)
+
+    print("Rendering story asset...")
+    render_story(title=story_title or claim.split(".")[0], topic=ftopic, out_path=story_png, frame_path=frame_jpg)
+
+    caption = build_reel_caption(
+        claim, ftopic, reel_title=story_title, sources=fact.get("sources", []),
+    )
+    print(f"  caption: {len(caption)} chars")
+
+    return _ThumbnailPhaseResult(
+        thumbnail_png=thumbnail_png,
+        thumbnail_jpg=thumbnail_jpg,
+        story_png=story_png,
+        caption=caption,
+    )
+
 
 def _compose_phase(
     footage_clips: list,
@@ -992,108 +1084,14 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
             topic=ftopic,
         )
 
-        # Step 8: Generate thumbnail (Haiku-picked frame + brand overlay) and story
-        # E.4 (2026-05-10): the previous footage_clips[0] heuristic is replaced
-        # with thumbnail_picker.pick_best_thumbnail (3 candidate frames, scored
-        # by Haiku 4.5 vision). The chosen frame is then rendered via the
-        # story template (full-bleed frame + centred Archivo Black headline
-        # + red "New Reel" pill). The same story-style asset feeds the IG
-        # Reel cover, the YouTube Short cover, and the IG Stories crosspost.
-        from src.render.reel_story import render_story
-        from src.content.reel_caption import build_reel_caption
-        from src.render.thumbnail_picker import pick_best_thumbnail
-
-        story_title = make_title(claim, ftopic, reel_title=fact.get("reel_title"))
-
-        frame_jpg     = out_dir / "thumbnail_frame.jpg"
-        thumbnail_png = out_dir / "thumbnail.png"
-        thumbnail_jpg = out_dir / "thumbnail.jpg"
-        story_png     = out_dir / "story.png"
-
-        # When footage_clips[0] is a still, prefer the pre-rendered MP4
-        # for the picker so frame extraction is consistent across mixed
-        # footage. Stills get seek=0 anyway via the planner.
-        picker_clips: list[Path] = []
-        for fc in footage_clips:
-            if fc.suffix.lower() in _THUMB_STILL_EXTS:
-                _still_rendered = out_dir / f"still_rendered_{fc.stem}.mp4"
-                picker_clips.append(
-                    _still_rendered if _still_rendered.exists() else fc
-                )
-            else:
-                picker_clips.append(fc)
-
-        print("\nExtracting + scoring 3 candidate thumbnail frames...")
-        cand_dir = out_dir / "thumb_candidates"
-        anth_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
-        try:
-            chosen_frame, picker_meta = pick_best_thumbnail(
-                footage_clips=picker_clips,
-                claim=claim,
-                reel_title=story_title or "",
-                api_key=anth_key,
-                candidate_dir=cand_dir,
-                ffmpeg_bin=ff_bin,
-            )
-        except RuntimeError as exc:
-            print(f"\nERROR: reel FAILED thumbnail picker: {exc}")
-            brain.append_log(
-                f"reel FAILED thumbnail picker — fact={claim[:60]!r} "
-                f"error={str(exc)[:300]}"
-            )
-            return ExitCode.THUMBNAIL_ERROR
-
-        # Persist the chosen frame as thumbnail_frame.jpg for downstream use
-        # (story renderer + debug). Keep the original PNG too under
-        # thumb_candidates/ for ledger archaeology.
-        try:
-            from PIL import Image
-            with Image.open(chosen_frame) as im:
-                im.convert("RGB").save(frame_jpg, format="JPEG", quality=92)
-        except Exception as exc:
-            # Soft-fall: copy the PNG bytes if PIL is missing or fails.
-            print(f"  [thumb] PIL JPEG conversion failed ({exc}); copying PNG bytes")
-            frame_jpg.write_bytes(chosen_frame.read_bytes())
-        print(
-            f"  [frame] chosen={chosen_frame.name} -> {frame_jpg.name} "
-            f"({frame_jpg.stat().st_size // 1024}KB) "
-            f"haiku_cost=${picker_meta.get('total_cost_usd', 0.0):.5f}"
-        )
-
-        # Cover + story share the story-style layout: full-bleed frame,
-        # centred Archivo Black headline (full reel title), red "New Reel"
-        # pill. The IG Reel cover, the YouTube Short cover, and the IG
-        # Stories crosspost are all rendered from reel_story.html.j2 so
-        # the three surfaces stay visually consistent.
-        print("Rendering thumbnail (story-style cover)...")
-        render_story(
-            title=story_title or claim.split(".")[0],
-            topic=ftopic,
-            out_path=thumbnail_png,
-            frame_path=frame_jpg,
-        )
-
-        # IG Reels cover_url accepts JPEG only and is hard-capped under
-        # ~0.5MB. YouTube's 2MB cap is looser. Emit one IG-compliant JPEG
-        # so both surfaces consume the same artefact. YouTube prefers
-        # thumbnail.jpg when present and falls back to PNG-conversion only
-        # for older runs.
-        _shrink_thumbnail_to_ig_jpeg(thumbnail_png, thumbnail_jpg)
-
-        print("Rendering story asset...")
-        render_story(
-            title=story_title or claim.split(".")[0],
-            topic=ftopic,
-            out_path=story_png,
-            frame_path=frame_jpg,
-        )
-
-        caption = build_reel_caption(
-            claim, ftopic,
-            reel_title=story_title,
-            sources=fact.get("sources", []),
-        )
-        print(f"  caption: {len(caption)} chars")
+        # Step 8: Thumbnail + story + caption
+        thumb_result = _thumbnail_phase(fact, footage_clips, out_dir, ff_bin, claim, ftopic)
+        if isinstance(thumb_result, ExitCode):
+            return thumb_result
+        thumbnail_png = thumb_result.thumbnail_png
+        thumbnail_jpg = thumb_result.thumbnail_jpg
+        story_png     = thumb_result.story_png
+        caption       = thumb_result.caption
 
         if dry_run:
             print("\nDRY-RUN — skipping upload and publish.")
