@@ -1,5 +1,6 @@
 # factjot brain log
 
+- 2026-05-16 19:51 WORKFLOW FAILED: .github/workflows/autonomous-reel.yml | run=25971317660 | trigger=schedule | ref=main
 - 2026-05-16 11:48 dynamic list 'dyn_30c3bb03c6620f' published (TV LIST, ig_media=18319265017256109)
 - 2026-05-16 11:46 token refreshed: new expiry ~60 days
 - 2026-05-16 08:40 reel 7b4627f8567433 published (history, ig_media=18090963011085964)
