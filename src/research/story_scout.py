@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, asdict
@@ -195,21 +196,41 @@ _SHOCK_OUTCOME_NEAR_PROPER_RE = re.compile(
     r"|\b(?:" + "|".join(_SHOCK_OUTCOME_VERBS) + r")\b.{0,40}\b[A-Z][a-z]{2,}\b"
 )
 
-# Well-worn internet facts. Substring signal. A title containing any
-# of these phrases gets a heavy novelty penalty because the agent's
-# NOVELTY GATE will reject them anyway and they crowd out fresher
-# candidates from the top-N ranking.
+# Well-worn internet facts. Two categories:
+#   - Broad subject names that are *almost always* the cliché when they
+#     appear (mantis shrimp ≈ colour-vision meme; tongue map ≈ myth bust).
+#   - Specific cliché phrasings for famous subjects where fresh angles
+#     are common (Cleopatra, pyramids, Mariana Trench, etc.). These
+#     subjects' bare names are deliberately NOT in the list so a real
+#     new discovery about them can still rank.
+#
+# A title containing one of these phrasings gets a novelty penalty
+# because the agent's NOVELTY GATE rejects them anyway and they crowd
+# out fresher candidates from the top-N ranking.
 WELL_WORN_FACTS: tuple[str, ...] = (
-    "mantis shrimp", "mariana trench", "cleopatra", "pyramids", "great wall",
-    "tongue map", "five second rule", "ten percent of our brain", "10% of our brain",
-    "honey never spoils", "honey doesn't spoil", "platypus venom", "duck quack",
-    "nokia 3310", "bananas are berries", "strawberries aren't berries",
-    "vikings didn't have horned helmets", "napoleon was short", "einstein failed",
-    "great wall of china from space", "lightning never strikes twice",
-    "we only use", "ostrich head in sand", "bulls hate red", "goldfish memory",
-    "sharks don't get cancer", "humans share 50% dna with bananas",
-    "blood is blue", "shaving makes hair thicker", "cracking knuckles arthritis",
+    # Near-monolithic clichés (subject ≈ cliché, fresh angles vanishingly rare)
+    "mantis shrimp", "tongue map", "five second rule", "platypus venom",
+    "duck quack",  # echo myth
+    # Specific cliché claims (fresh angles on the same subject still pass)
+    "cleopatra" + " " + "closer to", "cleopatra lived closer",
+    "pyramids" + " " + "from space", "pyramids" + " " + "built by slaves",
+    "great wall" + " " + "from space", "great wall visible from",
+    "mariana trench" + " " + "deeper than", "mariana" + " " + "everest",
+    "honey never spoils", "honey doesn't spoil", "honey doesnt spoil",
+    "napoleon was short", "napoleon's height",
+    "einstein failed", "einstein flunked",
+    "ten percent of our brain", "10% of our brain", "10 percent of our brain",
+    "we only use 10", "we only use ten",
+    "shaving makes hair thicker", "cracking knuckles arthritis",
     "sugar makes kids hyper", "left brain right brain",
+    "ostrich head in sand", "bulls hate red", "goldfish" + " " + "3 second",
+    "goldfish" + " " + "three second", "sharks don't get cancer",
+    "sharks dont get cancer",
+    "bananas are berries", "strawberries aren't berries",
+    "humans share 50% dna with bananas",
+    "vikings didn't have horned helmets", "vikings horned helmets",
+    "lightning never strikes twice", "nokia 3310 indestructible",
+    "blood is blue",
 )
 
 # Causal connectors that resolve a setup. A title containing one of
@@ -442,7 +463,11 @@ def _fetch_rss(name: str, url: str, limit: int) -> list[dict]:
         )
         resp.raise_for_status()
         root = ET.fromstring(resp.content)
-    except Exception:
+    except Exception as exc:
+        # Visible failure: a degraded feed silently shrinks the candidate
+        # pool. Surface the cause so CI logs flag broken feeds for
+        # investigation rather than letting quality regress invisibly.
+        print(f"[story-scout] rss feed failed: {name} ({type(exc).__name__}: {exc})", file=sys.stderr, flush=True)
         return []
 
     items = root.findall(".//item")
