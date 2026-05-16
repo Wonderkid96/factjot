@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import re
 import time
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass, asdict
 
 import requests
@@ -59,6 +60,16 @@ RISING_SOURCES: tuple[str, ...] = (
     "lost_technology",
     "geology",
     "history",
+)
+
+# Editorial RSS sources. Curated by human editors for "underexposed and
+# surprising," which is exactly the signal Reddit upvotes can't provide.
+# Candidates from these feeds get a novelty bonus at scoring time.
+RSS_SOURCES: tuple[tuple[str, str], ...] = (
+    ("atlas_obscura",   "https://www.atlasobscura.com/feeds/latest"),
+    ("damn_interesting", "https://www.damninteresting.com/feed/"),
+    ("hakai",           "https://hakaimagazine.com/feed/"),
+    ("nautilus",        "https://nautil.us/feed/"),
 )
 
 TOPIC_KEYWORDS = {
@@ -184,6 +195,68 @@ _SHOCK_OUTCOME_NEAR_PROPER_RE = re.compile(
     r"|\b(?:" + "|".join(_SHOCK_OUTCOME_VERBS) + r")\b.{0,40}\b[A-Z][a-z]{2,}\b"
 )
 
+# Well-worn internet facts. Substring signal. A title containing any
+# of these phrases gets a heavy novelty penalty because the agent's
+# NOVELTY GATE will reject them anyway and they crowd out fresher
+# candidates from the top-N ranking.
+WELL_WORN_FACTS: tuple[str, ...] = (
+    "mantis shrimp", "mariana trench", "cleopatra", "pyramids", "great wall",
+    "tongue map", "five second rule", "ten percent of our brain", "10% of our brain",
+    "honey never spoils", "honey doesn't spoil", "platypus venom", "duck quack",
+    "nokia 3310", "bananas are berries", "strawberries aren't berries",
+    "vikings didn't have horned helmets", "napoleon was short", "einstein failed",
+    "great wall of china from space", "lightning never strikes twice",
+    "we only use", "ostrich head in sand", "bulls hate red", "goldfish memory",
+    "sharks don't get cancer", "humans share 50% dna with bananas",
+    "blood is blue", "shaving makes hair thicker", "cracking knuckles arthritis",
+    "sugar makes kids hyper", "left brain right brain",
+)
+
+# Causal connectors that resolve a setup. A title containing one of
+# these followed by substantive explanation has spoiled its own
+# punchline.
+_PUNCHLINE_CONNECTORS = (
+    " because ", " due to ", " thanks to ", " in order to ",
+    " so that ", " which is why ", " turns out that ", " actually ",
+    " in fact ", " is actually ", " was actually ", " were actually ",
+)
+
+
+def _punchline_in_title(title: str) -> bool:
+    """Title contains both setup and resolution — no surprise left."""
+    tl = " " + title.lower() + " "
+    for connector in _PUNCHLINE_CONNECTORS:
+        idx = tl.find(connector)
+        if idx == -1:
+            continue
+        tail = tl[idx + len(connector):]
+        tail_tokens = re.findall(r"[a-z0-9]{3,}", tail)
+        if len(tail_tokens) >= 4:
+            return True
+    return False
+
+
+def _question_mode(title: str) -> bool:
+    """Title poses a mystery without resolving it."""
+    tl = title.strip().lower()
+    if tl.endswith("?"):
+        return True
+    question_openers = (
+        "why ", "how ", "what happened", "what really", "who really",
+        "the mystery of", "the case of", "the strange ",
+        "no one knows", "still don't know", "still unknown",
+    )
+    return any(tl.startswith(q) or (" " + q in tl) for q in question_openers)
+
+
+def _familiarity_penalty(title: str) -> float:
+    """0.0–0.4 penalty for overlap with well-worn internet facts."""
+    tl = title.lower()
+    hits = sum(1 for phrase in WELL_WORN_FACTS if phrase in tl)
+    if hits == 0:
+        return 0.0
+    return min(0.4, 0.2 * hits)
+
 
 @dataclass
 class Candidate:
@@ -294,6 +367,13 @@ def _score_title(title: str, post_bank: list[str]) -> tuple[float, float, float,
         hook += 0.1
     visual = 0.2 + min(0.6, 0.08 * sum(1 for t in VISUAL_TERMS if t in tl))
     novelty = _novelty(title, post_bank)
+    novelty = max(0.0, novelty - _familiarity_penalty(title))
+    if _punchline_in_title(title):
+        # Setup and resolution both in the title — no turn left for the script.
+        hook = max(0.0, hook - 0.25)
+    if _question_mode(title):
+        # Mystery framing without resolution — the script gets to land the turn.
+        hook = min(1.0, hook + 0.15)
     shock = _shock_score(title)
     confidence = min(1.0, 0.4 * hook + 0.3 * visual + 0.3 * novelty)
     weird_bit = _extract_weird_bit(title)
@@ -337,6 +417,60 @@ def _fetch_reddit_top(subreddit: str, min_upvotes: int, limit: int) -> list[dict
             "source_id": str(data.get("id", "")),
             "title": title,
             "summary": _normalise(str(data.get("selftext", "")))[:500],
+        })
+    return out
+
+
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _strip_html(text: str) -> str:
+    return _normalise(_HTML_TAG_RE.sub(" ", text or ""))
+
+
+def _fetch_rss(name: str, url: str, limit: int) -> list[dict]:
+    """Fetch an RSS/Atom feed and return normalised candidate rows.
+
+    Pure stdlib XML parsing; no feedparser dependency. Handles both RSS 2.0
+    (<item><title><description>) and Atom (<entry><title><summary>).
+    """
+    try:
+        resp = requests.get(
+            url,
+            headers={"User-Agent": USER_AGENT, "Accept": "application/rss+xml, application/xml"},
+            timeout=12,
+        )
+        resp.raise_for_status()
+        root = ET.fromstring(resp.content)
+    except Exception:
+        return []
+
+    items = root.findall(".//item")
+    is_atom = False
+    if not items:
+        items = root.findall(".//{http://www.w3.org/2005/Atom}entry")
+        is_atom = True
+
+    out: list[dict] = []
+    for item in items[:limit]:
+        if is_atom:
+            title_el = item.find("{http://www.w3.org/2005/Atom}title")
+            desc_el = item.find("{http://www.w3.org/2005/Atom}summary")
+            id_el = item.find("{http://www.w3.org/2005/Atom}id")
+        else:
+            title_el = item.find("title")
+            desc_el = item.find("description")
+            id_el = item.find("guid") or item.find("link")
+        title = _strip_html(title_el.text) if title_el is not None and title_el.text else ""
+        summary = _strip_html(desc_el.text) if desc_el is not None and desc_el.text else ""
+        item_id = (id_el.text if id_el is not None and id_el.text else title)[:200]
+        if len(title) < 20:
+            continue
+        out.append({
+            "source": f"rss:{name}",
+            "source_id": item_id,
+            "title": title,
+            "summary": summary[:500],
         })
     return out
 
@@ -402,6 +536,8 @@ def build_story_candidates(limit_per_source: int = 20) -> list[Candidate]:
         raw.extend(_fetch_reddit_top(sub, min_upvotes=min_upvotes, limit=limit_per_source))
     for sub in RISING_SOURCES:
         raw.extend(_fetch_reddit_rising(sub, limit=limit_per_source))
+    for name, url in RSS_SOURCES:
+        raw.extend(_fetch_rss(name, url, limit=limit_per_source))
     seen_titles: set[str] = set()
     candidates: list[Candidate] = []
     for row in raw:
@@ -423,6 +559,10 @@ def build_story_candidates(limit_per_source: int = 20) -> list[Candidate]:
         elif raw_source.startswith("reddit-rising:"):
             # Rising posts are pre-viral by definition; reward them for novelty.
             novelty = min(1.0, novelty + 0.15)
+        elif raw_source.startswith("rss:"):
+            # Editorial RSS is human-curated for underexposed surprise.
+            # Stronger novelty bonus than Reddit rising.
+            novelty = min(1.0, novelty + 0.25)
         topic = row.get("topic") or _infer_topic(f"{title} {row.get('summary', '')}")
         fmt = _format_type_for_title(title)
         total = 0.35 * hook + 0.25 * novelty + 0.15 * visual + 0.25 * shock
