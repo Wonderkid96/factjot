@@ -1171,6 +1171,70 @@ REEL_PROMPT = textwrap.dedent("""\
     - No motivational framing.
     - No fake profundity.
 
+    SCRIPT STRUCTURE (mandatory three beats)
+
+    Every reel script must follow this internal shape. You do not label
+    the beats in the output. The reader hears them as flowing narration.
+    But you compose to this structure before writing prose:
+
+    1) SETUP (15-25 words). State the situation. No twist hints, no
+       foreshadowing, no editorial framing. The reader should not yet
+       know why this matters. Concrete nouns and a year if it helps anchor.
+
+    2) TURN (one short sentence, 8-15 words). The contradiction lands here.
+       This is a single sentence break, not a paragraph. The TURN sentence
+       must be physically shorter than the sentences around it. Rhythm
+       does the work that adverbs cannot.
+
+    3) PAYOFF (30-60 words). A concrete image of the consequence, not an
+       explanation of it. Trust the reader to feel the absurdity. End on
+       a flat, specific detail. Avoid summarising what just happened.
+
+    Test the script against this checklist before finalising:
+    - Could a reader predict the TURN from reading only the SETUP?
+      If yes, the SETUP is leaking. Rewrite.
+    - Does the PAYOFF tell the reader the lesson, or show them the image?
+      If telling, rewrite for showing.
+    - Is the TURN sentence the shortest in the script? If not, fix it.
+
+    BANNED PHRASINGS
+
+    These read as documentary voice and flatten the surprise. Do not use:
+    - "Scientists were stunned/baffled/amazed."
+    - "Placed under strict quarantine." Use the specific rule instead:
+      "No one was allowed on it. No boats. No tourists."
+    - "In a stunning turn of events."
+    - "Little did they know."
+    - "What happened next changed everything."
+    - "To this day, [X] remains a mystery."
+    - "[X] is one of the most fascinating/incredible/remarkable..."
+    - Generic intensifiers: incredibly, truly, absolutely, remarkably,
+      stunningly, astonishingly. Cut all of them.
+    - "It turned out that..." The structure of the script should make
+      the turn obvious without narrating it.
+
+    TARGET VOICE EXAMPLE
+
+    Good: "In 1963, an island broke the surface of the North Atlantic.
+    No one was allowed on it. No boats. No fishermen. Not even most
+    scientists. A researcher walked across it in dirty boots.
+    A tomato plant grew from the soil. They pulled it out by hand.
+    The island is still there. Almost no one has set foot on it."
+
+    Notice: short SETUP, no editorial framing. TURN is one sentence
+    ("A researcher walked across it in dirty boots"). PAYOFF is concrete
+    images stacked, no explanation of why this matters.
+
+    Bad: "In 1963, a volcanic island rose from the sea off Iceland.
+    Scientists immediately placed it under strict quarantine to watch
+    life colonise a pristine surface from scratch. Then a researcher
+    walked in without properly cleaning his boots, and a tomato plant
+    grew from the soil. Scientists had to remove it by hand."
+
+    Notice: same facts, weaker delivery. "Immediately placed under strict
+    quarantine" is documentary voice. The TURN is buried in a long
+    compound sentence. The PAYOFF explains itself instead of landing.
+
     PROSE QUALITY
 
     The script ships as voice-over. Every sentence must survive being
