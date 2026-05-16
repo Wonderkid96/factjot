@@ -48,6 +48,19 @@ VIRAL_FACT_SOURCES: frozenset[str] = frozenset({
     "Damnthatsinteresting",
 })
 
+# Niche subreddits polled on /rising in addition to /top.
+# Excludes viral-fact sources — rising signal is only valuable where content
+# hasn't already been widely cross-posted.
+RISING_SOURCES: tuple[str, ...] = (
+    "UnresolvedMysteries",
+    "Paleontology",
+    "Anthropology",
+    "neuroanthropology",
+    "lost_technology",
+    "geology",
+    "history",
+)
+
 TOPIC_KEYWORDS = {
     "history": (
         "war", "battle", "empire", "monarch", "dynasty",
@@ -328,6 +341,33 @@ def _fetch_reddit_top(subreddit: str, min_upvotes: int, limit: int) -> list[dict
     return out
 
 
+def _fetch_reddit_rising(subreddit: str, limit: int) -> list[dict]:
+    try:
+        resp = requests.get(
+            f"https://www.reddit.com/r/{subreddit}/rising.json",
+            params={"limit": limit},
+            headers={"User-Agent": USER_AGENT},
+            timeout=12,
+        )
+        resp.raise_for_status()
+        rows = resp.json().get("data", {}).get("children", [])
+    except Exception:
+        return []
+    out: list[dict] = []
+    for row in rows:
+        data = row.get("data", {})
+        title = _normalise(str(data.get("title", "")))
+        if len(title) < 20:
+            continue
+        out.append({
+            "source": f"reddit-rising:r/{subreddit}",
+            "source_id": str(data.get("id", "")),
+            "title": title,
+            "summary": _normalise(str(data.get("selftext", "")))[:500],
+        })
+    return out
+
+
 def _load_staging_reel_candidates() -> list[dict]:
     if not STAGING_REEL.exists():
         return []
@@ -360,6 +400,8 @@ def build_story_candidates(limit_per_source: int = 20) -> list[Candidate]:
     raw.extend(_load_staging_reel_candidates())
     for sub, min_upvotes in REDDIT_SOURCES:
         raw.extend(_fetch_reddit_top(sub, min_upvotes=min_upvotes, limit=limit_per_source))
+    for sub in RISING_SOURCES:
+        raw.extend(_fetch_reddit_rising(sub, limit=limit_per_source))
     seen_titles: set[str] = set()
     candidates: list[Candidate] = []
     for row in raw:
@@ -373,14 +415,14 @@ def build_story_candidates(limit_per_source: int = 20) -> list[Candidate]:
         hook, novelty, visual, confidence, shock, weird_bit = _score_title(title, post_bank)
         if confidence <= 0.0:
             continue
-        # Penalise candidates from viral-fact feeds. These subreddits surface
-        # already-famous facts that the agent's NOVELTY GATE will reject anyway;
-        # applying the penalty here lets higher-signal sources rank above them
-        # instead of wasting the agent's quality-gate budget on easy rejects.
         raw_source = row.get("source", "")
         sub = raw_source.split("r/")[-1] if "r/" in raw_source else raw_source
         if sub in VIRAL_FACT_SOURCES:
+            # Penalise viral-fact feeds — agent NOVELTY GATE rejects these anyway.
             novelty = max(0.0, novelty - 0.25)
+        elif raw_source.startswith("reddit-rising:"):
+            # Rising posts are pre-viral by definition; reward them for novelty.
+            novelty = min(1.0, novelty + 0.15)
         topic = row.get("topic") or _infer_topic(f"{title} {row.get('summary', '')}")
         fmt = _format_type_for_title(title)
         total = 0.35 * hook + 0.25 * novelty + 0.15 * visual + 0.25 * shock
