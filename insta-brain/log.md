@@ -4,6 +4,7 @@
 - 2026-05-16 11:46 token refreshed: new expiry ~60 days
 - 2026-05-16 08:40 reel 7b4627f8567433 published (history, ig_media=18090963011085964)
 - 2026-05-16 08:35 token refreshed: new expiry ~59 days
+- 2026-05-15 22:14 reel a5d2ae02b53de2 published (earth, ig_media=18124603513558429)
 - 2026-05-15 20:09 reel 1c9dcb3c136a9a published (history, ig_media=18074217278289610)
 - 2026-05-15 20:02 token refreshed: new expiry ~59 days
 - 2026-05-15 21:37 TTS FALLBACK to edge-tts: ElevenLabs failed (RuntimeError: ElevenLabs API error 401: quota_exceeded) - falling back to edge-tts
