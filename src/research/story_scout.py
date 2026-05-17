@@ -38,6 +38,12 @@ REDDIT_SOURCES = (
     ("Anthropology", 500),
     ("neuroanthropology", 300),
     ("lost_technology", 200),
+    # "Real news that sounds satirical" — pre-filtered by crowd as
+    # "this is real but sounds fake." Exact factjot weird-bit type.
+    ("nottheonion", 5000),
+    # Named engineering disasters and system failures. Good source for
+    # "badly designed systems" and "stupid decisions" angles.
+    ("CatastrophicFailure", 1000),
 )
 
 # Sources whose content skews toward already-viral internet facts.
@@ -61,17 +67,28 @@ RISING_SOURCES: tuple[str, ...] = (
     "lost_technology",
     "geology",
     "history",
+    "nottheonion",
+    "CatastrophicFailure",
 )
 
 # Editorial RSS sources. Curated by human editors for "underexposed and
 # surprising," which is exactly the signal Reddit upvotes can't provide.
 # Candidates from these feeds get a novelty bonus at scoring time.
+# Tier-1 sources (futility_closet, damn_interesting) are specifically
+# curated for obscure weird-but-true content and get a stronger bonus.
 RSS_SOURCES: tuple[tuple[str, str], ...] = (
-    ("atlas_obscura",   "https://www.atlasobscura.com/feeds/latest"),
+    ("atlas_obscura",    "https://www.atlasobscura.com/feeds/latest"),
     ("damn_interesting", "https://www.damninteresting.com/feed/"),
-    ("hakai",           "https://hakaimagazine.com/feed/"),
-    ("nautilus",        "https://nautil.us/feed/"),
+    ("hakai",            "https://hakaimagazine.com/feed/"),
+    ("nautilus",         "https://nautil.us/feed/"),
+    # Greg Ross has curated obscure, specific, weird-but-true historical
+    # facts here since 2005. Zero overlap with viral internet fact lists.
+    ("futility_closet",  "https://www.futilitycloset.com/feed/"),
 )
+
+# RSS sources specifically curated for obscure, weird-but-true content.
+# These get a stronger novelty bonus than general-interest science feeds.
+RSS_TIER_1: frozenset[str] = frozenset({"futility_closet", "damn_interesting"})
 
 TOPIC_KEYWORDS = {
     "history": (
@@ -593,9 +610,14 @@ def build_story_candidates(limit_per_source: int = 20) -> list[Candidate]:
             # Rising posts are pre-viral by definition; reward them for novelty.
             novelty = min(1.0, novelty + 0.15)
         elif raw_source.startswith("rss:"):
-            # Editorial RSS is human-curated for underexposed surprise.
-            # Stronger novelty bonus than Reddit rising.
-            novelty = min(1.0, novelty + 0.25)
+            rss_name = raw_source.split("rss:", 1)[-1]
+            if rss_name in RSS_TIER_1:
+                # Tier-1 sources are specifically curated for obscure
+                # weird-but-true content — stronger novelty reward.
+                novelty = min(1.0, novelty + 0.35)
+            else:
+                # General editorial RSS: curated but broader scope.
+                novelty = min(1.0, novelty + 0.25)
         topic = row.get("topic") or _infer_topic(f"{title} {row.get('summary', '')}")
         fmt = _format_type_for_title(title)
         total = 0.35 * hook + 0.25 * novelty + 0.15 * visual + 0.25 * shock
