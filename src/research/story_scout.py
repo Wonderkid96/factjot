@@ -271,9 +271,17 @@ def _question_mode(title: str) -> bool:
 
 
 def _familiarity_penalty(title: str) -> float:
-    """0.0–0.4 penalty for overlap with well-worn internet facts."""
+    """0.0–0.4 penalty for overlap with well-worn internet facts.
+
+    Uses word-boundary matching so "blood is blue" doesn't penalise
+    "blood is blue whale's primary food source" and "napoleon was short"
+    doesn't penalise "napoleon was shorter than most generals".
+    """
     tl = title.lower()
-    hits = sum(1 for phrase in WELL_WORN_FACTS if phrase in tl)
+    hits = sum(
+        1 for phrase in WELL_WORN_FACTS
+        if re.search(r"(?<!\w)" + re.escape(phrase) + r"(?!\w)", tl)
+    )
     if hits == 0:
         return 0.0
     return min(0.4, 0.2 * hits)
@@ -665,6 +673,13 @@ LIST_SUPERLATIVE_POOL = (
     "least profitable",
     "costliest",
     "most catastrophic",
+    # Achievement / citation / rating superlatives: all measurable from named
+    # public records (citation databases, critic polls, official registers).
+    "most cited",
+    "highest rated",
+    "longest serving",
+    "first",
+    "last",
 )
 
 
@@ -692,6 +707,13 @@ CRITERION_SHAPES: dict[str, str] = {
     "least profitable":    "by recorded net loss",
     "costliest":           "by total recorded cost",
     "most catastrophic":   "by total recorded damage in USD",
+    # Achievement / citation / rating axes: all measurable from named
+    # public records. Criterion source must still be named in the brief.
+    "most cited":          "by citation count in named database",
+    "highest rated":       "by named critic or audience score",
+    "longest serving":     "by years in post or tenure",
+    "first":               "by date of first verified occurrence",
+    "last":                "by date of final verified occurrence",
 }
 
 

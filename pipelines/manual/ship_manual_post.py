@@ -84,8 +84,12 @@ Reading level: general audience.
 Editorial rules:
 {BEAT_DENSITY_RULES}
 - No em dashes. Commas, full stops, or parentheses instead.
-- British English. No hedging. No attribution phrases ("sources say",
-  "according to").
+- British English. No hedging. No anonymous attribution phrases
+  ("experts claim", "reports suggest", "scientists believe",
+  "sources say", "according to unspecified sources"). Named primary
+  sources are allowed and preferred (e.g. "The 1972 EPA report found...",
+  "Surgeon General Steinfeld testified...", "The Warren Commission
+  concluded..."). Naming the source increases credibility.
 - Preserve specific names, dates, numbers, places.
 - If a beat is genuinely too dense for one slide, surface the dropped
   sub-fact in dropped_facts rather than welding fragments.

@@ -242,6 +242,12 @@ def verify_consistency(brief: dict, api_key: str) -> dict:
     # Fail-open on missing api_key. Production should always have it; if
     # it's missing we log and keep going rather than block the run.
     if not api_key:
+        print(
+            "[fact_checker] WARNING: consistency check skipped — ANTHROPIC_API_KEY missing. "
+            "The safety layer is OFF for this run.",
+            file=__import__("sys").stderr,
+            flush=True,
+        )
         return {"ok": True, "reason": "api_key_missing", "cost_usd": 0.0}
 
     try:
@@ -260,8 +266,15 @@ def verify_consistency(brief: dict, api_key: str) -> dict:
         # captured for telemetry. Surface the failure to the workflow log
         # so quota exhaustion or key rotation does not silently disable
         # the verifier across runs.
+        import sys as _sys
         print(
-            f"[fact_checker] Haiku consistency check failed open: {exc}",
+            f"[fact_checker] WARNING: Haiku consistency check failed open — "
+            f"safety layer is OFF for this run. Error: {exc}",
+            file=_sys.stderr,
+            flush=True,
+        )
+        print(
+            f"[fact_checker] consistency check failed open: {exc}",
             flush=True,
         )
         return {

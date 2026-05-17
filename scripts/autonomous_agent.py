@@ -1023,15 +1023,16 @@ SHARED_CORE = textwrap.dedent("""\
     NOVELTY GATE - HARD RULE
 
     Reject any fact that is already a well-worn internet staple.
-    Ask: 'Is this genuinely surprising to someone who reads widely,
-    or only surprising to someone who reads nothing?'
+    Test: 'Would this appear in the first 10 results of a Google
+    search for "[subject] interesting fact"? If yes, reject.'
 
     Reject if:
     - It regularly appears on 'amazing facts' or '50 things you
       didn't know' listicles.
     - It is the kind of entry a standard pub-quiz app would include.
     - It is a fixture of viral 'did you know' tweet threads.
-    - A broadly curious person has a high chance of having seen it.
+    - Searching "[subject] did you know" returns this exact claim
+      on the first page.
 
     A strong factjot fact is obscure enough that the viewer feels
     let in on something. If the reaction is 'oh yeah I know that
@@ -1103,6 +1104,13 @@ SHARED_CORE = textwrap.dedent("""\
 
     The narrator should sound like someone calmly pointing at reality
     and asking why everyone is pretending this is normal.
+
+    PERFORMANCE SIGNAL RULE - HARD RULE
+
+    Performance data (reach, topic trends) is a tiebreaker only.
+    Never choose a topic or angle based on performance signal alone.
+    Only use it to break a tie between two candidates that both pass
+    all quality gates. A stronger story in a weaker topic always wins.
 
     SKIP RULE - HARD RULE
 
@@ -1187,8 +1195,10 @@ REEL_PROMPT = textwrap.dedent("""\
        does the work that adverbs cannot.
 
     3) PAYOFF (30-60 words). A concrete image of the consequence, not an
-       explanation of it. Trust the reader to feel the absurdity. End on
-       a flat, specific detail. Avoid summarising what just happened.
+       explanation of it. End on the last concrete detail in the sequence.
+       Do not write a summary sentence. Do not tell the viewer what to
+       think about it. The last line should be a physical image or a
+       number, not a conclusion. Avoid summarising what just happened.
 
     Test the script against this checklist before finalising:
     - Could a reader predict the TURN from reading only the SETUP?
@@ -1250,6 +1260,14 @@ REEL_PROMPT = textwrap.dedent("""\
       Right: "they went to war so bitterly that..." or restructure entirely.
     - Stacked modifiers that obscure the verb: "published rushed findings
       to claim species first" -- simplify to "raced to publish first."
+    - Passive voice openers: "It was discovered that...", "It had been
+      established that...", "It was decided that..." -- rewrite with an
+      active subject.
+    - Dead-phrase openers: "Interestingly,", "Notably,", "Remarkably," --
+      cut them. If the fact is interesting, the sentence proves it.
+    - Tense drift: do not mix past and present tense within the script
+      unless the present tense is clearly used for timeless state
+      ("The island is still there"). Pick a base tense and hold it.
     - Clauses that only work on paper, not spoken aloud.
 
     If the sentence works better written than said, it is the wrong sentence.
@@ -1284,17 +1302,31 @@ REEL_PROMPT = textwrap.dedent("""\
     they become wallpaper when every post uses them. If you catch
     yourself writing that pattern, try a different shape first.
 
-    Other shapes that work:
-    - Hard facts in collision: '5,000 Sailors. No Coastline.'
-    - Plain contradiction: 'Bolivia Kept Its Navy After Losing Its Coast'
-    - Consequence first: 'Eight People Died. The Brewery Got a Tax Refund.'
-    - Named subject + twist: 'Radium Girls Were Told to Point Their Brushes with Their Lips'
-    - Short and flat: 'A Safety Rule Sank a Ship'
-    - Irony without explanation: 'The Flood Was 100,000 Gallons of Beer'
+    Other shapes that work — pick the shape that matches the weird bit's
+    structure:
+
+    If the weird bit is a CONSEQUENCE:
+      use consequence-first: 'Eight People Died. The Brewery Got a Tax Refund.'
+
+    If the weird bit is a CONTRADICTION:
+      use plain contradiction: 'Bolivia Kept Its Navy After Losing Its Coast'
+
+    If the weird bit is TWO FACTS IN COLLISION:
+      use hard-cut: '5,000 Sailors. No Coastline.'
+
+    If the weird bit is a NAMED SUBJECT + IRONIC TWIST:
+      use named subject + twist: 'Radium Girls Were Told to Point Their Brushes with Their Lips'
+
+    If the weird bit is a SINGLE DRY FACT:
+      use short and flat: 'A Safety Rule Sank a Ship'
+
+    If the weird bit is IRONY THAT EXPLAINS ITSELF:
+      use irony without explanation: 'The Flood Was 100,000 Gallons of Beer'
 
     None of these are required formats. Let the shape come from the
-    fact. If 'The X That Y' is genuinely the sharpest version of this
-    specific weird bit, use it. Just do not reach for it by default.
+    structure of the weird bit, not from what sounds dramatic. If 'The X
+    That Y' is genuinely the sharpest version of this specific weird bit,
+    use it. Just do not reach for it by default.
 
     Rules:
     - No hype words (stunning, shocking, incredible, mind-blowing).
@@ -1324,9 +1356,16 @@ REEL_PROMPT = textwrap.dedent("""\
     8. If nothing clears the bar, call skip(reason).
     9. Write the script + ranked footage hints.
     10. Name the subject_key: the canonical lowercase hyphenated identifier
-        for the real-world subject (e.g. 'radium-girls', 'molasses-flood-1919').
-        This is the name of the THING, not the title of the reel.
-        Two posts about the same subject must always produce the same key.
+        for the real-world subject. This is the name of the THING, not the
+        title of the reel. Two posts about the same subject must always
+        produce the same key. Use the most specific level that uniquely
+        identifies the subject without over-describing it.
+        Examples by entity type:
+        - Event:   'great-molasses-flood-1919', 'operation-acoustic-kitty'
+        - Person:  'phineas-gage', 'radium-girls'
+        - Animal:  'lonesome-george', 'paul-the-octopus'
+        - Place:   'surtsey-island', 'centralia-pennsylvania'
+        - Product: 'ford-edsel', 'new-coke'
     11. Write a short decision note (chosen idea, weird bit, why it
         passed, why weaker candidates failed). Then call run_reel ONCE.
 """)
@@ -1415,9 +1454,13 @@ LIST_PROMPT = textwrap.dedent("""\
     - 'Things you didn't know about X'                 (no shape)
 
     Test before accepting a list:
-    - Could a viewer screenshot any one item slide and have it
-      stand on its own? If items only make sense in sequence,
-      reject the list.
+    - Could a viewer skip directly to item #3 and have a complete
+      ranked entry — the item name, its rank reason, and its
+      concrete fact — without needing to read the other items?
+      If items only make sense as steps in a narrative chain,
+      reject the list. (A list of five buildings by height passes
+      this test. A list of five policy decisions that led to one
+      outcome fails it.)
     - Does the cover follow 'Five [items] by [criterion]' or
       'Five [items] that [verifiable condition]'? If not, reject.
     - Is the criterion measurable from public records? If you

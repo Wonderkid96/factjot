@@ -51,6 +51,7 @@ def build_hashtags(
             "Generate exactly 15 Instagram hashtags for this post. Rules:\n"
             "- Mix: 3-4 viral broad tags (>5M posts each), 5-6 topic-specific (500k-5M posts), 4-5 niche tags (<500k posts)\n"
             "- Specific to the content, not generic filler (#amazing, #love, #instagood etc)\n"
+            "- The 4-5 niche tags MUST reference the specific subject, era, country, industry, or named entity in the post. Generic category tags (#militaryhistory, #animalfacts) do not count as niche unless they are the most specific level available for this content.\n"
             "- No spaces within a hashtag. Include the # symbol.\n"
             "- Do NOT include #factjot (added separately as the only brand anchor)\n"
             "- Do NOT use #didyouknow #mindblown #interestingfacts #learnontiktok #fyp #viral #trending or other engagement-bait tags\n"
