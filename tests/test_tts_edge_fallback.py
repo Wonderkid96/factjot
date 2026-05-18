@@ -7,7 +7,7 @@ that the caller originally supplied. edge-tts ValueErrors on
 unrecognised voice names; an unfixed fallback would crash the reel.
 
 Live regression 2026-05-11: ElevenLabs quota exhausted mid-run,
-fallback fired with voice='MFZUKuGQUsGJPQjTS4wC' (an ElevenLabs
+fallback fired with voice='onwK4e9ZLuTAKqWW03F9' (an ElevenLabs
 voice_id), edge-tts raised ValueError, the entire reel pipeline
 crashed instead of recovering.
 """
@@ -35,9 +35,9 @@ def test_elevenlabs_voice_ids_fail():
     """ElevenLabs IDs are 20-char alphanumeric, no hyphens, no Neural suffix.
     They must NOT match the edge voice pattern.
     """
-    assert not _looks_like_edge_voice("MFZUKuGQUsGJPQjTS4wC")  # the locked production voice
+    assert not _looks_like_edge_voice("onwK4e9ZLuTAKqWW03F9")  # the locked production voice (daniel)
     assert not _looks_like_edge_voice("JBFqnCBsd6RMkjVDRZzb")  # George
-    assert not _looks_like_edge_voice("onwK4e9ZLuTAKqWW03F9")  # Daniel
+    assert not _looks_like_edge_voice("nPczCjzI2devNBz1zQrb")  # Brian
     assert not _looks_like_edge_voice("pNInz6obpgDQGcFmaJgB")  # Adam
 
 
@@ -94,7 +94,7 @@ def test_synthesise_fallback_swaps_to_edge_voice(monkeypatch, tmp_path):
     tts.synthesise(
         text="hello world",
         out_dir=tmp_path,
-        voice="MFZUKuGQUsGJPQjTS4wC",
+        voice="onwK4e9ZLuTAKqWW03F9",
         backend="elevenlabs",
     )
 
@@ -104,7 +104,7 @@ def test_synthesise_fallback_swaps_to_edge_voice(monkeypatch, tmp_path):
         f"fallback passed voice={edge_voice!r} to edge-tts; "
         f"must be a valid edge voice name"
     )
-    assert edge_voice != "MFZUKuGQUsGJPQjTS4wC", (
+    assert edge_voice != "onwK4e9ZLuTAKqWW03F9", (
         "fallback must NOT pass the ElevenLabs voice_id to edge-tts"
     )
 

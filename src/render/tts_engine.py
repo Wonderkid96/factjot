@@ -44,7 +44,7 @@ VOICE = "en-GB-RyanNeural"  # edge-tts default
 # `<lang>-<region>-<NameNeural>` (e.g. en-GB-RyanNeural, en-US-AndrewNeural).
 # Used to distinguish edge voice names from ElevenLabs voice_ids when
 # the ElevenLabs path falls back. ElevenLabs IDs are 20-char alphanumeric
-# strings (e.g. MFZUKuGQUsGJPQjTS4wC) which do not match this shape.
+# strings (e.g. onwK4e9ZLuTAKqWW03F9) which do not match this shape.
 _EDGE_VOICE_RE = re.compile(r"^[a-z]{2,3}-[A-Z]{2}-[A-Za-z]+Neural$")
 
 
@@ -293,7 +293,7 @@ def synthesise(
     # so the fallback can actually render audio rather than crashing
     # the reel. (Live regression 2026-05-11: ElevenLabs quota
     # exhausted mid-run, fallback fired, then crashed in edge-tts
-    # with `ValueError: Invalid voice 'MFZUKuGQUsGJPQjTS4wC'`.)
+    # with `ValueError: Invalid voice 'onwK4e9ZLuTAKqWW03F9'`.)
     edge_voice = voice
     if elevenlabs_attempted or not _looks_like_edge_voice(voice):
         edge_voice = VOICE  # en-GB-RyanNeural default
@@ -708,10 +708,10 @@ _EL_VOICES: dict[str, str] = {
     "brian":   "nPczCjzI2devNBz1zQrb",  # British male, conversational
     "charlie": "IKne3meq5aSn9XLyUdCD",  # British male, natural
     "adam":    "pNInz6obpgDQGcFmaJgB",  # American male, deep
-    # factjot brand voice. Locked 2026-05-11 after live A/B. The
-    # production GitHub Secret ELEVENLABS_VOICE points here; this
-    # alias is for local CLI use and to self-document the choice.
-    "factjot": "MFZUKuGQUsGJPQjTS4wC",  # American, brand voice
+    # factjot brand voice. Updated 2026-05-18. The production GitHub
+    # Secret ELEVENLABS_VOICE points here; this alias is for local
+    # CLI use and to self-document the choice.
+    "factjot": "onwK4e9ZLuTAKqWW03F9",  # brand voice (daniel)
 }
 
 
