@@ -1188,11 +1188,15 @@ REEL_PROMPT = textwrap.dedent("""\
     1) SETUP (15-25 words). State the situation. No twist hints, no
        foreshadowing, no editorial framing. The reader should not yet
        know why this matters. Concrete nouns and a year if it helps anchor.
+       Make the stakes specific: what was the plan, what did it depend on,
+       what would success look like. The more concrete the conditions of
+       success, the harder the TURN breaks them.
 
-    2) TURN (one short sentence, 8-15 words). The contradiction lands here.
-       This is a single sentence break, not a paragraph. The TURN sentence
-       must be physically shorter than the sentences around it. Rhythm
-       does the work that adverbs cannot.
+    2) TURN (one short sentence, 5-10 words). The contradiction lands here.
+       This is a single sentence break, not a paragraph. Aim for 5-8 words.
+       No subordinate clauses. No qualifiers. If you can say it in six words,
+       say it in six. The reader should feel the floor drop. Rhythm does the
+       work that adverbs cannot.
 
     3) PAYOFF (30-60 words). A concrete image of the consequence, not an
        explanation of it. End on the last concrete detail in the sequence.
@@ -1206,6 +1210,7 @@ REEL_PROMPT = textwrap.dedent("""\
     - Does the PAYOFF tell the reader the lesson, or show them the image?
       If telling, rewrite for showing.
     - Is the TURN sentence the shortest in the script? If not, fix it.
+    - Is the TURN 8 words or fewer? If not, cut it.
 
     BANNED PHRASINGS
 
@@ -1222,6 +1227,29 @@ REEL_PROMPT = textwrap.dedent("""\
       stunningly, astonishingly. Cut all of them.
     - "It turned out that..." The structure of the script should make
       the turn obvious without narrating it.
+
+    EARNED TENSION
+
+    'No fake suspense' bans editorial signals: hints, teasers, and
+    any sentence that tells the reader a twist is coming. It does not
+    mean the SETUP should be emotionally flat.
+
+    The SETUP should make the conditions of success concrete. Not what
+    the plan was — what success depended on. When the TURN breaks that
+    condition, the reader feels the weight immediately.
+
+    Flat SETUP (stakes invisible):
+    "They hired scientists to assess the safety of the area."
+
+    Loaded SETUP (stakes concrete):
+    "They needed the scientists to certify the site clean before a
+    single device could be positioned."
+
+    When the TURN then hits — "The soil was already hot." — it lands
+    because the SETUP established exactly what 'hot' costs.
+
+    The TURN is where the floor drops. Keep it blunt. Keep it physical.
+    No explanation. Five words. Six if necessary.
 
     TARGET VOICE EXAMPLE
 
