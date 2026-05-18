@@ -108,13 +108,13 @@
     pointer-events: none;
   }
 
-  /* Focused radial darken behind the headline only, gravity well that
-     keeps the central text legible without flattening the image. */
+  /* Focused radial darken behind the headline. Centred at ~72% vertical
+     to track the headline now that it sits in the lower third. */
   .title-focus {
     position: absolute;
     inset: 0;
     z-index: 2;
-    background: radial-gradient(ellipse 80% 35% at 50% 50%,
+    background: radial-gradient(ellipse 80% 30% at 50% 72%,
       rgba(0,0,0,0.62) 0%,
       rgba(0,0,0,0.00) 70%);
     pointer-events: none;
@@ -180,10 +180,11 @@
   }
   .index .b { opacity: 0.55; }
 
-  /* CENTRE: Archivo Black headline */
+  /* Headline anchored above the pill row, not centred. */
   .hook {
     align-self: stretch;
-    margin: auto 0;
+    margin-top: auto;
+    margin-bottom: 48px;
     text-align: left;
   }
   .kicker {

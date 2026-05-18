@@ -155,14 +155,16 @@
     white-space: nowrap;
   }
 
-  /* MIDDLE: headline vertically centred within the safe zone. */
+  /* MIDDLE: headline anchored to the bottom of the safe zone, sitting
+     just above the pill row. */
   .hook {
     flex: 1;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-end;
     align-items: flex-start;
     gap: 0;
+    padding-bottom: 48px;
   }
 
   .kicker {
