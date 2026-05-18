@@ -1,5 +1,16 @@
 # factjot brain log
 
+- 2026-05-18 20:18 WORKFLOW FAILED: .github/workflows/autonomous-reel.yml | run=26057475235 | trigger=schedule | ref=main
+- 2026-05-18 20:18 reel FAILED video upload — fact='In November 1970, a dead sperm whale washed up on the Oregon' error=tmpfiles upload failed after 3 attempts: tmpfiles upload failed (500): <!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+        <title>Server Error</title>
+
+        <!
+- 2026-05-18 20:11 token refreshed: new expiry ~59 days
 - 2026-05-18 15:19 dynamic list 'dyn_7b010e88c53f4a' published (TV LIST, ig_media=18073992371282185)
 - 2026-05-18 15:17 token refreshed: new expiry ~59 days
 - 2026-05-18 15:08 reel 1a09bc0c0a8b82 published (science, ig_media=18088547510035229)
