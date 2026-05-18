@@ -1,5 +1,16 @@
 # factjot brain log
 
+- 2026-05-18 09:14 WORKFLOW FAILED: .github/workflows/autonomous-reel.yml | run=26024081378 | trigger=schedule | ref=main
+- 2026-05-18 09:14 reel FAILED video upload — fact='On 20 November 1980, a drilling crew on Lake Peigneur in Lou' error=tmpfiles upload failed (500): <!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+        <title>Server Error</title>
+
+        <!
+- 2026-05-18 09:08 token refreshed: new expiry ~59 days
 - 2026-05-17 19:53 WORKFLOW FAILED: .github/workflows/autonomous-reel.yml | run=26001035049 | trigger=schedule | ref=main
 - 2026-05-17 11:49 WORKFLOW FAILED: .github/workflows/autonomous-reel.yml | run=25989972290 | trigger=schedule | ref=main
 - 2026-05-17 11:49 token refreshed: new expiry ~60 days
