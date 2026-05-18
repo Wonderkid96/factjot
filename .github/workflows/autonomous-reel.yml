@@ -206,6 +206,7 @@ jobs:
             insta-brain/data/posted.jsonl \
             insta-brain/data/reels.jsonl \
             insta-brain/data/subject_keys.jsonl \
+            data/ledgers/used_list_themes.jsonl \
             insta-brain/log.md \
             insta-brain/MEMORY_INDEX.md \
             data/ledgers/used_footage_urls.jsonl \

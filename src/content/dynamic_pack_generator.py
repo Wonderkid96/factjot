@@ -41,6 +41,12 @@ _ITEM_TARGET = 5         # default item count
 _ITEM_MIN_AFTER_RESOLVE = 4  # drop pack if fewer than this resolve on TMDB
 _THEME_HISTORY_LIMIT = 20
 
+# Titles that have appeared too many times and should never be included
+# as list items again. Add to this list when a title keeps surfacing.
+_TITLE_BLOCKLIST: frozenset[str] = frozenset({
+    "fleabag",
+})
+
 
 def _theme_fingerprint(title: str, subtitle: str) -> str:
     """Return a short stable hash for a generated theme.
@@ -67,6 +73,13 @@ def _build_prompt(recent_themes: list[str], allowed_categories: list[str]) -> st
             "RECENT THEMES (do not propose a near-duplicate of any of these "
             f"- vary the criterion and the angle):\n{bullets}\n\n"
         )
+    blocked_block = ""
+    if _TITLE_BLOCKLIST:
+        titles = ", ".join(sorted(_TITLE_BLOCKLIST))
+        blocked_block = (
+            f"BANNED TITLES - never include these as list items under any "
+            f"theme: {titles}.\n\n"
+        )
     return (
         "You curate film and TV recommendation lists for factjot, an "
         "Instagram account whose audience cares about cinema and TV. "
@@ -88,6 +101,7 @@ def _build_prompt(recent_themes: list[str], allowed_categories: list[str]) -> st
         "title and release year so the resolver can find them.\n"
         "4. The hook for each item is 1-2 sentences explaining why it "
         "fits the criterion. Specific over flattering.\n\n"
+        f"{blocked_block}"
         f"{recent_block}"
         f"PICK ONE category from: {', '.join(allowed_categories)}.\n\n"
         "Return strict JSON only, no fenced block, no commentary. Shape:\n"
