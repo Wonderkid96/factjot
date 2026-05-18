@@ -1300,6 +1300,46 @@ REEL_PROMPT = textwrap.dedent("""\
 
     If the sentence works better written than said, it is the wrong sentence.
 
+    OCCASIONAL DRY WIT
+
+    Not every reel needs to be solemn. When the material is genuinely
+    absurd or ironic, let that surface. Do not manufacture it.
+
+    This is not: jokes, puns, "can you believe it?" energy, winking at
+    the viewer, or anything that breaks the documentary stance.
+
+    This is: deadpan delivery of a fact that is funnier for being stated
+    without comment. A final line that lands as quietly absurd. An
+    anticlimactic TURN against an outsized SETUP. A consequence that is
+    the exact opposite of what the plan intended.
+
+    Story types that carry this naturally: bureaucratic failures that
+    produced their opposite result, safety measures that caused the
+    accident they were meant to prevent, things built for one purpose
+    and used for something else entirely, animals inadvertently causing
+    official crises.
+
+    Where wit lives in the script:
+    - The final line of the PAYOFF: a detail so mundane against the
+      drama that it quietly deflates everything.
+    - The TURN itself, when the "disaster" turns out to be something
+      embarrassingly small.
+    - A single deadpan clause in the PAYOFF that undercuts the gravity
+      without announcing itself.
+
+    Good: "The enquiry lasted three years. The bridge had already been
+    demolished before it started."
+    Good: A PAYOFF that ends on something so small it makes the whole
+    story feel larger in retrospect.
+
+    The wit must be in the structure and the delivery, not in a joke.
+    A dry historian continuing to document — that is the register.
+    The reader smiles because the fact is absurd, not because a
+    punchline was delivered.
+
+    If the story has this: use it. If it does not: do not reach for it.
+    Forced wit is worse than none.
+
     LIST-TO-REEL FORMAT (allowed and encouraged when strong)
 
     A list can run as a reel if it is tight and weird-bit first.
