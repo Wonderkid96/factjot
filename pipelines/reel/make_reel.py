@@ -187,13 +187,23 @@ def _resolve_tts_voice(cli_voice: str) -> tuple[str, str]:
 
 def _upload_video(mp4_path: Path) -> str:
     """Upload the final MP4 and return a public URL Instagram can fetch."""
+    import time
     from src.publish.image_host import TmpfilesHost
     size_kb = mp4_path.stat().st_size // 1024
     host = TmpfilesHost()
     print(f"  [tmpfiles] uploading {size_kb} KB...")
-    result = host.upload(mp4_path)
-    print(f"  [tmpfiles] url: {result.public_url}")
-    return result.public_url
+    last_err: Exception | None = None
+    for attempt in range(3):
+        try:
+            result = host.upload(mp4_path)
+            print(f"  [tmpfiles] url: {result.public_url}")
+            return result.public_url
+        except Exception as exc:
+            last_err = exc
+            print(f"  [tmpfiles] attempt {attempt + 1} failed: {exc}")
+            if attempt < 2:
+                time.sleep(10 * (attempt + 1))
+    raise RuntimeError(f"tmpfiles upload failed after 3 attempts: {last_err}") from last_err
 
 
 # Still inputs passed directly to FFmpeg (no video track) must not use a

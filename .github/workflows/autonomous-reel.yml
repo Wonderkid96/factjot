@@ -80,9 +80,9 @@ jobs:
 
       - name: Install FFmpeg
         timeout-minutes: 3
-        uses: FedericoCarboni/setup-ffmpeg@v3
-        with:
-          ffmpeg-version: release
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
 
       - name: Install Python dependencies
         timeout-minutes: 4
