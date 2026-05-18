@@ -30,9 +30,9 @@ from pipelines.reel.make_reel import _resolve_tts_voice, _TtsConfigError  # noqa
 def test_elevenlabs_env_voice_overrides_cli(monkeypatch):
     monkeypatch.setenv("TTS_BACKEND", "elevenlabs")
     monkeypatch.setenv("ELEVENLABS_API_KEY", "fake-key")
-    monkeypatch.setenv("ELEVENLABS_VOICE", "MFZUKuGQUsGJPQjTS4wC")
+    monkeypatch.setenv("ELEVENLABS_VOICE", "onwK4e9ZLuTAKqWW03F9")
     voice, backend = _resolve_tts_voice(cli_voice="en-GB-RyanNeural")
-    assert voice == "MFZUKuGQUsGJPQjTS4wC"
+    assert voice == "onwK4e9ZLuTAKqWW03F9"
     assert backend == "elevenlabs"
 
 
@@ -40,16 +40,16 @@ def test_elevenlabs_default_backend_used_when_unset(monkeypatch):
     # The codebase defaults TTS_BACKEND to "elevenlabs" when unset.
     monkeypatch.delenv("TTS_BACKEND", raising=False)
     monkeypatch.setenv("ELEVENLABS_API_KEY", "fake-key")
-    monkeypatch.setenv("ELEVENLABS_VOICE", "MFZUKuGQUsGJPQjTS4wC")
+    monkeypatch.setenv("ELEVENLABS_VOICE", "onwK4e9ZLuTAKqWW03F9")
     voice, backend = _resolve_tts_voice(cli_voice="ignored")
     assert backend == "elevenlabs", "default backend must be elevenlabs"
-    assert voice == "MFZUKuGQUsGJPQjTS4wC"
+    assert voice == "onwK4e9ZLuTAKqWW03F9"
 
 
 def test_elevenlabs_missing_api_key_raises(monkeypatch):
     monkeypatch.setenv("TTS_BACKEND", "elevenlabs")
     monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
-    monkeypatch.setenv("ELEVENLABS_VOICE", "MFZUKuGQUsGJPQjTS4wC")
+    monkeypatch.setenv("ELEVENLABS_VOICE", "onwK4e9ZLuTAKqWW03F9")
     with pytest.raises(_TtsConfigError, match="ELEVENLABS_API_KEY missing"):
         _resolve_tts_voice(cli_voice="ignored")
 
@@ -88,7 +88,7 @@ def test_edge_backend_uses_cli_voice(monkeypatch):
 def test_edge_backend_ignores_elevenlabs_env(monkeypatch):
     """An ELEVENLABS_VOICE set in env must NOT bleed into the edge path."""
     monkeypatch.setenv("TTS_BACKEND", "edge")
-    monkeypatch.setenv("ELEVENLABS_VOICE", "MFZUKuGQUsGJPQjTS4wC")
+    monkeypatch.setenv("ELEVENLABS_VOICE", "onwK4e9ZLuTAKqWW03F9")
     voice, _ = _resolve_tts_voice(cli_voice="en-US-AndrewNeural")
     assert voice == "en-US-AndrewNeural"
 
