@@ -94,7 +94,7 @@ Fully automated Instagram account (@factjot). Scheduled evergreen slots run via 
 | Mode | BST | UTC cron | Format |
 |---|---|---|---|
 | `reel_morning`   | 09:00 | `0 8 * * *`    | Evergreen reel |
-| `list_midday`    | 14:00 | `0 13 * * *`   | List carousel |
+| `list_midday`    | ~13:00 | `30 11 * * *`  | List carousel |
 | `reel_night`     | 20:30 | `30 19 * * *`  | Evergreen reel |
 
 (Cut from 5 slots to 3 on 2026-05-10 per audit Q4 quality bet, distribution test against the prior 4 weeks of 5-slot data, two-week window before reassessment.)
