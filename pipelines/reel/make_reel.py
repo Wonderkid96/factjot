@@ -204,7 +204,7 @@ def _upload_video(mp4_path: Path) -> str:
             if attempt < 2:
                 time.sleep(10 * (attempt + 1))
     # tmpfiles exhausted — try Cloudinary for videos under the Meta 413 threshold.
-    if size_kb <= 5000:
+    if size_kb <= 5120:
         print(f"  [cloudinary] tmpfiles unavailable, trying Cloudinary fallback ({size_kb} KB)...")
         try:
             cv = CloudinaryVideoHost()
