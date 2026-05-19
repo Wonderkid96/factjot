@@ -300,6 +300,23 @@ Phase E.4's stated intent (per `src/render/reel_thumbnail.py:13-16` and the `_pr
 
 ---
 
+## 2026-05-19: YouTube uploads silently stopped — OAuth refresh token expired
+
+Every reel from 2026-05-14 20:13 UTC onwards posted to Instagram but did not cross-post to YouTube. The YouTube upload step (`continue-on-error: true`) failed silently. No alert, no visible workflow failure. The ledger gap was the only signal.
+
+**Root cause:** `YOUTUBE_REFRESH_TOKEN` GitHub secret expired/was revoked. Error in Actions logs:
+```
+google.auth.exceptions.RefreshError: invalid_grant: Token has been expired or revoked.
+```
+
+**Why it was invisible:** the upload step uses `continue-on-error: true` and `|| true` in the shell command. Any failure is swallowed, workflow shows green. The only detection path is to compare `data/ledgers/youtube_uploads.jsonl` (last timestamp) against `insta-brain/data/reels.jsonl` (last entry). If reels are posting but the YouTube ledger has stopped updating, the token is dead.
+
+**Fix:** re-run `scripts/setup_youtube_auth.py` with the client secret JSON at `/Users/Music/Downloads/Credentials_SENSITIVE/client_secret_855280488489-*.json`, update the three `YOUTUBE_*` GitHub secrets. Full instructions in `CLAUDE.md` §16.
+
+**Do not:** remove `continue-on-error` from the YouTube step — YouTube is secondary distribution and a transient failure must not abort the primary IG post. Do: check the ledger comparison at the start of any session where YouTube uploads look stale.
+
+---
+
 ## Fix philosophy (mandatory)
 
 Every fix must be a long-term structural fix, not a temporary patch. A patch that suppresses a symptom without removing its root cause will reappear in a different form or a different part of the pipeline. Before shipping any fix, ask: does this eliminate the cause, or does it hide it? If it hides it, keep digging.

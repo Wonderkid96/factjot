@@ -269,7 +269,57 @@ The machine runs the `everything-claude-code` plugin. Standard rules apply:
 
 ---
 
-## 16. Open work
+## 16. External credentials — maintenance and recovery
+
+These credentials are not in the repo. When they expire they fail silently (workflow steps use `continue-on-error: true`) and the affected feature stops working with no visible error. Check `data/ledgers/youtube_uploads.jsonl` — if the last entry is more than a couple of days old but reels are posting normally, a credential has expired.
+
+### YouTube OAuth (YOUTUBE_REFRESH_TOKEN)
+
+**What it does:** cross-posts every reel to YouTube Shorts immediately after the IG publish.
+
+**Why it breaks:** Google OAuth refresh tokens can be revoked if the Google account password changes, if Google detects suspicious activity, or if too many tokens are issued for the same app. Error signature in GitHub Actions logs:
+```
+google.auth.exceptions.RefreshError: invalid_grant: Token has been expired or revoked.
+```
+
+**How to diagnose:** compare the last timestamp in `data/ledgers/youtube_uploads.jsonl` against `insta-brain/data/reels.jsonl`. If reels are posting but YouTube uploads have stopped, the token is expired.
+
+**Client secret JSON (local machine — do not delete or move):**
+```
+/Users/Music/Downloads/Credentials_SENSITIVE/client_secret_855280488489-1jf8ukp0fbq2tvomi3mqdscf60us8sks.apps.googleusercontent.com.json
+```
+This is the Google Cloud OAuth 2.0 desktop-app credential for the factjot YouTube uploader. If it disappears, regenerate from Google Cloud Console (factjot project → APIs and Services → Credentials) signed in as `thefactjot@gmail.com`.
+
+**Auth re-run command (must use absolute paths — run from anywhere):**
+```bash
+/Library/Frameworks/Python.framework/Versions/Current/bin/python3 \
+  /Users/Music/Developer/Insta-bot/scripts/setup_youtube_auth.py \
+  "/Users/Music/Downloads/Credentials_SENSITIVE/client_secret_855280488489-1jf8ukp0fbq2tvomi3mqdscf60us8sks.apps.googleusercontent.com.json"
+```
+The script opens a browser. Sign in as `thefactjot@gmail.com`. If shown "This app isn't verified", click Advanced → Go to factjot-uploader (unsafe) → Allow. The script prints three `gh secret set` commands — run all three.
+
+**GitHub secrets to update:**
+```bash
+echo '<YOUTUBE_CLIENT_ID>'     | gh secret set YOUTUBE_CLIENT_ID     --repo Wonderkid96/factjot
+echo '<YOUTUBE_CLIENT_SECRET>' | gh secret set YOUTUBE_CLIENT_SECRET --repo Wonderkid96/factjot
+echo '<YOUTUBE_REFRESH_TOKEN>' | gh secret set YOUTUBE_REFRESH_TOKEN --repo Wonderkid96/factjot
+```
+
+**Workflow location:** `.github/workflows/autonomous-reel.yml` lines 171-183. Fires after every `reel_morning` and `reel_night` run. Uses `continue-on-error: true` — failures are intentionally silent because YouTube is secondary. That silence is exactly why a broken token is hard to spot; always diagnose by ledger comparison, not by workflow status.
+
+**Verification after fix:** trigger a manual `reel_morning` dispatch. Check `data/ledgers/youtube_uploads.jsonl` in the next state commit.
+
+### Meta access token (META_ACCESS_TOKEN)
+
+Expires every 60 days. `pipelines/shared/refresh_token.py` extends it automatically on every workflow run. If it returns "API access blocked", wait 30 minutes and retry. If still blocked, regenerate from developers.facebook.com under the factjot app.
+
+### ElevenLabs API key (ELEVENLABS_API_KEY)
+
+No expiry, but has a monthly quota. If TTS fails with 429, the monthly quota is exhausted. Edge TTS is the auto-fallback. Locked voice ID: `onwK4e9ZLuTAKqWW03F9` (alias "daniel"). Lives in `ELEVENLABS_VOICE` secret and local `.env`.
+
+---
+
+## 17. Open work
 
 - `ROADMAP.md` tracks deferred phases (currently Phase 8, vision-based frame selector). Do not pick up without explicit instruction.
 - TikTok: app submitted for review 2026-05-02; not yet wired into the autonomous workflow.
