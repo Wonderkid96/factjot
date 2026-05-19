@@ -38,10 +38,16 @@ def main(argv: list[str]) -> int:
 
     flow = InstalledAppFlow.from_client_secrets_file(str(secret_path), SCOPES)
     print("Opening browser for Google OAuth consent...")
+    print("Sign in as thefactjot@gmail.com when prompted.")
     print("If a 'this app isnt verified' warning appears, click")
     print("'Advanced' -> 'Go to factjot-uploader (unsafe)' -> Allow.")
     print()
-    creds = flow.run_local_server(port=0, prompt="consent", access_type="offline")
+    creds = flow.run_local_server(
+        port=0,
+        prompt="consent",
+        access_type="offline",
+        login_hint="thefactjot@gmail.com",
+    )
 
     if not creds.refresh_token:
         print("ERROR: no refresh_token returned. Did you authorise as the test user?", file=sys.stderr)
