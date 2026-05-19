@@ -181,14 +181,14 @@ def _resolve_tts_voice(cli_voice: str) -> tuple[str, str]:
 
 
 # ------------------------------------------------------------------ #
-# Video upload — tmpfiles.org (free, no signup, URL lives long enough
-# for Meta to fetch it, which is all we need)
+# Video upload — tmpfiles.org primary, Cloudinary fallback (≤5 MB videos only;
+# Meta 413s Cloudinary URLs on larger files).
 # ------------------------------------------------------------------ #
 
 def _upload_video(mp4_path: Path) -> str:
     """Upload the final MP4 and return a public URL Instagram can fetch."""
     import time
-    from src.publish.image_host import TmpfilesHost
+    from src.publish.image_host import CloudinaryVideoHost, TmpfilesHost
     size_kb = mp4_path.stat().st_size // 1024
     host = TmpfilesHost()
     print(f"  [tmpfiles] uploading {size_kb} KB...")
@@ -203,6 +203,18 @@ def _upload_video(mp4_path: Path) -> str:
             print(f"  [tmpfiles] attempt {attempt + 1} failed: {exc}")
             if attempt < 2:
                 time.sleep(10 * (attempt + 1))
+    # tmpfiles exhausted — try Cloudinary for videos under the Meta 413 threshold.
+    if size_kb <= 5000:
+        print(f"  [cloudinary] tmpfiles unavailable, trying Cloudinary fallback ({size_kb} KB)...")
+        try:
+            cv = CloudinaryVideoHost()
+            result = cv.upload(mp4_path)
+            print(f"  [cloudinary] url: {result.public_url}")
+            return result.public_url
+        except Exception as exc:
+            raise RuntimeError(
+                f"Both hosts failed. tmpfiles: {last_err}; Cloudinary: {exc}"
+            ) from exc
     raise RuntimeError(f"tmpfiles upload failed after 3 attempts: {last_err}") from last_err
 
 

@@ -207,12 +207,11 @@ class CloudinaryHost:
 
 
 class CloudinaryVideoHost:
-    """Cloudinary video upload adapter. DISABLED - not used by the pipeline.
+    """Cloudinary video upload adapter — fallback for reel uploads.
 
-    Was previously the primary video host for Reels. Disabled 2026-05-02 after
-    Meta 413'd Cloudinary URLs because they don't expire before Meta fetches.
-    TmpfilesHost is now primary. This class is kept in case re-enabling is
-    needed, but make_reel.py does not call it.
+    TmpfilesHost is primary. This is called automatically by _upload_video
+    in make_reel.py when tmpfiles is unreachable, for videos ≤5 MB (Meta
+    413s Cloudinary URLs on larger files).
 
     Env vars (same account as CloudinaryHost):
         CLOUDINARY_CLOUD_NAME    - your cloud name (public)
