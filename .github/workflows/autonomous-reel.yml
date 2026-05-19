@@ -1,11 +1,9 @@
 name: Autonomous Post (factjot agent)
 
-# 3-slot daily schedule with fixed format slots (cut from 5 slots on 2026-05-10
-# per audit Q4: distribution test - quality bet over volume):
+# 2-slot daily schedule: 1 reel + 1 list (cut from 3 slots on 2026-05-19):
 #
 #   reel_morning   09:00 BST  evergreen reel
-#   list_midday    12:00 UTC  list carousel
-#   reel_night     20:30 BST  evergreen reel
+#   list_midday    ~12:00 UTC list carousel
 #
 # Crons are UTC and tracked to BST (summer). When UK clocks fall back to
 # GMT in October, the posts will fire at the same UK clock time still,
@@ -19,13 +17,12 @@ on:
   schedule:
     - cron: "0 8 * * *"      # 08:00 UTC = 09:00 BST -> reel_morning
     - cron: "30 11 * * *"    # 11:30 UTC -> list_midday (~12:00 UTC post time)
-    - cron: "30 19 * * *"    # 19:30 UTC = 20:30 BST -> reel_night
   workflow_dispatch:
     inputs:
       post_mode:
         description: "Post mode"
         type: choice
-        options: [reel_morning, list_midday, reel_night]
+        options: [reel_morning, list_midday]
         default: reel_morning
         required: true
       dry_run:
@@ -62,7 +59,6 @@ jobs:
             case "$CRON" in
               "0 8 * * *")    MODE="reel_morning" ;;
               "30 11 * * *")  MODE="list_midday" ;;
-              "30 19 * * *")  MODE="reel_night" ;;
               *)              MODE="reel_morning" ;;
             esac
           fi

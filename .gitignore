@@ -2,6 +2,10 @@
 .env
 *.key
 *.pem
+client_secret*.json
+*_credentials.json
+service_account*.json
+token.json
 
 # ── Operational data ───────────────────────────────────────────────
 # Large caches and logs: ignore

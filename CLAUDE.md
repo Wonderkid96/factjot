@@ -94,10 +94,9 @@ Fully automated Instagram account (@factjot). Scheduled evergreen slots run via 
 | Mode | BST | UTC cron | Format |
 |---|---|---|---|
 | `reel_morning`   | 09:00 | `0 8 * * *`    | Evergreen reel |
-| `list_midday`    | ~13:00 | `30 11 * * *`  | List carousel |
-| `reel_night`     | 20:30 | `30 19 * * *`  | Evergreen reel |
+| `list_midday`    | ~12:00 | `30 11 * * *`  | List carousel |
 
-(Cut from 5 slots to 3 on 2026-05-10 per audit Q4 quality bet, distribution test against the prior 4 weeks of 5-slot data, two-week window before reassessment.)
+(Cut from 5 slots to 3 on 2026-05-10, then to 2 slots on 2026-05-19: 1 reel + 1 list per day.)
 
 The breaking-news pipeline was killed in audit Phase G.2 (decision B). `news-watcher.yml`, `pipelines/news/ship_news_breaking.py`, and `pipelines/news/check_guardian_rss.py` are gone. The dual-role `ship_news_post.py` module was retired in Phase K.4 (2026-05-11): renderer primitives moved to `src/render/carousel_slides.py`; the news CLI helpers (which had no live caller) were deleted with the rest of the file. The whole `pipelines/news/` package is gone.
 
