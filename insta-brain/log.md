@@ -1,5 +1,7 @@
 # factjot brain log
 
+- 2026-05-19 12:30 WORKFLOW FAILED: .github/workflows/autonomous-reel.yml | run=26097069455 | trigger=schedule | ref=main
+- 2026-05-19 12:27 token refreshed: new expiry ~59 days
 - 2026-05-19 09:25 WORKFLOW FAILED: .github/workflows/autonomous-reel.yml | run=26087470769 | trigger=schedule | ref=main
 - 2026-05-19 09:24 reel FAILED publish — fact='In December 1952, a yellow smog settled over London for five' topic=history video_url=https://res.cloudinary.com/dmzer6hgv/video/upload/v177918261 error=Reel not ready after 300s: {'ok': False, 'error': {'status_code': 'ERROR', 'status': 'ERROR', 'error_message': 'Something went wrong. Please retry creating a new container later.', 'id': '181007886289
 - 2026-05-19 09:14 token refreshed: new expiry ~59 days
