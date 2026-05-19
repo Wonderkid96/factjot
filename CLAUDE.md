@@ -304,7 +304,7 @@ echo '<YOUTUBE_CLIENT_SECRET>' | gh secret set YOUTUBE_CLIENT_SECRET --repo Wond
 echo '<YOUTUBE_REFRESH_TOKEN>' | gh secret set YOUTUBE_REFRESH_TOKEN --repo Wonderkid96/factjot
 ```
 
-**Workflow location:** `.github/workflows/autonomous-reel.yml` lines 171-183. Fires after every `reel_morning` and `reel_night` run. Uses `continue-on-error: true` — failures are intentionally silent because YouTube is secondary. That silence is exactly why a broken token is hard to spot; always diagnose by ledger comparison, not by workflow status.
+**Workflow location:** `.github/workflows/autonomous-reel.yml` lines 171-183. Fires after every `reel_morning` run (the only reel slot as of 2026-05-19). Uses `continue-on-error: true` — failures are intentionally silent because YouTube is secondary. That silence is exactly why a broken token is hard to spot; always diagnose by ledger comparison, not by workflow status.
 
 **Verification after fix:** trigger a manual `reel_morning` dispatch. Check `data/ledgers/youtube_uploads.jsonl` in the next state commit.
 

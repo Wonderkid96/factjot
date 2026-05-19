@@ -176,7 +176,7 @@ jobs:
           # picks the latest entry from reels.jsonl and uploads its
           # final.mp4. If the latest reel was already on YouTube (same
           # title in youtube_uploads.jsonl), the script skips silently.
-          python3 -u scripts/upload_to_youtube.py --auto-latest --privacy public || true
+          python3 -u scripts/upload_to_youtube.py --auto-latest --privacy public --max-age-minutes 60 || true
 
       - name: Fetch Instagram reel performance metrics (soft)
         if: always()

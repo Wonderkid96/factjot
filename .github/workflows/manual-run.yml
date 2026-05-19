@@ -216,7 +216,7 @@ jobs:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-        run: python3 -u scripts/upload_to_youtube.py --auto-latest --privacy public || true
+        run: python3 -u scripts/upload_to_youtube.py --auto-latest --privacy public --max-age-minutes 60 || true
 
       - name: Upload rendered output artefact
         if: always()
