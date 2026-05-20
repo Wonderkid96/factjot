@@ -1,5 +1,7 @@
 # factjot brain log
 
+- 2026-05-20 21:14 reel 0402ff5997502c published (history, ig_media=18120390262678667)
+- 2026-05-20 21:07 token refreshed: new expiry ~59 days
 - 2026-05-20 19:19 reel 759e259d35e0fa published (history, ig_media=17990572892969836)
 - 2026-05-20 19:12 token refreshed: new expiry ~59 days
 - 2026-05-20 18:55 reel BLOCKED - fact verification (consistency): Factual contradiction: title says '9 Atmospheres to 1 in a second' but claim sta - claim=In November 1983, four divers aboard the Byford Dolphin oil
