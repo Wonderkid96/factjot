@@ -83,7 +83,13 @@ jobs:
           if command -v ffmpeg &>/dev/null; then
             echo "FFmpeg already installed: $(ffmpeg -version 2>&1 | head -1)"
           else
-            sudo apt-get install -y --no-install-recommends ffmpeg
+            wget -q --timeout=90 \
+              "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-linux64-gpl.tar.xz" \
+              -O /tmp/ffmpeg.tar.xz
+            tar -xJf /tmp/ffmpeg.tar.xz -C /tmp
+            sudo mv /tmp/ffmpeg-master-latest-linux64-gpl/bin/ffmpeg  /usr/local/bin/
+            sudo mv /tmp/ffmpeg-master-latest-linux64-gpl/bin/ffprobe /usr/local/bin/
+            echo "FFmpeg installed: $(ffmpeg -version 2>&1 | head -1)"
           fi
 
       - name: Install Python dependencies
