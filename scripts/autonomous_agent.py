@@ -1123,7 +1123,10 @@ SHARED_CORE = textwrap.dedent("""\
 
     - Call list_unposted_topics() FIRST.
     - Call exactly one of: the posting tool, OR `skip`. Never both.
-    - Do not retry on failure.
+    - On `fact_verification_failed`: pick a completely different subject
+      and call the posting tool once more. Do not reword the same story.
+      If the second attempt also fails, call `skip`.
+    - On any other failure: call `skip` immediately. Do not retry.
     - Do not use em dashes.
     - Do not use hashtags unless the pipeline adds them itself.
     - Only post facts that are specific, named, and well-documented.
