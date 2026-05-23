@@ -26,6 +26,41 @@ from src.brain import subject_fingerprint  # noqa: E402
 
 # Minimal valid hint satisfying the 3-line / 8-char-per-line quality gate.
 _VALID_HINT = "Cold War submarine fleet at dock\nSoviet naval base 1980s\nsubmarine conning tower portrait"
+_HORROR_SCRIPT_A = (
+    "In 1973, five horror films accidentally made respectable cinema look nervous about its own audience. "
+    "The Exorcist sent viewers out of theatres shaking. "
+    "The Texas Chain Saw Massacre made daylight feel unsafe. "
+    "Black Christmas turned a ringing phone into a threat. "
+    "Carrie made adolescence feel radioactive. "
+    "Jaws kept people out of the sea. "
+    "The films were not just scary. They taught studios that fear could be an event people queued for."
+)
+_HORROR_SCRIPT_B = (
+    "In 1973, five horror films accidentally proved fear could sell like a blockbuster without behaving like one. "
+    "The Exorcist made possession mainstream. "
+    "The Texas Chain Saw Massacre made cheapness feel documentary. "
+    "Black Christmas invented a grammar slashers kept borrowing. "
+    "Carrie made prom night apocalyptic. "
+    "Jaws gave the ocean a soundtrack. "
+    "The pattern was simple. Small fears were becoming public infrastructure. "
+    "Studios noticed, counted the money, and built a business around dread."
+)
+_PEPSI_SCRIPT = (
+    "In 1989, Pepsi accidentally owned a navy because the Soviet Union was short on hard currency. "
+    "The company had been selling cola in the USSR for years. "
+    "When Moscow could not pay in cash, it offered ships instead. "
+    "Pepsi briefly received submarines, a cruiser, a frigate, and a destroyer. "
+    "The fleet was sold for scrap almost immediately. "
+    "For a moment, a soft drink company had more warships than some countries."
+)
+_MOLASSES_SCRIPT = (
+    "In January 1919, a Boston molasses tank exploded and sent a syrup wave through the streets. "
+    "It killed 21 people. "
+    "The tank had been rushed into service, leaked constantly, and groaned loudly enough for locals to hear it. "
+    "When it failed, horses were trapped and houses shifted off their foundations. "
+    "The company blamed anarchists. "
+    "Investigators blamed bad steel, bad maths, and a tank that should never have been trusted by anyone."
+)
 
 
 # ----- candidate text source: title-first for reels ----------------
@@ -96,7 +131,7 @@ def test_in_session_second_dispatch_with_same_title_is_blocked(
         "run_reel",
         {
             "title":  "Top 5 scariest films",
-            "script": "Five horror films changed cinema...",
+            "script": _HORROR_SCRIPT_A,
             "hint":   _VALID_HINT,
         },
         dry_run=True,
@@ -111,7 +146,7 @@ def test_in_session_second_dispatch_with_same_title_is_blocked(
         "run_reel",
         {
             "title":  "Top 5 scariest films",
-            "script": "Horror history is basically five moments...",
+            "script": _HORROR_SCRIPT_B,
             "hint":   _VALID_HINT,
         },
         dry_run=True,
@@ -135,7 +170,7 @@ def test_in_session_distinct_subjects_both_dispatch(monkeypatch):
     out1 = agent.execute_tool(
         "run_reel",
         {"title": "Pepsi Once Owned a Navy",
-         "script": "In 1989 PepsiCo briefly owned 17 Soviet submarines...",
+         "script": _PEPSI_SCRIPT,
          "hint":  _VALID_HINT},
         dry_run=True,
         mode="reel_morning",
@@ -144,7 +179,7 @@ def test_in_session_distinct_subjects_both_dispatch(monkeypatch):
     out2 = agent.execute_tool(
         "run_reel",
         {"title": "The Syrup Wave That Killed 21",
-         "script": "In January 1919 a Boston molasses tank burst...",
+         "script": _MOLASSES_SCRIPT,
          "hint":  "Boston industrial waterfront 1919\nmolasses flood historic photograph\nBoston North End street scene early 20th century"},
         dry_run=True,
         mode="reel_morning",

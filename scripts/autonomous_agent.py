@@ -42,6 +42,7 @@ from src.content.carousel_rules import (
     BEAT_DENSITY_RULES,
     PHOTOGRAPHABLE_BEATS_RULES,
 )
+from src.content.reel_quality import validate_reel_copy
 from src.research.story_scout import (
     ranked_candidates_for_mode,
     build_list_reel_possibilities,
@@ -747,6 +748,19 @@ def execute_tool(
     if name == "skip":
         return f"SKIPPED: {args.get('reason', '(no reason given)')}"
     if name in ("run_reel", "run_carousel"):
+        if name == "run_reel":
+            ok, reason = validate_reel_copy(
+                args.get("script", ""),
+                args.get("title", ""),
+            )
+            if not ok:
+                return (
+                    "FAILURE_KIND: reel_copy_quality_failed\n\n"
+                    f"REJECTED: {reason}. Rewrite the reel with a stronger "
+                    "70-120 word script and a title that connects cleanly "
+                    "to the opening subject or weird bit."
+                )
+
         # --- Hint quality gate (reels only) ---
         # A hint with fewer than 3 non-blank lines or all lines shorter than
         # 8 chars is effectively useless for video_finder and produces generic
@@ -1123,6 +1137,9 @@ SHARED_CORE = textwrap.dedent("""\
 
     - Call list_unposted_topics() FIRST.
     - Call exactly one of: the posting tool, OR `skip`. Never both.
+    - On `reel_copy_quality_failed`: rewrite the reel once using the
+      same subject only if the subject itself still passes the gates.
+      If the second copy attempt fails, call `skip`.
     - On `fact_verification_failed`: pick a completely different subject
       and call the posting tool once more. Do not reword the same story.
       If the second attempt also fails, call `skip`.
@@ -1452,6 +1469,7 @@ LIST_PROMPT = textwrap.dedent("""\
 
     AVAILABLE TOOLS
     - list_unposted_topics()
+    - list_story_candidates()
     - run_carousel(brief, label, slides)   [slides default 7]
     - skip(reason)
 
@@ -1637,22 +1655,6 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     dry_run = os.getenv("DRY_RUN", "false").strip().lower() == "true"
-
-    # Phase N (2026-05-11): list_midday bypasses the LLM loop entirely
-    # and ships a curated film/TV pack via pipelines/list/ship_curated_list.
-    # The 8 hand-curated packs in src/content/list_packs.py rotate by
-    # last-used timestamp (backfilled from posted.jsonl history). TMDB
-    # provides posters + backdrops + Rotten Tomatoes scores; the list
-    # renderer matches the visual vibe of the early film carousels
-    # (war_films_definitive, mind_bending_scifi, etc) that shipped
-    # 2026-05-01 to 2026-05-06.
-    if mode == "list_midday":
-        print(f"[autonomous-agent] mode={mode} -> curated list pack", flush=True)
-        cmd = [sys.executable or "python3", "-u",
-               "-m", "pipelines.list.ship_curated_list"]
-        if dry_run:
-            cmd.append("--dry-run")
-        return subprocess.run(cmd, cwd=str(REPO_ROOT)).returncode
 
     print(
         f"[autonomous-agent] mode={mode} dry_run={dry_run} "

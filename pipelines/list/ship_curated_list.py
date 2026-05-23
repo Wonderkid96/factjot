@@ -159,8 +159,8 @@ def _recent_theme_descriptors(limit: int = 20) -> list[str]:
             except json.JSONDecodeError:
                 continue
             ts = row.get("posted_at") or ""
-            title = row.get("title") or ""
-            subtitle = row.get("subtitle") or ""
+            title = row.get("title") or row.get("list_title") or ""
+            subtitle = row.get("subtitle") or row.get("list_subtitle") or ""
             slug = row.get("slug") or ""
             descriptor = (
                 f"{title} ({subtitle})".strip(" ()")
@@ -187,8 +187,14 @@ def _recent_theme_descriptors(limit: int = 20) -> list[str]:
             if slug in seen_slugs:
                 continue
             ts = row.get("published_at") or ""
+            title = row.get("list_title") or ""
+            subtitle = row.get("list_subtitle") or ""
+            if title:
+                descriptor = f"{title} ({subtitle})".strip(" ()")
+                rows.append((ts, descriptor))
+                continue
             # Pretty-print known curated slugs from LIST_PACKS title; for
-            # dynamic slugs (dyn_*) fall back to the raw slug.
+            # old dynamic slugs without stored metadata, fall back to the raw slug.
             pack = LIST_PACKS.get(slug)
             descriptor = pack["title"] if pack else slug
             rows.append((ts, descriptor))
@@ -350,11 +356,20 @@ def ship(pack_slug: str, pack: dict, *, dry_run: bool) -> int:
         post_id=post_id,
         ig_media_id=ig_media_id,
         slides=[{
-            "claim":    dedupe_claim,
-            "topic":    pack.get("topic", "film"),
-            "category": pack.get("category", "FILM LIST"),
-            "sources":  sources,
+            "claim":            dedupe_claim,
+            "topic":            pack.get("topic", "film"),
+            "category":         pack.get("category", "FILM LIST"),
+            "sources":          sources,
+            "list_title":       pack.get("title", ""),
+            "list_subtitle":    pack.get("subtitle", ""),
+            "list_fingerprint": pack.get("_theme_fingerprint", ""),
+            "list_items": [
+                item.get("expected_title", "")
+                for item in pack.get("items", [])
+                if item.get("expected_title")
+            ],
         }],
+        subject_key=f"list-{pack_slug}",
     )
     _record_used(
         pack_slug,

@@ -174,10 +174,10 @@ def test_build_caption_no_sources_skips_section(monkeypatch):
 
 # ----- agent routing static check ------------------------------------
 
-def test_autonomous_agent_routes_list_midday_to_curated_pipeline():
-    """The agent's main() must call ship_curated_list for list_midday
-    rather than going into the LLM loop. Static-source assertion so a
-    refactor that breaks the routing is caught immediately."""
+def test_autonomous_agent_routes_list_midday_through_llm_loop():
+    """list_midday must use the agent list prompt, not the film/TV-only
+    curated shortcut. The shortcut caused the daily list slot to stay in
+    one narrow content lane."""
     src = (Path(__file__).resolve().parents[1] / "scripts" / "autonomous_agent.py").read_text()
-    assert 'mode == "list_midday"' in src
-    assert "pipelines.list.ship_curated_list" in src
+    assert 'if mode == "list_midday"' not in src
+    assert "pipelines.list.ship_curated_list" not in src

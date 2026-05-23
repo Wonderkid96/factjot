@@ -29,6 +29,15 @@ from src.brain import Brain
 
 # Minimal valid hint satisfying the 3-line / 8-char-per-line quality gate.
 _VALID_HINT = "Cold War submarine fleet at dock\nSoviet naval base 1980s\nsubmarine conning tower portrait"
+_VALID_SCRIPT = (
+    "In 1960, the CIA failed to turn a cat into a listening device after spending 20 million dollars. "
+    "The plan was simple. "
+    "A microphone went in the cat, an antenna went down its tail, and agents trained it to walk near Soviet targets. "
+    "The first field test ended almost immediately. "
+    "The cat crossed the road and was hit by a taxi. "
+    "The project was cancelled, and the report concluded that cats were not especially reliable intelligence officers. "
+    "That was the official lesson."
+)
 
 
 def _make_brain_with_keys(*keys: str) -> Brain:
@@ -143,8 +152,8 @@ def test_find_key_collision_empty_candidate_returns_none():
 
 def _minimal_reel_args(subject_key: str) -> dict:
     return {
-        "script": "Test script about the Radium Girls.",
-        "title":  "Girls Who Glowed",
+        "script": _VALID_SCRIPT,
+        "title":  "The Spy Cat That Failed",
         "topic":  "history",
         "tone_override": "sober",
         "hint":   _VALID_HINT,
@@ -170,8 +179,17 @@ def test_fuzzy_subject_key_blocks_close_variant():
     # 'great-molasses-flood-1919' has 0.75 Jaccard overlap (>= 0.7) with 'great-molasses-flood'
     used = {"great-molasses-flood"}
     args = {
-        "script": "In January 1919...",
-        "title":  "The Flood That Got a Tax Refund",
+        "script": (
+            "In 1919, a Boston storage tank burst and sent 2.3 million gallons of molasses through the streets. "
+            "The wave killed 21 people. "
+            "Horses were trapped. "
+            "Houses shifted off their foundations. "
+            "The company blamed anarchists before investigators found the tank had been badly built. "
+            "The strangest part came later. "
+            "The neighbourhood kept smelling of molasses for years, especially when the weather turned warm. "
+            "That was the official clean-up in Boston afterwards."
+        ),
+        "title":  "The Molasses Flood That Killed 21",
         "topic":  "history",
         "tone_override": "sober",
         "hint":   "Boston industrial waterfront 1919\nmolasses flood historic photograph\nBoston North End street scene early 20th century",
@@ -187,8 +205,8 @@ def test_fuzzy_subject_key_blocks_close_variant():
 def test_different_subject_key_is_not_blocked():
     used = {"radium-girls"}
     args = {
-        "script": "In the 1960s the CIA spent 20 million dollars...",
-        "title":  "Operation Acoustic Kitty",
+        "script": _VALID_SCRIPT,
+        "title":  "The Spy Cat That Failed",
         "topic":  "history",
         "tone_override": "curious",
         "hint":   "CIA cold war operations 1960s\nspy cat surveillance equipment\nLangley Virginia intelligence archive",

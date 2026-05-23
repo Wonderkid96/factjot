@@ -310,7 +310,8 @@ class Brain:
         """Append one row per slide claim. `slides` items must have:
             claim, topic, category, sources (list of urls)
         Optional per-slide fields written through if present:
-            reel_title (subject identity for reels - feeds fingerprint dedup)
+            reel_title (subject identity for reels - feeds fingerprint dedup),
+            list_title, list_subtitle, list_fingerprint, list_items
         Optional kwarg:
             subject_key (canonical dedup identifier, permanent all-time block)
         """
@@ -336,6 +337,10 @@ class Brain:
                     reel_title = slide.get("reel_title")
                     if reel_title:
                         row["reel_title"] = reel_title
+                    for key in ("list_title", "list_subtitle", "list_fingerprint", "list_items"):
+                        value = slide.get(key)
+                        if value:
+                            row[key] = value
                     sk = (slide.get("subject_key") or subject_key or "").strip().lower()
                     if sk:
                         row["subject_key"] = sk

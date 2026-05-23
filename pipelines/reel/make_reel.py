@@ -98,6 +98,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from src.brain import brain
+from src.content.reel_quality import validate_reel_copy
 from src.core.config import load_config
 from src.render.reel_composer import (
     FADE_TO_BLACK_S,
@@ -1408,9 +1409,13 @@ def main() -> int:
     if not args.title:
         print("ERROR: --script requires --title")
         return 1
+    ok, reason = validate_reel_copy(args.script, args.title)
+    if not ok:
+        print(f"ERROR: reel copy quality failed: {reason}")
+        return ExitCode.SCRIPT_REQUIRED
 
     autonomous_fact = {
-        "claim":        args.script[:300],
+        "claim":        args.script,
         "reel_script":  args.script,
         "reel_title":   args.title,
         "topic":        args.topic or "history",
