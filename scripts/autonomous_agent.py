@@ -724,7 +724,6 @@ def execute_tool(
         return summary
     if name == "list_story_candidates":
         rows = ranked_candidates_for_mode(mode=mode, top_n=12)
-        list_pool = build_list_reel_possibilities(mode=mode, max_outcomes=15)
         lines = []
         lines.append("RANKED_STORY_CANDIDATES")
         if not rows:
@@ -735,15 +734,19 @@ def execute_tool(
                     f"{i}. [{row['source']}] ({row['topic']}) score={row['total_score']:.3f} "
                     f"title={row['title']} | weird_bit={row['weird_bit']}"
                 )
-        lines.append("")
-        lines.append("TOP5_LIST_POOL (generated examples, not fixed)")
-        if not list_pool:
-            lines.append("(no list pool ideas)")
-        else:
-            for i, idea in enumerate(list_pool, 1):
-                lines.append(
-                    f"{i}. ({idea['topic']}) {idea['title']}"
-                )
+        # TOP5_LIST_POOL is list-seed material; only useful for list modes.
+        # Feeding it to reel modes confuses the format (lists are not reels).
+        if mode.startswith("list_"):
+            list_pool = build_list_reel_possibilities(mode=mode, max_outcomes=15)
+            lines.append("")
+            lines.append("TOP5_LIST_POOL (generated examples, not fixed)")
+            if not list_pool:
+                lines.append("(no list pool ideas)")
+            else:
+                for i, idea in enumerate(list_pool, 1):
+                    lines.append(
+                        f"{i}. ({idea['topic']}) {idea['title']}"
+                    )
         return "\n".join(lines)
     if name == "skip":
         return f"SKIPPED: {args.get('reason', '(no reason given)')}"
@@ -1146,20 +1149,12 @@ SHARED_CORE = textwrap.dedent("""\
     - clever without sounding like a TED Talk
 
     factjot is not:
-    - corporate
-    - inspirational
-    - wholesome by default
-    - clickbait
-    - fake edgy
-    - American YouTube voice
-    - a list of fun facts
-    - over-explained
-    - full of emojis
-    - using em dashes
-    - using 'did you know'
-    - using 'mind-blowing'
-    - using 'you won't believe'
-    - using 'this changed everything'
+    - corporate, inspirational, or wholesome by default
+    - clickbait, fake edgy, or American YouTube voice
+    - a list of fun facts, over-explained, or full of emojis
+    - using em dashes, or any of these phrases: 'did you know',
+      'mind-blowing', 'you won't believe', 'this changed everything',
+      'what happened next', 'little did they know'
 
     The narrator should sound like someone calmly pointing at reality
     and asking why everyone is pretending this is normal.
@@ -1263,7 +1258,7 @@ REEL_PROMPT = textwrap.dedent("""\
        say it in six. The reader should feel the floor drop. Rhythm does the
        work that adverbs cannot.
 
-    3) PAYOFF (30-60 words). A concrete image of the consequence, not an
+    3) PAYOFF (40-85 words). A concrete image of the consequence, not an
        explanation of it. End on the last concrete detail in the sequence.
        Do not write a summary sentence. Do not tell the viewer what to
        think about it. The last line should be a physical image or a
@@ -1493,8 +1488,9 @@ REEL_PROMPT = textwrap.dedent("""\
 
     1. Call list_unposted_topics().
     2. Call list_story_candidates().
-    3. Generate at least 5 candidate evergreen ideas from scout results and
-       the TOP5_LIST_POOL block (Top 5 biggest/smallest/best/worst/etc.).
+    3. Generate at least 5 candidate evergreen ideas from the scout
+       results plus your own knowledge of historical, scientific, or
+       biological subjects that have not been covered yet.
     4. Reject duplicates and near-duplicates against the bank.
     5. Reject any current/news/topical idea outright.
     6. For each remaining candidate, name the actual weird bit.
