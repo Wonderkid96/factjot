@@ -1085,20 +1085,29 @@ SHARED_CORE = textwrap.dedent("""\
     NOVELTY GATE - HARD RULE
 
     Reject any fact that is already a well-worn internet staple.
-    Test: 'Would this appear in the first 10 results of a Google
-    search for "[subject] interesting fact"? If yes, reject.'
 
-    Reject if:
-    - It regularly appears on 'amazing facts' or '50 things you
-      didn't know' listicles.
-    - It is the kind of entry a standard pub-quiz app would include.
-    - It is a fixture of viral 'did you know' tweet threads.
-    - Searching "[subject] did you know" returns this exact claim
-      on the first page.
+    Practical test: how did you encounter this fact in your training data?
+    - If it surfaces in front-page Wikipedia summaries, BuzzFeed listicles,
+      'fun facts' compilations, popular Reddit TIL threads, or famous
+      pop-history books, it is too well-worn. Reject.
+    - If it comes from a niche academic paper, a single obscure book
+      chapter, a regional newspaper archive, a museum interpretive panel,
+      a court transcript, or a footnote in a wider history, it is
+      probably the right calibre. Keep.
+
+    The reader test is: would a generally curious person plausibly
+    already know this? If yes, reject. The reaction we want is 'wait,
+    what?' not 'oh yeah I know that one'.
+
+    Common rejections by name:
+    - The Great Wall of China visibility from space (myth, well-worn).
+    - The shortest war in history (Anglo-Zanzibar). Famous on Reddit TIL.
+    - Bananas being radioactive. Standard pub quiz.
+    - Honey never spoils. Listicle staple.
+    - Octopuses having three hearts. Aquarium signage.
 
     A strong factjot fact is obscure enough that the viewer feels
-    let in on something. If the reaction is 'oh yeah I know that
-    one', it was the wrong pick. Reject it and keep looking.
+    let in on something. Reject it if everyone already knows it.
 
     GOOD FACTJOT AREAS
 
@@ -1484,32 +1493,47 @@ REEL_PROMPT = textwrap.dedent("""\
     NASA image library, Wellcome Collection, Internet Archive) on their
     own lines where the imagery is likely more accurate than stock.
 
+    Example for a reel about the 1958 nuclear test programme:
+        1958 Nevada Test Site, scrub desert, wide shot
+        geiger counter, close up, vintage
+        scientists in protective suits, archival film grain
+        nuclear test crater, aerial photograph
+        Wikimedia Commons: Operation Plumbbob
+        Internet Archive: Atomic Energy Commission film 1958
+
+    Six lines is the upper end. Three is the floor. Single-word terms
+    ("nuclear", "scientists") return generic stock and will be rejected
+    by the hint quality gate.
+
     DECISION PROCESS
 
-    1. Call list_unposted_topics().
-    2. Call list_story_candidates().
-    3. Generate at least 5 candidate evergreen ideas from the scout
-       results plus your own knowledge of historical, scientific, or
-       biological subjects that have not been covered yet.
-    4. Reject duplicates and near-duplicates against the bank.
-    5. Reject any current/news/topical idea outright.
-    6. For each remaining candidate, name the actual weird bit.
-    7. Apply the interestingness, event-vs-angle, and quality gates.
-    8. If nothing clears the bar, call skip(reason).
-    9. Write the script + ranked footage hints.
-    10. Name the subject_key: the canonical lowercase hyphenated identifier
-        for the real-world subject. This is the name of the THING, not the
-        title of the reel. Two posts about the same subject must always
-        produce the same key. Use the most specific level that uniquely
-        identifies the subject without over-describing it.
-        Examples by entity type:
-        - Event:   'great-molasses-flood-1919', 'operation-acoustic-kitty'
-        - Person:  'phineas-gage', 'radium-girls'
-        - Animal:  'lonesome-george', 'paul-the-octopus'
-        - Place:   'surtsey-island', 'centralia-pennsylvania'
-        - Product: 'ford-edsel', 'new-coke'
-    11. Write a short decision note (chosen idea, weird bit, why it
-        passed, why weaker candidates failed). Then call run_reel ONCE.
+    1. Call list_unposted_topics(), then call list_story_candidates().
+
+    2. Generate at least 5 evergreen candidates from the scout results
+       plus your own knowledge of historical, scientific, or biological
+       subjects not yet covered. Reject anything current, topical, or
+       already in the post bank (including near-duplicates).
+
+    3. For each survivor, name the actual weird bit in one sentence,
+       then apply the interestingness, event-vs-angle, and quality
+       gates. If nothing clears the bar, call skip(reason).
+
+    4. Write the script and the ranked footage hints.
+
+    5. Name the subject_key: the canonical lowercase hyphenated identifier
+       for the real-world subject. Name the THING, not the title of the
+       reel. Two posts about the same subject must always produce the
+       same key. Use the most specific level that uniquely identifies
+       the subject without over-describing it.
+       Examples by entity type:
+       - Event:   'great-molasses-flood-1919', 'operation-acoustic-kitty'
+       - Person:  'phineas-gage', 'radium-girls'
+       - Animal:  'lonesome-george', 'paul-the-octopus'
+       - Place:   'surtsey-island', 'centralia-pennsylvania'
+       - Product: 'ford-edsel', 'new-coke'
+
+    6. Write a short decision note (chosen idea, weird bit, why it
+       passed, why weaker candidates failed). Then call run_reel ONCE.
 """)
 
 

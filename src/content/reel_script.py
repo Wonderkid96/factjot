@@ -22,7 +22,6 @@ Usage:
 """
 from __future__ import annotations
 
-import os
 import re
 
 
@@ -111,56 +110,6 @@ def to_voice_script(claim: str) -> str:
 def estimate_duration_s(script: str, wpm: int = 145) -> float:
     """Rough duration estimate at ElevenLabs delivery pace."""
     return (len(script.split()) / wpm) * 60
-
-
-_VOICE_POLISH_PROMPT = """\
-You are rewriting a factjot Instagram Reel script. Keep every fact exactly as written. \
-Do not add, remove, or change any information. Only adjust the voice and tone.
-
-The factjot voice is: dry, direct, occasionally condescending, faintly contemptuous of \
-people who don't already know this. British English. No em dashes. No corporate enthusiasm. \
-No "incredible" or "fascinating" or "amazing". Occasional dry asides are welcome. \
-Mild understatement where a lesser writer would use an exclamation mark.
-
-Examples of the tone:
-- "Nobody asked, but here it is anyway."
-- "Twenty-one people drowned in molasses. Which is, by any measure, a bad day."
-- "This is the kind of thing that will make you unbearable at dinner parties."
-- "If you already knew this, good for you."
-- A dry aside in parentheses if it earns its place.
-
-Return ONLY the rewritten script. No preamble, no explanation, no quotes around it.\
-"""
-
-
-def polish_script_voice(script: str) -> str:
-    """Apply the factjot dry/witty voice to a script via Claude Haiku.
-
-    Keeps all facts identical — only adjusts tone and phrasing. Falls back
-    to the original script if the API key is missing or the call fails.
-    Haiku is used for speed and cost; this runs on every reel.
-    """
-    api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
-    if not api_key:
-        return script
-
-    try:
-        import anthropic
-        client = anthropic.Anthropic(api_key=api_key)
-        resp = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=512,
-            system=_VOICE_POLISH_PROMPT,
-            messages=[{"role": "user", "content": script}],
-        )
-        polished = resp.content[0].text.strip()
-        # Safety check: polished should be similar length (not hallucinated)
-        if 0.6 <= len(polished.split()) / max(len(script.split()), 1) <= 1.6:
-            return polished
-    except Exception:
-        pass
-
-    return script
 
 
 # ------------------------------------------------------------------ #
