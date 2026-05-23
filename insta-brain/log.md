@@ -1,5 +1,6 @@
 # factjot brain log
 
+- 2026-05-23 11:49 token refreshed: new expiry ~60 days
 - 2026-05-23 08:49 reel b215e8023106ef published (history, ig_media=18094814371939530)
 - 2026-05-23 08:41 token refreshed: new expiry ~59 days
 - 2026-05-22 12:18 dynamic list 'dyn_59217b731faaea' published (TV LIST, ig_media=18114403417768605)
