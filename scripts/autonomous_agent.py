@@ -915,6 +915,51 @@ def _build_performance_signal() -> str:
         return ""
 
 
+def _build_top_titles_signal() -> str:
+    """Return a 'what landed' block listing the top reels by reach.
+
+    Grounds the model's taste in real-world signal rather than topic
+    aggregates alone. Suppressed when fewer than MIN_RECORDS reels have
+    reach > 0. Fails silently on any read error so it never blocks a run.
+    """
+    MIN_RECORDS = 10
+    TOP_N = 5
+    try:
+        from src.core.paths import REEL_PERFORMANCE
+        if not REEL_PERFORMANCE.exists():
+            return ""
+        records = [
+            json.loads(l)
+            for l in REEL_PERFORMANCE.read_text(encoding="utf-8").strip().splitlines()
+            if l.strip()
+        ]
+        usable = [
+            r for r in records
+            if r.get("reach", 0) > 0 and (r.get("reel_title") or "").strip()
+        ]
+        if len(usable) < MIN_RECORDS:
+            return ""
+        top = sorted(usable, key=lambda r: -r.get("reach", 0))[:TOP_N]
+        lines = ["[What landed — the highest-reach reels shipped so far]"]
+        for r in top:
+            topic = (r.get("topic") or "?").strip()
+            tone  = (r.get("tone") or "?").strip()
+            title = (r.get("reel_title") or "").strip()
+            reach = r.get("reach", 0)
+            lines.append(f"  {reach:4d} reach | {topic}/{tone} | {title}")
+        lines.append(
+            "These are reference points, not templates. Do not repeat "
+            "their subjects. Notice what they share: the weird bit sits "
+            "in the subject phrase of the title, the title carries the "
+            "irony rather than the body, and the first sentence anchors "
+            "a named subject and a concrete outcome. Aim for that calibre, "
+            "not those exact shapes."
+        )
+        return "\n\n" + "\n".join(lines)
+    except Exception:
+        return ""
+
+
 SHARED_CORE = textwrap.dedent("""\
     You are running the factjot Instagram account (@factjot).
 
@@ -1293,6 +1338,34 @@ REEL_PROMPT = textwrap.dedent("""\
     quarantine" is documentary voice. The TURN is buried in a long
     compound sentence. The PAYOFF explains itself instead of landing.
 
+    Good (biological mechanism): "The bombardier beetle stores
+    hydroquinone and hydrogen peroxide in two separate chambers
+    inside its abdomen. When something threatens it, the beetle
+    opens a valve. The chemicals mix. The reaction reaches one
+    hundred degrees Celsius. It fires the boiling spray out of a
+    rotating turret on its back. It can do this twenty times in a
+    row. The beetle is about the size of a fingernail."
+
+    Notice: SETUP is a specific mechanism, not a vague "amazing
+    creature" framing. The TURN is "The chemicals mix" — four words,
+    no qualifier. The PAYOFF stacks concrete images and ends on
+    scale, not commentary.
+
+    Good (bureaucratic absurdity): "In 1932, the Australian army
+    declared war on the emu population of Western Australia. They
+    deployed two Lewis machine guns and 10,000 rounds of ammunition.
+    The emus scattered, regrouped, and outpaced the soldiers across
+    open country. After six days the army had killed roughly fifty
+    birds and given up. The official report blamed the emus' tactical
+    formation. The birds had outflanked a sovereign army."
+
+    Notice: SETUP makes the conditions of success concrete (army,
+    machine guns, ammunition). The TURN ("The emus scattered,
+    regrouped, and outpaced the soldiers") lands because the SETUP
+    established what success was supposed to look like. The PAYOFF
+    ends on the smallest possible factual statement — no editorial
+    flourish, the absurdity carries itself.
+
     PROSE QUALITY
 
     The script ships as voice-over. Every sentence must survive being
@@ -1385,36 +1458,21 @@ REEL_PROMPT = textwrap.dedent("""\
     earned by the specific weird bit, not like a documentary chapter
     slot was filled in.
 
-    The most overused shape is: 'The [Noun] That [Verb]'
-    or 'The [Descriptor] [Noun]'. Both are fine occasionally but
-    they become wallpaper when every post uses them. If you catch
-    yourself writing that pattern, try a different shape first.
+    Two shapes do most of the work. Pick whichever fits the weird bit:
 
-    Other shapes that work — pick the shape that matches the weird bit's
-    structure:
+    'The [X] That [Y]' carries a contradiction or ironic consequence.
+    The subject phrase sets an expectation; the verb phrase breaks it.
+    Examples that landed: 'The Safety Rule That Sank A Ship', 'The
+    Flood That Got a Tax Refund', 'The Lake That Suffocated a Valley',
+    'The Girls Taught To Eat Radium'.
 
-    If the weird bit is a CONSEQUENCE:
-      use consequence-first: 'Eight People Died. The Brewery Got a Tax Refund.'
+    Hard-cut (two beats, no connector) carries two facts in collision
+    that explain themselves without prose. Examples: '5,000 Sailors.
+    No Coastline.', 'Eight People Died. The Brewery Got a Tax Refund.'
 
-    If the weird bit is a CONTRADICTION:
-      use plain contradiction: 'Bolivia Kept Its Navy After Losing Its Coast'
-
-    If the weird bit is TWO FACTS IN COLLISION:
-      use hard-cut: '5,000 Sailors. No Coastline.'
-
-    If the weird bit is a NAMED SUBJECT + IRONIC TWIST:
-      use named subject + twist: 'Radium Girls Were Told to Point Their Brushes with Their Lips'
-
-    If the weird bit is a SINGLE DRY FACT:
-      use short and flat: 'A Safety Rule Sank a Ship'
-
-    If the weird bit is IRONY THAT EXPLAINS ITSELF:
-      use irony without explanation: 'The Flood Was 100,000 Gallons of Beer'
-
-    None of these are required formats. Let the shape come from the
-    structure of the weird bit, not from what sounds dramatic. If 'The X
-    That Y' is genuinely the sharpest version of this specific weird bit,
-    use it. Just do not reach for it by default.
+    Other shapes are fine where they suit the weird bit better. Do
+    not invent drama to fill a shape; let the shape come from what
+    the fact actually is.
 
     Rules:
     - No hype words (stunning, shocking, incredible, mind-blowing).
@@ -1631,7 +1689,11 @@ MODE_PROMPTS: dict[str, str] = {
 
 
 def build_prompt(mode: str) -> str:
-    return SHARED_CORE + _build_performance_signal() + MODE_PROMPTS[mode]
+    parts = [SHARED_CORE, _build_performance_signal()]
+    if mode.startswith("reel_"):
+        parts.append(_build_top_titles_signal())
+    parts.append(MODE_PROMPTS[mode])
+    return "".join(parts)
 
 
 # ------------------------------------------------------------------ #
