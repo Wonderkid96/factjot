@@ -447,6 +447,63 @@ def _append_footage_ledger(
     return True
 
 
+def _verify_final_mp4(final_mp4: Path, expected_duration_s: float) -> "ExitCode":
+    """Probe the composed MP4 and hard-fail before upload if it is broken.
+
+    Verifies the two invariants Meta actually enforces:
+    - container duration within 5% (+0.5s slack) of the planned timeline
+    - audio stream sampled at exactly 48kHz (Meta rejects 44.1k and 96k)
+
+    If no ffprobe binary is available the check is skipped with a loud
+    warning (same tolerance reel_composer uses for its intro probe); a
+    missing probe tool must not block publishing.
+    """
+    probed: dict | None = None
+    for ffprobe in ("ffprobe", "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe"):
+        try:
+            out = subprocess.run(
+                [ffprobe, "-v", "quiet", "-print_format", "json",
+                 "-show_entries", "format=duration:stream=codec_type,sample_rate",
+                 str(final_mp4)],
+                capture_output=True, text=True, timeout=30,
+            )
+            if out.returncode == 0 and out.stdout.strip():
+                probed = json.loads(out.stdout)
+                break
+        except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
+            continue
+    if probed is None:
+        print("  [verify] WARNING: no working ffprobe; skipping final MP4 verification")
+        return ExitCode.OK
+
+    duration  = float(probed.get("format", {}).get("duration", 0) or 0)
+    tolerance = max(expected_duration_s * 0.05, 0.5)
+    if abs(duration - expected_duration_s) > tolerance:
+        print(
+            f"  [verify] FAILED: final MP4 duration {duration:.2f}s vs planned "
+            f"{expected_duration_s:.2f}s (tolerance +/-{tolerance:.2f}s)"
+        )
+        return ExitCode.FFMPEG_ERROR
+
+    audio_rates = [
+        int(s.get("sample_rate", 0) or 0)
+        for s in probed.get("streams", [])
+        if s.get("codec_type") == "audio"
+    ]
+    if not audio_rates:
+        print("  [verify] FAILED: final MP4 has no audio stream")
+        return ExitCode.FFMPEG_ERROR
+    if any(rate != 48000 for rate in audio_rates):
+        print(
+            f"  [verify] FAILED: audio sample rate {audio_rates} != 48000 "
+            "(Meta rejects non-48kHz audio)"
+        )
+        return ExitCode.FFMPEG_ERROR
+
+    print(f"  [verify] final MP4 ok: {duration:.2f}s, audio 48kHz")
+    return ExitCode.OK
+
+
 # ------------------------------------------------------------------ #
 # Phase result dataclasses
 # ------------------------------------------------------------------ #
@@ -617,6 +674,7 @@ def _publish_phase(
         reel_title=fact.get("reel_title", ""),
         subject_key=fact.get("subject_key", ""),
         word_count=len(caption.split()),
+        reel_script=fact.get("reel_script", ""),
         caption=caption,
         cover_missing=(cover_url is None),
     )
@@ -1227,17 +1285,11 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         else:
             rlog.emit("YouTube variant FAILED (non-fatal)")
 
-        # Persist footage dedup ledger
-        from src.core.paths import USED_FOOTAGE
-        _append_footage_ledger(
-            dry_run=dry_run,
-            ledger_path=USED_FOOTAGE,
-            registry=global_footage_registry,
-            footage_clips=list(footage_clips),
-            reel_id=reel_id,
-            reel_title=fact.get("reel_title") or "",
-            topic=ftopic,
-        )
+        # Hard gate: probe the composed MP4 before any upload spend.
+        verify_code = _verify_final_mp4(final_mp4, total_dur)
+        if verify_code is not ExitCode.OK:
+            rlog.emit("final MP4 failed verification (duration/sample-rate)")
+            return verify_code
 
         # Step 8: Thumbnail + story + caption
         thumb_result = _thumbnail_phase(fact, footage_clips, out_dir, ff_bin, claim, ftopic)
@@ -1264,6 +1316,20 @@ def make_reel(topic: str | None, dry_run: bool, voice: str = "en-GB-RyanNeural",
         )
         if publish_code == ExitCode.OK:
             rlog.emit(f"REEL PUBLISHED")
+            # Persist the footage dedup ledger ONLY for reels that actually
+            # shipped. Writing it before publish (the old order) burned
+            # 5-8 clips on every failed publish attempt: footage starvation
+            # with no visible cause (audit 2026-06-12).
+            from src.core.paths import USED_FOOTAGE
+            _append_footage_ledger(
+                dry_run=dry_run,
+                ledger_path=USED_FOOTAGE,
+                registry=global_footage_registry,
+                footage_clips=list(footage_clips),
+                reel_id=reel_id,
+                reel_title=fact.get("reel_title") or "",
+                topic=ftopic,
+            )
         return publish_code
 
     finally:
@@ -1290,6 +1356,7 @@ def _record(
     reel_title: str = "",
     subject_key: str = "",
     word_count: int = 0,
+    reel_script: str = "",
     caption: str = "",
     cover_missing: bool = False,
 ) -> None:
@@ -1318,6 +1385,11 @@ def _record(
         "tone":          tone,
         "reel_title":    reel_title,
         "word_count":    word_count,
+        # The voice-over script and its word count feed the performance
+        # ledger (fetch_reel_metrics.py). Without them every entry shows
+        # script_word_count=0 and length-vs-engagement analysis is dead.
+        "reel_script":        reel_script,
+        "script_word_count":  len(reel_script.split()),
         "slot":          slot,
         "published_at":  datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "out_dir":       str(out_dir),

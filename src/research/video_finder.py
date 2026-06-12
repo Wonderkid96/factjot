@@ -1098,22 +1098,27 @@ def _nasa_video_url(query: str, topic: str, skip_urls: set[str] | None = None) -
     )
     search.raise_for_status()
     items = search.json().get("collection", {}).get("items", [])
-    if not items:
-        return None
-    nasa_id = items[0].get("data", [{}])[0].get("nasa_id")
-    if not nasa_id:
-        return None
-    asset = requests.get(
-        f"https://images-api.nasa.gov/asset/{nasa_id}",
-        timeout=_HTTP_TIMEOUT,
-    )
-    asset.raise_for_status()
-    asset_items = asset.json().get("collection", {}).get("items", [])
-    mp4s = [i["href"] for i in asset_items if i.get("href", "").endswith(".mp4")]
-    if not mp4s:
-        return None
-    mobile = [u for u in mp4s if "mobile" in u.lower() or "_sm" in u.lower()]
-    return (mobile or mp4s)[0]
+    for item in items:
+        nasa_id = item.get("data", [{}])[0].get("nasa_id")
+        if not nasa_id:
+            continue
+        asset = requests.get(
+            f"https://images-api.nasa.gov/asset/{nasa_id}",
+            timeout=_HTTP_TIMEOUT,
+        )
+        if not asset.ok:
+            continue
+        asset_items = asset.json().get("collection", {}).get("items", [])
+        mp4s = [i["href"] for i in asset_items if i.get("href", "").endswith(".mp4")]
+        if not mp4s:
+            continue
+        mobile = [u for u in mp4s if "mobile" in u.lower() or "_sm" in u.lower()]
+        url = (mobile or mp4s)[0]
+        # Honour the cross-reel footage dedup registry (no-reuse rule).
+        if skip_urls and url in skip_urls:
+            continue
+        return url
+    return None
 
 
 # ------------------------------------------------------------------ #
@@ -1153,9 +1158,13 @@ def _archive_video_url(query: str, topic: str, skip_urls: set[str] | None = None
         chosen = (small or mp4s)
         if chosen:
             name = chosen[0]["name"]
+            url = f"https://archive.org/download/{identifier}/{name}"
+            # Honour the cross-reel footage dedup registry (no-reuse rule).
+            if skip_urls and url in skip_urls:
+                continue
             license_url = meta_json.get("metadata", {}).get("licenseurl", "")
             print(f"  [archive.org] rights OK ({license_url[:60] or 'CC/PD via query filter'})")
-            return f"https://archive.org/download/{identifier}/{name}"
+            return url
     return None
 
 
@@ -1192,6 +1201,9 @@ def _wikimedia_video_url(query: str, topic: str, skip_urls: set[str] | None = No
             mime = info.get("mime", "")
             size = info.get("size", 0)
             if not (mime.startswith("video/") and url and 0 < size < 50_000_000):
+                continue
+            # Honour the cross-reel footage dedup registry (no-reuse rule).
+            if skip_urls and url in skip_urls:
                 continue
             meta = info.get("extmetadata", {})
             license_short = meta.get("LicenseShortName", {}).get("value", "")

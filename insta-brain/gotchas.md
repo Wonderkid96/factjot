@@ -317,6 +317,39 @@ google.auth.exceptions.RefreshError: invalid_grant: Token has been expired or re
 
 ---
 
+## 2026-06-12: YouTube still down — second failure signature is "API disabled", not token expiry
+
+Follow-on from the 2026-05-19 entry. As of 2026-06-12 the YouTube ledger is still stuck at 2026-05-14 (45 reels posted to IG with no Shorts cross-post), but the error in the Actions logs has changed. Run 27406834255 (2026-06-12 09:21 UTC reel_morning) shows:
+
+```
+ERROR: YouTube API: <HttpError 403 ... "YouTube Data API v3 has not been used
+in project 855280488489 before or it is disabled. Enable it by visiting
+https://console.developers.google.com/apis/api/youtube.googleapis.com/overview?project=855280488489 ...">
+```
+
+**Root cause:** YouTube Data API v3 is disabled at GCP-project level (project 855280488489). OAuth credentials authenticate fine; the API call itself is rejected. Re-running `setup_youtube_auth.py` will NOT fix this signature.
+
+**Fix:** sign in as `thefactjot@gmail.com`, open the URL in the error, click Enable, wait a few minutes, then verify via the ledger after the next reel_morning run. If `invalid_grant` then reappears, fall back to the token re-auth procedure in `CLAUDE.md` §16.
+
+**Lesson:** "YouTube ledger stale" has at least two distinct causes with different fixes. Always pull the actual step log from a recent run before re-authing — the ledger gap alone does not identify the cause.
+
+---
+
+## 2026-06-12: list_midday crashes with stop_reason=max_tokens when story candidates are empty
+
+Two list_midday failures (run 27092000223, 2026-06-07; run 27415941195, 2026-06-12) share the same pattern: `list_story_candidates([])` returns empty, the agent keeps reasoning in a single turn trying to invent something postable, and exhausts the output-token budget. Log signature:
+
+```
+[autonomous-agent] unexpected stop_reason: max_tokens
+##[error]Process completed with exit code 1.
+```
+
+**Failure mode:** the run fails hard (exit 1) instead of resolving to a clean `skip`. The slot is lost, the failure-capture step runs, and no state commit lands for that slot. ~10% of list_midday slots over the trailing 3 weeks died this way.
+
+**Structural fix direction:** handle `stop_reason == "max_tokens"` in `scripts/autonomous_agent.py` by treating the run as a forced skip (log reason, exit 0) rather than crashing, and/or instruct + code-guard: when candidate tools return empty twice, the agent must call `skip`. Do not just raise max_tokens — that hides the loop, not the cause.
+
+---
+
 ## Fix philosophy (mandatory)
 
 Every fix must be a long-term structural fix, not a temporary patch. A patch that suppresses a symptom without removing its root cause will reappear in a different form or a different part of the pipeline. Before shipping any fix, ask: does this eliminate the cause, or does it hide it? If it hides it, keep digging.

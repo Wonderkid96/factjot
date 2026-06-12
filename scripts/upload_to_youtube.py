@@ -426,6 +426,22 @@ def _log_upload(video_id: str, title: str, video_path: Path,
         fh.write(json.dumps(record) + "\n")
 
 
+def _log_failure_to_brain(message: str) -> None:
+    """Append an upload failure to the brain log so it survives the run.
+
+    The workflow runs this script with continue-on-error and `|| true`,
+    so Actions never shows red when YouTube breaks. The brain log IS
+    committed by the state-commit step, which makes the failure visible
+    in git history within one run instead of weeks later via a stale
+    ledger (gotchas 2026-05-19 and 2026-06-12).
+    """
+    try:
+        from src.brain import brain
+        brain.append_log(f"WARNING: {message}")
+    except Exception as exc:  # never let logging kill the publish flow
+        print(f"[youtube] could not write brain log: {exc}", file=sys.stderr)
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Upload a video to YouTube as a Short")
     parser.add_argument("video_path", nargs="?", help="Path to the MP4 (omit if --auto-latest)")
@@ -485,9 +501,11 @@ def main(argv: list[str]) -> int:
         response = upload(video_path, title, description, tags_list, args.privacy)
     except HttpError as exc:
         print(f"ERROR: YouTube API: {exc}", file=sys.stderr)
+        _log_failure_to_brain(f"YouTube upload FAILED (HttpError): {str(exc)[:300]}")
         return 2
     except RuntimeError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
+        _log_failure_to_brain(f"YouTube upload FAILED: {str(exc)[:300]}")
         return 1
 
     video_id = response["id"]

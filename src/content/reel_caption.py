@@ -19,6 +19,17 @@ _CTAS = [
     "This one stopped me. Follow @factjot for more.",
 ]
 
+# Dialogue hooks: comments and saves outrank follows in distribution.
+# Dry, factjot-voice invitations only; no begging, no "smash that".
+_ENGAGEMENT_LINES = [
+    "If you already knew this, say so in the comments. We will be impressed and suspicious.",
+    "Know a stranger fact? Comments are open.",
+    "Save this for the next quiet dinner party.",
+    "Send this to someone who thinks they know things.",
+    "Argue about it in the comments. Politely.",
+    "Save it. You will want this one later.",
+]
+
 
 # Brand-voice normalisation (em / en dashes, smart quotes, spacing) lives
 # in src.content.voice_normaliser.normalise(). The local _strip_em_dashes
@@ -133,8 +144,9 @@ def build_reel_caption(
         if not hook.endswith((".", "!", "?")):
             hook += "."
 
-    body = _punchline(claim, reel_title)
-    cta  = random.choice(_CTAS)
+    body   = _punchline(claim, reel_title)
+    engage = random.choice(_ENGAGEMENT_LINES)
+    cta    = random.choice(_CTAS)
 
     # Credits
     credit_lines: list[str] = []
@@ -152,7 +164,7 @@ def build_reel_caption(
         post_type="reel",
     )
 
-    parts = [hook, body, "", cta, "", "\n".join(credit_lines), "", hashtags]
+    parts = [hook, body, "", engage, "", cta, "", "\n".join(credit_lines), "", hashtags]
     caption = "\n".join(parts)
     caption = normalise(caption)
     return caption[:2200]

@@ -914,7 +914,10 @@ def _build_performance_signal() -> str:
             "A stronger story in a weaker topic always wins."
         )
         return "\n\n" + "\n".join(lines)
-    except Exception:
+    except Exception as exc:
+        # Never block a run, but never vanish silently either: a corrupt
+        # ledger would otherwise strip the agent's taste signal unnoticed.
+        print(f"[warn] performance signal unavailable: {exc}", flush=True)
         return ""
 
 
@@ -959,7 +962,8 @@ def _build_top_titles_signal() -> str:
             "not those exact shapes."
         )
         return "\n\n" + "\n".join(lines)
-    except Exception:
+    except Exception as exc:
+        print(f"[warn] top-titles signal unavailable: {exc}", flush=True)
         return ""
 
 
@@ -1181,6 +1185,23 @@ SHARED_CORE = textwrap.dedent("""\
     If no candidate clears the quality gate, call the `skip` tool with
     a one-line reason. Do not call the posting tool with a weak idea.
     The next slot will fire normally.
+
+    If a candidate tool (list_unposted_topics, list_story_candidates)
+    returns nothing usable, call `skip` IMMEDIATELY with the reason
+    'no usable candidates'. Do not keep generating ideas to compensate
+    for missing data. A long reasoning loop here exhausts the output
+    budget and crashes the run.
+
+    TOPIC BALANCE
+
+    History currently dominates the feed (roughly three posts in
+    four) and over-concentration is suppressing reach. Read the
+    recent mix in the post bank. When two candidates both clear
+    every quality gate, prefer the one that is NOT history: science,
+    space, earth, biology, technology, business, internet history.
+    Never force a weak non-history post; the quality gates always
+    win. But aim, over any rolling week, for history to be at most
+    half the feed.
 
     UNIVERSAL POSTING RULES
 
@@ -1434,6 +1455,21 @@ REEL_PROMPT = textwrap.dedent("""\
     The reader smiles because the fact is absurd, not because a
     punchline was delivered.
 
+    THE SILLY ASIDE (use when the subject is light)
+
+    On top of structural wit, one short deadpan aside per script is
+    allowed and encouraged when the subject is light: no deaths, no
+    living victims, no fresh tragedy. The aside is a flat sentence
+    the narrator adds as if muttering it, three to eight words:
+    - 'The seagulls did not participate.'
+    - 'The emus won.'
+    - 'The clock, for the record, still works.'
+    - 'Nobody apologised to the whale.'
+    It sits inside the PAYOFF, usually as its own sentence, and it
+    must comment on something concrete in the story, never on the
+    viewer or the format. One per script, maximum. If the subject
+    involves deaths or suffering, do not use it; structural wit only.
+
     If the story has this: use it. If it does not: do not reach for it.
     Forced wit is worse than none.
 
@@ -1477,6 +1513,20 @@ REEL_PROMPT = textwrap.dedent("""\
     Other shapes are fine where they suit the weird bit better. Do
     not invent drama to fill a shape; let the shape come from what
     the fact actually is.
+
+    TITLE VARIETY - HARD RULE
+
+    'The [X] That [Y]' has been over-used: most recent reels carry
+    it, and the feed reads as a template. Check the recent titles in
+    the post bank before writing yours. If two or more of the last
+    five posts already use 'The [X] That/Who [Y]', you MUST pick a
+    different shape this time:
+    - Hard-cut two beats: '5,000 Sailors. No Coastline.'
+    - Name or subject first: 'Harrison Solved It. They Kept the Money.'
+    - Number first: '21 Dead. The Cause Was Syrup.'
+    - Plain flat claim: 'Australia Lost a War. To Birds.'
+    A fresh shape carrying the weird bit beats the familiar template
+    every time.
 
     Rules:
     - No hype words (stunning, shocking, incredible, mind-blowing).
@@ -1817,6 +1867,19 @@ def main(argv: list[str] | None = None) -> int:
             if response.stop_reason == "end_turn":
                 print("\n[autonomous-agent] finished (end_turn).", flush=True)
                 final_status = "end_turn"
+                break
+            if response.stop_reason == "max_tokens":
+                # The turn overran the output budget and cannot be
+                # continued safely. Resolve the slot as a forced skip so
+                # the workflow ends cleanly instead of crashing with
+                # exit 1 (see insta-brain/gotchas.md 2026-06-12).
+                print(
+                    "\n[SKIP] forced: output budget exhausted (max_tokens) "
+                    f"on turn {turn}. mode={mode}",
+                    flush=True,
+                )
+                final_status = "forced_skip_max_tokens"
+                skipped = True
                 break
             if response.stop_reason != "tool_use":
                 print(f"[autonomous-agent] unexpected stop_reason: {response.stop_reason}", flush=True)

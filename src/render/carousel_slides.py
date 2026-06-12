@@ -565,9 +565,14 @@ def render_news_slide(
     logo = _logo_tag(logo_url, invert=True)
     lines_html = _markup_lines(lines)
 
+    # Same gate the cover uses: a malformed data URL (e.g. "data:image/
+    # jpeg;base64," with no payload) is truthy but renders a blank box,
+    # violating the no-empty-image-boxes rule. Route it to typography.
+    has_photo = not _is_empty_photo_url(photo_data_url)
+
     if layout_mode == "readable_list":
         grotesk_url = _inline_asset(repo_root / "assets/fonts/SpaceGrotesk-SemiBold.ttf")
-        if photo_data_url:
+        if has_photo:
             html = _render_news_slide_photo_readable(
                 serif_url, label_url, grotesk_url, logo, index_label, lines_html, photo_data_url,
             )
@@ -576,7 +581,7 @@ def render_news_slide(
                 serif_url, label_url, grotesk_url, logo, index_label, lines_html,
             )
     else:
-        if photo_data_url:
+        if has_photo:
             html = _render_news_slide_photo(
                 serif_url, label_url, archivo_url, logo, index_label, lines_html, photo_data_url,
             )
