@@ -1222,9 +1222,12 @@ SHARED_CORE = textwrap.dedent("""\
 
     - Call list_unposted_topics() FIRST.
     - Call exactly one of: the posting tool, OR `skip`. Never both.
-    - On `reel_copy_quality_failed`: rewrite the reel once using the
-      same subject only if the subject itself still passes the gates.
-      If the second copy attempt fails, call `skip`.
+    - On `reel_copy_quality_failed`: rewrite the reel once with a
+      stronger hook (different first sentence, same subject). The
+      error message names exactly what failed — fix that specific
+      thing. If the second attempt also fails, the subject's hook is
+      not workable: pick a completely different subject and call
+      run_reel once more. If that third attempt fails, call `skip`.
     - On `fact_verification_failed`: pick a completely different subject
       and call the posting tool once more. Do not reword the same story.
       If the second attempt also fails, call `skip`.
