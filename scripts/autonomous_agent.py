@@ -414,6 +414,8 @@ def run_reel(args: dict, dry_run: bool) -> str:
     ]
     if args.get("subject_key"):
         cmd += ["--subject-key", args["subject_key"].strip().lower()]
+    if args.get("share_hook"):
+        cmd += ["--share-hook", args["share_hook"].strip()]
     if dry_run:
         cmd.append("--dry-run")
     raw = _run_pipeline(cmd)
@@ -576,8 +578,21 @@ TOOLS = [
                         "BAD: 'girls-who-glowed', 'the-flood-that-got-a-refund'."
                     ),
                 },
+                "share_hook": {
+                    "type": "string",
+                    "description": (
+                        "Required. A single sentence starting with 'Send this to someone who'. "
+                        "Replaces the generic follow CTA in the caption. Must be specific to this "
+                        "post and slightly pointed — implying the recipient holds a naive belief, "
+                        "works in a relevant field, or would be specifically unsettled by this fact. "
+                        "GOOD: 'Send this to someone who still trusts official investigations.' "
+                        "GOOD: 'Send this to someone who thinks nothing like this gets buried.' "
+                        "GOOD: 'Send this to your mate who thinks they know everything about space.' "
+                        "BAD: 'Send this to someone who likes facts.' (too generic)"
+                    ),
+                },
             },
-            "required": ["script", "title", "topic", "tone_override", "hint", "subject_key"],
+            "required": ["script", "title", "topic", "tone_override", "hint", "subject_key", "share_hook"],
             "additionalProperties": False,
         },
     },
@@ -1479,6 +1494,30 @@ REEL_PROMPT = textwrap.dedent("""\
     If the story has this: use it. If it does not: do not reach for it.
     Forced wit is worse than none.
 
+    THE PROVOCATIVE TAKE (aim for most subjects)
+
+    After the PAYOFF, one flat sentence naming what the story implies
+    about systems, institutions, or human nature. Almost too much. The
+    kind of sentence that would be softened in a BBC documentary. Keep
+    it factual — name the actual consequence, gap, or absence. No
+    lesson, no moral, no call to action.
+
+    Examples:
+    - 'Nobody was charged.'
+    - 'The report was buried for eleven years.'
+    - 'The company is still trading.'
+    - 'The same method is in use today.'
+    - 'The decision was approved in a four-hour meeting.'
+    - 'The family received no compensation.'
+    - 'The original findings have never been published.'
+    - 'The enquiry concluded there was nothing to investigate.'
+
+    Sits as the last sentence of the PAYOFF. Do not use it when the
+    story targets a living individual by name, or when the fact is
+    already as dark as it gets (deaths, disasters where the victims
+    are still present). Institutional critique is fine; personal
+    attack is not.
+
     LIST-TO-REEL FORMAT (allowed and encouraged when strong)
 
     A list can run as a reel if it is tight and weird-bit first.
@@ -1589,7 +1628,16 @@ REEL_PROMPT = textwrap.dedent("""\
        - Product: 'ford-edsel', 'new-coke'
 
     6. Write a short decision note (chosen idea, weird bit, why it
-       passed, why weaker candidates failed). Then call run_reel ONCE.
+       passed, why weaker candidates failed).
+
+    7. Write the `share_hook`. Format: 'Send this to someone who [x].'
+       The [x] must be specific to this post. Aim for slightly pointed:
+       the implied recipient holds a naive belief, works in a field
+       embarrassed by this fact, or would be specifically unsettled.
+       One sentence. No full stop needed.
+
+    8. Call run_reel ONCE with script, title, topic, tone_override,
+       hint, subject_key, and share_hook.
 """)
 
 

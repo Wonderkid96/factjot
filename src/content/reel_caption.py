@@ -132,6 +132,7 @@ def build_reel_caption(
     topic: str,
     reel_title: str | None = None,
     sources: list[str] | None = None,
+    share_hook: str | None = None,
 ) -> str:
     """Return a complete, credit-bearing caption ready to post."""
 
@@ -145,7 +146,9 @@ def build_reel_caption(
             hook += "."
 
     body   = _punchline(claim, reel_title)
-    engage = random.choice(_ENGAGEMENT_LINES)
+    # Agent-supplied share hook ("Send this to someone who...") takes priority
+    # over the generic engagement pool. Falls back when the agent omits it.
+    engage = share_hook.strip() if share_hook and share_hook.strip() else random.choice(_ENGAGEMENT_LINES)
     cta    = random.choice(_CTAS)
 
     # Credits

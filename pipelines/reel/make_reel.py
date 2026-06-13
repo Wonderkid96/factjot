@@ -755,6 +755,7 @@ def _thumbnail_phase(
 
     caption = build_reel_caption(
         claim, ftopic, reel_title=story_title, sources=fact.get("sources", []),
+        share_hook=fact.get("share_hook") or None,
     )
     print(f"  caption: {len(caption)} chars")
 
@@ -1465,6 +1466,9 @@ def main() -> int:
                         help="Tone override for TTS voice settings (used with --script).")
     parser.add_argument("--subject-key", default="",
                         help="Canonical subject key for permanent dedup (e.g. 'radium-girls').")
+    parser.add_argument("--share-hook", default="",
+                        help="Caption engagement line: 'Send this to someone who [x]'. "
+                             "Agent-generated per post. Falls back to generic pool when absent.")
     args = parser.parse_args()
 
     # Per-day reel cap removed: the autonomous agent is now the single
@@ -1498,6 +1502,7 @@ def main() -> int:
         "sources":      [],
         "autonomous":   True,
         "subject_key":  args.subject_key or "",
+        "share_hook":   args.share_hook or "",
     }
     return make_reel(topic=None, dry_run=args.dry_run, voice=args.voice,
                      _autonomous=autonomous_fact)
