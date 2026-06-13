@@ -1213,6 +1213,12 @@ SHARED_CORE = textwrap.dedent("""\
     - On `fact_verification_failed`: pick a completely different subject
       and call the posting tool once more. Do not reword the same story.
       If the second attempt also fails, call `skip`.
+    - On `list_format_failed`: the closing slide did not include an
+      explicit source citation. Retry run_carousel ONCE. In your brief,
+      add a line such as: 'CLOSING SLIDE FIX: closing.lines[0] must
+      start with Source: [exact source, e.g. UK mine inspectorate
+      records, confirmed death toll 1850-present].' Do not change the
+      subject or the list items. If the second attempt fails, call `skip`.
     - On any other failure: call `skip` immediately. Do not retry.
     - Do not use em dashes.
     - Do not use hashtags unless the pipeline adds them itself.
