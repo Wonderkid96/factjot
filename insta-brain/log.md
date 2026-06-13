@@ -1,5 +1,6 @@
 # factjot brain log
 
+- 2026-06-13 09:03 token refreshed: new expiry ~59 days
 - 2026-06-12 18:47 TTS FALLBACK to edge-tts: ElevenLabs failed (RuntimeError: ElevenLabs API error 401: quota_exceeded) - falling back to edge-tts
 - 2026-06-12 12:37 WORKFLOW FAILED: .github/workflows/autonomous-reel.yml | run=27415941195 | trigger=schedule | ref=main
 - 2026-06-12 12:35 token refreshed: new expiry ~59 days
