@@ -582,13 +582,17 @@ TOOLS = [
                     "type": "string",
                     "description": (
                         "Required. A single sentence starting with 'Send this to someone who'. "
-                        "Replaces the generic follow CTA in the caption. Must be specific to this "
-                        "post and slightly pointed — implying the recipient holds a naive belief, "
-                        "works in a relevant field, or would be specifically unsettled by this fact. "
-                        "GOOD: 'Send this to someone who still trusts official investigations.' "
-                        "GOOD: 'Send this to someone who thinks nothing like this gets buried.' "
-                        "GOOD: 'Send this to your mate who thinks they know everything about space.' "
-                        "BAD: 'Send this to someone who likes facts.' (too generic)"
+                        "Must be genuinely funny and dark -- almost too much. "
+                        "The joke should land by implying something absurd, embarrassing, or borderline "
+                        "about the implied recipient. Think: what gets screenshotted and sent between "
+                        "mates at 1am? "
+                        "GOOD: 'Send this to someone who isn\'t allowed within 5 miles of a primary school.' "
+                        "GOOD: 'Send this to your mate who has a framed photo of Churchill on his wall.' "
+                        "GOOD: 'Send this to the person in your family who does their own research.' "
+                        "GOOD: 'Send this to someone who has never once questioned what they were taught at school.' "
+                        "BAD: 'Send this to someone who thinks engineers test for everything.' (too safe, no edge) "
+                        "BAD: 'Send this to someone who likes facts.' (generic) "
+                        "One sentence. No full stop. Be creative. Push it."
                     ),
                 },
             },
@@ -1634,10 +1638,17 @@ REEL_PROMPT = textwrap.dedent("""\
        passed, why weaker candidates failed).
 
     7. Write the `share_hook`. Format: 'Send this to someone who [x].'
-       The [x] must be specific to this post. Aim for slightly pointed:
-       the implied recipient holds a naive belief, works in a field
-       embarrassed by this fact, or would be specifically unsettled.
-       One sentence. No full stop needed.
+       The [x] must be funny and dark -- almost too much. Think about
+       what would get screenshotted and sent between friends at 1am.
+       The implied recipient should be absurd, embarrassing, or
+       borderline in a way that is specific to this post.
+       Examples of the energy:
+       - 'Send this to someone who isn't allowed within 5 miles of a primary school.'
+       - 'Send this to your mate who has a framed photo of Churchill on his wall.'
+       - 'Send this to someone who has never once questioned what they were taught at school.'
+       - 'Send this to the person in your family who does their own research.'
+       These are examples of TONE, not templates. Make yours specific to the post.
+       One sentence. No full stop needed. Be creative. Push it.
 
     8. Call run_reel ONCE with script, title, topic, tone_override,
        hint, subject_key, and share_hook.
