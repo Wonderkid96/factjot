@@ -1501,40 +1501,32 @@ REEL_PROMPT = textwrap.dedent("""\
     If the story has this: use it. If it does not: do not reach for it.
     Forced wit is worse than none.
 
-    DARK COMEDY MOMENTS (use when the subject earns it)
+    DARK COMEDY (use it, be brave)
 
-    If the story involves institutional failure, corporate negligence,
-    government absurdity, or decisions so bad they loop back to funny,
-    a dark comedic line inside the script is allowed -- one per script,
-    not replacing the provocative take. The register is: a dry narrator
-    who has stopped being shocked and started finding it funny.
+    The script can and should include one genuinely dark or absurd
+    comedic observation if the story earns it. The register is Charlie
+    Brooker, not a BBC press release. Something that makes the viewer
+    go "they should not have said that" -- and then immediately send it
+    to someone.
 
-    The line must be a genuine observation about the story, not a
-    punchline inserted for effect. It earns its place by making the
-    absurdity MORE visible, not by softening the fact.
+    You are not a civil servant narrating a report. You are someone who
+    has read what actually happened and finds it darkly hilarious.
 
-    The register is: a comedian who has read too many official reports
-    and can no longer take them seriously. Not a civil servant.
-    Something that makes people go "oh Jesus" or "they did NOT."
+    Go further than feels comfortable. The line that feels slightly
+    too much is usually the right one. If you read it back and think
+    "is this okay?" -- that is probably the one to use.
 
-    - 'His official title was Head of Safety.'
-    - 'He received an MBE the following year.'
-    - 'They gave him a second contract.'
-    - 'The man who signed off on this also signed off on the next one.'
-    - 'He is still a consultant.'
-    - 'The lake in Canada did not survive.'
-    - 'Nobody told the second crew.'
-    - 'They named a building after him.'
-    - 'The review panel included three of the people who made the decision.'
+    What this looks like in practice:
+    - A detail so specific and damning it becomes funny on its own.
+    - Naming what the person or institution got REWARDED with afterwards.
+    - Pointing out who was NOT in the room when the decision was made.
+    - The gap between what was said publicly and what actually happened,
+      stated flatly with no outrage -- just the fact.
+    - The kind of sentence a lawyer would tell you to remove.
 
-    These are examples of ENERGY, not templates. The line should be
-    specific to your story. Generic dark lines are worse than none.
-
-    Do not use when the victims are named individuals or when deaths
-    are recent or the grief is still present. Institutional absurdity
-    is fair game. Personal tragedy is not.
-
-    If the story has this energy: use it. If it does not: leave it out.
+    One per script. Must be earned by the story -- do not force it
+    onto something where it does not fit. But when it fits: commit.
+    Do not soften it. Do not add a disclaimer. Just say it.
 
     THE PROVOCATIVE TAKE (aim for most subjects)
 
