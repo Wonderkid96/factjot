@@ -91,14 +91,18 @@ def _deterministic_fallback(
     claim: str,
     sources: list[str],
     topic: str,
+    reason: str = "",
 ) -> str:
     """Return a Shorts-shaped description without calling Haiku.
 
     Used whenever the Anthropic call cannot run or returns garbage.
     Shape mirrors the Haiku target: hook, sources, 5 hashtags ending in
     `#Shorts`. Keeps the YouTube upload path live even when Anthropic is
-    down.
+    down. `reason` is logged (grep 'FALLBACK reason=') so a quiet rise in
+    soft-falls is visible rather than silently shipping generic hashtags.
     """
+    if reason:
+        print(f"  [yt-desc] FALLBACK reason={reason}", flush=True)
     hook = (reel_title or "").strip().rstrip(".")
     body = _first_two_sentences(claim)
 
@@ -221,12 +225,12 @@ def build_shorts_description(
     sources = sources or []
     api_key = (api_key or os.getenv("ANTHROPIC_API_KEY", "")).strip()
     if not api_key:
-        return _deterministic_fallback(reel_title, claim, sources, topic)
+        return _deterministic_fallback(reel_title, claim, sources, topic, "api_key_missing")
 
     try:
         from anthropic import Anthropic
     except ImportError:
-        return _deterministic_fallback(reel_title, claim, sources, topic)
+        return _deterministic_fallback(reel_title, claim, sources, topic, "sdk_import_failed")
 
     prompt = _build_prompt(reel_title, claim, sources, topic)
 
@@ -240,7 +244,7 @@ def build_shorts_description(
         )
     except Exception as exc:
         print(f"  [yt-desc] Haiku error, soft-falling: {str(exc)[:80]}")
-        return _deterministic_fallback(reel_title, claim, sources, topic)
+        return _deterministic_fallback(reel_title, claim, sources, topic, "api_error")
 
     raw = ""
     try:
@@ -256,6 +260,6 @@ def build_shorts_description(
         )
 
     if not _has_minimum_shape(cleaned):
-        return _deterministic_fallback(reel_title, claim, sources, topic)
+        return _deterministic_fallback(reel_title, claim, sources, topic, "malformed_shape")
 
     return normalise(cleaned)

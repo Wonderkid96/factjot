@@ -67,13 +67,18 @@ def _strip_clickbait(text: str) -> tuple[str, list[str]]:
     return cleaned, hits
 
 
-def _truncated_fallback(reel_title: str) -> str:
+def _truncated_fallback(reel_title: str, reason: str = "") -> str:
     """Return the IG title trimmed to YouTube's 100-char cap.
 
     Used whenever Haiku cannot run. Mirrors the previous behaviour, so
     the upload never blocks just because the description/title pipeline
-    is degraded.
+    is degraded. `reason` is logged (grep 'FALLBACK reason=') so a quiet
+    rise in soft-falls is visible: it means Haiku is degrading and
+    YouTube is shipping bland, truncated metadata rather than a tuned
+    search title.
     """
+    if reason:
+        print(f"  [yt-title] FALLBACK reason={reason}", flush=True)
     text = (reel_title or "").strip()
     if not text:
         return ""
@@ -142,12 +147,12 @@ def build_shorts_title(
 
     api_key = (api_key or os.getenv("ANTHROPIC_API_KEY", "")).strip()
     if not api_key:
-        return _truncated_fallback(text)
+        return _truncated_fallback(text, "api_key_missing")
 
     try:
         from anthropic import Anthropic
     except ImportError:
-        return _truncated_fallback(text)
+        return _truncated_fallback(text, "sdk_import_failed")
 
     prompt = _build_prompt(text, claim or "")
 
@@ -161,7 +166,7 @@ def build_shorts_title(
         )
     except Exception as exc:
         print(f"  [yt-title] Haiku error, soft-falling: {str(exc)[:80]}")
-        return _truncated_fallback(text)
+        return _truncated_fallback(text, "api_error")
 
     raw = ""
     try:
@@ -179,13 +184,13 @@ def build_shorts_title(
         )
 
     if not cleaned:
-        return _truncated_fallback(text)
+        return _truncated_fallback(text, "clickbait_emptied")
 
     # Length sanity. If Haiku gave us something far too short (< 20 chars)
     # or far too long (> hard cap), prefer the deterministic fallback or
     # truncate respectively.
     if len(cleaned) < 20:
-        return _truncated_fallback(text)
+        return _truncated_fallback(text, "too_short")
     if len(cleaned) > _YT_TITLE_HARD_CAP:
         cleaned = cleaned[:_YT_TITLE_HARD_CAP].rstrip()
 
