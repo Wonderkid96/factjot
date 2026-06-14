@@ -1899,7 +1899,7 @@ def main(argv: list[str] | None = None) -> int:
         for turn in range(MAX_TURNS):
             response = client.messages.create(
                 model=MODEL,
-                max_tokens=4096,
+                max_tokens=8192,
                 system=SYSTEM,
                 tools=tools,
                 messages=messages,

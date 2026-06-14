@@ -94,34 +94,45 @@ def _content_words(text: str) -> set[str]:
 
 
 def _punchline(claim: str, title: str | None) -> str:
-    """Return the single most striking sentence from the claim, distinct
-    from the title.
+    """Return the single most striking sentence from the claim for the caption body.
 
-    If a title is set, skip the first sentence (used as hook already)
-    and return the next sentence that does NOT repeat the title's
-    content words. The IG caption first line is what shows before the
-    "more" cut, so a sentence that paraphrases the title wastes that
-    real estate. Falls back to the second sentence if no later sentence
-    is sufficiently distinct.
+    Prefers the last sentence -- the agent places the provocative take there
+    ("Nobody was charged.", "The company is still trading.") and it reads
+    far better in the caption than a mid-script expository sentence.
+
+    Falls back to the first sentence distinct from the title if the last
+    sentence is too short (<20 chars) or is just the hook re-stated.
     """
     sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", claim.strip()) if s.strip()]
-    if title and len(sentences) > 1:
-        title_words = _content_words(title)
+    if not sentences:
+        return ""
+
+    title_words = _content_words(title or "")
+
+    # Try the last sentence first (provocative take location).
+    last = sentences[-1]
+    last_words = _content_words(last)
+    overlap = (
+        len(title_words & last_words) / max(len(last_words), 1)
+        if title_words and last_words
+        else 0.0
+    )
+    if len(last) >= 20 and overlap < 0.5:
+        line = last
+    elif len(sentences) > 1:
+        # Fall back: first sentence distinct from the title.
         line = sentences[1]
         if title_words:
-            # Try sentences 1..N in order; pick the first whose content
-            # words are <50% overlap with the title.
             for cand in sentences[1:]:
                 cand_words = _content_words(cand)
                 if not cand_words:
                     continue
-                overlap = len(title_words & cand_words) / max(len(cand_words), 1)
-                if overlap < 0.5:
+                if len(title_words & cand_words) / max(len(cand_words), 1) < 0.5:
                     line = cand
                     break
     else:
         line = sentences[0]
-    # Trim to 160 chars
+
     if len(line) > 160:
         line = line[:157] + "..."
     return line
