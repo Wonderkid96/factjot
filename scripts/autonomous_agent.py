@@ -1513,12 +1513,22 @@ REEL_PROMPT = textwrap.dedent("""\
     punchline inserted for effect. It earns its place by making the
     absurdity MORE visible, not by softening the fact.
 
-    - 'They celebrated with a press release.'
-    - 'The committee met four more times and reached the same conclusion.'
-    - 'The follow-up study was never funded.'
-    - 'The minister described it as a learning experience.'
-    - 'This counted as a success.'
-    - 'The department responsible for overseeing this was also the department that approved it.'
+    The register is: a comedian who has read too many official reports
+    and can no longer take them seriously. Not a civil servant.
+    Something that makes people go "oh Jesus" or "they did NOT."
+
+    - 'His official title was Head of Safety.'
+    - 'He received an MBE the following year.'
+    - 'They gave him a second contract.'
+    - 'The man who signed off on this also signed off on the next one.'
+    - 'He is still a consultant.'
+    - 'The lake in Canada did not survive.'
+    - 'Nobody told the second crew.'
+    - 'They named a building after him.'
+    - 'The review panel included three of the people who made the decision.'
+
+    These are examples of ENERGY, not templates. The line should be
+    specific to your story. Generic dark lines are worse than none.
 
     Do not use when the victims are named individuals or when deaths
     are recent or the grief is still present. Institutional absurdity
