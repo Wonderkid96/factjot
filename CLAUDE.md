@@ -285,15 +285,15 @@ google.auth.exceptions.RefreshError: invalid_grant: Token has been expired or re
 
 **Client secret JSON (local machine — do not delete or move):**
 ```
-/Users/Music/Downloads/Credentials_SENSITIVE/client_secret_855280488489-1jf8ukp0fbq2tvomi3mqdscf60us8sks.apps.googleusercontent.com.json
+/Users/Music/Downloads/client_secret_85373199140-c9eiddkt48uilabk02b5agnfa4hefc9p.apps.googleusercontent.com.json
 ```
-This is the Google Cloud OAuth 2.0 desktop-app credential for the factjot YouTube uploader. If it disappears, regenerate from Google Cloud Console (factjot project → APIs and Services → Credentials) signed in as `thefactjot@gmail.com`.
+This is the Google Cloud OAuth 2.0 desktop-app credential for the factjot YouTube uploader. GCP project: `factjot-youtube`, owned by `thefactjot@gmail.com`. If it disappears, regenerate from Google Cloud Console (factjot-youtube project → APIs and Services → Credentials) signed in as `thefactjot@gmail.com`.
 
 **Auth re-run command (must use absolute paths — run from anywhere):**
 ```bash
 /Library/Frameworks/Python.framework/Versions/Current/bin/python3 \
   /Users/Music/Developer/Insta-bot/scripts/setup_youtube_auth.py \
-  "/Users/Music/Downloads/Credentials_SENSITIVE/client_secret_855280488489-1jf8ukp0fbq2tvomi3mqdscf60us8sks.apps.googleusercontent.com.json"
+  "/Users/Music/Downloads/client_secret_85373199140-c9eiddkt48uilabk02b5agnfa4hefc9p.apps.googleusercontent.com.json"
 ```
 The script opens a browser. Sign in as `thefactjot@gmail.com`. If shown "This app isn't verified", click Advanced → Go to factjot-uploader (unsafe) → Allow. The script prints three `gh secret set` commands — run all three.
 
