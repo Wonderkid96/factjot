@@ -16,11 +16,17 @@ from dataclasses import dataclass, asdict
 import requests
 
 from src.core.paths import POSTED, REEL_DISCOVERY_STAGING
+from src.research.interestingness_ranker import rerank_candidates
 
 USER_AGENT = "factjot-story-scout/1.0 (@factjot)"
 POSTED_LOG = POSTED
 STAGING_REEL = REEL_DISCOVERY_STAGING
 MAX_POST_BANK = 300
+
+# Plan 1: how many top heuristic candidates to re-rank by weird-bit density
+# before the per-topic diversity cap. Kept small so the single Haiku call is
+# cheap; large enough to let a buried-but-strong story climb into the shown set.
+RERANK_POOL_SIZE = 24
 
 REDDIT_SOURCES = (
     ("todayilearned", 12000),
@@ -654,6 +660,14 @@ def ranked_candidates_for_mode(mode: str, top_n: int = 12) -> list[dict]:
         pool = [c for c in cands if c.suggested_format == "list"]
     else:
         pool = [c for c in cands if c.suggested_format in ("reel", "list")]
+
+    # Plan 1: re-rank the strongest heuristic candidates by genuine weird-bit
+    # density before the diversity cap. The heuristic total_score rewards
+    # keyword and source signals, not how interesting the story actually is, so
+    # a bland-but-novel title can sit near the top. rerank_candidates fails open
+    # to this order, so a judge outage changes nothing.
+    head = rerank_candidates(pool[:RERANK_POOL_SIZE])
+    pool = head + pool[RERANK_POOL_SIZE:]
 
     # Cap per-topic at 3 out of top_n so a single topic can never flood the list.
     per_topic_cap = max(1, top_n // 4)

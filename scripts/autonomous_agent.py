@@ -43,6 +43,7 @@ from src.content.carousel_rules import (
     PHOTOGRAPHABLE_BEATS_RULES,
 )
 from src.content.reel_quality import validate_reel_copy
+from src.verification.weird_bit_gate import judge_weird_bit
 from src.research.story_scout import (
     ranked_candidates_for_mode,
     build_list_reel_possibilities,
@@ -781,6 +782,26 @@ def execute_tool(
                     f"REJECTED: {reason}. Rewrite the reel with a stronger "
                     "70-120 word script and a title that connects cleanly "
                     "to the opening subject or weird bit."
+                )
+
+            # Interestingness backstop (Plan 2). The structural gate above
+            # cannot tell a genuine weird bit from a well-formed but boring
+            # script. A cheap Haiku judge applies the SHARED_CORE QUALITY
+            # GATE so "nothing boring" is enforced in code, not only in the
+            # agent prompt. Fail-open: if the judge cannot run, the structural
+            # gate alone governs (see weird_bit_gate docstring).
+            wb_ok, wb_reason = judge_weird_bit(
+                args.get("script", ""),
+                args.get("title", ""),
+            )
+            if not wb_ok:
+                return (
+                    "FAILURE_KIND: reel_copy_quality_failed\n\n"
+                    f"REJECTED: {wb_reason} Lead the script with the actual "
+                    "weird bit (an absurd mechanism, a stupid decision, a "
+                    "strange consequence, or a true detail that sounds fake). "
+                    "If this subject has no such weird bit, pick a different "
+                    "subject and call run_reel again."
                 )
 
         # --- Hint quality gate (reels only) ---
