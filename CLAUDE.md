@@ -120,6 +120,8 @@ Full architecture, lifecycle stages, shared-module rules, ledger discipline, and
 
 **Env vars:** required keys in `.env.example`. The autonomous workflow pulls them from GitHub secrets at run time.
 
+**Feature toggles (optional, default on, fail-open):** two model-judged interestingness gates added 2026-06-14, both Haiku, both unset in GitHub secrets so they run by default. `STORY_RERANK=off` disables the candidate re-rank (`src/research/interestingness_ranker.py`, wired into `story_scout.ranked_candidates_for_mode`): it reorders the top heuristic story candidates by weird-bit density before the agent sees them. `WEIRD_BIT_GATE=off` disables the pre-publish backstop (`src/verification/weird_bit_gate.py`, wired into the `run_reel` handler): it rejects a structurally-valid but boring script via the existing `reel_copy_quality_failed` retry path. Both fail open: if Haiku cannot run, posting proceeds on the structural gate alone.
+
 **Concurrency:** the autonomous workflow uses `concurrency.group: factjot-publish` with `cancel-in-progress: false`. Overlapping triggers queue, they do not cancel.
 
 **FFmpeg fallback:** `src/core/ffmpeg_bin.py` auto-detects `ffmpeg-full` when default Homebrew ffmpeg breaks after libvpx upgrades. No manual `FFMPEG_BIN` needed.
