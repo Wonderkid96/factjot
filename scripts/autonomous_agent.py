@@ -1501,6 +1501,31 @@ REEL_PROMPT = textwrap.dedent("""\
     If the story has this: use it. If it does not: do not reach for it.
     Forced wit is worse than none.
 
+    DARK COMEDY MOMENTS (use when the subject earns it)
+
+    If the story involves institutional failure, corporate negligence,
+    government absurdity, or decisions so bad they loop back to funny,
+    a dark comedic line inside the script is allowed -- one per script,
+    not replacing the provocative take. The register is: a dry narrator
+    who has stopped being shocked and started finding it funny.
+
+    The line must be a genuine observation about the story, not a
+    punchline inserted for effect. It earns its place by making the
+    absurdity MORE visible, not by softening the fact.
+
+    - 'They celebrated with a press release.'
+    - 'The committee met four more times and reached the same conclusion.'
+    - 'The follow-up study was never funded.'
+    - 'The minister described it as a learning experience.'
+    - 'This counted as a success.'
+    - 'The department responsible for overseeing this was also the department that approved it.'
+
+    Do not use when the victims are named individuals or when deaths
+    are recent or the grief is still present. Institutional absurdity
+    is fair game. Personal tragedy is not.
+
+    If the story has this energy: use it. If it does not: leave it out.
+
     THE PROVOCATIVE TAKE (aim for most subjects)
 
     After the PAYOFF, one flat sentence naming what the story implies
