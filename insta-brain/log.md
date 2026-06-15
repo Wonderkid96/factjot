@@ -1,5 +1,6 @@
 # factjot brain log
 
+- 2026-06-15 10:06 token refreshed: new expiry ~60 days
 - 2026-06-14 12:15 token refreshed: new expiry ~59 days
 - 2026-06-14 12:13 WARNING: YouTube upload FAILED (HttpError): <HttpError 403 when requesting None returned "YouTube Data API v3 has not been used in project 855280488489 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/youtube.googleapis.com/overview?project=855280488489 then retry. If you enabled this API recently
 - 2026-06-14 12:13 reel b8939ce4a8b3cb published (science, ig_media=17859783252643644)
