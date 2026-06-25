@@ -1,5 +1,6 @@
 # factjot brain log
 
+- 2026-06-25 09:04 token refreshed: new expiry ~59 days
 - 2026-06-24 12:16 token refreshed: new expiry ~59 days
 - 2026-06-24 09:14 reel 74cb8aacc82e05 published (history, ig_media=17944840329229549)
 - 2026-06-24 09:05 token refreshed: new expiry ~60 days
