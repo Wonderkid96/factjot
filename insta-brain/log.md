@@ -1,5 +1,7 @@
 # factjot brain log
 
+- 2026-08-03 13:57 WORKFLOW FAILED: .github/workflows/autonomous-reel.yml | run=30820279135 | trigger=schedule | ref=main
+- 2026-08-03 13:57 token refreshed: new expiry ~59 days
 - 2026-08-03 11:15 WORKFLOW FAILED: .github/workflows/autonomous-reel.yml | run=30808704278 | trigger=schedule | ref=main
 - 2026-08-03 11:15 token refreshed: new expiry ~60 days
 - 2026-08-02 12:33 WORKFLOW FAILED: .github/workflows/autonomous-reel.yml | run=30748024427 | trigger=schedule | ref=main
