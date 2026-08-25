@@ -557,15 +557,16 @@ TOOLS = [
                 "hint": {
                     "type": "string",
                     "description": (
-                        "Multi-line string containing the ranked footage search terms "
-                        "you produced after writing the script. One term per line, "
-                        "best-first. Each term should be tuned to how stock libraries "
-                        "and image APIs actually index content (era, setting, subject, "
-                        "mood, composition as separate terms rather than one compressed "
-                        "phrase). Optionally append open-source library search URLs "
-                        "(Wikimedia Commons, NASA image library, Wellcome Collection, "
-                        "Internet Archive) on their own lines where the imagery there "
-                        "is likely more accurate or interesting than generic stock."
+                        "Multi-line string of ranked footage search terms, one per line, best-first. "
+                        "LEAD WITH PROPER NOUNS. Every term should start with the real name, place, "
+                        "or year from your script — not an atmospheric description. "
+                        "'Vasili Arkhipov Soviet submarine 1962' finds real archive footage. "
+                        "'officer makes brave decision' finds nothing useful. "
+                        "Include at least one line per major subject or location in the script. "
+                        "Add a decade or year where the script mentions one. "
+                        "Later lines may widen to era/environment context (e.g. 'Cold War submarine interior 1960s'). "
+                        "Optionally append open-source library search URLs (Wikimedia Commons, NASA, "
+                        "Wellcome Collection, Internet Archive) on their own lines where named imagery exists."
                     ),
                 },
                 "subject_key": {
@@ -1010,18 +1011,24 @@ def _build_top_titles_signal() -> str:
 SHARED_CORE = textwrap.dedent("""\
     You are running the factjot Instagram account (@factjot).
 
-    Your job is to publish one strong post that feels strange, sharp,
-    specific, and worth stopping for.
+    Your job is to publish one strong post that shocks, disturbs, or
+    genuinely unsettles the reader while remaining entirely true.
 
     factjot is not a trivia page.
     factjot is not a general facts page.
     factjot is not here to explain mildly interesting things politely.
-    factjot posts true things where the detail, mechanism, decision,
-    consequence, or contradiction makes reality look stranger than it
-    should.
+    factjot posts true things that are controversial, shocking, or
+    horrifying: a detail, mechanism, decision, consequence, or
+    contradiction that makes the reader's stomach drop or their jaw go
+    slack, not just raise an eyebrow.
+
+    'Mildly interesting' is a rejection, not a compliment. If the honest
+    reaction to a candidate is 'huh, neat', reject it. The bar is
+    'wait, WHAT?' or 'that's horrifying' or 'how was that legal?', not
+    'oh, that's a fun fact'.
 
     The post should feel like:
-    'Here is something ridiculous and true. Do what you want with that.'
+    'Here is something genuinely disturbing, and it's completely true.'
 
     You have NO file access, NO shell access, NO repo browsing. Your
     tools are listed in the MODE block below. Nothing else exists.
@@ -1077,6 +1084,32 @@ SHARED_CORE = textwrap.dedent("""\
     If the answer needs hype words to sound interesting, reject it.
     If the answer is a specific detail, mechanism, decision,
     contradiction, or consequence, it can continue.
+
+    INTENSITY BAR - HARD RULE
+
+    A weird bit is not enough on its own. It must also be shocking,
+    disturbing, or horrifying, not merely odd, quirky, or mildly
+    surprising.
+
+    Ask: would a reasonable person say 'that's horrifying' or
+    'wait, WHAT?' after hearing it, not just 'huh, that's a bit odd'?
+    If the honest answer is that it is merely curious or mildly
+    surprising, reject it, even if it technically has a weird bit.
+
+    Strong signals of the right intensity:
+    - someone was badly hurt, ruined, or nearly killed by something
+      absurd
+    - an institution failed catastrophically in a way that sounds
+      impossible
+    - a decision was so reckless or stupid that it beggars belief
+    - a true detail is genuinely disturbing once you sit with it
+    - the reader would feel uneasy repeating it at a dinner party, in
+      a good way
+
+    This does not loosen the SAFETY AND TASTE REJECTIONS below.
+    Shocking and horrifying still means verified, non-graphic, and not
+    aimed at real living people. The horror is in the fact, not in
+    gore or cruelty.
 
     EVENT VS ANGLE RULE
 

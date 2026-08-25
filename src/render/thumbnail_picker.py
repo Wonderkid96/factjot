@@ -5,10 +5,17 @@ ask Haiku 4.5 vision to score each on stop-scroll-strength, return the
 strongest. The chosen frame becomes the IG cover frame AND the YouTube
 custom thumbnail (one asset, two surfaces, per Q6 decision).
 
+Scores via the local `claude` CLI (`src.core.claude_cli.call_claude_cli_with_image`)
+-- not the Anthropic API, no ANTHROPIC_API_KEY involved. The CLI has no raw
+image-attachment flag outside `--bare`, so the call grants the CLI's own
+`Read` tool instead; see that module's docstring for why and for the
+before/after cost trade-off.
+
 Soft-fail policy (consistent with `entity_image_validator`):
 
 - Missing api_key: return footage_clips[0] first frame, reason="api_key_missing".
-- Anthropic call raises: return best-extracted candidate, reason="api_error:<short>".
+- CLI call fails (missing binary, timeout, error): return best-extracted
+  candidate, reason="api_error:<short>".
 - Response cannot be parsed: skip that candidate's score, average the rest.
 - FFmpeg cannot extract any frame: raise (caller retries or aborts).
 
@@ -18,16 +25,16 @@ cleaned up by the caller (we leave it on disk for debug).
 """
 from __future__ import annotations
 
-import base64
 import json
 import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
+from src.core.claude_cli import call_claude_cli_with_image
 
-_HAIKU_MODEL = "claude-haiku-4-5-20251001"
+_MODEL = "haiku"
+_IMAGE_CALL_TIMEOUT_S = 90
 
 
 class ThumbnailUnavailable(RuntimeError):
@@ -44,8 +51,6 @@ class ThumbnailUnavailable(RuntimeError):
     - The soft-fall fallback fails to extract even a single first frame
       from `footage_clips[0]`.
     """
-_PRICING_IN_PER_M = 1.00   # Haiku 4.5: $1 / 1M input tokens
-_PRICING_OUT_PER_M = 5.00  # Haiku 4.5: $5 / 1M output tokens
 
 # Frame extraction config
 _STILL_EXTS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
@@ -189,11 +194,12 @@ def _extract_frame(
     return False
 
 
-def _build_score_prompt(claim: str, reel_title: str) -> str:
-    """Strict-JSON prompt asking Haiku to score one candidate frame."""
+def _build_score_prompt(claim: str, reel_title: str, frame_path: Path) -> str:
+    """Strict-JSON prompt asking Haiku to Read and score one candidate frame."""
     claim_clean = (claim or "").strip()
     title_clean = (reel_title or "").strip()
     return (
+        f"Read the image at {frame_path}.\n\n"
         "You are scoring an Instagram Reels / YouTube Shorts thumbnail "
         "candidate on stop-scroll strength.\n\n"
         f"Reel topic claim: \"{claim_clean}\"\n"
@@ -220,6 +226,17 @@ def _build_score_prompt(claim: str, reel_title: str) -> str:
     )
 
 
+_SCORE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "score": {"type": "integer", "description": "1-10 stop-scroll strength"},
+        "reason": {"type": "string", "description": "short explanation, max 12 words"},
+    },
+    "required": ["score", "reason"],
+    "additionalProperties": False,
+}
+
+
 def _parse_score_response(raw_text: str) -> tuple[int | None, str]:
     """Extract (score, reason) from a Haiku response. None on failure."""
     if not raw_text:
@@ -241,42 +258,20 @@ def _parse_score_response(raw_text: str) -> tuple[int | None, str]:
     return score_i, reason or "scored"
 
 
-def _compute_cost(usage: Any) -> float:
-    """Compute Haiku 4.5 cost in USD for one response. 0.0 on missing usage."""
-    try:
-        cost = (
-            usage.input_tokens / 1_000_000 * _PRICING_IN_PER_M
-            + usage.output_tokens / 1_000_000 * _PRICING_OUT_PER_M
-        )
-    except (AttributeError, TypeError):
-        return 0.0
-    return round(float(cost), 6)
-
-
-def _detect_media_type(data: bytes) -> str:
-    """Return Anthropic-compatible media_type for the given image bytes."""
-    if not data:
-        return "image/png"
-    if data.startswith(b"\xff\xd8\xff"):
-        return "image/jpeg"
-    if data.startswith(b"\x89PNG\r\n\x1a\n"):
-        return "image/png"
-    if data.startswith(b"GIF8"):
-        return "image/gif"
-    if data.startswith(b"RIFF") and len(data) >= 12 and data[8:12] == b"WEBP":
-        return "image/webp"
-    return "image/png"
-
-
 def _score_candidate(
     frame_path: Path,
     claim: str,
     reel_title: str,
     api_key: str,
 ) -> dict:
-    """Ask Haiku to score one candidate frame. Returns dict with score/reason/cost.
+    """Ask the local claude CLI (vision via Read) to score one candidate frame.
 
-    On any infra failure (no SDK, no key, network error) returns
+    ``api_key`` is now a legacy on/off toggle only, kept so existing callers
+    (and their tests) that gate on ``ANTHROPIC_API_KEY`` presence keep
+    working unchanged -- the actual call no longer needs a key. Returns dict
+    with score/reason/cost.
+
+    On any infra failure (CLI missing, CLI error, malformed output) returns
     {"score": None, "reason": "<short>", "cost_usd": 0.0}. The caller
     treats score=None as "could not score" and falls back per its own
     policy.
@@ -291,48 +286,23 @@ def _score_candidate(
     if len(img_bytes) < 64:
         return {"score": None, "reason": "frame_too_small", "cost_usd": 0.0}
 
-    media_type = _detect_media_type(img_bytes)
-    b64 = base64.standard_b64encode(img_bytes).decode("ascii")
+    prompt = _build_score_prompt(claim, reel_title, frame_path)
+    envelope = call_claude_cli_with_image(
+        image_path=frame_path,
+        prompt=prompt,
+        model=_MODEL,
+        json_schema=_SCORE_SCHEMA,
+        timeout=_IMAGE_CALL_TIMEOUT_S,
+    )
+    if envelope is None:
+        return {"score": None, "reason": "api_error:cli_unavailable_or_failed", "cost_usd": 0.0}
 
-    try:
-        from anthropic import Anthropic
-    except ImportError:
-        return {"score": None, "reason": "anthropic_sdk_missing", "cost_usd": 0.0}
+    cost = float(envelope.get("total_cost_usd") or 0.0)
+    data = envelope.get("structured_output")
+    if not isinstance(data, dict):
+        return {"score": None, "reason": "parse_failed:no_structured_output", "cost_usd": cost}
 
-    prompt = _build_score_prompt(claim, reel_title)
-
-    try:
-        client = Anthropic(api_key=api_key)
-        res = client.messages.create(
-            model=_HAIKU_MODEL,
-            max_tokens=120,
-            temperature=0.0,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": b64,
-                        },
-                    },
-                    {"type": "text", "text": prompt},
-                ],
-            }],
-        )
-    except Exception as exc:
-        return {"score": None, "reason": f"api_error:{str(exc)[:80]}", "cost_usd": 0.0}
-
-    cost = _compute_cost(getattr(res, "usage", None))
-    raw_text = ""
-    try:
-        raw_text = res.content[0].text or ""
-    except (AttributeError, IndexError):
-        raw_text = ""
-
-    score, reason = _parse_score_response(raw_text)
+    score, reason = _parse_score_response(json.dumps(data))
     if score is None:
         return {"score": None, "reason": f"parse_failed:{reason}", "cost_usd": cost}
     return {"score": score, "reason": reason, "cost_usd": cost}

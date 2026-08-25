@@ -74,7 +74,7 @@
     "heading_pattern":            "Word Italic.",
     "italic_accent_rule":         "whole word only, never mid-word",
     "accent_period":              "trailing dot in #E6352A on key words",
-    "section_counter_format":     "Label (plain uppercase word, no brackets or slashes)",
+    "section_counter_format":     "[ 01 / Label ] (square brackets required)",
     "tracking_display_em":        -0.035,
     "tracking_label_em":          0.20,
     "tracking_archivo_black_em": [-0.015, -0.005],

@@ -21,22 +21,21 @@ in both a war-films list and a Coppola list is fine). Themes
 themselves are deduplicated against `used_list_themes.jsonl` for the
 last N entries so the model does not propose a near-duplicate of a
 recent theme.
+
+Calls the local `claude` CLI (Sonnet, via `src.core.claude_cli`) -- not
+the Anthropic API.
 """
 from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
 from typing import Any
 
+from src.core.claude_cli import call_claude_cli
 from src.research.tmdb_client import TMDBClient
 
-# Sonnet 4.6 - same model the autonomous agent uses. The list-theme
-# generation budget is tiny (~600 tokens out per pack) so cost is low.
-_MODEL = "claude-sonnet-4-6"
-_MAX_TOKENS = 1500
-_TEMPERATURE = 0.85
+_MODEL = "sonnet"
 _ITEM_TARGET = 5         # default item count
 _ITEM_MIN_AFTER_RESOLVE = 4  # drop pack if fewer than this resolve on TMDB
 _THEME_HISTORY_LIMIT = 20
@@ -146,36 +145,18 @@ def _parse_payload(raw: str) -> dict[str, Any]:
 
 
 def _generate_payload(
-    api_key: str,
     recent_themes: list[str],
     allowed_categories: list[str],
 ) -> tuple[dict[str, Any], float]:
-    """Call Sonnet once and return (parsed_payload, cost_usd)."""
-    from anthropic import Anthropic
-
-    client = Anthropic(api_key=api_key)
+    """Call the model once and return (parsed_payload, cost_usd)."""
     prompt = _build_prompt(recent_themes, allowed_categories)
-    res = client.messages.create(
-        model=_MODEL,
-        max_tokens=_MAX_TOKENS,
-        temperature=_TEMPERATURE,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    raw_text = ""
-    try:
-        raw_text = res.content[0].text or ""
-    except (AttributeError, IndexError):
-        raw_text = ""
-    payload = _parse_payload(raw_text)
+    envelope = call_claude_cli(prompt, model=_MODEL)
+    if envelope is None:
+        raise DynamicPackError("claude CLI unavailable")
 
-    # Sonnet 4.6 pricing: $3 in / $15 out per 1M tokens.
-    try:
-        cost = (
-            res.usage.input_tokens / 1_000_000 * 3.00
-            + res.usage.output_tokens / 1_000_000 * 15.00
-        )
-    except AttributeError:
-        cost = 0.0
+    raw_text = envelope.get("result") or ""
+    payload = _parse_payload(raw_text)
+    cost = float(envelope.get("total_cost_usd") or 0.0)
     return payload, cost
 
 
@@ -229,7 +210,6 @@ class DynamicPackError(RuntimeError):
 def generate_dynamic_pack(
     *,
     recent_themes: list[str] | None = None,
-    api_key: str | None = None,
 ) -> dict[str, Any]:
     """Generate one dynamic list pack ready for pack_resolver.
 
@@ -237,14 +217,10 @@ def generate_dynamic_pack(
     straight into ship_curated_list. Raises DynamicPackError on
     unrecoverable failure.
     """
-    api_key = (api_key or os.getenv("ANTHROPIC_API_KEY", "")).strip()
-    if not api_key:
-        raise DynamicPackError("ANTHROPIC_API_KEY missing")
-
     recent_themes = (recent_themes or [])[-_THEME_HISTORY_LIMIT:]
     allowed_categories = ["FILM LIST", "TV LIST", "HORROR LIST", "WORLD CINEMA"]
 
-    payload, cost = _generate_payload(api_key, recent_themes, allowed_categories)
+    payload, cost = _generate_payload(recent_themes, allowed_categories)
     print(
         f"  [dynamic-pack] generated theme={payload.get('title')!r} "
         f"cost=${cost:.4f}",

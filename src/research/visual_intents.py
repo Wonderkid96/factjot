@@ -1,19 +1,24 @@
 """Generate visually grounded stock footage search queries per script sentence.
 
-One Claude Haiku call per reel splits the reel script into sentences and
-generates 3-4 footage search queries per sentence. Queries describe what
-footage would visually illustrate that specific line of the script --
-not abstract beat labels.
+One local `claude` CLI call per reel (Haiku, via `src.core.claude_cli` --
+not the Anthropic API, no ANTHROPIC_API_KEY involved; see that module's
+docstring for why) splits the reel script into sentences and generates 3-4
+footage search queries per sentence. Queries describe what footage would
+visually illustrate that specific line of the script -- not abstract beat
+labels.
 
-Falls back to regex expansion from narrative_beats when Claude is unavailable.
+Falls back to regex expansion from narrative_beats when the CLI is
+unavailable or fails. That fallback has no proper-noun anchoring, so a run
+on the fallback path is materially more likely to match generic or
+irrelevant stock footage -- this is not just a degraded-quality nicety.
 """
 from __future__ import annotations
 
-import json
-import os
 import re
 
-_ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001").strip()
+from src.core.claude_cli import call_claude_cli
+
+_MODEL = "haiku"
 
 
 _SYSTEM_PROMPT = """Create stock footage search queries for a short documentary reel.
@@ -28,23 +33,42 @@ Task:
 
 Rules:
 1. Keep queries visual and concrete (subject, action, place).
-2. Include the real subject or its true environment.
-3. No abstract words (no "mystery", "destiny", "symbolic", etc).
-4. 4-8 words per query.
-5. If exact footage is rare, use the closest correct alternative, never random B-roll.
-6. Early sentences should be subject-first, later ones can widen to context.
+2. ALWAYS lead with the real proper noun — name, location, year — from the script sentence. A query with "Vasili Arkhipov 1962 submarine" will find better footage than "officer on submarine Cold War". Named entities are indexed by Wikimedia, NASA, and Archive.org; generic descriptions only match shallow stock libraries.
+3. No abstract words (no "mystery", "destiny", "symbolic", "haunting", etc).
+4. 4-8 words per query, proper noun first where possible.
+5. If exact subject footage is unavailable, name the closest real alternative (specific ship class, specific location, specific era). Never fall back to generic B-roll.
+6. First query per sentence = most specific (proper noun + action/place). Later queries in same sentence can widen to context (era, environment, related subject).
+7. Include a year or decade when the script mentions one — it helps archive searches.
 
-Output format:
-- Return JSON only.
-- Keys must be "0", "1", "2", ... (sentence index).
-- Values must be arrays of query strings.
+Return one entry per script sentence, in order, each carrying its sentence
+index and its list of queries.
 
-Example:
-{
-  "0": ["snailfish deep ocean floor footage", "deep sea fish trench dark water"],
-  "1": ["underwater pressure deep sea environment", "deep ocean abyss fish habitat"],
-  "2": ["marine biology fish close up", "deep sea life low light footage"]
-}"""
+Example (reel about the Mariana Trench snailfish):
+sentences: [
+  {"index": 0, "queries": ["Mariana Trench snailfish Challenger Deep 2023", "hadal snailfish deep ocean floor footage"]},
+  {"index": 1, "queries": ["Challenger Deep 11000 metres pressure zone", "Mariana Trench expedition underwater camera"]},
+  {"index": 2, "queries": ["snailfish shoal deepest fish ever filmed", "deep sea fish close up low light footage"]}
+]"""
+
+_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "sentences": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "index": {"type": "integer"},
+                    "queries": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["index", "queries"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["sentences"],
+    "additionalProperties": False,
+}
 
 
 def generate_all_beat_queries(
@@ -56,18 +80,18 @@ def generate_all_beat_queries(
     """Generate footage search queries driven by the reel script sentences.
 
     Returns list[list[str]] -- one list of queries per sentence (up to 8).
-    Falls back to regex queries silently if Claude unavailable or fails.
+    Falls back to regex queries silently if the local CLI is unavailable or
+    fails.
     """
-    api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
-    if api_key and reel_script:
+    if reel_script:
         try:
-            result = _claude_queries(api_key, claim, topic, image_hint, reel_script)
+            result = _claude_queries(claim, topic, image_hint, reel_script)
             if result and len(result) >= 3:
                 total = sum(len(q) for q in result)
-                print(f"  [intents] Claude: {len(result)} sentence slots, {total} queries")
+                print(f"  [intents] claude-cli: {len(result)} sentence slots, {total} queries")
                 return result
         except Exception as exc:
-            print(f"  [intents] Claude failed ({exc}), using regex fallback")
+            print(f"  [intents] claude-cli failed ({exc}), using regex fallback")
 
     return _regex_fallback(claim, topic, image_hint)
 
@@ -81,14 +105,11 @@ def _split_sentences(script: str, max_sentences: int = 8) -> list[str]:
 
 
 def _claude_queries(
-    api_key: str,
     claim: str,
     topic: str,
     image_hint: str,
     reel_script: str,
 ) -> list[list[str]]:
-    import anthropic
-
     sentences = _split_sentences(reel_script, max_sentences=8)
     if not sentences:
         return []
@@ -99,32 +120,27 @@ def _claude_queries(
         f"Subject hint: {image_hint}\n\n"
         f"Script sentences:\n{numbered}"
     )
+    prompt = f"{_SYSTEM_PROMPT}\n\n{user_content}"
 
-    client = anthropic.Anthropic(api_key=api_key)
-    resp = client.messages.create(
-        model=_ANTHROPIC_MODEL,
-        max_tokens=900,
-        system=_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_content}],
-    )
-    raw = resp.content[0].text.strip()
+    envelope = call_claude_cli(prompt, model=_MODEL, json_schema=_SCHEMA, timeout=60)
+    if envelope is None:
+        return []
 
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    raw = raw.strip()
+    data = envelope.get("structured_output")
+    if not isinstance(data, dict):
+        return []
 
-    data = json.loads(raw)
-    result: list[list[str]] = []
-    for i in range(len(sentences)):
-        queries = data.get(str(i), [])
-        if isinstance(queries, list):
-            clean = [str(q).strip() for q in queries if str(q).strip()][:6]
-            result.append(clean)
-        else:
-            result.append([])
-    return result
+    by_index: dict[int, list[str]] = {}
+    for entry in data.get("sentences", []):
+        if not isinstance(entry, dict):
+            continue
+        idx = entry.get("index")
+        queries = entry.get("queries")
+        if not isinstance(idx, int) or not isinstance(queries, list):
+            continue
+        by_index[idx] = [str(q).strip() for q in queries if str(q).strip()][:6]
+
+    return [by_index.get(i, []) for i in range(len(sentences))]
 
 
 def _regex_fallback(claim: str, topic: str, image_hint: str) -> list[list[str]]:

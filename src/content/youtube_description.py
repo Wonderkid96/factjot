@@ -20,25 +20,22 @@ no em-dashes, British English, no clickbait shapes ("you won't believe",
 explicitly bans those shapes; a regex post-check strips obvious
 leftovers and warns.
 
-Soft-fall ladder (every infra issue is non-fatal -- worst case YouTube
-gets a deterministic description rather than failing the upload):
-
-    api_key empty                         -> deterministic fallback
-    Anthropic SDK import failure          -> deterministic fallback
-    Anthropic API exception               -> deterministic fallback
-    Haiku returned only banned phrases    -> deterministic fallback
+Calls the local `claude` CLI (Sonnet, via `src.core.claude_cli`) -- not
+the Anthropic API. Soft-fall ladder (every infra issue is non-fatal --
+worst case YouTube gets a deterministic description rather than failing
+the upload): any failure inside `call_claude_cli` (CLI missing, error,
+timeout, malformed output) -> deterministic fallback. Model returned
+only banned phrases or lost its required shape -> deterministic fallback.
 """
 from __future__ import annotations
 
-import os
 import re
 
 from src.content.voice_normaliser import normalise
+from src.core.claude_cli import call_claude_cli
 
 
-_HAIKU_MODEL = "claude-haiku-4-5-20251001"
-_MAX_TOKENS = 500
-_TEMPERATURE = 0.4
+_MODEL = "sonnet"
 
 # Clickbait shapes that the prompt bans. Post-check stripper logs a
 # warning but does not crash; the soft-fall covers the case when the
@@ -58,7 +55,7 @@ _CLICKBAIT_PATTERNS: tuple[re.Pattern[str], ...] = (
 def _strip_clickbait(text: str) -> tuple[str, list[str]]:
     """Remove clickbait phrases, return (cleaned, hits).
 
-    Hits are returned so the caller can log a warning that Haiku ignored
+    Hits are returned so the caller can log a warning that the model ignored
     the rule. The fallback path activates when the cleaned text loses
     its required structure (no hashtags, etc.).
     """
@@ -93,13 +90,14 @@ def _deterministic_fallback(
     topic: str,
     reason: str = "",
 ) -> str:
-    """Return a Shorts-shaped description without calling Haiku.
+    """Return a Shorts-shaped description without calling the CLI.
 
-    Used whenever the Anthropic call cannot run or returns garbage.
-    Shape mirrors the Haiku target: hook, sources, 5 hashtags ending in
-    `#Shorts`. Keeps the YouTube upload path live even when Anthropic is
-    down. `reason` is logged (grep 'FALLBACK reason=') so a quiet rise in
-    soft-falls is visible rather than silently shipping generic hashtags.
+    Used whenever the model call cannot run or returns garbage. Shape
+    mirrors the model target: hook, sources, 5 hashtags ending in
+    `#Shorts`. Keeps the YouTube upload path live even when the local
+    CLI is unavailable. `reason` is logged (grep 'FALLBACK reason=') so a
+    quiet rise in soft-falls is visible rather than silently shipping
+    generic hashtags.
     """
     if reason:
         print(f"  [yt-desc] FALLBACK reason={reason}", flush=True)
@@ -138,7 +136,7 @@ def _deterministic_fallback(
 def _has_minimum_shape(text: str) -> bool:
     """True if `text` looks like a Shorts description (some hashtags, ends with #Shorts).
 
-    Used as a sanity gate after Haiku returns: if the response has no
+    Used as a sanity gate after the model returns: if the response has no
     hashtags or doesn't include `#Shorts`, treat it as malformed and
     fall back. This guards against models that ignore the format spec.
     """
@@ -156,7 +154,7 @@ def _build_prompt(
     sources: list[str],
     topic: str,
 ) -> str:
-    """Compose the description-writer prompt sent to Haiku."""
+    """Compose the description-writer prompt sent to the model."""
     sources_block = "\n".join(
         f"- {u}" for u in (sources or [])[:3] if u and isinstance(u, str)
     ) or "(no sources provided)"
@@ -197,7 +195,6 @@ def build_shorts_description(
     claim: str,
     sources: list[str] | None,
     topic: str,
-    api_key: str = "",
 ) -> str:
     """Return a Shorts-shaped description for the YouTube upload.
 
@@ -212,9 +209,6 @@ def build_shorts_description(
     topic
         Topic slug ('history', 'space', 'ocean', etc.) used in the
         deterministic fallback hashtag set.
-    api_key
-        Anthropic API key. Empty string falls through to the
-        deterministic fallback.
 
     Returns
     -------
@@ -223,39 +217,18 @@ def build_shorts_description(
         field. Always non-empty when the inputs are non-empty.
     """
     sources = sources or []
-    api_key = (api_key or os.getenv("ANTHROPIC_API_KEY", "")).strip()
-    if not api_key:
-        return _deterministic_fallback(reel_title, claim, sources, topic, "api_key_missing")
-
-    try:
-        from anthropic import Anthropic
-    except ImportError:
-        return _deterministic_fallback(reel_title, claim, sources, topic, "sdk_import_failed")
-
     prompt = _build_prompt(reel_title, claim, sources, topic)
 
-    try:
-        client = Anthropic(api_key=api_key)
-        res = client.messages.create(
-            model=_HAIKU_MODEL,
-            max_tokens=_MAX_TOKENS,
-            temperature=_TEMPERATURE,
-            messages=[{"role": "user", "content": prompt}],
-        )
-    except Exception as exc:
-        print(f"  [yt-desc] Haiku error, soft-falling: {str(exc)[:80]}")
-        return _deterministic_fallback(reel_title, claim, sources, topic, "api_error")
+    envelope = call_claude_cli(prompt, model=_MODEL)
+    if envelope is None:
+        return _deterministic_fallback(reel_title, claim, sources, topic, "cli_unavailable")
 
-    raw = ""
-    try:
-        raw = (res.content[0].text or "").strip()
-    except (AttributeError, IndexError):
-        raw = ""
+    raw = (envelope.get("result") or "").strip()
 
     cleaned, hits = _strip_clickbait(raw)
     if hits:
         print(
-            f"  [yt-desc] WARNING: Haiku returned banned clickbait phrase(s): "
+            f"  [yt-desc] WARNING: model returned banned clickbait phrase(s): "
             f"{hits}; stripped and continuing"
         )
 

@@ -16,7 +16,6 @@ explicitly negates a number).
 """
 from __future__ import annotations
 
-import json
 from unittest.mock import MagicMock
 
 from src.verification.fact_checker import (
@@ -25,18 +24,20 @@ from src.verification.fact_checker import (
 )
 
 
-def _mock_haiku_response(payload: dict, *, in_tokens: int = 80, out_tokens: int = 30):
-    """Build a fake Anthropic SDK messages.create response carrying JSON.
+def _mock_envelope(payload: dict, *, cost_usd: float = 0.002) -> dict:
+    """Fake `call_claude_cli` envelope carrying a consistency-check payload."""
+    return {"structured_output": payload, "total_cost_usd": cost_usd}
 
-    The consistency parser tolerates bare or fenced JSON; tests use bare
-    one-line shape to mirror the deterministic temperature=0 behaviour.
-    """
-    res = MagicMock()
-    res.content = [MagicMock()]
-    res.content[0].text = json.dumps(payload)
-    res.usage.input_tokens = in_tokens
-    res.usage.output_tokens = out_tokens
-    return res
+
+def _patch_call_claude_cli(monkeypatch, *, return_value=None, side_effect=None):
+    """Patch the consistency call and return the mock so tests can assert on it."""
+    mock = MagicMock()
+    if side_effect is not None:
+        mock.side_effect = side_effect
+    else:
+        mock.return_value = return_value
+    monkeypatch.setattr("src.core.claude_cli.call_claude_cli", mock)
+    return mock
 
 
 # ---------------------------------------------------------------------- #
@@ -45,16 +46,11 @@ def _mock_haiku_response(payload: dict, *, in_tokens: int = 80, out_tokens: int 
 
 
 def test_consistency_passes_on_clean_brief(monkeypatch):
-    """Title and claim agree, no red-flag words. Haiku returns consistent."""
-    fake_client = MagicMock()
-    fake_client.messages.create.return_value = _mock_haiku_response({
+    """Title and claim agree, no red-flag words. The model returns consistent."""
+    _patch_call_claude_cli(monkeypatch, return_value=_mock_envelope({
         "consistent": True,
         "reason": "consistent",
-    })
-    monkeypatch.setattr(
-        "anthropic.Anthropic",
-        lambda api_key: fake_client,
-    )
+    }))
 
     result = verify_consistency(
         {
@@ -81,18 +77,13 @@ def test_consistency_rejects_title_contradicting_claim(monkeypatch):
     `Britain never rationed bread during World War 2`. The consistency
     check rejects.
     """
-    fake_client = MagicMock()
-    fake_client.messages.create.return_value = _mock_haiku_response({
+    _patch_call_claude_cli(monkeypatch, return_value=_mock_envelope({
         "consistent": False,
         "reason": (
             "title says Britain rationed bread; claim says "
             "Britain never rationed bread"
         ),
-    })
-    monkeypatch.setattr(
-        "anthropic.Anthropic",
-        lambda api_key: fake_client,
-    )
+    }))
 
     result = verify_consistency(
         {
@@ -112,15 +103,13 @@ def test_consistency_rejects_title_contradicting_claim(monkeypatch):
 def test_consistency_rejects_brief_with_fictional_word(monkeypatch):
     """Real production failure: 'Five fictional films ranked by pipeline absurdity'.
 
-    The local red-flag scan catches this BEFORE the Haiku call, so the
-    mock client should never be hit. We assert that the function returns
+    The local red-flag scan catches this BEFORE the model call, so the
+    mock should never be hit. We assert that the function returns
     ok=False and the reason identifies the offending word.
     """
-    fake_client = MagicMock()
-    monkeypatch.setattr(
-        "anthropic.Anthropic",
-        lambda api_key: fake_client,
-    )
+    mock_call = _patch_call_claude_cli(monkeypatch, return_value=_mock_envelope({
+        "consistent": True, "reason": "consistent",
+    }))
 
     result = verify_consistency(
         {
@@ -135,17 +124,15 @@ def test_consistency_rejects_brief_with_fictional_word(monkeypatch):
 
     assert result["ok"] is False
     assert "fictional" in result["reason"].lower()
-    # Local red-flag scan must short-circuit the Haiku call.
-    assert fake_client.messages.create.call_count == 0
+    # Local red-flag scan must short-circuit the model call.
+    assert mock_call.call_count == 0
 
 
 def test_consistency_rejects_brief_with_absurdity_word(monkeypatch):
     """Local red-flag scan catches 'absurdity' before any model call."""
-    fake_client = MagicMock()
-    monkeypatch.setattr(
-        "anthropic.Anthropic",
-        lambda api_key: fake_client,
-    )
+    _patch_call_claude_cli(monkeypatch, return_value=_mock_envelope({
+        "consistent": True, "reason": "consistent",
+    }))
 
     result = verify_consistency(
         {
@@ -178,14 +165,9 @@ def test_consistency_fail_open_on_missing_api_key(monkeypatch):
     assert result["cost_usd"] == 0.0
 
 
-def test_consistency_fail_open_on_anthropic_exception(monkeypatch):
-    """Fail-OPEN when the Anthropic call itself raises."""
-    def raising_client(api_key):
-        client = MagicMock()
-        client.messages.create.side_effect = RuntimeError("network down")
-        return client
-
-    monkeypatch.setattr("anthropic.Anthropic", raising_client)
+def test_consistency_fail_open_on_cli_failure(monkeypatch):
+    """Fail-OPEN when the claude CLI call fails (returns None, its own contract)."""
+    _patch_call_claude_cli(monkeypatch, return_value=None)
 
     result = verify_consistency(
         {
@@ -200,16 +182,9 @@ def test_consistency_fail_open_on_anthropic_exception(monkeypatch):
     assert result["cost_usd"] == 0.0
 
 
-def test_consistency_fail_open_on_unparseable_response(monkeypatch):
-    """Fail-OPEN when the model returns text that cannot be parsed as JSON."""
-    fake_client = MagicMock()
-    res = MagicMock()
-    res.content = [MagicMock()]
-    res.content[0].text = "I am not JSON, sorry."
-    res.usage.input_tokens = 80
-    res.usage.output_tokens = 10
-    fake_client.messages.create.return_value = res
-    monkeypatch.setattr("anthropic.Anthropic", lambda api_key: fake_client)
+def test_consistency_fail_open_on_missing_structured_output(monkeypatch):
+    """Fail-OPEN when the CLI returns an envelope without structured_output."""
+    _patch_call_claude_cli(monkeypatch, return_value={"total_cost_usd": 0.001})
 
     result = verify_consistency(
         {
@@ -378,15 +353,13 @@ def test_anchors_passes_when_article_404s(monkeypatch):
 
 
 def test_consistency_and_anchors_can_run_together(monkeypatch):
-    """Both functions on the same brief: consistency mocks Haiku,
+    """Both functions on the same brief: consistency mocks the claude CLI,
     anchors mocks Wikipedia, neither should leak state to the other.
     """
-    fake_client = MagicMock()
-    fake_client.messages.create.return_value = _mock_haiku_response({
+    _patch_call_claude_cli(monkeypatch, return_value=_mock_envelope({
         "consistent": True,
         "reason": "consistent",
-    })
-    monkeypatch.setattr("anthropic.Anthropic", lambda api_key: fake_client)
+    }))
 
     def fake_get(url, timeout, headers):
         return _FakeResponse(200, {

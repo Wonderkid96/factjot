@@ -1236,12 +1236,24 @@ def _relevance_score(query: str, text: str) -> int:
     """Score how well `text` matches the query.
 
     Each query word that appears in text contributes its character-length
-    as a score - longer/rarer words count more than short common ones.
-    Words under 3 chars are skipped. Returns 0 if text is empty.
+    as a score — longer/rarer words count more than short common ones.
+    Words under 3 chars are skipped.
+
+    Proper noun gate: if the query contains any capitalised word of 5+ chars
+    (a likely named subject — "Lancaster", "Arkhipov", "Chernobyl"), at least
+    one must appear in the result text. Without this, generic stock footage
+    scores non-zero on common query words ("aircraft", "war") and gets accepted
+    when the specific named subject is not present at all.
     """
     if not text:
         return 0
     text_clean = re.sub(r"[^\w\s]", " ", text.lower())
+    query_words = query.split()
+
+    proper_nouns = [w for w in query_words if w[0].isupper() and len(w) >= 5]
+    if proper_nouns and not any(pn.lower() in text_clean for pn in proper_nouns):
+        return 0
+
     score = 0
     for word in query.lower().split():
         if len(word) > 3 and word in text_clean:

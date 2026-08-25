@@ -6,30 +6,25 @@ verbatim. The Shorts title is search-tuned: the most-searchable noun
 leads the line, length is 60-100 characters, and clickbait shapes are
 banned.
 
-Soft-fall ladder (every infra issue is non-fatal -- worst case the
-upload uses the IG `reel_title`, capped at 100 chars to satisfy YouTube
-API limits):
-
-    api_key empty                         -> truncated reel_title
-    Anthropic SDK import failure          -> truncated reel_title
-    Anthropic API exception               -> truncated reel_title
-    Haiku returned only banned phrases    -> truncated reel_title
-    Haiku returned empty / malformed      -> truncated reel_title
+Calls the local `claude` CLI (Sonnet, via `src.core.claude_cli`) -- not
+the Anthropic API. Soft-fall ladder (every infra issue is non-fatal --
+worst case the upload uses the IG `reel_title`, capped at 100 chars to
+satisfy YouTube API limits): CLI call failure (missing, error, timeout,
+malformed output) -> truncated reel_title. Model returned only banned
+phrases / empty / too short -> truncated reel_title.
 
 Voice rules from `/Users/Music/.claude/CLAUDE.md` and `CLAUDE.md` apply:
 no em-dashes, British English, no clickbait shapes.
 """
 from __future__ import annotations
 
-import os
 import re
 
 from src.content.voice_normaliser import normalise
+from src.core.claude_cli import call_claude_cli
 
 
-_HAIKU_MODEL = "claude-haiku-4-5-20251001"
-_MAX_TOKENS = 80
-_TEMPERATURE = 0.3
+_MODEL = "sonnet"
 
 # YouTube hard cap. We aim for the 60-100 band; the API will accept up
 # to 100 chars regardless.
@@ -53,7 +48,7 @@ _CLICKBAIT_PATTERNS: tuple[re.Pattern[str], ...] = (
 def _strip_clickbait(text: str) -> tuple[str, list[str]]:
     """Remove clickbait phrases. Returns (cleaned, hits).
 
-    Hits are returned so the caller can warn that Haiku ignored the
+    Hits are returned so the caller can warn that the model ignored the
     rule. The fallback path activates if the cleaned title is empty.
     """
     cleaned = text
@@ -70,10 +65,10 @@ def _strip_clickbait(text: str) -> tuple[str, list[str]]:
 def _truncated_fallback(reel_title: str, reason: str = "") -> str:
     """Return the IG title trimmed to YouTube's 100-char cap.
 
-    Used whenever Haiku cannot run. Mirrors the previous behaviour, so
+    Used whenever the model cannot run. Mirrors the previous behaviour, so
     the upload never blocks just because the description/title pipeline
     is degraded. `reason` is logged (grep 'FALLBACK reason=') so a quiet
-    rise in soft-falls is visible: it means Haiku is degrading and
+    rise in soft-falls is visible: it means the CLI is degrading and
     YouTube is shipping bland, truncated metadata rather than a tuned
     search title.
     """
@@ -88,7 +83,7 @@ def _truncated_fallback(reel_title: str, reason: str = "") -> str:
 
 
 def _build_prompt(reel_title: str, claim: str) -> str:
-    """Compose the title-writer prompt sent to Haiku."""
+    """Compose the title-writer prompt sent to the model."""
     return (
         "Write a YouTube Shorts title for a factjot reel. "
         "60-100 characters max. Keyword-leading (start with the most "
@@ -115,24 +110,17 @@ def _build_prompt(reel_title: str, claim: str) -> str:
     )
 
 
-def build_shorts_title(
-    reel_title: str,
-    claim: str,
-    api_key: str = "",
-) -> str:
+def build_shorts_title(reel_title: str, claim: str) -> str:
     """Return a 60-100 char keyword-leading Shorts title.
 
     Parameters
     ----------
     reel_title
         The IG-shaped reel title (curated or auto). Used as input
-        context for Haiku and as the truncation source for soft-fall.
+        context for the model and as the truncation source for soft-fall.
     claim
-        The full fact claim. Used by Haiku to lift proper nouns and
+        The full fact claim. Used by the model to lift proper nouns and
         dates into the title.
-    api_key
-        Anthropic API key. Empty falls through to the truncated-title
-        fallback.
 
     Returns
     -------
@@ -145,48 +133,26 @@ def build_shorts_title(
     if not text:
         return ""
 
-    api_key = (api_key or os.getenv("ANTHROPIC_API_KEY", "")).strip()
-    if not api_key:
-        return _truncated_fallback(text, "api_key_missing")
-
-    try:
-        from anthropic import Anthropic
-    except ImportError:
-        return _truncated_fallback(text, "sdk_import_failed")
-
     prompt = _build_prompt(text, claim or "")
 
-    try:
-        client = Anthropic(api_key=api_key)
-        res = client.messages.create(
-            model=_HAIKU_MODEL,
-            max_tokens=_MAX_TOKENS,
-            temperature=_TEMPERATURE,
-            messages=[{"role": "user", "content": prompt}],
-        )
-    except Exception as exc:
-        print(f"  [yt-title] Haiku error, soft-falling: {str(exc)[:80]}")
-        return _truncated_fallback(text, "api_error")
+    envelope = call_claude_cli(prompt, model=_MODEL)
+    if envelope is None:
+        return _truncated_fallback(text, "cli_unavailable")
 
-    raw = ""
-    try:
-        raw = (res.content[0].text or "").strip()
-    except (AttributeError, IndexError):
-        raw = ""
-
+    raw = (envelope.get("result") or "").strip()
     raw = raw.strip("\"'`").rstrip(".")
 
     cleaned, hits = _strip_clickbait(raw)
     if hits:
         print(
-            f"  [yt-title] WARNING: Haiku returned banned clickbait phrase(s): "
+            f"  [yt-title] WARNING: model returned banned clickbait phrase(s): "
             f"{hits}; stripped and continuing"
         )
 
     if not cleaned:
         return _truncated_fallback(text, "clickbait_emptied")
 
-    # Length sanity. If Haiku gave us something far too short (< 20 chars)
+    # Length sanity. If the model gave us something far too short (< 20 chars)
     # or far too long (> hard cap), prefer the deterministic fallback or
     # truncate respectively.
     if len(cleaned) < 20:

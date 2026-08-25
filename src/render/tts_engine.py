@@ -297,8 +297,10 @@ def synthesise(
     edge_voice = voice
     if elevenlabs_attempted or not _looks_like_edge_voice(voice):
         edge_voice = VOICE  # en-GB-RyanNeural default
+        # Match ElevenLabs delivery pace so the fallback doesn't sound sluggish.
+        rate = "+12%"
         print(
-            f"  [tts] edge-tts fallback using voice={edge_voice} "
+            f"  [tts] edge-tts fallback using voice={edge_voice} rate={rate} "
             f"(orig caller voice={voice!r} is not edge-compatible)",
             flush=True,
         )
@@ -666,6 +668,8 @@ def _synthesise_elevenlabs(
                 "similarity_boost": 0.82,
                 "style":           {"shocking": 0.42, "sober": 0.10, "wholesome": 0.20}.get(tone, 0.22),
                 "use_speaker_boost": True,
+                # daniel at default 1.0 sounds sluggish on short-form; bump delivery pace.
+                "speed":           {"shocking": 1.15, "sober": 1.05, "wholesome": 1.08}.get(tone, 1.12),
             },
         },
         headers={"xi-api-key": api_key, "Content-Type": "application/json"},

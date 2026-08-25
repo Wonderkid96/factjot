@@ -180,14 +180,13 @@ def test_fuzzy_subject_key_blocks_close_variant():
     used = {"great-molasses-flood"}
     args = {
         "script": (
-            "In 1919, a Boston storage tank burst and sent 2.3 million gallons of molasses through the streets. "
-            "The wave killed 21 people. "
-            "Horses were trapped. "
-            "Houses shifted off their foundations. "
-            "The company blamed anarchists before investigators found the tank had been badly built. "
-            "The strangest part came later. "
-            "The neighbourhood kept smelling of molasses for years, especially when the weather turned warm. "
-            "That was the official clean-up in Boston afterwards."
+            "In 1919, a Boston storage tank burst and sent 2.3 million gallons of molasses "
+            "through the streets, killing 21 people and trapping horses in the wave. "
+            "Houses shifted off their foundations as the flood tore through the neighbourhood. "
+            "The company blamed anarchists for sabotage. "
+            "Investigators later found the real cause: the tank had been built too thin to "
+            "hold its own contents and had been leaking for weeks before it failed. "
+            "Nobody had ordered it checked."
         ),
         "title":  "The Molasses Flood That Killed 21",
         "topic":  "history",

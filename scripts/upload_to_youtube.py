@@ -228,22 +228,16 @@ def _description_from_reel_meta(reel_meta: dict | None) -> str:
 
     Phase F (Q7): YouTube gets its own description rather than the
     verbatim IG caption. Behaviour:
-      - api_key present + helper importable -> Haiku-written Shorts
-        description (with the helper's own deterministic fallback if
-        Haiku errors).
-      - api_key missing -> previous behaviour (raw IG caption / stitched
-        title+claim) so existing reels keep uploading even when
-        Anthropic credentials aren't configured.
+      - helper importable -> model-written Shorts description via the
+        local claude CLI (no API key needed; the helper's own
+        deterministic fallback covers any CLI failure).
       - helper not importable (defensive: src/ should always be on the
-        path) -> previous behaviour.
+        path) -> previous behaviour (raw IG caption / stitched
+        title+claim).
     """
     if not reel_meta:
         return ""
     if build_shorts_description is None:
-        return _legacy_description_from_reel_meta(reel_meta)
-
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-    if not api_key:
         return _legacy_description_from_reel_meta(reel_meta)
 
     title = (reel_meta.get("reel_title") or "").strip()
@@ -259,7 +253,6 @@ def _description_from_reel_meta(reel_meta: dict | None) -> str:
         claim=claim,
         sources=sources,
         topic=topic,
-        api_key=api_key,
     )
 
 
@@ -267,11 +260,11 @@ def _title_from_reel_meta(reel_meta: dict | None, fallback_title: str) -> str:
     """Return a 60-100 char keyword-leading Shorts title.
 
     Phase F (Q7): YouTube gets its own search-tuned title. Behaviour:
-      - api_key present + helper importable -> Haiku-written 60-100 char
-        title (with the helper's own truncation fallback if Haiku errors).
-      - api_key missing -> previous behaviour (raw IG `reel_title`
+      - helper importable -> model-written 60-100 char title via the
+        local claude CLI (no API key needed; the helper's own truncation
+        fallback covers any CLI failure).
+      - helper not importable -> previous behaviour (raw IG `reel_title`
         truncated to YouTube's 100-char cap).
-      - helper not importable -> previous behaviour.
 
     `fallback_title` is used when reel_meta has nothing useful (e.g.
     arg_path upload with no `--title` and no ledger entry).
@@ -288,15 +281,7 @@ def _title_from_reel_meta(reel_meta: dict | None, fallback_title: str) -> str:
     if build_shorts_title is None or not title:
         return (title or fallback_title or "").strip()[:100].rstrip()
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-    if not api_key:
-        return title[:100].rstrip()
-
-    return build_shorts_title(
-        reel_title=title,
-        claim=claim,
-        api_key=api_key,
-    )
+    return build_shorts_title(reel_title=title, claim=claim)
 
 
 def _prepare_thumbnail(video_path: Path) -> Path | None:

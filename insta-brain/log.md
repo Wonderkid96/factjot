@@ -1,5 +1,12 @@
 # factjot brain log
 
+- 2026-08-01 17:29 TTS FALLBACK to edge-tts: ElevenLabs failed (RuntimeError: ElevenLabs API error 401: quota_exceeded) - falling back to edge-tts
+- 2026-08-01 17:21 TTS FALLBACK to edge-tts: ElevenLabs failed (RuntimeError: ElevenLabs API error 401: quota_exceeded) - falling back to edge-tts
+- 2026-07-31 15:57 reel FAILED publish — fact='In the San Bernardino Mountains, a single lodgepole pine nea' topic=earth video_url=https://tmpfiles.org/dl/wJwpRhAL2Lgz/final.mp4 error=Reel container creation failed: {'error': {'message': 'User access is restricted', 'type': 'OAuthException', 'code': 25, 'error_subcode': 2207050, 'is_transient': False, 'error_user_title': 'User is r
+- 2026-07-30 21:54 TTS FALLBACK to edge-tts: ElevenLabs failed (RuntimeError: ElevenLabs API error 401: quota_exceeded) - falling back to edge-tts
+- 2026-07-30 21:34 TTS FALLBACK to edge-tts: ElevenLabs failed (RuntimeError: ElevenLabs API error 401: quota_exceeded) - falling back to edge-tts
+- 2026-06-14 17:06 TTS FALLBACK to edge-tts: ElevenLabs failed (RuntimeError: ElevenLabs API error 401: quota_exceeded) - falling back to edge-tts
+- 2026-06-14 16:57 TTS FALLBACK to edge-tts: ElevenLabs failed (RuntimeError: ElevenLabs API error 401: quota_exceeded) - falling back to edge-tts
 - 2026-06-14 12:15 token refreshed: new expiry ~59 days
 - 2026-06-14 12:13 WARNING: YouTube upload FAILED (HttpError): <HttpError 403 when requesting None returned "YouTube Data API v3 has not been used in project 855280488489 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/youtube.googleapis.com/overview?project=855280488489 then retry. If you enabled this API recently
 - 2026-06-14 12:13 reel b8939ce4a8b3cb published (science, ig_media=17859783252643644)

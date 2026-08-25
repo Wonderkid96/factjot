@@ -1,15 +1,16 @@
 """Tests for src.render.thumbnail_picker (Phase E.4).
 
 The picker extracts up to 3 candidate frames from the footage list, scores
-each one with Haiku 4.5 vision, and returns the strongest. Soft-fall path
-covers the developer-without-credentials case and any Anthropic infra
-failure: the pipeline must never fail just because the picker cannot reach
-the API.
+each one with Haiku 4.5 vision via the local `claude` CLI, and returns the
+strongest. Soft-fall path covers the developer-without-credentials case and
+any CLI infra failure: the pipeline must never fail just because the picker
+cannot reach the model.
 
-Tests mock both subprocess.run (FFmpeg) and the Anthropic client. Frame
-files are created with a real PNG magic-byte header so the media-type
-detector picks the right MIME and the soft-fall path triggers based on
-the right signal (rather than a fake bytes-too-small error).
+Tests mock both subprocess.run (FFmpeg) and
+`src.render.thumbnail_picker.call_claude_cli_with_image`. Frame files are
+created with a real PNG magic-byte header so the size floor doesn't reject
+them (the soft-fall path triggers based on the right signal, rather than a
+fake bytes-too-small error).
 
 NOTE: every assertion that touches a file lives INSIDE the
 TemporaryDirectory context manager. The chosen path is on a temp dir that
@@ -26,7 +27,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.render.thumbnail_picker import (
-    _detect_media_type,
     _parse_score_response,
     _plan_candidates,
     pick_best_thumbnail,
@@ -56,15 +56,12 @@ def _write_fake_clip(dir_path: Path, *, name: str = "clip.mp4") -> Path:
     return p
 
 
-def _mock_haiku_score(score: int, reason: str = "ok",
-                      in_tokens: int = 200, out_tokens: int = 30) -> MagicMock:
-    """Fake Anthropic SDK response carrying a score JSON payload."""
-    res = MagicMock()
-    res.content = [MagicMock()]
-    res.content[0].text = json.dumps({"score": score, "reason": reason})
-    res.usage.input_tokens = in_tokens
-    res.usage.output_tokens = out_tokens
-    return res
+def _mock_envelope(score: int, reason: str = "ok", cost_usd: float = 0.0015) -> dict:
+    """Fake `call_claude_cli_with_image` envelope carrying a score payload."""
+    return {
+        "structured_output": {"score": score, "reason": reason},
+        "total_cost_usd": cost_usd,
+    }
 
 
 def _patch_extract_writes_png(monkeypatch):
@@ -91,6 +88,19 @@ def _patch_probe_duration(monkeypatch, seconds: float = 10.0):
     )
 
 
+def _patch_call_claude_cli_with_image(monkeypatch, *, side_effect=None, return_value=None):
+    """Patch the vision call and return the mock so tests can assert on it."""
+    mock = MagicMock()
+    if side_effect is not None:
+        mock.side_effect = side_effect
+    else:
+        mock.return_value = return_value
+    monkeypatch.setattr(
+        "src.render.thumbnail_picker.call_claude_cli_with_image", mock,
+    )
+    return mock
+
+
 # --------------------------------------------------------------------------- #
 # 1. Three candidates extracted from three clips
 # --------------------------------------------------------------------------- #
@@ -101,13 +111,14 @@ def test_pick_extracts_three_candidates_from_three_clips(monkeypatch):
     _patch_probe_duration(monkeypatch, 10.0)
     _patch_extract_writes_png(monkeypatch)
 
-    fake_client = MagicMock()
-    fake_client.messages.create.side_effect = [
-        _mock_haiku_score(6),
-        _mock_haiku_score(8),
-        _mock_haiku_score(7),
-    ]
-    monkeypatch.setattr("anthropic.Anthropic", lambda api_key: fake_client)
+    mock_call = _patch_call_claude_cli_with_image(
+        monkeypatch,
+        side_effect=[
+            _mock_envelope(6),
+            _mock_envelope(8),
+            _mock_envelope(7),
+        ],
+    )
 
     with TemporaryDirectory() as td:
         td_path = Path(td)
@@ -126,7 +137,7 @@ def test_pick_extracts_three_candidates_from_three_clips(monkeypatch):
         )
 
         assert len(meta["candidates"]) == 3
-        assert fake_client.messages.create.call_count == 3
+        assert mock_call.call_count == 3
         # Highest score = 8; chosen frame is the c1@50% candidate.
         assert chosen.exists()
         assert "c1@50" in chosen.name
@@ -143,13 +154,14 @@ def test_pick_returns_highest_scored_candidate(monkeypatch):
     _patch_extract_writes_png(monkeypatch)
 
     # Order: 5, 9, 4 -> the middle one (c1@50%) wins.
-    fake_client = MagicMock()
-    fake_client.messages.create.side_effect = [
-        _mock_haiku_score(5, reason="ok mid"),
-        _mock_haiku_score(9, reason="strong subject"),
-        _mock_haiku_score(4, reason="dull"),
-    ]
-    monkeypatch.setattr("anthropic.Anthropic", lambda api_key: fake_client)
+    _patch_call_claude_cli_with_image(
+        monkeypatch,
+        side_effect=[
+            _mock_envelope(5, reason="ok mid"),
+            _mock_envelope(9, reason="strong subject"),
+            _mock_envelope(4, reason="dull"),
+        ],
+    )
 
     with TemporaryDirectory() as td:
         td_path = Path(td)
@@ -180,12 +192,11 @@ def test_pick_returns_highest_scored_candidate(monkeypatch):
 
 
 def test_pick_soft_falls_when_api_key_empty(monkeypatch):
-    """No API key -> first extracted candidate, no Anthropic call made."""
+    """No API key -> first extracted candidate, no CLI call made."""
     _patch_probe_duration(monkeypatch, 10.0)
     _patch_extract_writes_png(monkeypatch)
 
-    fake_client = MagicMock()
-    monkeypatch.setattr("anthropic.Anthropic", lambda api_key: fake_client)
+    mock_call = _patch_call_claude_cli_with_image(monkeypatch, return_value=_mock_envelope(9))
 
     with TemporaryDirectory() as td:
         td_path = Path(td)
@@ -202,24 +213,22 @@ def test_pick_soft_falls_when_api_key_empty(monkeypatch):
         )
 
         assert chosen.exists()
-        fake_client.messages.create.assert_not_called()
+        mock_call.assert_not_called()
         assert meta["fallback_reason"] == "api_key_missing"
         assert meta["total_cost_usd"] == 0.0
 
 
 # --------------------------------------------------------------------------- #
-# 4. Soft-fall when Anthropic raises a connection error on every call
+# 4. Soft-fall when the CLI call fails on every candidate
 # --------------------------------------------------------------------------- #
 
 
-def test_pick_soft_falls_when_anthropic_errors_everywhere(monkeypatch):
-    """Every Haiku call fails -> picker still returns a candidate."""
+def test_pick_soft_falls_when_cli_fails_everywhere(monkeypatch):
+    """Every vision call fails (CLI returns None) -> picker still returns a candidate."""
     _patch_probe_duration(monkeypatch, 10.0)
     _patch_extract_writes_png(monkeypatch)
 
-    fake_client = MagicMock()
-    fake_client.messages.create.side_effect = ConnectionError("upstream 503")
-    monkeypatch.setattr("anthropic.Anthropic", lambda api_key: fake_client)
+    _patch_call_claude_cli_with_image(monkeypatch, return_value=None)
 
     with TemporaryDirectory() as td:
         td_path = Path(td)
@@ -237,7 +246,7 @@ def test_pick_soft_falls_when_anthropic_errors_everywhere(monkeypatch):
 
         assert chosen.exists()
         assert meta["fallback_reason"] == "all_haiku_calls_failed"
-        # All three Haiku calls were attempted, all failed -> all scores None.
+        # All three vision calls were attempted, all failed -> all scores None.
         assert all(c["score"] is None for c in meta["candidates"])
         assert all("api_error" in c["reason"] for c in meta["candidates"])
 
@@ -252,13 +261,14 @@ def test_pick_handles_two_clips_gracefully(monkeypatch):
     _patch_probe_duration(monkeypatch, 10.0)
     _patch_extract_writes_png(monkeypatch)
 
-    fake_client = MagicMock()
-    fake_client.messages.create.side_effect = [
-        _mock_haiku_score(5),
-        _mock_haiku_score(9),
-        _mock_haiku_score(6),
-    ]
-    monkeypatch.setattr("anthropic.Anthropic", lambda api_key: fake_client)
+    _patch_call_claude_cli_with_image(
+        monkeypatch,
+        side_effect=[
+            _mock_envelope(5),
+            _mock_envelope(9),
+            _mock_envelope(6),
+        ],
+    )
 
     with TemporaryDirectory() as td:
         td_path = Path(td)
@@ -287,13 +297,14 @@ def test_pick_handles_single_clip(monkeypatch):
     _patch_probe_duration(monkeypatch, 12.0)
     _patch_extract_writes_png(monkeypatch)
 
-    fake_client = MagicMock()
-    fake_client.messages.create.side_effect = [
-        _mock_haiku_score(7),
-        _mock_haiku_score(5),
-        _mock_haiku_score(8),
-    ]
-    monkeypatch.setattr("anthropic.Anthropic", lambda api_key: fake_client)
+    _patch_call_claude_cli_with_image(
+        monkeypatch,
+        side_effect=[
+            _mock_envelope(7),
+            _mock_envelope(5),
+            _mock_envelope(8),
+        ],
+    )
 
     with TemporaryDirectory() as td:
         td_path = Path(td)
@@ -314,27 +325,28 @@ def test_pick_handles_single_clip(monkeypatch):
 
 
 # --------------------------------------------------------------------------- #
-# 6. Cost reported at Haiku 4.5 vision pricing across 3 calls
+# 6. Cost reported straight from the CLI envelope, summed across 3 calls
 # --------------------------------------------------------------------------- #
 
 
-def test_pick_reports_cost_at_haiku_4_5_pricing(monkeypatch):
-    """Cost = sum of per-call (input_tokens*$1/M + output_tokens*$5/M).
+def test_pick_reports_cost_summed_across_candidates(monkeypatch):
+    """total_cost_usd = sum of each candidate's `total_cost_usd` from the CLI envelope.
 
-    Three calls at 1000 input + 100 output tokens each:
-      per call = 1000/1M*1.00 + 100/1M*5.00 = 0.001 + 0.0005 = 0.0015
-      total    = 0.0045 USD (< 0.5p per reel).
+    The CLI reports its own real cost (including cache tokens); the picker
+    no longer computes cost locally from token counts, it just sums what
+    the CLI says each call cost.
     """
     _patch_probe_duration(monkeypatch, 10.0)
     _patch_extract_writes_png(monkeypatch)
 
-    fake_client = MagicMock()
-    fake_client.messages.create.side_effect = [
-        _mock_haiku_score(7, in_tokens=1000, out_tokens=100),
-        _mock_haiku_score(8, in_tokens=1000, out_tokens=100),
-        _mock_haiku_score(6, in_tokens=1000, out_tokens=100),
-    ]
-    monkeypatch.setattr("anthropic.Anthropic", lambda api_key: fake_client)
+    _patch_call_claude_cli_with_image(
+        monkeypatch,
+        side_effect=[
+            _mock_envelope(7, cost_usd=0.04),
+            _mock_envelope(8, cost_usd=0.05),
+            _mock_envelope(6, cost_usd=0.03),
+        ],
+    )
 
     with TemporaryDirectory() as td:
         td_path = Path(td)
@@ -348,8 +360,7 @@ def test_pick_reports_cost_at_haiku_4_5_pricing(monkeypatch):
             ffmpeg_bin="ffmpeg",
         )
 
-        expected_per_call = 1000 / 1_000_000 * 1.00 + 100 / 1_000_000 * 5.00
-        assert abs(meta["total_cost_usd"] - 3 * expected_per_call) < 1e-6
+        assert abs(meta["total_cost_usd"] - 0.12) < 1e-6
 
 
 # --------------------------------------------------------------------------- #
@@ -358,13 +369,11 @@ def test_pick_reports_cost_at_haiku_4_5_pricing(monkeypatch):
 
 
 def test_pick_caps_vision_calls_at_three(monkeypatch):
-    """Even with 5 clips the picker calls Haiku at most 3 times (CLAUDE.md cap)."""
+    """Even with 5 clips the picker calls the vision model at most 3 times (CLAUDE.md cap)."""
     _patch_probe_duration(monkeypatch, 10.0)
     _patch_extract_writes_png(monkeypatch)
 
-    fake_client = MagicMock()
-    fake_client.messages.create.return_value = _mock_haiku_score(7)
-    monkeypatch.setattr("anthropic.Anthropic", lambda api_key: fake_client)
+    mock_call = _patch_call_claude_cli_with_image(monkeypatch, return_value=_mock_envelope(7))
 
     with TemporaryDirectory() as td:
         td_path = Path(td)
@@ -378,7 +387,7 @@ def test_pick_caps_vision_calls_at_three(monkeypatch):
             ffmpeg_bin="ffmpeg",
         )
 
-        assert fake_client.messages.create.call_count == 3
+        assert mock_call.call_count == 3
         assert len(meta["candidates"]) == 3
 
 
@@ -466,12 +475,3 @@ def test_parse_score_response_returns_none_on_invalid():
     assert _parse_score_response("nonsense")[0] is None
     assert _parse_score_response("")[0] is None
     assert _parse_score_response(json.dumps({"score": "abc"}))[0] is None
-
-
-def test_detect_media_type_recognises_common_formats():
-    assert _detect_media_type(_PNG_HEADER + b"\x00") == "image/png"
-    assert _detect_media_type(_JPEG_HEADER + b"\x00") == "image/jpeg"
-    webp = b"RIFF" + b"\x00\x00\x00\x00" + b"WEBP" + b"\x00"
-    assert _detect_media_type(webp) == "image/webp"
-    # Default for unknown bytes -> PNG (renderer writes PNG).
-    assert _detect_media_type(b"random") == "image/png"

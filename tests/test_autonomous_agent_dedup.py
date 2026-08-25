@@ -27,23 +27,23 @@ from src.brain import subject_fingerprint  # noqa: E402
 # Minimal valid hint satisfying the 3-line / 8-char-per-line quality gate.
 _VALID_HINT = "Cold War submarine fleet at dock\nSoviet naval base 1980s\nsubmarine conning tower portrait"
 _HORROR_SCRIPT_A = (
-    "In 1973, five horror films accidentally made respectable cinema look nervous about its own audience. "
-    "The Exorcist sent viewers out of theatres shaking. "
-    "The Texas Chain Saw Massacre made daylight feel unsafe. "
-    "Black Christmas turned a ringing phone into a threat. "
-    "Carrie made adolescence feel radioactive. "
-    "Jaws kept people out of the sea. "
-    "The films were not just scary. They taught studios that fear could be an event people queued for."
+    "In 1973, one of the scariest films ever released, The Exorcist, made cinemas start "
+    "keeping ambulances parked outside, because so many people were fainting, vomiting, "
+    "or having panic attacks in their seats. "
+    "Paramedics treated audience members in the lobby between screenings. "
+    "Some cinemas hired on-site nurses just for that film. "
+    "Newspapers ran stories about the collapses instead of writing reviews at all. "
+    "Audiences kept coming back anyway. "
+    "The panic did not scare people off. It became the advertisement."
 )
 _HORROR_SCRIPT_B = (
-    "In 1973, five horror films accidentally proved fear could sell like a blockbuster without behaving like one. "
-    "The Exorcist made possession mainstream. "
-    "The Texas Chain Saw Massacre made cheapness feel documentary. "
-    "Black Christmas invented a grammar slashers kept borrowing. "
-    "Carrie made prom night apocalyptic. "
-    "Jaws gave the ocean a soundtrack. "
-    "The pattern was simple. Small fears were becoming public infrastructure. "
-    "Studios noticed, counted the money, and built a business around dread."
+    "In 1973, one cinema chain screening the scariest film of the year, The Exorcist, "
+    "could not run a single showing without someone fainting in the aisles. "
+    "Ushers were issued smelling salts before every shift. "
+    "People collapsed during the same three scenes, night after night. "
+    "Theatre managers timed staff breaks around the exact minute it usually happened. "
+    "Some viewers were carried out mid-film and came back the next week to finish it. "
+    "The studio treated every collapse as free publicity, and it worked."
 )
 _PEPSI_SCRIPT = (
     "In 1989, Pepsi accidentally owned a navy because the Soviet Union was short on hard currency. "

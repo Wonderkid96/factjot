@@ -107,12 +107,16 @@ class FactVerificationLayer:
 # 1. verify_consistency: a single Haiku call asks whether the title and
 #    claim contradict each other and whether the brief contains red-flag
 #    framing words ("fictional", "absurdity", etc.). Cheap, deterministic.
+#    Calls the local `claude` CLI (`src.core.claude_cli.call_claude_cli`) --
+#    not the Anthropic API, no ANTHROPIC_API_KEY involved; see that
+#    module's docstring for why.
 #
 # 2. verify_anchors: heuristic Wikipedia cross-check for each named-subject
 #    claim. Soft-passes on Wikipedia infra failure (better to ship than
-#    block on infra). Hard-fails only on explicit contradiction.
+#    block on infra). Hard-fails only on explicit contradiction. No model
+#    call at all -- `api_key` in its signature is unused (see docstring).
 #
-# Both are designed to fail-OPEN on infrastructure issues (missing API key,
+# Both are designed to fail-OPEN on infrastructure issues (CLI unavailable,
 # upstream unreachable) and fail-CLOSED on real quality issues (the model
 # says "this contradicts" or Wikipedia explicitly disagrees).
 # ---------------------------------------------------------------------- #
@@ -179,31 +183,16 @@ def _consistency_prompt(title: str, claim: str, caption_body: str, format_type: 
     )
 
 
-def _parse_consistency_response(raw: str) -> tuple[bool, str]:
-    """Tolerant parser for the Haiku consistency JSON response.
-
-    Returns (consistent, reason). On parse failure, returns
-    (True, "parse_failed:<snippet>") so we fail-open: better to ship than
-    block on a model hiccup.
-    """
-    text = raw.strip()
-    # Strip fenced blocks if the model ignored the instruction.
-    if text.startswith("```"):
-        text = re.sub(r"^```(?:json)?\s*", "", text)
-        text = re.sub(r"\s*```\s*$", "", text)
-    # Locate the first JSON object.
-    match = re.search(r"\{.*\}", text, flags=re.DOTALL)
-    if not match:
-        return True, f"parse_failed:{text[:80]}"
-    try:
-        payload = json.loads(match.group(0))
-    except json.JSONDecodeError:
-        return True, f"parse_failed:{text[:80]}"
-    consistent = bool(payload.get("consistent", True))
-    reason = str(payload.get("reason", "")).strip() or (
-        "consistent" if consistent else "no_reason_given"
-    )
-    return consistent, reason
+_CONSISTENCY_MODEL = "haiku"
+_CONSISTENCY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "consistent": {"type": "boolean"},
+        "reason": {"type": "string"},
+    },
+    "required": ["consistent", "reason"],
+    "additionalProperties": False,
+}
 
 
 def verify_consistency(brief: dict, api_key: str) -> dict:
@@ -212,13 +201,18 @@ def verify_consistency(brief: dict, api_key: str) -> dict:
     `brief` accepts any of: title, cover_title, claim, script, caption_body,
     format_type, subject. Empty fields are tolerated.
 
+    Calls the local `claude` CLI (`src.core.claude_cli.call_claude_cli`) --
+    not the Anthropic API. `api_key` is now a legacy on/off toggle only,
+    kept so existing callers (and their tests) that gate on
+    `ANTHROPIC_API_KEY` presence keep working unchanged.
+
     Returns:
         {"ok": True, "reason": "consistent", "cost_usd": float} on pass
         {"ok": False, "reason": "<short>", "cost_usd": float}    on fail
 
     Fail-open conditions (returns ok=True with explanatory reason):
     - api_key missing -> reason="api_key_missing"
-    - Anthropic call raises -> reason="api_error:<short>"
+    - CLI call fails (missing binary, timeout, error) -> reason="api_error:<short>"
     - Response cannot be parsed -> reason="parse_failed:<snippet>"
 
     Fail-closed conditions (returns ok=False):
@@ -257,61 +251,42 @@ def verify_consistency(brief: dict, api_key: str) -> dict:
         )
         return {"ok": True, "reason": "api_key_missing", "cost_usd": 0.0}
 
-    try:
-        from anthropic import Anthropic
-        client = Anthropic(api_key=api_key)
-        prompt = _consistency_prompt(title, claim, caption_body, format_type)
-        res = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=200,
-            temperature=0.0,
-            messages=[{"role": "user", "content": prompt}],
-        )
-    except Exception as exc:
-        # Fail-open on infra error. The Haiku call is cheap and should
-        # rarely fail; treat any exception as a soft-pass with the reason
-        # captured for telemetry. Surface the failure to the workflow log
-        # so quota exhaustion or key rotation does not silently disable
-        # the verifier across runs.
+    from src.core.claude_cli import call_claude_cli
+
+    prompt = _consistency_prompt(title, claim, caption_body, format_type)
+    envelope = call_claude_cli(
+        prompt, model=_CONSISTENCY_MODEL, json_schema=_CONSISTENCY_SCHEMA, timeout=60,
+    )
+    if envelope is None:
+        # Fail-open on infra error. Surface the failure to the workflow log
+        # so CLI unavailability does not silently disable the verifier
+        # across runs.
         import sys as _sys
         print(
-            f"[fact_checker] WARNING: Haiku consistency check failed open — "
-            f"safety layer is OFF for this run. Error: {exc}",
+            "[fact_checker] WARNING: consistency check failed open — "
+            "safety layer is OFF for this run (claude CLI unavailable or errored).",
             file=_sys.stderr,
-            flush=True,
-        )
-        print(
-            f"[fact_checker] consistency check failed open: {exc}",
             flush=True,
         )
         return {
             "ok": True,
-            "reason": f"api_error:{str(exc)[:80]}",
+            "reason": "api_error:cli_unavailable_or_failed",
             "cost_usd": 0.0,
         }
 
-    # Haiku 4.5 pricing (per 1M tokens): $1 in / $5 out.
-    pricing_in = 1.00
-    pricing_out = 5.00
-    try:
-        cost = (
-            res.usage.input_tokens / 1_000_000 * pricing_in
-            + res.usage.output_tokens / 1_000_000 * pricing_out
-        )
-    except AttributeError:
-        cost = 0.0
+    cost = float(envelope.get("total_cost_usd") or 0.0)
+    data = envelope.get("structured_output")
+    if not isinstance(data, dict):
+        return {"ok": True, "reason": "parse_failed:no_structured_output", "cost_usd": cost}
 
-    raw_text = ""
-    try:
-        raw_text = res.content[0].text or ""
-    except (AttributeError, IndexError):
-        pass
-
-    consistent, reason = _parse_consistency_response(raw_text)
+    consistent = bool(data.get("consistent", True))
+    reason = str(data.get("reason", "")).strip() or (
+        "consistent" if consistent else "no_reason_given"
+    )
     return {
-        "ok": bool(consistent),
-        "reason": reason if reason else ("consistent" if consistent else "inconsistent"),
-        "cost_usd": round(float(cost), 5),
+        "ok": consistent,
+        "reason": reason,
+        "cost_usd": round(cost, 5),
     }
 
 

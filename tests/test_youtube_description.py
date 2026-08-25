@@ -2,13 +2,13 @@
 
 `build_shorts_description` returns a Shorts-shaped description: 1-2 line
 hook, blank line, source URLs, blank line, exactly 5 hashtags ending in
-`#Shorts`. On any infra failure (no api_key, Anthropic exception,
-malformed Haiku output) it falls back to a deterministic template so
-the YouTube upload never blocks on description generation.
+`#Shorts`, via the local claude CLI. On any infra failure (CLI missing,
+error, timeout, malformed output) it falls back to a deterministic template
+so the YouTube upload never blocks on description generation.
 """
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import patch
 
 from src.content.youtube_description import (
     _deterministic_fallback,
@@ -32,17 +32,11 @@ _SOURCES = [
 _TOPIC = "earth"
 
 
-def _mock_haiku_text(text: str) -> MagicMock:
-    """Fake Anthropic SDK response carrying a plain-text string."""
-    res = MagicMock()
-    res.content = [MagicMock()]
-    res.content[0].text = text
-    res.usage.input_tokens = 200
-    res.usage.output_tokens = 60
-    return res
+def _envelope(text: str) -> dict:
+    return {"type": "result", "is_error": False, "result": text}
 
 
-_GOOD_HAIKU_RESPONSE = (
+_GOOD_CLI_RESPONSE = (
     "Antarctica was once a temperate rainforest. Fossil cores from a "
     "90-million-year-old sample reveal a swampy Cretaceous climate.\n"
     "\n"
@@ -55,20 +49,16 @@ _GOOD_HAIKU_RESPONSE = (
 
 
 # --------------------------------------------------------------------------- #
-# 1. Happy path: Haiku returns a properly shaped description
+# 1. Happy path: CLI returns a properly shaped description
 # --------------------------------------------------------------------------- #
 
 
-def test_returns_haiku_description_with_shorts_hashtag(monkeypatch):
-    """Haiku response with proper shape -> normalised passthrough."""
-    fake_client = MagicMock()
-    fake_client.messages.create.return_value = _mock_haiku_text(_GOOD_HAIKU_RESPONSE)
-    monkeypatch.setattr("anthropic.Anthropic", lambda api_key: fake_client)
+def test_returns_cli_description_with_shorts_hashtag():
+    """CLI response with proper shape -> normalised passthrough."""
+    with patch("src.content.youtube_description.call_claude_cli") as fake_call:
+        fake_call.return_value = _envelope(_GOOD_CLI_RESPONSE)
+        result = build_shorts_description(_REEL_TITLE, _CLAIM, _SOURCES, _TOPIC)
 
-    result = build_shorts_description(
-        _REEL_TITLE, _CLAIM, _SOURCES, _TOPIC, api_key="dummy",
-    )
-    # Hashtags include #Shorts, last hashtag.
     hashtag_lines = [
         line for line in result.splitlines() if line.strip().startswith("#")
     ]
@@ -77,10 +67,19 @@ def test_returns_haiku_description_with_shorts_hashtag(monkeypatch):
     tags = last_line.split()
     assert len(tags) == 5
     assert tags[-1] == "#Shorts"
-    fake_client.messages.create.assert_called_once()
+    fake_call.assert_called_once()
 
 
-def test_haiku_output_is_normalised(monkeypatch):
+def test_calls_cli_with_sonnet():
+    with patch("src.content.youtube_description.call_claude_cli") as fake_call:
+        fake_call.return_value = _envelope(_GOOD_CLI_RESPONSE)
+        build_shorts_description(_REEL_TITLE, _CLAIM, _SOURCES, _TOPIC)
+
+    _, kwargs = fake_call.call_args
+    assert kwargs["model"] == "sonnet"
+
+
+def test_cli_output_is_normalised():
     """Em-dashes from a misbehaving model -> stripped via voice_normaliser."""
     bad_dash = chr(0x2014)  # U+2014 EM DASH
     response = (
@@ -92,33 +91,24 @@ def test_haiku_output_is_normalised(monkeypatch):
         "\n"
         "#science #Antarctica #climate #fossils #Shorts"
     )
-    fake_client = MagicMock()
-    fake_client.messages.create.return_value = _mock_haiku_text(response)
-    monkeypatch.setattr("anthropic.Anthropic", lambda api_key: fake_client)
+    with patch("src.content.youtube_description.call_claude_cli") as fake_call:
+        fake_call.return_value = _envelope(response)
+        result = build_shorts_description(_REEL_TITLE, _CLAIM, _SOURCES, _TOPIC)
 
-    result = build_shorts_description(
-        _REEL_TITLE, _CLAIM, _SOURCES, _TOPIC, api_key="dummy",
-    )
     assert bad_dash not in result
 
 
 # --------------------------------------------------------------------------- #
-# 2. Soft-fall to deterministic format when api_key is empty
+# 2. Soft-fall to deterministic format
 # --------------------------------------------------------------------------- #
 
 
-def test_falls_back_to_deterministic_when_api_key_empty(monkeypatch):
-    """Empty api_key + empty env var -> deterministic fallback, no Anthropic call."""
-    fake_client = MagicMock()
-    monkeypatch.setattr("anthropic.Anthropic", lambda api_key: fake_client)
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+def test_falls_back_to_deterministic_when_cli_unavailable():
+    """CLI missing/errored -> deterministic fallback, upload still proceeds."""
+    with patch("src.content.youtube_description.call_claude_cli") as fake_call:
+        fake_call.return_value = None
+        result = build_shorts_description(_REEL_TITLE, _CLAIM, _SOURCES, _TOPIC)
 
-    result = build_shorts_description(
-        _REEL_TITLE, _CLAIM, _SOURCES, _TOPIC, api_key="",
-    )
-    fake_client.messages.create.assert_not_called()
-
-    # Deterministic shape: hook + sources + 5 hashtags ending in #Shorts.
     assert _REEL_TITLE in result
     for url in _SOURCES:
         assert url in result
@@ -128,36 +118,14 @@ def test_falls_back_to_deterministic_when_api_key_empty(monkeypatch):
     assert tags[-1] == "#Shorts"
 
 
-def test_falls_back_when_anthropic_raises(monkeypatch):
-    """Anthropic 5xx / timeout -> deterministic fallback, upload still proceeds."""
-    fake_client = MagicMock()
-    fake_client.messages.create.side_effect = ConnectionError("upstream 503")
-    monkeypatch.setattr("anthropic.Anthropic", lambda api_key: fake_client)
+def test_falls_back_when_cli_returns_malformed_no_hashtags():
+    """Model ignored the format spec (no hashtags) -> deterministic fallback."""
+    with patch("src.content.youtube_description.call_claude_cli") as fake_call:
+        fake_call.return_value = _envelope(
+            "Just a plain paragraph with no hashtags or sources at all."
+        )
+        result = build_shorts_description(_REEL_TITLE, _CLAIM, _SOURCES, _TOPIC)
 
-    result = build_shorts_description(
-        _REEL_TITLE, _CLAIM, _SOURCES, _TOPIC, api_key="dummy",
-    )
-
-    # Same deterministic shape as the no-key case.
-    assert _REEL_TITLE in result
-    last_line = result.strip().splitlines()[-1]
-    tags = last_line.split()
-    assert len(tags) == 5
-    assert tags[-1] == "#Shorts"
-
-
-def test_falls_back_when_haiku_returns_malformed_no_hashtags(monkeypatch):
-    """Haiku ignored the format spec (no hashtags) -> deterministic fallback."""
-    fake_client = MagicMock()
-    fake_client.messages.create.return_value = _mock_haiku_text(
-        "Just a plain paragraph with no hashtags or sources at all."
-    )
-    monkeypatch.setattr("anthropic.Anthropic", lambda api_key: fake_client)
-
-    result = build_shorts_description(
-        _REEL_TITLE, _CLAIM, _SOURCES, _TOPIC, api_key="dummy",
-    )
-    # Deterministic fallback uses the reel title.
     assert _REEL_TITLE in result
     last_line = result.strip().splitlines()[-1]
     assert last_line.split()[-1] == "#Shorts"
@@ -168,8 +136,8 @@ def test_falls_back_when_haiku_returns_malformed_no_hashtags(monkeypatch):
 # --------------------------------------------------------------------------- #
 
 
-def test_clickbait_phrases_stripped_from_haiku_output(monkeypatch):
-    """Haiku slipped in a banned phrase -> stripper removes it, output ships."""
+def test_clickbait_phrases_stripped_from_cli_output():
+    """Model slipped in a banned phrase -> stripper removes it, output ships."""
     response = (
         "You won't believe Antarctica was once a rainforest. Fossil cores "
         "show a Cretaceous swampy climate.\n"
@@ -180,13 +148,10 @@ def test_clickbait_phrases_stripped_from_haiku_output(monkeypatch):
         "\n"
         "#science #Antarctica #climate #fossils #Shorts"
     )
-    fake_client = MagicMock()
-    fake_client.messages.create.return_value = _mock_haiku_text(response)
-    monkeypatch.setattr("anthropic.Anthropic", lambda api_key: fake_client)
+    with patch("src.content.youtube_description.call_claude_cli") as fake_call:
+        fake_call.return_value = _envelope(response)
+        result = build_shorts_description(_REEL_TITLE, _CLAIM, _SOURCES, _TOPIC)
 
-    result = build_shorts_description(
-        _REEL_TITLE, _CLAIM, _SOURCES, _TOPIC, api_key="dummy",
-    )
     lower = result.lower()
     assert "you won't believe" not in lower
     assert "you wont believe" not in lower
@@ -197,9 +162,7 @@ def test_clickbait_phrases_stripped_from_haiku_output(monkeypatch):
 
 def test_deterministic_fallback_has_no_banned_phrases():
     """The deterministic template never contains banned phrases."""
-    result = _deterministic_fallback(
-        _REEL_TITLE, _CLAIM, _SOURCES, _TOPIC,
-    )
+    result = _deterministic_fallback(_REEL_TITLE, _CLAIM, _SOURCES, _TOPIC)
     lower = result.lower()
     assert "you won't believe" not in lower
     assert "you wont believe" not in lower
@@ -260,9 +223,7 @@ def test_deterministic_fallback_handles_empty_sources():
 
 def test_deterministic_fallback_normalises_topic_for_hashtag():
     """Topic with spaces / non-alpha -> safe hashtag."""
-    result = _deterministic_fallback(
-        _REEL_TITLE, _CLAIM, [], "Earth Science!",
-    )
+    result = _deterministic_fallback(_REEL_TITLE, _CLAIM, [], "Earth Science!")
     last_line = result.strip().splitlines()[-1]
     # Topic punctuation stripped.
     assert "Science!" not in last_line

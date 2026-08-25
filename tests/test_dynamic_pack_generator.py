@@ -5,13 +5,15 @@ the LIST_PACKS entry shape, with TMDB-resolved tmdb_id on every
 item. Items that don't resolve on TMDB are dropped. A pack with
 fewer than 4 resolved items is rejected (DynamicPackError).
 
-Anthropic calls are stubbed; TMDB calls are stubbed. Only the
-generator's parsing + resolution + shaping logic is under test.
+The local claude CLI call is stubbed (src.core.claude_cli.call_claude_cli,
+not the Anthropic API); TMDB calls are stubbed. Only the generator's
+parsing + resolution + shaping logic is under test.
 """
 from __future__ import annotations
 
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -126,47 +128,30 @@ def test_resolve_handles_bad_year():
 
 # ----- generate_dynamic_pack (mocked) -------------------------------
 
-def _stub_messages_create(**kwargs):
-    """Returns an Anthropic-shaped response wrapping a JSON payload."""
-    class _Usage:
-        input_tokens = 800
-        output_tokens = 400
+_PAYLOAD_JSON = (
+    '{"title": "Five films about telegrams",'
+    '"subtitle": "before the phone changed everything",'
+    '"category": "FILM LIST",'
+    '"topic": "film",'
+    '"kind": "movie",'
+    '"items": ['
+    '{"expected_title": "Film A", "year": 1965, "hook": "a hook", "accent_word": "a"},'
+    '{"expected_title": "Film B", "year": 1972, "hook": "b hook", "accent_word": "b"},'
+    '{"expected_title": "Film C", "year": 1980, "hook": "c hook", "accent_word": "c"},'
+    '{"expected_title": "Film D", "year": 1995, "hook": "d hook", "accent_word": "d"},'
+    '{"expected_title": "Nonexistent Film", "year": 2050, "hook": "z", "accent_word": ""}'
+    '],'
+    '"closing_headline": "Which one will you watch?",'
+    '"closing_cta": "Comment with your pick.",'
+    '"caption": "Five films from the telegram era."}'
+)
 
-    class _Block:
-        def __init__(self, text):
-            self.text = text
 
-    class _Resp:
-        def __init__(self, text):
-            self.content = [_Block(text)]
-            self.usage = _Usage()
-
-    payload_json = (
-        '{"title": "Five films about telegrams",'
-        '"subtitle": "before the phone changed everything",'
-        '"category": "FILM LIST",'
-        '"topic": "film",'
-        '"kind": "movie",'
-        '"items": ['
-        '{"expected_title": "Film A", "year": 1965, "hook": "a hook", "accent_word": "a"},'
-        '{"expected_title": "Film B", "year": 1972, "hook": "b hook", "accent_word": "b"},'
-        '{"expected_title": "Film C", "year": 1980, "hook": "c hook", "accent_word": "c"},'
-        '{"expected_title": "Film D", "year": 1995, "hook": "d hook", "accent_word": "d"},'
-        '{"expected_title": "Nonexistent Film", "year": 2050, "hook": "z", "accent_word": ""}'
-        '],'
-        '"closing_headline": "Which one will you watch?",'
-        '"closing_cta": "Comment with your pick.",'
-        '"caption": "Five films from the telegram era."}'
-    )
-    return _Resp(payload_json)
+def _envelope(text: str) -> dict:
+    return {"type": "result", "is_error": False, "result": text, "total_cost_usd": 0.01}
 
 
 def test_generate_returns_pack_in_list_packs_shape(monkeypatch):
-    # Stub Anthropic.
-    class _StubClient:
-        def __init__(self, api_key):
-            self.messages = type("M", (), {"create": staticmethod(_stub_messages_create)})()
-    monkeypatch.setattr("anthropic.Anthropic", _StubClient)
     # Stub TMDB - 4 resolve, 1 does not (Nonexistent Film).
     class _T:
         def search_movie(self, title, year=None):
@@ -175,7 +160,10 @@ def test_generate_returns_pack_in_list_packs_shape(monkeypatch):
             return None
     monkeypatch.setattr(gen, "TMDBClient", _T)
 
-    pack = gen.generate_dynamic_pack(api_key="fake")
+    with patch("src.content.dynamic_pack_generator.call_claude_cli") as fake_call:
+        fake_call.return_value = _envelope(_PAYLOAD_JSON)
+        pack = gen.generate_dynamic_pack()
+
     assert pack["title"] == "Five films about telegrams"
     assert pack["category"] == "FILM LIST"
     assert pack["topic"] == "film"
@@ -189,12 +177,24 @@ def test_generate_returns_pack_in_list_packs_shape(monkeypatch):
     assert all(it["kind"] == "movie" for it in pack["items"])
 
 
+def test_calls_cli_with_sonnet(monkeypatch):
+    class _T:
+        def search_movie(self, title, year=None):
+            return {"film a": 1, "film b": 2, "film c": 3, "film d": 4}.get(title.lower())
+        def search_tv(self, title, year=None):
+            return None
+    monkeypatch.setattr(gen, "TMDBClient", _T)
+
+    with patch("src.content.dynamic_pack_generator.call_claude_cli") as fake_call:
+        fake_call.return_value = _envelope(_PAYLOAD_JSON)
+        gen.generate_dynamic_pack()
+
+    _, kwargs = fake_call.call_args
+    assert kwargs["model"] == "sonnet"
+
+
 def test_generate_raises_when_too_few_items_resolve(monkeypatch):
     """If only 2 of 5 items resolve on TMDB, fail the whole pack."""
-    class _StubClient:
-        def __init__(self, api_key):
-            self.messages = type("M", (), {"create": staticmethod(_stub_messages_create)})()
-    monkeypatch.setattr("anthropic.Anthropic", _StubClient)
     class _T:
         def search_movie(self, title, year=None):
             return {"film a": 1, "film b": 2}.get(title.lower())
@@ -202,14 +202,17 @@ def test_generate_raises_when_too_few_items_resolve(monkeypatch):
             return None
     monkeypatch.setattr(gen, "TMDBClient", _T)
 
-    with pytest.raises(gen.DynamicPackError, match="resolved on TMDB"):
-        gen.generate_dynamic_pack(api_key="fake")
+    with patch("src.content.dynamic_pack_generator.call_claude_cli") as fake_call:
+        fake_call.return_value = _envelope(_PAYLOAD_JSON)
+        with pytest.raises(gen.DynamicPackError, match="resolved on TMDB"):
+            gen.generate_dynamic_pack()
 
 
-def test_generate_requires_api_key(monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    with pytest.raises(gen.DynamicPackError, match="ANTHROPIC_API_KEY"):
-        gen.generate_dynamic_pack(api_key="")
+def test_generate_raises_when_cli_unavailable():
+    with patch("src.content.dynamic_pack_generator.call_claude_cli") as fake_call:
+        fake_call.return_value = None
+        with pytest.raises(gen.DynamicPackError, match="claude CLI unavailable"):
+            gen.generate_dynamic_pack()
 
 
 def test_prompt_lists_recent_themes_to_avoid():
